@@ -1,0 +1,12 @@
+[package]
+name = "powerjack"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.31", features = ["bundled", "chrono"] }
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
