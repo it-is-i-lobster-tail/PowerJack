@@ -5,6 +5,8 @@ use crate::{
 };
 use chrono::Utc;
 use rusqlite::{params, Connection};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 
 pub struct Repository {
     conn: Connection,
@@ -12,7 +14,9 @@ pub struct Repository {
 impl Repository {
     pub fn new(conn: Connection) -> RepositoryResult<Self> {
         conn.execute_batch(SCHEMA)?;
+        Self::ensure_seed_support_columns(&conn)?;
         Self::seed_default_muscles(&conn)?;
+        Self::seed_default_exercises_on_conn(&conn)?;
         Ok(Self { conn })
     }
     pub fn connection(&self) -> &Connection {
@@ -21,6 +25,46 @@ impl Repository {
     fn now() -> String {
         Utc::now().to_rfc3339()
     }
+
+    fn ensure_seed_support_columns(conn: &Connection) -> RepositoryResult<()> {
+        for table in [
+            "muscle",
+            "template",
+            "workout_template",
+            "exercise",
+            "lift_template",
+        ] {
+            Self::add_column_if_missing(conn, table, "body_weight", "INTEGER")?;
+            Self::add_column_if_missing(conn, table, "min_reps_hypertrophy", "INTEGER")?;
+            Self::add_column_if_missing(conn, table, "max_reps_hypertrophy", "INTEGER")?;
+        }
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_name_unique ON exercise(name)",
+            [],
+        )?;
+        Ok(())
+    }
+
+    fn add_column_if_missing(
+        conn: &Connection,
+        table: &str,
+        column: &str,
+        definition: &str,
+    ) -> RepositoryResult<()> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let columns = stmt.query_map([], |r| r.get::<_, String>(1))?;
+        for existing in columns {
+            if existing? == column {
+                return Ok(());
+            }
+        }
+        conn.execute(
+            &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+            [],
+        )?;
+        Ok(())
+    }
+
     fn seed_default_muscles(conn: &Connection) -> RepositoryResult<()> {
         let n = Self::now();
         for name in DEFAULT_MUSCLE_NAMES {
@@ -28,6 +72,91 @@ impl Repository {
                 "INSERT OR IGNORE INTO muscle(name,created_at,updated_at) VALUES(?,?,?)",
                 params![name, n, n],
             )?;
+        }
+        Ok(())
+    }
+
+    pub fn seed_default_exercises(&self) -> RepositoryResult<()> {
+        Self::seed_default_exercises_on_conn(&self.conn)
+    }
+
+    fn seed_default_exercises_on_conn(conn: &Connection) -> RepositoryResult<()> {
+        let seeds: Vec<DefaultExerciseSeed> = serde_json::from_str(DEFAULT_EXERCISES_JSON)
+            .map_err(|e| RepositoryError::MappingError(e.to_string()))?;
+        let mut muscles = HashMap::new();
+        {
+            let mut stmt = conn.prepare("SELECT id,name FROM muscle")?;
+            let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(1)?, r.get::<_, i64>(0)?)))?;
+            for row in rows {
+                let (name, id) = row?;
+                muscles.insert(name, id);
+            }
+        }
+        let mut seen: HashSet<String> = HashSet::new();
+        for seed in seeds {
+            if !seen.insert(seed.name.clone()) {
+                return Err(RepositoryError::ValidationError(format!(
+                    "duplicate seeded exercise '{}'",
+                    seed.name
+                )));
+            }
+            if seed.min_reps_hypertrophy <= 0
+                || seed.max_reps_hypertrophy < seed.min_reps_hypertrophy
+            {
+                return Err(RepositoryError::ValidationError(format!(
+                    "invalid rep range for '{}'",
+                    seed.name
+                )));
+            }
+            let primary_id = *muscles.get(seed.primary_muscle.as_str()).ok_or_else(|| {
+                RepositoryError::ValidationError(format!(
+                    "unknown primary muscle '{}' for '{}'",
+                    seed.primary_muscle, seed.name
+                ))
+            })?;
+            let mut secondary_ids = Vec::new();
+            let mut secondary_seen = HashSet::new();
+            for secondary in &seed.secondary_muscles {
+                if secondary == &seed.primary_muscle {
+                    return Err(RepositoryError::ValidationError(format!(
+                        "secondary muscle matches primary for '{}'",
+                        seed.name
+                    )));
+                }
+                if !secondary_seen.insert(secondary.as_str()) {
+                    return Err(RepositoryError::ValidationError(format!(
+                        "duplicate secondary muscle for '{}'",
+                        seed.name
+                    )));
+                }
+                secondary_ids.push(*muscles.get(secondary.as_str()).ok_or_else(|| {
+                    RepositoryError::ValidationError(format!(
+                        "unknown secondary muscle '{}' for '{}'",
+                        secondary, seed.name
+                    ))
+                })?);
+            }
+            let n = Self::now();
+            conn.execute(
+                "INSERT INTO exercise(name,parent_id,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
+                 ON CONFLICT(name) DO UPDATE SET parent_id=excluded.parent_id,body_weight=excluded.body_weight,min_reps_hypertrophy=excluded.min_reps_hypertrophy,max_reps_hypertrophy=excluded.max_reps_hypertrophy,updated_at=excluded.updated_at",
+                params![seed.name, primary_id, seed.body_weight as i64, seed.min_reps_hypertrophy, seed.max_reps_hypertrophy, n, n],
+            )?;
+            let exercise_id: i64 = conn.query_row(
+                "SELECT id FROM exercise WHERE name=?",
+                [seed.name.as_str()],
+                |r| r.get(0),
+            )?;
+            conn.execute(
+                "DELETE FROM exercise_secondary_muscle WHERE exercise_id=?",
+                [exercise_id],
+            )?;
+            for secondary_id in secondary_ids {
+                conn.execute(
+                    "INSERT INTO exercise_secondary_muscle(exercise_id,muscle_id) VALUES(?,?)",
+                    params![exercise_id, secondary_id],
+                )?;
+            }
         }
         Ok(())
     }
@@ -130,8 +259,12 @@ impl Repository {
         self.delete("workout_template", id.0)
     }
     pub fn create_exercise(&self, name: &str, primary: MuscleId) -> RepositoryResult<Exercise> {
-        self.create_named("exercise", name, None, Some(primary.0), None, None)?
-            .try_into()
+        let n = Self::now();
+        self.conn.execute(
+            "INSERT INTO exercise(name,parent_id,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+            params![name, primary.0, 0, 0, 0, n, n],
+        )?;
+        self.get_exercise_by_id(ExerciseId(self.conn.last_insert_rowid()))
     }
     pub fn get_exercise_by_id(&self, id: ExerciseId) -> RepositoryResult<Exercise> {
         self.get_timed("exercise", id.0)?.try_into()
@@ -142,16 +275,52 @@ impl Repository {
             .map(TryInto::try_into)
             .collect()
     }
+    pub fn list_exercises_by_primary_muscle(
+        &self,
+        muscle_id: MuscleId,
+    ) -> RepositoryResult<Vec<Exercise>> {
+        self.query_exercises(
+            "WHERE parent_id=? ORDER BY name",
+            &[&muscle_id.0 as &dyn rusqlite::ToSql],
+        )
+    }
+    pub fn list_exercises_by_muscle(
+        &self,
+        muscle_id: MuscleId,
+        include_secondary: bool,
+    ) -> RepositoryResult<Vec<Exercise>> {
+        if include_secondary {
+            self.query_exercises(
+                "WHERE parent_id=? OR id IN (SELECT exercise_id FROM exercise_secondary_muscle WHERE muscle_id=?) ORDER BY name",
+                &[&muscle_id.0, &muscle_id.0],
+            )
+        } else {
+            self.list_exercises_by_primary_muscle(muscle_id)
+        }
+    }
+    pub fn list_body_weight_exercises(&self) -> RepositoryResult<Vec<Exercise>> {
+        self.query_exercises("WHERE body_weight=1 ORDER BY name", &[])
+    }
+    pub fn search_exercises_by_name(&self, query: &str) -> RepositoryResult<Vec<Exercise>> {
+        let pattern = format!("%{}%", query);
+        self.query_exercises(
+            "WHERE name LIKE ? ORDER BY name",
+            &[&pattern as &dyn rusqlite::ToSql],
+        )
+    }
+    fn query_exercises(
+        &self,
+        clause: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> RepositoryResult<Vec<Exercise>> {
+        let sql = format!("SELECT id,name,status,parent_id,secondary_id,position,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at FROM exercise {clause}");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params, row_timed)?;
+        rows.map(|r| r.map_err(Into::into).and_then(TryInto::try_into))
+            .collect()
+    }
     pub fn update_exercise(&self, e: &Exercise) -> RepositoryResult<Exercise> {
-        self.update_named(
-            "exercise",
-            e.id.0,
-            &e.name,
-            None,
-            Some(e.primary_muscle_id.0),
-            None,
-            None,
-        )?;
+        self.conn.execute("UPDATE exercise SET name=?,parent_id=?,body_weight=?,min_reps_hypertrophy=?,max_reps_hypertrophy=?,updated_at=? WHERE id=?", params![e.name,e.primary_muscle_id.0,e.body_weight as i64,e.min_reps_hypertrophy,e.max_reps_hypertrophy,Self::now(),e.id.0])?;
         self.get_exercise_by_id(e.id)
     }
     pub fn delete_exercise(&self, id: ExerciseId) -> RepositoryResult<()> {
@@ -529,13 +698,13 @@ impl Repository {
         self.get_timed(table, self.conn.last_insert_rowid())
     }
     fn get_timed(&self, table: &str, id: i64) -> RepositoryResult<TimedRow> {
-        self.conn.query_row(&format!("SELECT id,name,status,parent_id,secondary_id,position,created_at,updated_at FROM {table} WHERE id=?"),[id],row_timed)?.pipe(Ok)
+        self.conn.query_row(&format!("SELECT id,name,status,parent_id,secondary_id,position,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at FROM {table} WHERE id=?"),[id],row_timed)?.pipe(Ok)
     }
     fn list_timed(&self, table: &str, parent: Option<i64>) -> RepositoryResult<Vec<TimedRow>> {
         let sql = if parent.is_some() {
-            format!("SELECT id,name,status,parent_id,secondary_id,position,created_at,updated_at FROM {table} WHERE parent_id=? ORDER BY id")
+            format!("SELECT id,name,status,parent_id,secondary_id,position,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at FROM {table} WHERE parent_id=? ORDER BY id")
         } else {
-            format!("SELECT id,name,status,parent_id,secondary_id,position,created_at,updated_at FROM {table} ORDER BY id")
+            format!("SELECT id,name,status,parent_id,secondary_id,position,body_weight,min_reps_hypertrophy,max_reps_hypertrophy,created_at,updated_at FROM {table} ORDER BY id")
         };
         let mut s = self.conn.prepare(&sql)?;
         let rows = if let Some(p) = parent {
@@ -584,8 +753,11 @@ fn row_timed(r: &rusqlite::Row) -> rusqlite::Result<TimedRow> {
         parent_id: r.get(3)?,
         secondary_id: r.get(4)?,
         position: r.get(5)?,
-        created_at: r.get(6)?,
-        updated_at: r.get(7)?,
+        body_weight: r.get(6)?,
+        min_reps_hypertrophy: r.get(7)?,
+        max_reps_hypertrophy: r.get(8)?,
+        created_at: r.get(9)?,
+        updated_at: r.get(10)?,
     })
 }
 fn row_workout(r: &rusqlite::Row) -> rusqlite::Result<WorkoutRow> {
@@ -634,25 +806,37 @@ fn row_feedback(r: &rusqlite::Row) -> rusqlite::Result<FeedbackRow> {
 }
 pub const DEFAULT_MUSCLE_NAMES: &[&str] = &[
     "Chest",
-    "Back",
     "Shoulders",
     "Biceps",
     "Triceps",
-    "Forearms",
-    "Abs",
+    "Back",
+    "Core",
     "Glutes",
-    "Quadriceps",
     "Hamstrings",
+    "Quads",
     "Calves",
+    "Wrists",
 ];
+
+const DEFAULT_EXERCISES_JSON: &str = include_str!("../seeds/default_exercises.json");
+
+#[derive(Debug, Deserialize)]
+struct DefaultExerciseSeed {
+    name: String,
+    primary_muscle: String,
+    secondary_muscles: Vec<String>,
+    body_weight: bool,
+    min_reps_hypertrophy: i64,
+    max_reps_hypertrophy: i64,
+}
 
 const SCHEMA: &str = r#"
 PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS muscle(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, status TEXT, parent_id INTEGER, secondary_id INTEGER, position INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS template(id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, parent_id INTEGER, secondary_id INTEGER, position INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS workout_template(id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT, parent_id INTEGER NOT NULL REFERENCES template(id) ON DELETE CASCADE, secondary_id INTEGER, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS exercise(id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT, parent_id INTEGER NOT NULL REFERENCES muscle(id), secondary_id INTEGER, position INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS lift_template(id INTEGER PRIMARY KEY, name TEXT, status TEXT, parent_id INTEGER NOT NULL REFERENCES workout_template(id) ON DELETE CASCADE, secondary_id INTEGER NOT NULL REFERENCES exercise(id), position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS muscle(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, status TEXT, parent_id INTEGER, secondary_id INTEGER, position INTEGER, body_weight INTEGER, min_reps_hypertrophy INTEGER, max_reps_hypertrophy INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS template(id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, parent_id INTEGER, secondary_id INTEGER, position INTEGER, body_weight INTEGER, min_reps_hypertrophy INTEGER, max_reps_hypertrophy INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workout_template(id INTEGER PRIMARY KEY, name TEXT NOT NULL, status TEXT, parent_id INTEGER NOT NULL REFERENCES template(id) ON DELETE CASCADE, secondary_id INTEGER, position INTEGER NOT NULL DEFAULT 0, body_weight INTEGER, min_reps_hypertrophy INTEGER, max_reps_hypertrophy INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS exercise(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, status TEXT, parent_id INTEGER NOT NULL REFERENCES muscle(id), secondary_id INTEGER, position INTEGER, body_weight INTEGER NOT NULL DEFAULT 0, min_reps_hypertrophy INTEGER NOT NULL DEFAULT 0, max_reps_hypertrophy INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS lift_template(id INTEGER PRIMARY KEY, name TEXT, status TEXT, parent_id INTEGER NOT NULL REFERENCES workout_template(id) ON DELETE CASCADE, secondary_id INTEGER NOT NULL REFERENCES exercise(id), position INTEGER NOT NULL DEFAULT 0, body_weight INTEGER, min_reps_hypertrophy INTEGER, max_reps_hypertrophy INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS program(id INTEGER PRIMARY KEY, name TEXT NOT NULL, program_length_weeks INTEGER NOT NULL, status TEXT NOT NULL, locked INTEGER NOT NULL DEFAULT 0, template_id INTEGER REFERENCES template(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS workout(id INTEGER PRIMARY KEY, program_id INTEGER NOT NULL REFERENCES program(id) ON DELETE CASCADE, name TEXT NOT NULL, status TEXT NOT NULL, scheduled_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS lift(id INTEGER PRIMARY KEY, workout_id INTEGER NOT NULL REFERENCES workout(id) ON DELETE CASCADE, exercise_id INTEGER NOT NULL REFERENCES exercise(id), status TEXT NOT NULL, position INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -711,6 +895,82 @@ mod tests {
             custom_id
         );
     }
+
+    #[test]
+    fn seeds_default_exercise_catalog_and_filters_it() {
+        let r = repo();
+        let exercises = r.list_exercises().unwrap();
+        assert!((200..=400).contains(&exercises.len()));
+
+        let mut names = HashSet::new();
+        for exercise in &exercises {
+            assert!(names.insert(exercise.name.clone()));
+            assert!(exercise.primary_muscle_id.0 > 0);
+            assert!(exercise.min_reps_hypertrophy > 0);
+            assert!(exercise.max_reps_hypertrophy >= exercise.min_reps_hypertrophy);
+        }
+        for excluded in ["Plank", "Wall Sit", "Farmer's Carry"] {
+            assert!(!names.contains(excluded));
+        }
+
+        let muscles = r.list_muscles().unwrap();
+        let muscle_by_name: HashMap<_, _> =
+            muscles.iter().map(|m| (m.name.as_str(), m.id)).collect();
+        let chest = muscle_by_name["Chest"];
+        let core = muscle_by_name["Core"];
+        let back = muscle_by_name["Back"];
+        let quads = muscle_by_name["Quads"];
+
+        let push_up = exercises.iter().find(|e| e.name == "Push-Up").unwrap();
+        assert!(push_up.body_weight);
+        let lat_pulldown = exercises.iter().find(|e| e.name == "Lat Pulldown").unwrap();
+        assert!(!lat_pulldown.body_weight);
+        let squat = exercises
+            .iter()
+            .find(|e| e.name == "Barbell Back Squat")
+            .unwrap();
+        let leg_press = exercises.iter().find(|e| e.name == "Leg Press").unwrap();
+        assert!(squat.max_reps_hypertrophy < leg_press.max_reps_hypertrophy);
+
+        assert!(r
+            .list_exercises_by_primary_muscle(chest)
+            .unwrap()
+            .iter()
+            .all(|e| e.primary_muscle_id == chest));
+        assert!(r
+            .list_exercises_by_muscle(core, true)
+            .unwrap()
+            .iter()
+            .any(|e| e.name == "Push-Up"));
+        assert!(r
+            .list_body_weight_exercises()
+            .unwrap()
+            .iter()
+            .any(|e| e.name == "Pull-Up"));
+        assert!(r
+            .search_exercises_by_name("deadlift")
+            .unwrap()
+            .iter()
+            .any(|e| e.primary_muscle_id == back || e.primary_muscle_id == quads));
+    }
+
+    #[test]
+    fn default_exercise_seed_is_idempotent_and_refreshes_secondaries() {
+        let r = repo();
+        let before = r.list_exercises().unwrap().len();
+        let push_up = r
+            .list_exercises()
+            .unwrap()
+            .into_iter()
+            .find(|e| e.name == "Push-Up")
+            .unwrap();
+        r.replace_secondary_muscles(push_up.id, &[]).unwrap();
+
+        r.seed_default_exercises().unwrap();
+        assert_eq!(r.list_exercises().unwrap().len(), before);
+        assert!(!r.list_secondary_muscles(push_up.id).unwrap().is_empty());
+    }
+
     #[test]
     fn crud_and_child_lists() {
         let r = repo();
