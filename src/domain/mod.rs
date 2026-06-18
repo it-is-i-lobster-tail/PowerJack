@@ -50,6 +50,7 @@ id!(LiftId);
 id!(SetId);
 id!(FeedbackId);
 id!(AppStateId);
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Muscle {
     pub id: MuscleId,
@@ -61,7 +62,7 @@ pub struct Muscle {
 pub struct Template {
     pub id: TemplateId,
     pub name: String,
-    pub status: Status,
+    pub workouts_per_week: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -74,8 +75,7 @@ pub struct TemplateFocusMuscle {
 pub struct WorkoutTemplate {
     pub id: WorkoutTemplateId,
     pub template_id: TemplateId,
-    pub name: String,
-    pub position: i64,
+    pub order: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -84,7 +84,7 @@ pub struct LiftTemplate {
     pub id: LiftTemplateId,
     pub workout_template_id: WorkoutTemplateId,
     pub exercise_id: ExerciseId,
-    pub position: i64,
+    pub order: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -93,6 +93,9 @@ pub struct Exercise {
     pub id: ExerciseId,
     pub name: String,
     pub primary_muscle_id: MuscleId,
+    pub body_weight: bool,
+    pub min_reps_hypertrophy: Option<i64>,
+    pub max_reps_hypertrophy: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -115,40 +118,51 @@ pub struct Program {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Workout {
     pub id: WorkoutId,
-    pub program_id: ProgramId,
-    pub name: String,
+    pub order: i64,
+    pub workout_day: i64,
+    pub program_week: i64,
+    pub hidden: bool,
+    pub locked: bool,
     pub status: Status,
-    pub scheduled_at: Option<DateTime<Utc>>,
+    pub program_id: ProgramId,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lift {
     pub id: LiftId,
-    pub workout_id: WorkoutId,
     pub exercise_id: ExerciseId,
+    pub workout_id: WorkoutId,
+    pub locked: bool,
+    pub hidden: bool,
+    pub order: i64,
     pub status: Status,
-    pub position: i64,
+    pub planned: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Set {
     pub id: SetId,
+    pub planned_reps: Option<i64>,
+    pub actual_reps: Option<i64>,
+    pub planned_weight: Option<i64>,
+    pub actual_weight: Option<i64>,
+    pub order: i64,
     pub lift_id: LiftId,
-    pub position: i64,
-    pub reps: i64,
-    pub weight_lb: f64,
-    pub completed: bool,
+    pub locked: bool,
+    pub hidden: bool,
+    pub status: Status,
+    pub planned: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Feedback {
     pub id: FeedbackId,
+    pub level_of_pain: Option<i64>,
+    pub level_of_effort: Option<i64>,
     pub lift_id: LiftId,
-    pub note: String,
-    pub rating: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -158,7 +172,8 @@ pub struct AppState {
     pub active_program_id: Option<ProgramId>,
     pub active_workout_id: Option<WorkoutId>,
     pub active_lift_id: Option<LiftId>,
-    pub user_body_weight_lb: Option<f64>,
+    pub user_body_weight_lb: Option<i64>,
+    pub user_body_weight_updated_last: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
