@@ -93,6 +93,9 @@ pub struct Exercise {
     pub id: ExerciseId,
     pub name: String,
     pub primary_muscle_id: MuscleId,
+    pub body_weight: bool,
+    pub min_reps_hypertrophy: i64,
+    pub max_reps_hypertrophy: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -79,6 +79,9 @@ impl TryFrom<TimedRow> for Exercise {
             primary_muscle_id: MuscleId(r.parent_id.ok_or_else(|| {
                 RepositoryError::MappingError("missing primary_muscle_id".into())
             })?),
+            body_weight: r.body_weight.unwrap_or_default() != 0,
+            min_reps_hypertrophy: r.min_reps_hypertrophy.unwrap_or(0),
+            max_reps_hypertrophy: r.max_reps_hypertrophy.unwrap_or(0),
             created_at: dt(&r.created_at)?,
             updated_at: dt(&r.updated_at)?,
         })
