@@ -444,6 +444,32 @@ impl Repository {
         query(&self.conn,"SELECT id,planned_reps,actual_reps,planned_weight,actual_weight,\"order\",lift_id,locked,hidden,status,planned,created_at,updated_at FROM \"set\" WHERE lift_id=? ORDER BY \"order\"",[id.0],row_set)
     }
 
+    pub fn autosave_completed_set(
+        &self,
+        set_id: SetId,
+        actual_reps: i64,
+        actual_weight: i64,
+    ) -> RepositoryResult<Set> {
+        validate_positive_set_value("actual_reps", actual_reps)?;
+        validate_positive_set_value("actual_weight", actual_weight)?;
+
+        let updated_at = Self::now();
+        let rows_updated = self.conn.execute(
+            "UPDATE \"set\" SET actual_reps=?,actual_weight=?,status=?,updated_at=? WHERE id=?",
+            params![
+                actual_reps,
+                actual_weight,
+                Status::Complete.as_str(),
+                updated_at,
+                set_id.0
+            ],
+        )?;
+        if rows_updated == 0 {
+            return Err(RepositoryError::NotFound);
+        }
+        self.get_set_by_id(set_id)
+    }
+
     pub fn create_feedback(
         &self,
         lift_id: LiftId,
@@ -497,6 +523,15 @@ impl Repository {
         self.conn.execute("UPDATE app_state SET user_body_weight_lb=?,user_body_weight_updated_last=?,updated_at=? WHERE id=1",params![weight,weight.map(|_|Self::now()),Self::now()])?;
         self.get_app_state()
     }
+}
+
+fn validate_positive_set_value(name: &str, value: i64) -> RepositoryResult<()> {
+    if value <= 0 {
+        return Err(RepositoryError::ValidationError(format!(
+            "{name} must be a positive integer"
+        )));
+    }
+    Ok(())
 }
 
 fn dt(s: String) -> rusqlite::Result<DateTime<Utc>> {
@@ -707,6 +742,86 @@ mod tests {
     fn repo() -> Repository {
         Repository::new(Connection::open_in_memory().unwrap()).unwrap()
     }
+    fn set_repo() -> (Repository, Set) {
+        let r = repo();
+        let chest = r
+            .list_muscles()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.name == "Chest")
+            .unwrap();
+        let exercise = r
+            .create_exercise("Autosave Bench", chest.id, false, Some(6), Some(12))
+            .unwrap();
+        let program = r.create_program("Autosave Program", 1, None).unwrap();
+        let workout = r.create_workout(program.id, 1, 1, 1).unwrap();
+        let lift = r.create_lift(workout.id, exercise.id, 1).unwrap();
+        let set = r.create_set(lift.id, 1, Some(5), Some(225)).unwrap();
+        (r, set)
+    }
+
+    #[test]
+    fn validates_positive_integer_logging_input() {
+        assert_eq!(parse_positive_integer_input("1").unwrap(), 1);
+        assert_eq!(parse_positive_integer_input("225").unwrap(), 225);
+
+        for invalid in ["", "0", "-1", "12.5", "abc", "12a", " 12"] {
+            assert!(parse_positive_integer_input(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn autosaves_completed_set_values_to_sqlite() {
+        let (r, set) = set_repo();
+
+        let saved = r.autosave_completed_set(set.id, 8, 225).unwrap();
+        let persisted = r.get_set_by_id(set.id).unwrap();
+
+        assert_eq!(saved.actual_reps, Some(8));
+        assert_eq!(saved.actual_weight, Some(225));
+        assert_eq!(saved.status, Status::Complete);
+        assert_eq!(persisted.actual_reps, Some(8));
+        assert_eq!(persisted.actual_weight, Some(225));
+        assert_eq!(persisted.status, Status::Complete);
+        assert!(persisted.updated_at >= set.updated_at);
+    }
+
+    #[test]
+    fn autosave_rejects_incomplete_or_invalid_values_without_completing_set() {
+        let (r, set) = set_repo();
+
+        assert!(matches!(
+            r.autosave_completed_set(set.id, 0, 225),
+            Err(RepositoryError::ValidationError(_))
+        ));
+        assert!(matches!(
+            r.autosave_completed_set(set.id, 8, -225),
+            Err(RepositoryError::ValidationError(_))
+        ));
+
+        let persisted = r.get_set_by_id(set.id).unwrap();
+        assert_eq!(persisted.actual_reps, None);
+        assert_eq!(persisted.actual_weight, None);
+        assert_eq!(persisted.status, Status::Planned);
+    }
+
+    #[test]
+    fn autosave_updates_completed_set_values() {
+        let (r, set) = set_repo();
+
+        r.autosave_completed_set(set.id, 8, 225).unwrap();
+        let updated = r.autosave_completed_set(set.id, 10, 235).unwrap();
+
+        assert_eq!(updated.actual_reps, Some(10));
+        assert_eq!(updated.actual_weight, Some(235));
+        assert_eq!(updated.status, Status::Complete);
+
+        let persisted = r.get_set_by_id(set.id).unwrap();
+        assert_eq!(persisted.actual_reps, Some(10));
+        assert_eq!(persisted.actual_weight, Some(235));
+        assert_eq!(persisted.status, Status::Complete);
+    }
+
     #[test]
     fn seeds_default_muscles_on_init() {
         let r = repo();

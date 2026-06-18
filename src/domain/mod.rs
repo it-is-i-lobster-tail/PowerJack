@@ -33,6 +33,23 @@ impl FromStr for Status {
         }
     }
 }
+
+pub fn parse_positive_integer_input(input: &str) -> Result<i64, String> {
+    if input.is_empty() {
+        return Err("value is required".into());
+    }
+    if !input.chars().all(|c| c.is_ascii_digit()) {
+        return Err("value must be a whole number".into());
+    }
+    let value = input
+        .parse::<i64>()
+        .map_err(|_| "value is outside the supported range".to_string())?;
+    if value <= 0 {
+        return Err("value must be greater than zero".into());
+    }
+    Ok(value)
+}
+
 macro_rules! id {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
