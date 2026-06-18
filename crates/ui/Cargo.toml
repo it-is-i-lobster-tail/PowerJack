@@ -1,0 +1,13 @@
+[package]
+name = "powerjack-ui"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+server-storage = ["powerjack-storage/sqlite"]
+
+[dependencies]
+dioxus.workspace = true
+powerjack-core.workspace = true
+powerjack-storage = { workspace = true, default-features = false }

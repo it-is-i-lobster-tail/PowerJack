@@ -1,0 +1,7 @@
+[package]
+name = "powerjack-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chrono.workspace = true

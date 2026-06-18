@@ -9,7 +9,10 @@ pub enum RepositoryError {
     DatabaseError(String),
     #[error("mapping error: {0}")]
     MappingError(String),
+    #[error("storage unavailable: {0}")]
+    StorageUnavailable(String),
 }
+#[cfg(feature = "sqlite")]
 impl From<rusqlite::Error> for RepositoryError {
     fn from(e: rusqlite::Error) -> Self {
         match e {

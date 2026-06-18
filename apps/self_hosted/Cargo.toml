@@ -1,0 +1,8 @@
+[package]
+name = "powerjack-self-hosted"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["fullstack", "server"] }
+powerjack-ui = { workspace = true, features = ["server-storage"] }

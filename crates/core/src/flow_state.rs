@@ -80,14 +80,65 @@ impl SelectedExercise {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTemplate {
+    pub id: i64,
+    pub name: String,
+    pub workouts_per_week: i64,
+}
+
+impl SelectedTemplate {
+    pub fn new(id: i64, name: impl Into<String>, workouts_per_week: i64) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            workouts_per_week,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TemplateFlowState {
+    pub selected_template: Option<SelectedTemplate>,
+    pub program_length_weeks: Option<u8>,
     pub focus_muscles: Vec<FocusMuscle>,
     pub days_per_week: Option<u8>,
     pub exercises_by_day: BTreeMap<u8, Vec<SelectedExercise>>,
 }
 
 impl TemplateFlowState {
+    pub fn select_template(&mut self, template: SelectedTemplate) {
+        if self
+            .selected_template
+            .as_ref()
+            .is_some_and(|selected| selected.id == template.id)
+        {
+            self.selected_template = None;
+            self.program_length_weeks = None;
+        } else {
+            self.selected_template = Some(template);
+            self.program_length_weeks = None;
+        }
+    }
+
+    pub fn template_is_selected(&self, id: i64) -> bool {
+        self.selected_template
+            .as_ref()
+            .is_some_and(|template| template.id == id)
+    }
+
+    pub fn can_continue_from_template_selection(&self) -> bool {
+        self.selected_template.is_some()
+    }
+
+    pub fn set_program_length_weeks(&mut self, weeks: u8) {
+        self.program_length_weeks = Some(weeks);
+    }
+
+    pub fn can_start_selected_template_program(&self) -> bool {
+        self.selected_template.is_some() && self.program_length_weeks.is_some()
+    }
+
     pub fn toggle_focus_muscle(&mut self, muscle: FocusMuscle) {
         if let Some(index) = self
             .focus_muscles
@@ -256,5 +307,28 @@ mod tests {
         assert!(state.focus_is_selected(1));
         assert_eq!(state.days_per_week, Some(3));
         assert!(state.exercise_is_selected(1, 3));
+    }
+
+    #[test]
+    fn selected_template_controls_program_setup() {
+        let mut state = TemplateFlowState::default();
+
+        assert!(!state.can_continue_from_template_selection());
+        assert!(!state.can_start_selected_template_program());
+
+        state.select_template(SelectedTemplate::new(7, "Base", 3));
+
+        assert!(state.template_is_selected(7));
+        assert!(state.can_continue_from_template_selection());
+        assert!(!state.can_start_selected_template_program());
+
+        state.set_program_length_weeks(8);
+
+        assert!(state.can_start_selected_template_program());
+
+        state.select_template(SelectedTemplate::new(7, "Base", 3));
+
+        assert!(!state.template_is_selected(7));
+        assert_eq!(state.program_length_weeks, None);
     }
 }

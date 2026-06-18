@@ -1,0 +1,8 @@
+[package]
+name = "powerjack-web"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["web"] }
+powerjack-ui = { workspace = true, default-features = false }

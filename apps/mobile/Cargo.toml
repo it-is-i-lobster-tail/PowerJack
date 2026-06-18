@@ -1,0 +1,8 @@
+[package]
+name = "powerjack-mobile"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["mobile"] }
+powerjack-ui = { workspace = true, features = ["server-storage"] }

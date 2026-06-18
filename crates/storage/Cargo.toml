@@ -1,0 +1,19 @@
+[package]
+name = "powerjack-storage"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["sqlite"]
+sqlite = ["dep:rusqlite"]
+
+[dependencies]
+chrono.workspace = true
+powerjack-core.workspace = true
+rusqlite = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

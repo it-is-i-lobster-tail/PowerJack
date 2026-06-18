@@ -1,8 +1,9 @@
 mod app;
-pub mod flow_state;
 mod storage;
 mod styles;
 
+pub use app::App;
+
 pub fn launch() {
-    dioxus::launch(app::App);
+    dioxus::launch(App);
 }
