@@ -6,6 +6,9 @@ pub struct TimedRow {
     pub parent_id: Option<i64>,
     pub secondary_id: Option<i64>,
     pub position: Option<i64>,
+    pub body_weight: Option<i64>,
+    pub min_reps_hypertrophy: Option<i64>,
+    pub max_reps_hypertrophy: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
