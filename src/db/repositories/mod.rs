@@ -6,6 +6,20 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::str::FromStr;
 
+pub const DEFAULT_MUSCLE_NAMES: &[&str] = &[
+    "Chest",
+    "Back",
+    "Shoulders",
+    "Biceps",
+    "Triceps",
+    "Forearms",
+    "Abs",
+    "Glutes",
+    "Quadriceps",
+    "Hamstrings",
+    "Calves",
+];
+
 pub struct Repository {
     conn: Connection,
 }
@@ -14,6 +28,7 @@ impl Repository {
     pub fn new(conn: Connection) -> RepositoryResult<Self> {
         conn.execute_batch(SCHEMA)?;
         let repo = Self { conn };
+        repo.seed_default_muscles()?;
         repo.initialize_app_state_if_missing()?;
         Ok(repo)
     }
@@ -22,6 +37,17 @@ impl Repository {
     }
     fn now() -> String {
         Utc::now().to_rfc3339()
+    }
+
+    fn seed_default_muscles(&self) -> RepositoryResult<()> {
+        let n = Self::now();
+        for name in DEFAULT_MUSCLE_NAMES {
+            self.conn.execute(
+                "INSERT OR IGNORE INTO muscle(name,created_at,updated_at) VALUES(?,?,?)",
+                params![name, n, n],
+            )?;
+        }
+        Ok(())
     }
 
     pub fn create_muscle(&self, name: &str) -> RepositoryResult<Muscle> {
@@ -514,10 +540,59 @@ mod tests {
     fn repo() -> Repository {
         Repository::new(Connection::open_in_memory().unwrap()).unwrap()
     }
+
+    #[test]
+    fn seeds_default_muscles() {
+        let r = repo();
+        let names: Vec<_> = r
+            .list_muscles()
+            .unwrap()
+            .into_iter()
+            .map(|muscle| muscle.name)
+            .collect();
+
+        assert_eq!(names, DEFAULT_MUSCLE_NAMES);
+    }
+
+    #[test]
+    fn default_muscle_seed_is_idempotent() {
+        let conn = Connection::open_in_memory().unwrap();
+        let r = Repository::new(conn).unwrap();
+        let before = r.list_muscles().unwrap().len();
+
+        let r = Repository::new(r.conn).unwrap();
+        let after = r.list_muscles().unwrap().len();
+
+        assert_eq!(before, DEFAULT_MUSCLE_NAMES.len());
+        assert_eq!(after, DEFAULT_MUSCLE_NAMES.len());
+    }
+
+    #[test]
+    fn default_muscle_seed_preserves_custom_muscles() {
+        let r = repo();
+        r.create_muscle("Neck").unwrap();
+
+        let r = Repository::new(r.conn).unwrap();
+        let names: Vec<_> = r
+            .list_muscles()
+            .unwrap()
+            .into_iter()
+            .map(|muscle| muscle.name)
+            .collect();
+
+        assert_eq!(names.len(), DEFAULT_MUSCLE_NAMES.len() + 1);
+        assert!(names.contains(&"Neck".to_string()));
+    }
+
     #[test]
     fn defaults_and_crud() {
         let r = repo();
-        let m = r.create_muscle("Chest").unwrap();
+        let m = r
+            .list_muscles()
+            .unwrap()
+            .into_iter()
+            .find(|muscle| muscle.name == "Chest")
+            .unwrap();
         let t = r.create_template("Base", 3).unwrap();
         r.add_focus_muscle(t.id, m.id).unwrap();
         let wt = r.create_workout_template(t.id, 1).unwrap();
@@ -546,7 +621,7 @@ mod tests {
         let r = repo();
         let t = r.create_template("T", 2).unwrap();
         let ms: Vec<_> = (0..5)
-            .map(|i| r.create_muscle(&format!("m{i}")).unwrap())
+            .map(|i| r.create_muscle(&format!("test muscle {i}")).unwrap())
             .collect();
         for m in ms.iter().take(4) {
             r.add_focus_muscle(t.id, m.id).unwrap();
