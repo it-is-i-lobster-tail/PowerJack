@@ -12,6 +12,7 @@ pub struct Repository {
 impl Repository {
     pub fn new(conn: Connection) -> RepositoryResult<Self> {
         conn.execute_batch(SCHEMA)?;
+        Self::seed_default_muscles(&conn)?;
         Ok(Self { conn })
     }
     pub fn connection(&self) -> &Connection {
@@ -20,6 +21,17 @@ impl Repository {
     fn now() -> String {
         Utc::now().to_rfc3339()
     }
+    fn seed_default_muscles(conn: &Connection) -> RepositoryResult<()> {
+        let n = Self::now();
+        for name in DEFAULT_MUSCLE_NAMES {
+            conn.execute(
+                "INSERT OR IGNORE INTO muscle(name,created_at,updated_at) VALUES(?,?,?)",
+                params![name, n, n],
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn create_muscle(&self, name: &str) -> RepositoryResult<Muscle> {
         self.create_named("muscle", name, None, None, None, None)?
             .try_into()
@@ -620,6 +632,20 @@ fn row_feedback(r: &rusqlite::Row) -> rusqlite::Result<FeedbackRow> {
         updated_at: r.get(5)?,
     })
 }
+pub const DEFAULT_MUSCLE_NAMES: &[&str] = &[
+    "Chest",
+    "Back",
+    "Shoulders",
+    "Biceps",
+    "Triceps",
+    "Forearms",
+    "Abs",
+    "Glutes",
+    "Quadriceps",
+    "Hamstrings",
+    "Calves",
+];
+
 const SCHEMA: &str = r#"
 PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS muscle(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, status TEXT, parent_id INTEGER, secondary_id INTEGER, position INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -643,11 +669,53 @@ mod tests {
     fn repo() -> Repository {
         Repository::new(Connection::open_in_memory().unwrap()).unwrap()
     }
+
+    #[test]
+    fn seeds_default_muscles_on_init() {
+        let r = repo();
+        let muscles = r.list_muscles().unwrap();
+        let names: Vec<_> = muscles.iter().map(|m| m.name.as_str()).collect();
+
+        assert_eq!(names, DEFAULT_MUSCLE_NAMES);
+        assert!(muscles.iter().all(|m| m.created_at == m.updated_at));
+    }
+
+    #[test]
+    fn default_muscle_seed_is_idempotent_and_preserves_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        let r = Repository::new(conn).unwrap();
+        let chest = r
+            .list_muscles()
+            .unwrap()
+            .into_iter()
+            .find(|m| m.name == "Chest")
+            .unwrap();
+        let custom = r.create_muscle("Neck").unwrap();
+        let chest_created_at = chest.created_at;
+        let custom_id = custom.id;
+
+        let r = Repository::new(r.conn).unwrap();
+        let muscles = r.list_muscles().unwrap();
+
+        assert_eq!(muscles.iter().filter(|m| m.name == "Chest").count(), 1);
+        assert_eq!(
+            muscles
+                .iter()
+                .find(|m| m.name == "Chest")
+                .unwrap()
+                .created_at,
+            chest_created_at
+        );
+        assert_eq!(
+            muscles.iter().find(|m| m.name == "Neck").unwrap().id,
+            custom_id
+        );
+    }
     #[test]
     fn crud_and_child_lists() {
         let r = repo();
-        let m = r.create_muscle("Chest").unwrap();
-        let m2 = r.create_muscle("Triceps").unwrap();
+        let m = r.create_muscle("Serratus").unwrap();
+        let m2 = r.create_muscle("Teres Major").unwrap();
         let t = r.create_template("Base", Status::Planned).unwrap();
         r.add_focus_muscle(t.id, m.id).unwrap();
         assert_eq!(r.list_focus_muscles(t.id).unwrap().len(), 1);
