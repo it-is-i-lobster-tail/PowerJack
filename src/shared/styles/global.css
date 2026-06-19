@@ -1,0 +1,38 @@
+.app-screen {
+  min-height: calc(100dvh - var(--app-top-bar-height));
+  padding: var(--space-4) var(--space-4)
+    max(var(--space-6), env(safe-area-inset-bottom));
+}
+
+.app-screen--centered {
+  display: grid;
+  place-items: center;
+}
+
+.app-flow {
+  width: min(100%, var(--content-max-width));
+  margin: 0 auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
