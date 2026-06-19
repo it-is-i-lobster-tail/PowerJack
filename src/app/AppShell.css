@@ -1,0 +1,147 @@
+.app-shell {
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+.app-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-height: var(--app-top-bar-height);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding:
+    max(var(--space-3), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    var(--space-3) max(var(--space-4), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--color-border-soft);
+  background: rgba(15, 18, 20, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.app-top-bar__left {
+  width: 1px;
+  height: 1px;
+}
+
+.app-top-bar__center {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.app-top-bar__actions {
+  grid-column: 3;
+  justify-self: end;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-icon-button {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-normal) ease,
+    background-color var(--motion-normal) ease,
+    color var(--motion-normal) ease,
+    transform var(--motion-fast) ease;
+}
+
+.app-icon-button:hover,
+.app-icon-button--active {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.app-icon-button--active {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.app-icon-button:active {
+  transform: scale(0.96);
+}
+
+.app-icon-button:focus-visible,
+.app-menu button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.resume-workout-button {
+  min-height: 44px;
+  padding: 0 var(--space-6);
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.app-menu {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  right: 0;
+  width: min(82vw, 240px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-structure);
+  background: var(--color-surface);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
+.app-menu button {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-structure);
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-menu button:hover {
+  background: var(--color-input);
+}
+
+.app-shell__content {
+  min-height: calc(100dvh - var(--app-top-bar-height));
+}
+
+@media (max-width: 520px) {
+  .app-top-bar {
+    gap: var(--space-2);
+  }
+
+  .app-top-bar__actions {
+    gap: var(--space-2);
+  }
+
+  .resume-workout-button {
+    max-width: min(48vw, 210px);
+    padding: 0 var(--space-3);
+    font-size: 14px;
+  }
+
+  .resume-workout-button > span:not(.button__icon) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

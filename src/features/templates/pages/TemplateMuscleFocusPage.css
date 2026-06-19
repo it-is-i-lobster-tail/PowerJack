@@ -1,0 +1,75 @@
+.muscle-focus-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.muscle-focus-header h1 {
+  margin: 0;
+}
+
+.muscle-focus-header span {
+  color: var(--color-text-muted);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.muscle-focus-grid {
+  min-height: 260px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-structure);
+  background: #0f1416;
+}
+
+.muscle-focus-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.muscle-focus-option {
+  min-height: 64px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.1;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-normal) ease,
+    border-color var(--motion-normal) ease,
+    color var(--motion-normal) ease,
+    transform var(--motion-fast) ease;
+}
+
+.muscle-focus-option:active {
+  transform: scale(0.985);
+}
+
+.muscle-focus-option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.muscle-focus-option--selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #07110b;
+}
+
+@media (max-width: 720px) {
+  .muscle-focus-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

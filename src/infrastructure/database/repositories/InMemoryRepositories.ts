@@ -1,0 +1,931 @@
+import type { AppServices } from "../../../app/AppServices";
+import type { AppState } from "../../../domain/app-state/AppState";
+import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
+import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
+import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
+import type { Program } from "../../../domain/programs/Program";
+import type { ProgramRepository } from "../../../domain/programs/ProgramRepository";
+import type { PowerJackStatus } from "../../../domain/status";
+import type {
+  CompletedTemplateDraft,
+  Template,
+  TemplateAggregate,
+  TemplateSummary,
+} from "../../../domain/templates/Template";
+import type { TemplateRepository } from "../../../domain/templates/TemplateRepository";
+import type {
+  ActiveWorkoutLiftView,
+  ActiveWorkoutSetView,
+  ActiveWorkoutView,
+  ActiveWorkoutWeekItem,
+  Feedback,
+  Lift,
+  Workout,
+  WorkoutSet,
+} from "../../../domain/workouts/Workout";
+import type { WorkoutRepository } from "../../../domain/workouts/WorkoutRepository";
+import { buildReferenceCatalog } from "../seeds/buildReferenceCatalog";
+
+const deterministicTimestamp = "2026-06-18T00:00:00.000Z";
+
+class InMemoryAppStateRepository implements AppStateRepository {
+  private state: AppState = {
+    id: 1,
+    activeProgramId: null,
+    activeWorkoutId: null,
+    activeLiftId: null,
+    userBodyWeightLb: null,
+    userBodyWeightUpdatedLast: null,
+    createdAt: deterministicTimestamp,
+    updatedAt: deterministicTimestamp,
+  };
+
+  load(): Promise<AppState | null> {
+    return Promise.resolve(this.state);
+  }
+
+  loadSync(): AppState {
+    return this.state;
+  }
+
+  resetForAgent(): Promise<void> {
+    this.state = {
+      ...this.state,
+      activeProgramId: null,
+      activeWorkoutId: null,
+      activeLiftId: null,
+      userBodyWeightLb: null,
+      userBodyWeightUpdatedLast: null,
+      updatedAt: deterministicTimestamp,
+    };
+    return Promise.resolve();
+  }
+
+  setActive(programId: number, workoutId: number, liftId: number | null): AppState {
+    this.state = {
+      ...this.state,
+      activeProgramId: programId,
+      activeWorkoutId: workoutId,
+      activeLiftId: liftId,
+      updatedAt: deterministicTimestamp,
+    };
+    return this.state;
+  }
+
+  setActiveLift(liftId: number | null): AppState {
+    this.state = {
+      ...this.state,
+      activeLiftId: liftId,
+      updatedAt: deterministicTimestamp,
+    };
+    return this.state;
+  }
+
+  clearActive(): AppState {
+    this.state = {
+      ...this.state,
+      activeProgramId: null,
+      activeWorkoutId: null,
+      activeLiftId: null,
+      updatedAt: deterministicTimestamp,
+    };
+    return this.state;
+  }
+}
+
+class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
+  private readonly catalog = buildReferenceCatalog();
+
+  listMuscles(): Promise<Muscle[]> {
+    return Promise.resolve(this.catalog.muscles);
+  }
+
+  searchExercises(query: string): Promise<ExerciseSummary[]> {
+    const normalizedQuery = query.toLowerCase();
+
+    const results = this.catalog.exercises
+      .filter((exercise) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return (
+          exercise.name.toLowerCase().includes(normalizedQuery) ||
+          exercise.primaryMuscleName.toLowerCase().includes(normalizedQuery) ||
+          exercise.equipmentName.toLowerCase().includes(normalizedQuery) ||
+          exercise.secondaryMuscleNames.some((muscle) => muscle.toLowerCase().includes(normalizedQuery))
+        );
+      })
+      .slice(0, 40);
+
+    return Promise.resolve(results);
+  }
+}
+
+class InMemoryTemplateRepository implements TemplateRepository {
+  private readonly catalog = buildReferenceCatalog();
+  private templates: TemplateSummary[] = [];
+  private templateDetails = new Map<number, Template>();
+  private templateAggregates = new Map<number, TemplateAggregate>();
+  private deletedTemplateIds = new Set<number>();
+  private activeTemplateChecker: (templateId: number) => boolean = () => false;
+  private nextId = 1;
+
+  list(): Promise<TemplateSummary[]> {
+    return Promise.resolve(this.templates.filter((template) => !this.deletedTemplateIds.has(template.id)));
+  }
+
+  findById(id: number): Promise<Template | null> {
+    if (this.deletedTemplateIds.has(id)) {
+      return Promise.resolve(null);
+    }
+
+    const template = this.templates.find((item) => item.id === id);
+
+    if (!template) {
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve({
+      id: template.id,
+      name: template.name,
+      workoutsPerWeek: template.workoutsPerWeek,
+      focusMuscleIds: this.templateDetails.get(id)?.focusMuscleIds ?? [],
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt,
+    });
+  }
+
+  loadAggregate(id: number): Promise<TemplateAggregate | null> {
+    if (this.deletedTemplateIds.has(id)) {
+      return Promise.resolve(null);
+    }
+
+    const aggregate = this.templateAggregates.get(id);
+    return Promise.resolve(aggregate ? cloneTemplateAggregate(aggregate) : null);
+  }
+
+  save(draft: CompletedTemplateDraft): Promise<TemplateSummary> {
+    const timestamp = deterministicTimestamp;
+    const summary: TemplateSummary = {
+      id: this.nextId,
+      name: draft.name,
+      workoutsPerWeek: draft.workoutsPerWeek,
+      exerciseCount: draft.days.reduce((total, day) => total + day.exerciseIds.length, 0),
+      focusMuscles: draft.focusMuscleIds
+        .map((id) => this.catalog.muscles.find((muscle) => muscle.id === id))
+        .filter((muscle): muscle is NonNullable<typeof muscle> => Boolean(muscle))
+        .map((muscle) => ({ id: muscle.id, name: muscle.name })),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.nextId += 1;
+    this.templates = [summary, ...this.templates];
+    this.templateDetails.set(summary.id, {
+      id: summary.id,
+      name: summary.name,
+      workoutsPerWeek: summary.workoutsPerWeek,
+      focusMuscleIds: [...draft.focusMuscleIds],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    this.templateAggregates.set(summary.id, {
+      id: summary.id,
+      name: summary.name,
+      workoutsPerWeek: summary.workoutsPerWeek,
+      focusMuscleIds: [...draft.focusMuscleIds],
+      days: draft.days.map((day) => ({
+        id: summary.id * 100 + day.order,
+        order: day.order,
+        exerciseIds: [...day.exerciseIds],
+      })),
+    });
+    return Promise.resolve(summary);
+  }
+
+  update(id: number, draft: CompletedTemplateDraft): Promise<TemplateSummary> {
+    const existing = this.templates.find((template) => template.id === id);
+
+    if (!existing || this.deletedTemplateIds.has(id)) {
+      return Promise.reject(new Error("Template could not be loaded."));
+    }
+
+    const summary: TemplateSummary = {
+      ...existing,
+      name: draft.name,
+      workoutsPerWeek: draft.workoutsPerWeek,
+      exerciseCount: draft.days.reduce((total, day) => total + day.exerciseIds.length, 0),
+      focusMuscles: draft.focusMuscleIds
+        .map((muscleId) => this.catalog.muscles.find((muscle) => muscle.id === muscleId))
+        .filter((muscle): muscle is NonNullable<typeof muscle> => Boolean(muscle))
+        .map((muscle) => ({ id: muscle.id, name: muscle.name })),
+      updatedAt: deterministicTimestamp,
+    };
+
+    this.templates = [summary, ...this.templates.filter((template) => template.id !== id)];
+    this.templateDetails.set(id, {
+      id,
+      name: summary.name,
+      workoutsPerWeek: summary.workoutsPerWeek,
+      focusMuscleIds: [...draft.focusMuscleIds],
+      createdAt: summary.createdAt,
+      updatedAt: summary.updatedAt,
+    });
+    this.templateAggregates.set(id, {
+      id,
+      name: summary.name,
+      workoutsPerWeek: summary.workoutsPerWeek,
+      focusMuscleIds: [...draft.focusMuscleIds],
+      days: draft.days.map((day) => ({
+        id: id * 100 + day.order,
+        order: day.order,
+        exerciseIds: [...day.exerciseIds],
+      })),
+    });
+
+    return Promise.resolve(summary);
+  }
+
+  softDelete(id: number): Promise<void> {
+    this.deletedTemplateIds.add(id);
+    return Promise.resolve();
+  }
+
+  isUsedByActiveProgram(id: number): Promise<boolean> {
+    return Promise.resolve(this.activeTemplateChecker(id));
+  }
+
+  setActiveTemplateChecker(activeTemplateChecker: (templateId: number) => boolean): void {
+    this.activeTemplateChecker = activeTemplateChecker;
+  }
+
+  reset(): void {
+    this.templates = [];
+    this.templateDetails.clear();
+    this.templateAggregates.clear();
+    this.deletedTemplateIds.clear();
+    this.nextId = 1;
+  }
+}
+
+class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository {
+  private readonly catalog = buildReferenceCatalog();
+  private programs: Program[] = [];
+  private workouts: Workout[] = [];
+  private lifts: Lift[] = [];
+  private sets: WorkoutSet[] = [];
+  private feedback: Feedback[] = [];
+  private nextProgramId = 1;
+  private nextWorkoutId = 1;
+  private nextLiftId = 1;
+  private nextSetId = 1;
+  private nextFeedbackId = 1;
+
+  constructor(
+    private readonly appState: InMemoryAppStateRepository,
+    private readonly templates: InMemoryTemplateRepository,
+  ) {}
+
+  async startFromTemplate(input: {
+    template: TemplateAggregate;
+    programLengthWeeks: number;
+    replaceActiveProgram?: boolean;
+  }): Promise<AppState> {
+    const currentAppState = await this.appState.load();
+
+    if (currentAppState?.activeProgramId && !input.replaceActiveProgram) {
+      throw new Error("An active program already exists.");
+    }
+
+    if (currentAppState?.activeProgramId && input.replaceActiveProgram) {
+      this.haltActiveProgram(currentAppState.activeProgramId);
+    }
+
+    const usageCount = this.programs.filter((program) => program.templateId === input.template.id).length + 1;
+    const program: Program = {
+      id: this.nextProgramId,
+      name: `${input.template.name} x${usageCount}`,
+      programLengthWeeks: input.programLengthWeeks,
+      status: "active",
+      locked: false,
+      templateId: input.template.id,
+      createdAt: deterministicTimestamp,
+      updatedAt: deterministicTimestamp,
+    };
+    this.nextProgramId += 1;
+    this.programs.push(program);
+
+    let activeWorkoutId: number | null = null;
+    let activeLiftId: number | null = null;
+
+    for (const day of input.template.days) {
+      const isActiveDay = day.order === 1;
+      const workout = this.createWorkout({
+        programId: program.id,
+        programWeek: 1,
+        workoutDay: day.order,
+        status: isActiveDay ? "active" : "planned",
+        locked: !isActiveDay,
+      });
+
+      if (isActiveDay) {
+        activeWorkoutId = workout.id;
+      }
+
+      for (const [exerciseIndex, exerciseId] of day.exerciseIds.entries()) {
+        const lift = this.createLift({
+          workoutId: workout.id,
+          exerciseId,
+          order: exerciseIndex + 1,
+          status: isActiveDay ? "active" : "planned",
+          locked: !isActiveDay,
+        });
+
+        if (isActiveDay && activeLiftId === null) {
+          activeLiftId = lift.id;
+        }
+
+        for (let setOrder = 1; setOrder <= 2; setOrder += 1) {
+          this.createSet({
+            liftId: lift.id,
+            order: setOrder,
+            status: isActiveDay ? "active" : "planned",
+            locked: !isActiveDay,
+            plannedReps: null,
+            plannedWeight: null,
+          });
+        }
+      }
+    }
+
+    if (!activeWorkoutId) {
+      throw new Error("Template did not create an active workout.");
+    }
+
+    return this.appState.setActive(program.id, activeWorkoutId, activeLiftId);
+  }
+
+  isTemplateUsedByActiveProgram(templateId: number): boolean {
+    const activeProgramId = this.appState.loadSync().activeProgramId;
+    const activeProgram = this.programs.find((program) => program.id === activeProgramId);
+    return Boolean(activeProgram && activeProgram.status === "active" && activeProgram.templateId === templateId);
+  }
+
+  async loadActive(): Promise<ActiveWorkoutView | null> {
+    const state = await this.appState.load();
+    return state?.activeWorkoutId ? this.loadWorkoutView(state.activeWorkoutId) : null;
+  }
+
+  loadWorkoutView(workoutId: number): Promise<ActiveWorkoutView | null> {
+    const workout = this.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      return Promise.resolve(null);
+    }
+
+    const program = this.programs.find((item) => item.id === workout.programId);
+
+    if (!program) {
+      return Promise.resolve(null);
+    }
+
+    const weekWorkouts = this.workouts
+      .filter((item) => item.programId === program.id && item.programWeek === workout.programWeek)
+      .sort((left, right) => left.workoutDay - right.workoutDay)
+      .map(
+        (item): ActiveWorkoutWeekItem => ({
+          id: item.id,
+          workoutDay: item.workoutDay,
+          status: item.status,
+          locked: item.locked,
+        }),
+      );
+    const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
+    const lifts = this.buildLiftViews(workout.id);
+    const totalSets = lifts.reduce((total, lift) => total + lift.sets.length, 0);
+    const completedSets = lifts.reduce(
+      (total, lift) => total + lift.sets.filter((set) => set.status === "complete").length,
+      0,
+    );
+
+    return Promise.resolve({
+      program,
+      workout,
+      weekWorkouts,
+      previousWorkoutId:
+        currentWeekIndex > 0 ? weekWorkouts[currentWeekIndex - 1]?.id ?? null : null,
+      nextWorkoutId:
+        currentWeekIndex >= 0 && currentWeekIndex < weekWorkouts.length - 1
+          ? weekWorkouts[currentWeekIndex + 1]?.id ?? null
+          : null,
+      completedSets,
+      totalSets,
+      canFinish:
+        workout.status === "active" &&
+        !workout.locked &&
+        totalSets > 0 &&
+        completedSets === totalSets &&
+        lifts.every((lift) => lift.status === "complete" && lift.feedbackSubmitted),
+      isReadOnly: workout.locked || workout.status !== "active",
+      lifts,
+    });
+  }
+
+  async updateSetActuals(input: {
+    setId: number;
+    actualReps: number | null;
+    actualWeight: number | null;
+  }): Promise<ActiveWorkoutView> {
+    const set = this.sets.find((item) => item.id === input.setId);
+
+    if (!set) {
+      throw new Error("Workout set was not found.");
+    }
+
+    const lift = this.lifts.find((item) => item.id === set.liftId);
+    const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+
+    if (!lift || !workout) {
+      throw new Error("Workout could not be loaded.");
+    }
+
+    if (set.locked || workout.locked || workout.status !== "active") {
+      throw new Error("This set is locked.");
+    }
+
+    set.actualReps = input.actualReps;
+    set.actualWeight = input.actualWeight;
+    set.status = input.actualReps !== null && input.actualWeight !== null ? "complete" : "active";
+    set.updatedAt = deterministicTimestamp;
+
+    const liftSets = this.sets.filter((item) => item.liftId === lift.id);
+    lift.status = liftSets.every((item) => item.status === "complete") ? "complete" : "active";
+    lift.updatedAt = deterministicTimestamp;
+    this.appState.setActiveLift(lift.id);
+
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after set update.");
+    }
+
+    return view;
+  }
+
+  async submitLiftFeedback(input: {
+    liftId: number;
+    levelOfPain: number;
+    levelOfEffort: number;
+  }): Promise<ActiveWorkoutView> {
+    validateFeedbackValue(input.levelOfPain);
+    validateFeedbackValue(input.levelOfEffort);
+
+    const lift = this.lifts.find((item) => item.id === input.liftId);
+    const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+
+    if (!lift || !workout) {
+      throw new Error("Lift was not found.");
+    }
+
+    if (lift.locked || workout.locked || workout.status !== "active") {
+      throw new Error("This lift is locked.");
+    }
+
+    if (lift.status !== "complete") {
+      throw new Error("Complete this lift before saving feedback.");
+    }
+
+    const existingFeedback = this.feedback.find((item) => item.liftId === lift.id);
+
+    if (!existingFeedback) {
+      this.feedback.push({
+        id: this.nextFeedbackId,
+        levelOfPain: input.levelOfPain,
+        levelOfEffort: input.levelOfEffort,
+        liftId: lift.id,
+        createdAt: deterministicTimestamp,
+        updatedAt: deterministicTimestamp,
+      });
+      this.nextFeedbackId += 1;
+    }
+
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after feedback.");
+    }
+
+    return view;
+  }
+
+  async finishWorkout(workoutId: number): Promise<ActiveWorkoutView | null> {
+    const workout = this.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new Error("Workout was not found.");
+    }
+
+    const program = this.programs.find((item) => item.id === workout.programId);
+
+    if (!program) {
+      throw new Error("Program was not found.");
+    }
+
+    if (workout.locked) {
+      throw new Error("This workout is locked.");
+    }
+
+    const workoutSets = this.getSetsForWorkout(workout.id);
+
+    if (workoutSets.some((set) => set.status !== "complete")) {
+      throw new Error("Complete every set before finishing the workout.");
+    }
+
+    const completedLifts = this.lifts.filter(
+      (lift) => lift.workoutId === workout.id && lift.status === "complete",
+    );
+    const hasMissingFeedback = completedLifts.some(
+      (lift) => !this.feedback.some((feedback) => feedback.liftId === lift.id),
+    );
+
+    if (hasMissingFeedback) {
+      throw new Error("Submit feedback for every completed lift before finishing the workout.");
+    }
+
+    this.lockCompletedWorkout(workout.id);
+
+    let nextWorkout = this.workouts
+      .filter(
+        (item) =>
+          item.programId === program.id &&
+          item.programWeek === workout.programWeek &&
+          item.workoutDay > workout.workoutDay,
+      )
+      .sort((left, right) => left.workoutDay - right.workoutDay)[0];
+
+    if (!nextWorkout && workout.programWeek < program.programLengthWeeks) {
+      const nextWeek = workout.programWeek + 1;
+      const nextWeekExists = this.workouts.some(
+        (item) => item.programId === program.id && item.programWeek === nextWeek,
+      );
+
+      if (!nextWeekExists) {
+        await this.createProgramWeek(program, nextWeek);
+      }
+
+      nextWorkout = this.workouts
+        .filter((item) => item.programId === program.id && item.programWeek === nextWeek)
+        .sort((left, right) => left.workoutDay - right.workoutDay)[0];
+    }
+
+    if (!nextWorkout) {
+      program.status = "complete";
+      program.locked = true;
+      program.updatedAt = deterministicTimestamp;
+      this.appState.clearActive();
+      return null;
+    }
+
+    this.activateWorkout(nextWorkout.id);
+    return this.loadWorkoutView(nextWorkout.id);
+  }
+
+  reset(): void {
+    this.programs = [];
+    this.workouts = [];
+    this.lifts = [];
+    this.sets = [];
+    this.feedback = [];
+    this.nextProgramId = 1;
+    this.nextWorkoutId = 1;
+    this.nextLiftId = 1;
+    this.nextSetId = 1;
+    this.nextFeedbackId = 1;
+  }
+
+  private haltActiveProgram(programId: number): void {
+    const program = this.programs.find((item) => item.id === programId);
+
+    if (program) {
+      program.status = "halted";
+      program.locked = true;
+      program.updatedAt = deterministicTimestamp;
+    }
+
+    for (const workout of this.workouts.filter((item) => item.programId === programId)) {
+      workout.status = "halted";
+      workout.locked = true;
+      workout.updatedAt = deterministicTimestamp;
+
+      for (const lift of this.lifts.filter((item) => item.workoutId === workout.id)) {
+        lift.status = "halted";
+        lift.locked = true;
+        lift.updatedAt = deterministicTimestamp;
+
+        for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
+          set.status = "halted";
+          set.locked = true;
+          set.updatedAt = deterministicTimestamp;
+        }
+      }
+    }
+  }
+
+  private createWorkout(input: {
+    programId: number;
+    programWeek: number;
+    workoutDay: number;
+    status: PowerJackStatus;
+    locked: boolean;
+  }): Workout {
+    const workout: Workout = {
+      id: this.nextWorkoutId,
+      order: input.workoutDay,
+      workoutDay: input.workoutDay,
+      programWeek: input.programWeek,
+      hidden: false,
+      locked: input.locked,
+      status: input.status,
+      programId: input.programId,
+      createdAt: deterministicTimestamp,
+      updatedAt: deterministicTimestamp,
+    };
+    this.nextWorkoutId += 1;
+    this.workouts.push(workout);
+    return workout;
+  }
+
+  private createLift(input: {
+    workoutId: number;
+    exerciseId: number;
+    order: number;
+    status: PowerJackStatus;
+    locked: boolean;
+  }): Lift {
+    const lift: Lift = {
+      id: this.nextLiftId,
+      exerciseId: input.exerciseId,
+      workoutId: input.workoutId,
+      locked: input.locked,
+      hidden: false,
+      order: input.order,
+      status: input.status,
+      planned: true,
+      createdAt: deterministicTimestamp,
+      updatedAt: deterministicTimestamp,
+    };
+    this.nextLiftId += 1;
+    this.lifts.push(lift);
+    return lift;
+  }
+
+  private createSet(input: {
+    liftId: number;
+    order: number;
+    status: PowerJackStatus;
+    locked: boolean;
+    plannedReps: number | null;
+    plannedWeight: number | null;
+  }): WorkoutSet {
+    const set: WorkoutSet = {
+      id: this.nextSetId,
+      plannedReps: input.plannedReps,
+      actualReps: null,
+      plannedWeight: input.plannedWeight,
+      actualWeight: null,
+      order: input.order,
+      liftId: input.liftId,
+      locked: input.locked,
+      hidden: false,
+      status: input.status,
+      planned: true,
+      createdAt: deterministicTimestamp,
+      updatedAt: deterministicTimestamp,
+    };
+    this.nextSetId += 1;
+    this.sets.push(set);
+    return set;
+  }
+
+  private buildLiftViews(workoutId: number): ActiveWorkoutLiftView[] {
+    return this.lifts
+      .filter((lift) => lift.workoutId === workoutId)
+      .sort((left, right) => left.order - right.order)
+      .map((lift) => ({
+        id: lift.id,
+        exerciseId: lift.exerciseId,
+        exerciseName: this.exerciseName(lift.exerciseId),
+        order: lift.order,
+        status: lift.status,
+        locked: lift.locked,
+        feedbackSubmitted: this.feedback.some((feedback) => feedback.liftId === lift.id),
+        sets: this.sets
+          .filter((set) => set.liftId === lift.id)
+          .sort((left, right) => left.order - right.order)
+          .map(
+            (set): ActiveWorkoutSetView => ({
+              id: set.id,
+              order: set.order,
+              plannedReps: set.plannedReps,
+              actualReps: set.actualReps,
+              plannedWeight: set.plannedWeight,
+              actualWeight: set.actualWeight,
+              status: set.status,
+              locked: set.locked,
+            }),
+          ),
+      }));
+  }
+
+  private exerciseName(exerciseId: number): string {
+    return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.name ?? "Exercise";
+  }
+
+  private getSetsForWorkout(workoutId: number): WorkoutSet[] {
+    const liftIds = new Set(this.lifts.filter((lift) => lift.workoutId === workoutId).map((lift) => lift.id));
+    return this.sets.filter((set) => liftIds.has(set.liftId));
+  }
+
+  private lockCompletedWorkout(workoutId: number): void {
+    const workout = this.workouts.find((item) => item.id === workoutId);
+
+    if (workout) {
+      workout.status = "complete";
+      workout.locked = true;
+      workout.updatedAt = deterministicTimestamp;
+    }
+
+    for (const lift of this.lifts.filter((item) => item.workoutId === workoutId)) {
+      lift.status = "complete";
+      lift.locked = true;
+      lift.updatedAt = deterministicTimestamp;
+
+      for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
+        set.status = "complete";
+        set.locked = true;
+        set.updatedAt = deterministicTimestamp;
+      }
+    }
+  }
+
+  private activateWorkout(workoutId: number): void {
+    const workout = this.workouts.find((item) => item.id === workoutId);
+
+    if (!workout) {
+      throw new Error("Workout was not found.");
+    }
+
+    workout.status = "active";
+    workout.locked = false;
+    workout.hidden = false;
+    workout.updatedAt = deterministicTimestamp;
+
+    let activeLiftId: number | null = null;
+
+    for (const lift of this.lifts.filter((item) => item.workoutId === workoutId)) {
+      lift.status = "active";
+      lift.locked = false;
+      lift.hidden = false;
+      lift.updatedAt = deterministicTimestamp;
+
+      if (activeLiftId === null) {
+        activeLiftId = lift.id;
+      }
+
+      for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
+        set.status = "active";
+        set.locked = false;
+        set.hidden = false;
+        set.updatedAt = deterministicTimestamp;
+      }
+    }
+
+    this.appState.setActive(workout.programId, workout.id, activeLiftId);
+  }
+
+  private async createProgramWeek(program: Program, programWeek: number): Promise<void> {
+    const template = await this.templates.loadAggregate(program.templateId);
+
+    if (!template) {
+      throw new Error("Program template could not be loaded.");
+    }
+
+    for (const day of template.days) {
+      const workout = this.createWorkout({
+        programId: program.id,
+        programWeek,
+        workoutDay: day.order,
+        status: "planned",
+        locked: true,
+      });
+
+      for (const [exerciseIndex, exerciseId] of day.exerciseIds.entries()) {
+        const lift = this.createLift({
+          workoutId: workout.id,
+          exerciseId,
+          order: exerciseIndex + 1,
+          status: "planned",
+          locked: true,
+        });
+        const previousSets = this.previousWeekSets({
+          programId: program.id,
+          programWeek: programWeek - 1,
+          workoutDay: day.order,
+          liftOrder: exerciseIndex + 1,
+        });
+        const setPlans =
+          previousSets.length > 0
+            ? previousSets
+            : [
+                { order: 1, actualReps: null, actualWeight: null },
+                { order: 2, actualReps: null, actualWeight: null },
+              ];
+
+        for (const setPlan of setPlans) {
+          this.createSet({
+            liftId: lift.id,
+            order: setPlan.order,
+            status: "planned",
+            locked: true,
+            plannedReps: setPlan.actualReps === null ? null : setPlan.actualReps + 1,
+            plannedWeight: setPlan.actualWeight,
+          });
+        }
+      }
+    }
+  }
+
+  private previousWeekSets(input: {
+    programId: number;
+    programWeek: number;
+    workoutDay: number;
+    liftOrder: number;
+  }): Array<{ order: number; actualReps: number | null; actualWeight: number | null }> {
+    const previousWorkout = this.workouts.find(
+      (workout) =>
+        workout.programId === input.programId &&
+        workout.programWeek === input.programWeek &&
+        workout.workoutDay === input.workoutDay,
+    );
+
+    if (!previousWorkout) {
+      return [];
+    }
+
+    const previousLift = this.lifts.find(
+      (lift) => lift.workoutId === previousWorkout.id && lift.order === input.liftOrder,
+    );
+
+    if (!previousLift) {
+      return [];
+    }
+
+    return this.sets
+      .filter((set) => set.liftId === previousLift.id)
+      .sort((left, right) => left.order - right.order)
+      .map((set) => ({
+        order: set.order,
+        actualReps: set.actualReps,
+        actualWeight: set.actualWeight,
+      }));
+  }
+}
+
+function cloneTemplateAggregate(template: TemplateAggregate): TemplateAggregate {
+  return {
+    ...template,
+    focusMuscleIds: [...template.focusMuscleIds],
+    days: template.days.map((day) => ({
+      ...day,
+      exerciseIds: [...day.exerciseIds],
+    })),
+  };
+}
+
+function validateFeedbackValue(value: number): void {
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error("Choose a feedback value from 1 to 5.");
+  }
+}
+
+export function createInMemoryAppServices(): AppServices {
+  const appState = new InMemoryAppStateRepository();
+  const templates = new InMemoryTemplateRepository();
+  const training = new InMemoryTrainingRepository(appState, templates);
+  templates.setActiveTemplateChecker((templateId) => training.isTemplateUsedByActiveProgram(templateId));
+
+  return {
+    mode: "memory",
+    appState,
+    exercises: new InMemoryExerciseCatalogRepository(),
+    templates,
+    programs: training,
+    workouts: training,
+    resetForAgent: async () => {
+      await appState.resetForAgent();
+      training.reset();
+      templates.reset();
+    },
+  };
+}
