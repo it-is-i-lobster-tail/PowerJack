@@ -1,42 +1,74 @@
-# Repository Guidelines
+# PowerJack Agent Guide
 
-## Project Overview
+## Project Direction
 
-PowerJack is a local-first workout planning and logging app built with Rust, Dioxus, and SQLite for a single user. Keep it low-friction: resume the active workout, log reps and weight, and progress without cloud sync, authentication, or multi-user concerns.
+PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacitor` app. The first phase is local-first: no runtime server, no SSR, no auth, no sync, and no HTTP API. Browser testing comes first, then native iOS testing.
 
-The model centers on muscles, exercises, templates, programs, workouts, lifts, sets, feedback, and singleton app state. Programs come from reusable templates; workouts contain ordered lifts; lifts contain ordered sets; app state tracks the active program, workout, and lift.
+## Commands
 
-## Project Structure & Module Organization
+- `npm run dev`: start Vite at `http://127.0.0.1:5173/` with `--host 0.0.0.0`.
+- `npm run build`: type-check and create the static Vite bundle.
+- `npm run check`: run TypeScript, ESLint, and unit tests.
+- `npm run test`: run Vitest.
+- `npm run test:e2e`: run Playwright smoke tests.
+- `npm run test:e2e:headed`: run Playwright headed.
+- `npm run cap:sync`: build and sync Capacitor.
 
-- `src/lib.rs` exposes the public modules.
-- `src/domain/mod.rs` defines domain structs, ID newtypes, and status parsing.
-- `src/repository.rs` contains shared repository error/result types.
-- `src/db/repositories/mod.rs` owns the SQLite schema, CRUD methods, row mapping helpers, and tests.
-- `src/db/models/mod.rs` contains database row structs.
-- `.reference_images/` contains example PNGs for the intended Dioxus UI look and flow. Review these before building or changing screens.
+## Architecture Rules
 
-## Build, Test, and Development Commands
+- UI components may not import from `src/infrastructure/`.
+- Raw SQL may exist only under `src/infrastructure/database/`.
+- Capacitor APIs may exist only under `src/infrastructure/platform/` or database adapter setup.
+- Business rules must be pure functions in `src/domain/`.
+- User workflows belong in `src/application/` use cases.
+- Persistence is accessed through domain repository interfaces.
+- Do not copy the entire database into a global React store.
+- Feature UI belongs under `src/features/<feature>/`.
+- Reusable primitives belong under `src/shared/ui/`.
+- Shared design tokens belong under `src/shared/styles/`.
+- New dependencies require an ADR in `docs/adr/`.
 
-- `cargo check` validates the crate quickly.
-- `cargo test` runs unit tests, including in-memory SQLite coverage.
-- `cargo fmt` formats all Rust files with `rustfmt`.
-- `cargo clippy --all-targets --all-features` runs lint checks across library and test targets.
-Run `cargo fmt` and `cargo test` before opening pull requests.
+## Program And Template Flow
 
-## Coding Style & Naming Conventions
+- Program creation starts at `/`, then routes through `/start/select-template`, `/start/program-length`, and a final `Start` action.
+- A template is the reusable plan: template name, focus muscles, days per week, ordered workout days, and ordered exercise ids per day.
+- A program is an instance of a selected template with a defined timeline such as program length in weeks.
+- New template creation routes through `/templates/new/name`, `/templates/new/muscle-focus`, `/templates/new/days-per-week`, and `/templates/new/builder`.
+- Template names must be 1-64 characters. Show the red `x/64` counter only when the user exceeds 64 characters.
+- Muscle Group Focus must require at least one selected muscle, allow at most four, and use a visible `x/4` counter.
+- Save Template must stay disabled until the name is valid, at least one focus muscle is selected, days per week is selected, and every day has at least one exercise.
+- Select Template rows must show focused muscles as compact chips on the right side of the row when present.
+- Do not seed demo templates. Seed only reference muscles, equipment, and exercises.
+- After saving a template, return to Select Template with the saved template visible and selected.
 
-Use standard Rust formatting: 4-space indentation, `snake_case` for functions and fields, `PascalCase` for structs/enums/newtype IDs, and `SCREAMING_SNAKE_CASE` for constants. Keep domain IDs as explicit newtypes such as `ProgramId(pub i64)`. Preserve repository style: return `RepositoryResult<T>`, convert `rusqlite::Error` through `RepositoryError`, and keep SQL column ordering aligned with row mapping functions.
+## Database Rules
 
-## Testing Guidelines
+- Use immutable numbered migrations in `src/infrastructure/database/migrations/`.
+- Do not edit a released migration; add a new migration.
+- Keep database column names snake_case and map them to camelCase domain types.
+- Normalize the original drawSQL intent; do not preserve export typos like `feeback`, `ative_lift_id`, `acutual_reps`, or `workout_tempalte_id`.
+- Use `workout_sets`, not a table named `set`.
+- Seed reference muscles, equipment, and exercises idempotently.
+- Repository boundaries follow workflows, not one CRUD class per table.
+- Web SQLite may not support explicit nested `BEGIN TRANSACTION` calls; keep aggregate repository saves behind `DatabaseClient.transaction` so platform behavior stays isolated in the adapter.
 
-Tests use Rust's built-in test framework. Place narrow unit tests next to the module under test with `#[cfg(test)]`; repository tests live in `src/db/repositories/mod.rs` and use `Connection::open_in_memory()`. Name tests after behavior, for example `defaults_and_crud`. Cover schema constraints, default values, and app-state side effects.
+## Design Rules
 
-## Commit & Pull Request Guidelines
+- Use the Steel Focus palette from `src/shared/styles/tokens.css`.
+- Build mobile-first, then browser-wide.
+- Match the supplied references in `docs/reference_images/`; `/` must match `Start_new_program_example.png`.
+- Keep workout logging compact: shared labels, horizontal set rows, and no large card per set.
+- Use green for selected, active, success, and complete states.
+- Use orange for caution/destructive confirmation and red only for validation/destructive failure.
+- Never rely on color alone for state.
+- Keep copy short, calm, and direct.
+- Avoid social fitness patterns, dashboards during workout execution, confetti, XP, badges, and loud gamification.
 
-The existing history favors short imperative commit subjects, for example `Implement SQLite persistence model` and `Add SQLite repository CRUD layer`. Keep commits focused and describe the observable change.
+## Agent And Test Readiness
 
-Pull requests should include a summary, linked issue or Linear ticket when applicable, test results such as `cargo test`, and notes for schema or persistence changes.
-
-## Security & Configuration Tips
-
-`rusqlite` uses the bundled SQLite feature, so contributors do not need a system SQLite install. Avoid logging sensitive workout or user-state data in future application layers. Keep generated databases, local build output, and temporary files out of version control.
+- Add stable `data-agent-id` selectors to navigable controls and important workflow surfaces.
+- Keep controls accessible by role and name.
+- Preserve `window.__POWERJACK_AGENT__.reset()` for deterministic browser tests.
+- Every UI story needs browser E2E coverage and screenshot/visual QA when layout changes.
+- Mobile-affecting stories need mobile viewport Playwright coverage.
+- Before handoff, run `npm run check`; run `npm run test:e2e` when routes or UI flows change.
