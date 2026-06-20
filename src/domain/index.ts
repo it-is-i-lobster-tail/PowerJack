@@ -25,9 +25,10 @@ export type {
   ActiveWorkoutWeekItem,
   Feedback,
   Lift,
+  ManualCheckinStatus,
   Workout,
   WorkoutSet,
 } from "./workouts/Workout";
-export type { WorkoutRepository } from "./workouts/WorkoutRepository";
+export type { ManualCheckinDecision, WorkoutRepository } from "./workouts/WorkoutRepository";
 export type { PowerJackStatus } from "./status";
 export { isPowerJackStatus, powerJackStatuses } from "./status";
