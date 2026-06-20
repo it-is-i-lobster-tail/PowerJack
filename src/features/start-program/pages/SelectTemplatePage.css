@@ -176,32 +176,6 @@
   gap: var(--space-2);
 }
 
-.template-row__lock-badge {
-  min-height: 24px;
-  grid-column: 1 / -1;
-  justify-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-2);
-  border: 1px solid rgba(34, 197, 94, 0.32);
-  border-radius: 999px;
-  background: rgba(34, 197, 94, 0.08);
-  color: var(--color-accent);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1;
-  text-transform: none;
-  white-space: nowrap;
-  cursor: help;
-}
-
-.template-row__lock-badge:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-}
-
 .template-row__action-buttons {
   grid-column: 1 / -1;
   display: flex;
@@ -288,12 +262,8 @@
     justify-content: flex-end;
   }
 
-  .template-row__lock-badge {
-    max-width: 100%;
-  }
-
   .template-row__action-buttons {
-    grid-column: 1;
+    grid-column: 1 / -1;
   }
 
   .template-grid__add {

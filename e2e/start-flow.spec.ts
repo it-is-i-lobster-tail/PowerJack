@@ -457,32 +457,35 @@ test.describe("start program flow", () => {
     await expectResumeCenteredBeforeIcons(page);
 
     await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active Program Template");
-    await expect(page.locator("[data-agent-id='template-lock-badge-1']")).toContainText("Locked");
-    await expect(page.locator("[data-agent-id='edit-template-1']")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(page.locator("[data-agent-id='template-row-1']")).not.toContainText("Locked");
+    await expect(page.locator("[data-agent-id='edit-template-1']")).not.toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='delete-template-1']")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-
-    await page.locator("[data-agent-id='template-lock-badge-1']").click();
-    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
-      "Cannot Edit Or Delete Templates In Use By Active Program",
-    );
-    await page.locator("[data-agent-id='modal-back']").click();
 
     await page.locator("[data-agent-id='delete-template-1']").click({ force: true });
     await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
       "Cannot Delete Templates In Use By Active Program",
     );
     await page.locator("[data-agent-id='modal-back']").click();
-    await page.locator("[data-agent-id='edit-template-1']").click({ force: true });
-    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
-      "Cannot Edit Templates In Use By Active Program",
+
+    await page.locator("[data-agent-id='edit-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Editing an active template will adjust progression of all remaining weeks of program.",
+    );
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Does not affect current week.",
     );
     await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+
+    await page.locator("[data-agent-id='edit-template-1']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveValue("Replace Me");
+    await page.locator("[data-agent-id='template-name-back']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
 
     await page.locator("[data-agent-id='template-row-1'] .template-row__select").click();
     await page.locator("[data-agent-id='select-template-next']").click();

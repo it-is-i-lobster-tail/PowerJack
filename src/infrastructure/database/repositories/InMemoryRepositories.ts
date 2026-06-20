@@ -38,6 +38,7 @@ import type {
 } from "../../../domain/workouts/Workout";
 import {
   generateNextLiftPrescription,
+  type NextLiftPrescription,
   type ProgressionLiftHistory,
 } from "../../../domain/workouts/progression/generateNextLiftPrescription";
 import type {
@@ -1147,7 +1148,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     });
 
     if (!current) {
-      throw new Error("Previous lift could not be loaded for progression.");
+      return buildInitialLiftPrescription();
     }
 
     const exercise = this.catalog.exercises.find((item) => item.id === input.exerciseId);
@@ -1244,6 +1245,17 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         })),
     };
   }
+}
+
+function buildInitialLiftPrescription(): NextLiftPrescription {
+  return {
+    gate: "gate_7_reps",
+    manualCheckinSourceLiftId: null,
+    sets: [
+      { order: 1, plannedReps: null, plannedWeight: null },
+      { order: 2, plannedReps: null, plannedWeight: null },
+    ],
+  };
 }
 
 function cloneTemplateAggregate(template: TemplateAggregate): TemplateAggregate {

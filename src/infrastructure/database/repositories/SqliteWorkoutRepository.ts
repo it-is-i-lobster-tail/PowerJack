@@ -12,6 +12,7 @@ import {
 } from "../../../domain/workouts/Workout";
 import {
   generateNextLiftPrescription,
+  type NextLiftPrescription,
   type ProgressionLiftHistory,
   type ProgressionLiftSet,
 } from "../../../domain/workouts/progression/generateNextLiftPrescription";
@@ -1072,7 +1073,7 @@ async function buildNextLiftPrescription(
   });
 
   if (!current) {
-    throw new Error("Previous lift could not be loaded for progression.");
+    return buildInitialLiftPrescription();
   }
 
   const previous = await loadLiftHistory(client, {
@@ -1103,6 +1104,17 @@ async function buildNextLiftPrescription(
     focusMuscleIds: input.focusMuscleIds,
     programLengthWeeks: input.programLengthWeeks,
   });
+}
+
+function buildInitialLiftPrescription(): NextLiftPrescription {
+  return {
+    gate: "gate_7_reps",
+    manualCheckinSourceLiftId: null,
+    sets: [
+      { order: 1, plannedReps: null, plannedWeight: null },
+      { order: 2, plannedReps: null, plannedWeight: null },
+    ],
+  };
 }
 
 async function loadLiftHistory(
