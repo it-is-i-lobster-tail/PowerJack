@@ -1,8 +1,9 @@
-import { Check, ChevronLeft, ChevronRight, LockKeyhole } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, LockKeyhole, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { finishWorkout } from "../../../application/workouts/finishWorkout";
 import { loadWorkoutView } from "../../../application/workouts/loadWorkoutView";
+import { resolveManualCheckIn } from "../../../application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../../application/workouts/updateWorkoutSet";
 import { useServices } from "../../../app/useServices";
@@ -11,6 +12,7 @@ import type {
   ActiveWorkoutSetView,
   ActiveWorkoutView,
 } from "../../../domain/workouts/Workout";
+import type { ManualCheckinDecision } from "../../../domain/workouts/WorkoutRepository";
 import { Button } from "../../../shared/ui/Button";
 import "./ActiveWorkoutPage.css";
 
@@ -21,14 +23,15 @@ interface SetDraftValue {
 
 type SetDraftValues = Record<number, SetDraftValue>;
 type SetPersistTimers = Record<number, ReturnType<typeof window.setTimeout>>;
+type ManualCheckInStep = "skip" | "reset";
 
-const setAutosaveDelayMs = 300;
+const setAutosaveDelayMs = 500;
 const painFeedbackOptions = [
-  { value: 1, label: "None" },
-  { value: 2, label: "Mild" },
-  { value: 3, label: "Noticeable" },
+  { value: 1, label: "Mild" },
+  { value: 2, label: "Noticeable" },
+  { value: 3, label: "High" },
   { value: 4, label: "Sharp" },
-  { value: 5, label: "Stop-level" },
+  { value: 5, label: "Pure Evil" },
 ] as const;
 const effortFeedbackOptions = [
   { value: 1, label: "Easy" },
@@ -51,6 +54,7 @@ export function WorkoutViewerPage() {
   const persistTimersRef = useRef<SetPersistTimers>({});
   const draftValuesRef = useRef<SetDraftValues>({});
   const viewRef = useRef<ActiveWorkoutView | null>(null);
+  const dismissedFeedbackLiftIdsRef = useRef<Set<number>>(new Set());
   const [view, setView] = useState<ActiveWorkoutView | null>(null);
   const [draftValues, setDraftValues] = useState<SetDraftValues>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -61,6 +65,11 @@ export function WorkoutViewerPage() {
   const [feedbackEffort, setFeedbackEffort] = useState<number | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [isFeedbackSaving, setIsFeedbackSaving] = useState(false);
+  const [, setDismissedFeedbackLiftIds] = useState<Set<number>>(() => new Set());
+  const [finishFeedbackHint, setFinishFeedbackHint] = useState<string | null>(null);
+  const [manualCheckInStep, setManualCheckInStep] = useState<ManualCheckInStep>("skip");
+  const [manualCheckInError, setManualCheckInError] = useState<string | null>(null);
+  const [isManualCheckInSaving, setIsManualCheckInSaving] = useState(false);
 
   const clearPendingSetPersists = useCallback(() => {
     for (const timer of Object.values(persistTimersRef.current)) {
@@ -107,14 +116,34 @@ export function WorkoutViewerPage() {
     setIsFeedbackSaving(false);
   }, []);
 
+  const clearDismissedFeedback = useCallback(() => {
+    dismissedFeedbackLiftIdsRef.current = new Set();
+    setDismissedFeedbackLiftIds(new Set());
+  }, []);
+
+  const resetManualCheckInModal = useCallback(() => {
+    setManualCheckInStep("skip");
+    setManualCheckInError(null);
+    setIsManualCheckInSaving(false);
+  }, []);
+
   const openFeedbackIfNeeded = useCallback(
     (nextView: ActiveWorkoutView, previousView?: ActiveWorkoutView | null): void => {
-      const pendingLift = findPendingFeedbackLift(nextView, previousView);
+      if (findPendingManualCheckInLift(nextView)) {
+        return;
+      }
+
+      const pendingLift = findPendingFeedbackLift(
+        nextView,
+        previousView,
+        dismissedFeedbackLiftIdsRef.current,
+      );
 
       if (!pendingLift) {
         return;
       }
 
+      blurActiveSetInputForLift(pendingLift);
       setFeedbackLift(pendingLift);
       setFeedbackPain(null);
       setFeedbackEffort(null);
@@ -155,6 +184,9 @@ export function WorkoutViewerPage() {
         }
 
         resetFeedbackModal();
+        resetManualCheckInModal();
+        clearDismissedFeedback();
+        setFinishFeedbackHint(null);
         commitView(workoutView);
         openFeedbackIfNeeded(workoutView);
       })
@@ -177,15 +209,21 @@ export function WorkoutViewerPage() {
   }, [
     clearPendingSetPersists,
     commitView,
+    clearDismissedFeedback,
     navigate,
     openFeedbackIfNeeded,
     params.programId,
     params.workoutId,
     resetFeedbackModal,
+    resetManualCheckInModal,
     services.workouts,
   ]);
 
   function persistSet(setId: number, nextDraft: SetDraftValue): void {
+    if (hasPendingManualCheckIn(viewRef.current)) {
+      return;
+    }
+
     delete persistTimersRef.current[setId];
 
     const previousView = viewRef.current;
@@ -236,8 +274,10 @@ export function WorkoutViewerPage() {
       services.workouts,
     )
       .then((nextView) => {
+        markFeedbackLiftAvailable(feedbackLift.id);
         commitView(nextView, { clearPendingPersists: false, preservePendingDrafts: true });
         resetFeedbackModal();
+        setFinishFeedbackHint(null);
         openFeedbackIfNeeded(nextView);
       })
       .catch((error: unknown) => {
@@ -246,6 +286,49 @@ export function WorkoutViewerPage() {
       .finally(() => {
         setIsFeedbackSaving(false);
       });
+  }
+
+  function handleDismissFeedbackModal(): void {
+    if (!feedbackLift) {
+      return;
+    }
+
+    const nextDismissedIds = new Set(dismissedFeedbackLiftIdsRef.current);
+    nextDismissedIds.add(feedbackLift.id);
+    dismissedFeedbackLiftIdsRef.current = nextDismissedIds;
+    setDismissedFeedbackLiftIds(nextDismissedIds);
+    resetFeedbackModal();
+  }
+
+  function markFeedbackLiftAvailable(liftId: number): void {
+    if (!dismissedFeedbackLiftIdsRef.current.has(liftId)) {
+      return;
+    }
+
+    const nextDismissedIds = new Set(dismissedFeedbackLiftIdsRef.current);
+    nextDismissedIds.delete(liftId);
+    dismissedFeedbackLiftIdsRef.current = nextDismissedIds;
+    setDismissedFeedbackLiftIds(nextDismissedIds);
+  }
+
+  function handleOpenFeedbackNeeded(): void {
+    if (!view) {
+      return;
+    }
+
+    const pendingFeedbackLift = findFirstLiftNeedingFeedback(view);
+
+    if (!pendingFeedbackLift) {
+      return;
+    }
+
+    markFeedbackLiftAvailable(pendingFeedbackLift.id);
+    setFinishFeedbackHint(null);
+    blurActiveSetInputForLift(pendingFeedbackLift);
+    setFeedbackLift(pendingFeedbackLift);
+    setFeedbackPain(null);
+    setFeedbackEffort(null);
+    setFeedbackError(null);
   }
 
   function scheduleSetPersist(setId: number, nextDraft: SetDraftValue): void {
@@ -261,6 +344,14 @@ export function WorkoutViewerPage() {
   }
 
   function handleSetFieldChange(setId: number, field: keyof SetDraftValue, value: string): void {
+    if (feedbackLift) {
+      return;
+    }
+
+    if (hasPendingManualCheckIn(viewRef.current)) {
+      return;
+    }
+
     if (!isAllowedIntegerInput(value)) {
       return;
     }
@@ -274,27 +365,67 @@ export function WorkoutViewerPage() {
 
     draftValuesRef.current = nextDraftValues;
     setDraftValues(nextDraftValues);
+    setFinishFeedbackHint(null);
     scheduleSetPersist(setId, nextDraft);
   }
 
   function handleOpenWorkout(workoutId: number | null): void {
-    if (!workoutId || !view) {
+    if (!workoutId || !view || hasPendingManualCheckIn(view)) {
       return;
     }
 
     setError(null);
     clearPendingSetPersists();
     resetFeedbackModal();
+    resetManualCheckInModal();
+    clearDismissedFeedback();
+    setFinishFeedbackHint(null);
     void navigate(`/programs/${view?.program.id}/workouts/${workoutId}`);
   }
 
+  function handleResolveManualCheckIn(decision: ManualCheckinDecision): void {
+    const pendingLift = view ? findPendingManualCheckInLift(view) : null;
+
+    if (!pendingLift) {
+      return;
+    }
+
+    setIsManualCheckInSaving(true);
+    setManualCheckInError(null);
+    setError(null);
+    clearPendingSetPersists();
+
+    void resolveManualCheckIn({ liftId: pendingLift.id, decision }, services.workouts)
+      .then((nextView) => {
+        commitView(nextView);
+        resetManualCheckInModal();
+        openFeedbackIfNeeded(nextView);
+      })
+      .catch((error: unknown) => {
+        setManualCheckInError(error instanceof Error ? error.message : "Could not save check-in.");
+      })
+      .finally(() => {
+        setIsManualCheckInSaving(false);
+      });
+  }
+
   function handleFinishWorkout(): void {
-    if (!view?.canFinish) {
+    if (!view) {
+      return;
+    }
+
+    if (findFirstLiftNeedingFeedback(view)) {
+      setFinishFeedbackHint("Complete lift feedback before finishing.");
+      return;
+    }
+
+    if (!view.canFinish) {
       return;
     }
 
     setIsSaving(true);
     setError(null);
+    setFinishFeedbackHint(null);
 
     void finishWorkout(view.workout.id, services.workouts)
       .then((nextView) => {
@@ -327,6 +458,13 @@ export function WorkoutViewerPage() {
     return null;
   }
 
+  const pendingManualCheckInLift = findPendingManualCheckInLift(view);
+  const pendingFeedbackLift = findFirstLiftNeedingFeedback(view);
+  const isWorkoutWorkComplete = isWorkoutWorkCompleteWithoutFeedback(view);
+  const shouldShowFeedbackNeeded = Boolean(pendingFeedbackLift && !feedbackLift);
+  const shouldShowFinishWorkout = isWorkoutWorkComplete;
+  const isFinishBlockedByFeedback = Boolean(pendingFeedbackLift);
+
   return (
     <main className="app-screen active-workout-screen" data-agent-id="active-workout-page">
       <section className="active-workout-flow" aria-labelledby="active-workout-day">
@@ -335,7 +473,7 @@ export function WorkoutViewerPage() {
             aria-label="Previous workout"
             className="workout-header__nav"
             data-agent-id="workout-day-prev"
-            disabled={!view.previousWorkoutId || isLoading}
+            disabled={!view.previousWorkoutId || isLoading || Boolean(pendingManualCheckInLift)}
             onClick={() => handleOpenWorkout(view.previousWorkoutId)}
             type="button"
           >
@@ -355,7 +493,7 @@ export function WorkoutViewerPage() {
             aria-label="Next workout"
             className="workout-header__nav"
             data-agent-id="workout-day-next"
-            disabled={!view.nextWorkoutId || isLoading}
+            disabled={!view.nextWorkoutId || isLoading || Boolean(pendingManualCheckInLift)}
             onClick={() => handleOpenWorkout(view.nextWorkoutId)}
             type="button"
           >
@@ -377,9 +515,27 @@ export function WorkoutViewerPage() {
           ) : null}
         </div>
 
+        {shouldShowFeedbackNeeded ? (
+          <button
+            className="feedback-needed-button"
+            data-agent-id="feedback-needed"
+            onClick={handleOpenFeedbackNeeded}
+            type="button"
+          >
+            <AlertTriangle aria-hidden size={18} strokeWidth={2.4} />
+            Feedback Needed
+          </button>
+        ) : null}
+
         {error ? (
           <p className="active-workout-error" role="alert">
             {error}
+          </p>
+        ) : null}
+
+        {finishFeedbackHint ? (
+          <p className="active-workout-warning" data-agent-id="finish-feedback-hint" role="status">
+            {finishFeedbackHint}
           </p>
         ) : null}
 
@@ -387,7 +543,7 @@ export function WorkoutViewerPage() {
           {view.lifts.map((lift) => (
             <LiftCard
               draftValues={draftValues}
-              isReadOnly={view.isReadOnly}
+              isReadOnly={view.isReadOnly || Boolean(feedbackLift)}
               key={lift.id}
               lift={lift}
               onSetFieldChange={handleSetFieldChange}
@@ -395,9 +551,11 @@ export function WorkoutViewerPage() {
           ))}
         </div>
 
-        {view.canFinish ? (
+        {shouldShowFinishWorkout ? (
           <div className="finish-workout-panel">
             <Button
+              aria-disabled={isFinishBlockedByFeedback}
+              className={isFinishBlockedByFeedback ? "button--soft-disabled" : ""}
               data-agent-id="finish-workout"
               disabled={isSaving}
               fullWidth
@@ -417,10 +575,27 @@ export function WorkoutViewerPage() {
           error={feedbackError}
           isSaving={isFeedbackSaving}
           lift={feedbackLift}
+          onClose={handleDismissFeedbackModal}
           onEffortChange={setFeedbackEffort}
           onPainChange={setFeedbackPain}
           onSave={handleSaveFeedback}
           painValue={feedbackPain}
+        />
+      ) : null}
+
+      {pendingManualCheckInLift ? (
+        <ManualCheckInModal
+          error={manualCheckInError}
+          isSaving={isManualCheckInSaving}
+          lift={pendingManualCheckInLift}
+          onContinue={() => handleResolveManualCheckIn("continue")}
+          onReset={() => handleResolveManualCheckIn("reset")}
+          onSkip={() => handleResolveManualCheckIn("skip")}
+          onSkipDecline={() => {
+            setManualCheckInError(null);
+            setManualCheckInStep("reset");
+          }}
+          step={manualCheckInStep}
         />
       ) : null}
     </main>
@@ -434,6 +609,7 @@ function canonicalWorkoutPath(view: ActiveWorkoutView): string {
 function findPendingFeedbackLift(
   nextView: ActiveWorkoutView,
   previousView?: ActiveWorkoutView | null,
+  dismissedLiftIds: ReadonlySet<number> = new Set(),
 ): ActiveWorkoutLiftView | null {
   if (nextView.isReadOnly) {
     return null;
@@ -446,6 +622,7 @@ function findPendingFeedbackLift(
       return (
         lift.status === "complete" &&
         !lift.feedbackSubmitted &&
+        !dismissedLiftIds.has(lift.id) &&
         previousLift?.status !== "complete"
       );
     });
@@ -455,7 +632,158 @@ function findPendingFeedbackLift(
     }
   }
 
-  return nextView.lifts.find((lift) => lift.status === "complete" && !lift.feedbackSubmitted) ?? null;
+  return (
+    nextView.lifts.find(
+      (lift) => lift.status === "complete" && !lift.feedbackSubmitted && !dismissedLiftIds.has(lift.id),
+    ) ?? null
+  );
+}
+
+function findFirstLiftNeedingFeedback(view: ActiveWorkoutView): ActiveWorkoutLiftView | null {
+  if (view.isReadOnly) {
+    return null;
+  }
+
+  return view.lifts.find((lift) => lift.status === "complete" && !lift.feedbackSubmitted) ?? null;
+}
+
+function isWorkoutWorkCompleteWithoutFeedback(view: ActiveWorkoutView): boolean {
+  if (view.isReadOnly || view.lifts.length === 0) {
+    return false;
+  }
+
+  const countableSets = view.lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
+  const allCountableSetsComplete = countableSets.every((set) => set.status === "complete");
+  const allLiftsCompleteOrSkipped = view.lifts.every(
+    (lift) => lift.status === "complete" || lift.status === "skipped",
+  );
+
+  return allCountableSetsComplete && allLiftsCompleteOrSkipped;
+}
+
+function findPendingManualCheckInLift(view: ActiveWorkoutView): ActiveWorkoutLiftView | null {
+  if (view.isReadOnly) {
+    return null;
+  }
+
+  return view.lifts.find((lift) => lift.manualCheckinStatus === "pending") ?? null;
+}
+
+function hasPendingManualCheckIn(view: ActiveWorkoutView | null): boolean {
+  return view ? Boolean(findPendingManualCheckInLift(view)) : false;
+}
+
+function blurActiveSetInputForLift(lift: ActiveWorkoutLiftView): void {
+  const activeElement = document.activeElement;
+
+  if (!(activeElement instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const activeAgentId = activeElement.dataset.agentId;
+  const isLiftSetInput = lift.sets.some(
+    (set) => activeAgentId === `set-reps-${set.id}` || activeAgentId === `set-weight-${set.id}`,
+  );
+
+  if (isLiftSetInput) {
+    activeElement.blur();
+  }
+}
+
+function ManualCheckInModal({
+  error,
+  isSaving,
+  lift,
+  onContinue,
+  onReset,
+  onSkip,
+  onSkipDecline,
+  step,
+}: {
+  error: string | null;
+  isSaving: boolean;
+  lift: ActiveWorkoutLiftView;
+  onContinue: () => void;
+  onReset: () => void;
+  onSkip: () => void;
+  onSkipDecline: () => void;
+  step: ManualCheckInStep;
+}) {
+  const painLevel = lift.manualCheckinSourcePain ?? "?";
+
+  return (
+    <div className="feedback-modal-overlay">
+      <section
+        aria-labelledby="manual-checkin-title"
+        aria-modal="true"
+        className="manual-checkin-modal"
+        data-agent-id="manual-checkin-modal"
+        role="dialog"
+      >
+        <div className="feedback-modal__header">
+          <p>Manual Check-in</p>
+          <h2 id="manual-checkin-title">{lift.exerciseName}</h2>
+        </div>
+
+        {step === "skip" ? (
+          <>
+            <p className="manual-checkin-modal__body">
+              Last week {lift.exerciseName} caused a pain of {painLevel}/5. Would you like to skip
+              that lift this week?
+            </p>
+            <div className="manual-checkin-modal__actions">
+              <Button
+                data-agent-id="manual-checkin-skip-no"
+                disabled={isSaving}
+                onClick={onSkipDecline}
+                variant="secondary"
+              >
+                No
+              </Button>
+              <Button
+                data-agent-id="manual-checkin-skip-yes"
+                disabled={isSaving}
+                onClick={onSkip}
+                variant="danger"
+              >
+                {isSaving ? "Saving" : "Yes"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="manual-checkin-modal__body">
+              Would you like to reset progress for {lift.exerciseName}? This is recommended.
+            </p>
+            <div className="manual-checkin-modal__actions">
+              <Button
+                data-agent-id="manual-checkin-reset-no"
+                disabled={isSaving}
+                onClick={onContinue}
+                variant="secondary"
+              >
+                No
+              </Button>
+              <Button
+                data-agent-id="manual-checkin-reset-yes"
+                disabled={isSaving}
+                onClick={onReset}
+                variant="outline"
+              >
+                {isSaving ? "Saving" : "Yes"}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {error ? (
+          <p className="feedback-error" data-agent-id="manual-checkin-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    </div>
+  );
 }
 
 function LiftFeedbackModal({
@@ -463,6 +791,7 @@ function LiftFeedbackModal({
   error,
   isSaving,
   lift,
+  onClose,
   onEffortChange,
   onPainChange,
   onSave,
@@ -472,6 +801,7 @@ function LiftFeedbackModal({
   error: string | null;
   isSaving: boolean;
   lift: ActiveWorkoutLiftView;
+  onClose: () => void;
   onEffortChange: (value: number) => void;
   onPainChange: (value: number) => void;
   onSave: () => void;
@@ -488,9 +818,21 @@ function LiftFeedbackModal({
         data-agent-id="lift-feedback-modal"
         role="dialog"
       >
-        <div className="feedback-modal__header">
-          <p>Lift Feedback</p>
-          <h2 id="lift-feedback-title">{lift.exerciseName}</h2>
+        <div className="feedback-modal__header feedback-modal__header--with-close">
+          <div>
+            <p>Lift Feedback</p>
+            <h2 id="lift-feedback-title">{lift.exerciseName}</h2>
+          </div>
+          <button
+            aria-label="Close feedback"
+            className="feedback-modal__close"
+            data-agent-id="feedback-close"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden size={20} strokeWidth={2.4} />
+          </button>
         </div>
 
         <FeedbackScale
@@ -580,21 +922,27 @@ function LiftCard({
   lift: ActiveWorkoutLiftView;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
 }) {
+  const isSkipped = lift.status === "skipped";
+  const className = [
+    "lift-card",
+    lift.status === "complete" ? "lift-card--complete" : "",
+    isSkipped ? "lift-card--skipped" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <article
-      className={lift.status === "complete" ? "lift-card lift-card--complete" : "lift-card"}
-      data-agent-id={`lift-card-${lift.id}`}
-    >
+    <article className={className} data-agent-id={`lift-card-${lift.id}`}>
       <div className="lift-card__header">
         <h2>{lift.exerciseName}</h2>
-        <span>{lift.sets.length} sets</span>
+        <span>{isSkipped ? "Skipped" : `${lift.sets.length} sets`}</span>
       </div>
 
       <div className="set-list">
         {lift.sets.map((set) => (
           <SetRow
             draftValue={draftValues[set.id] ?? valueFromSet(set)}
-            isReadOnly={isReadOnly || set.locked}
+            isReadOnly={isReadOnly || isSkipped || set.locked}
             key={set.id}
             onSetFieldChange={onSetFieldChange}
             set={set}
@@ -617,10 +965,17 @@ function SetRow({
   set: ActiveWorkoutSetView;
 }) {
   const isComplete = set.status === "complete";
+  const isSkipped = set.status === "skipped";
 
   return (
     <div
-      className={isComplete ? "set-row set-row--complete" : "set-row"}
+      className={[
+        "set-row",
+        isComplete ? "set-row--complete" : "",
+        isSkipped ? "set-row--skipped" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-agent-id={`set-row-${set.id}`}
     >
       <div className="set-row__set">
@@ -629,6 +984,10 @@ function SetRow({
           <span className="set-row__logged" data-agent-id={`set-logged-${set.id}`}>
             <Check aria-hidden size={16} strokeWidth={2.5} />
             Logged
+          </span>
+        ) : isSkipped ? (
+          <span className="set-row__skipped" data-agent-id={`set-skipped-${set.id}`}>
+            Skipped
           </span>
         ) : null}
       </div>

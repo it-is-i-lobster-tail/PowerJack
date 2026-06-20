@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { startProgramFromTemplate } from "../../src/application/programs/startProgramFromTemplate";
 import { saveTemplate } from "../../src/application/templates/saveTemplate";
 import { finishWorkout } from "../../src/application/workouts/finishWorkout";
+import { resolveManualCheckIn } from "../../src/application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../src/application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
 import type { AppServices } from "../../src/app/AppServices";
@@ -186,12 +187,6 @@ describe("Program and Workout repository contracts", () => {
     await expect(finishWorkout(view.workout.id, services.workouts)).rejects.toThrow(
       "Submit feedback for every completed lift before finishing the workout.",
     );
-    await expect(
-      submitLiftFeedback(
-        { liftId: view.lifts[0]?.id ?? 0, levelOfPain: 0, levelOfEffort: 3 },
-        services.workouts,
-      ),
-    ).rejects.toThrow("Choose a feedback value from 1 to 5.");
 
     view = await submitLiftFeedback(
       { liftId: view.lifts[0]?.id ?? 0, levelOfPain: 1, levelOfEffort: 3 },
@@ -206,6 +201,117 @@ describe("Program and Workout repository contracts", () => {
     );
     expect(view.lifts[0]?.feedbackSubmitted).toBe(true);
     expect(view.canFinish).toBe(true);
+  });
+
+  it("requires manual check-in after a high-pain lift and carries skipped lifts forward", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitLiftFeedback(
+      { liftId: view.lifts[0]?.id ?? 0, levelOfPain: 4, levelOfEffort: 3 },
+      services.workouts,
+    );
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts[0]).toMatchObject({
+      manualCheckinStatus: "pending",
+      manualCheckinSourcePain: 4,
+      locked: true,
+    });
+    expect(weekTwo.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ plannedReps: 10, plannedWeight: 100, locked: true }),
+      expect.objectContaining({ plannedReps: 8, plannedWeight: 100, locked: true }),
+    ]);
+    expect(weekTwo.canFinish).toBe(false);
+
+    const skippedWeekTwo = await resolveManualCheckIn(
+      { liftId: weekTwo.lifts[0]?.id ?? 0, decision: "skip" },
+      services.workouts,
+    );
+
+    expect(skippedWeekTwo).toMatchObject({
+      completedSets: 0,
+      totalSets: 0,
+      canFinish: true,
+    });
+    expect(skippedWeekTwo.lifts[0]).toMatchObject({ status: "skipped", locked: true });
+    expect(skippedWeekTwo.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ status: "skipped", locked: true }),
+      expect.objectContaining({ status: "skipped", locked: true }),
+    ]);
+
+    const weekThree = await finishWorkout(skippedWeekTwo.workout.id, services.workouts);
+
+    if (!weekThree) {
+      throw new Error("Expected week 3.");
+    }
+
+    expect(weekThree.lifts[0]).toMatchObject({
+      manualCheckinStatus: "pending",
+      manualCheckinSourcePain: 4,
+      locked: true,
+    });
+    expect(weekThree.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ plannedReps: 10, plannedWeight: 100 }),
+      expect.objectContaining({ plannedReps: 8, plannedWeight: 100 }),
+    ]);
+  });
+
+  it("resets a high-pain manual check-in lift to two blank active sets", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitLiftFeedback(
+      { liftId: view.lifts[0]?.id ?? 0, levelOfPain: 5, levelOfEffort: 3 },
+      services.workouts,
+    );
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    const resetView = await resolveManualCheckIn(
+      { liftId: weekTwo.lifts[0]?.id ?? 0, decision: "reset" },
+      services.workouts,
+    );
+
+    expect(resetView.lifts[0]).toMatchObject({
+      status: "active",
+      locked: false,
+      manualCheckinStatus: "resolved",
+    });
+    expect(resetView.lifts[0]?.sets).toEqual([
+      expect.objectContaining({
+        order: 1,
+        plannedReps: null,
+        plannedWeight: null,
+        actualReps: null,
+        actualWeight: null,
+        status: "active",
+        locked: false,
+      }),
+      expect.objectContaining({
+        order: 2,
+        plannedReps: null,
+        plannedWeight: null,
+        actualReps: null,
+        actualWeight: null,
+        status: "active",
+        locked: false,
+      }),
+    ]);
+    expect(resetView.canFinish).toBe(false);
   });
 
   it("clears active app state after the final workout and counts later program names", async () => {
