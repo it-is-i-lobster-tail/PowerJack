@@ -2,6 +2,10 @@ import type { EntityId } from "../ids";
 import type { Program } from "../programs/Program";
 import type { PowerJackStatus } from "../status";
 
+export const manualCheckinStatuses = ["none", "pending", "resolved"] as const;
+
+export type ManualCheckinStatus = (typeof manualCheckinStatuses)[number];
+
 export interface Workout {
   id: EntityId;
   order: number;
@@ -24,6 +28,8 @@ export interface Lift {
   order: number;
   status: PowerJackStatus;
   planned: boolean;
+  manualCheckinStatus: ManualCheckinStatus;
+  manualCheckinSourceLiftId: EntityId | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +78,9 @@ export interface ActiveWorkoutLiftView {
   status: PowerJackStatus;
   locked: boolean;
   feedbackSubmitted: boolean;
+  manualCheckinStatus: ManualCheckinStatus;
+  manualCheckinSourceLiftId: EntityId | null;
+  manualCheckinSourcePain: number | null;
   sets: ActiveWorkoutSetView[];
 }
 

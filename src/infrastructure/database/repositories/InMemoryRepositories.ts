@@ -20,10 +20,18 @@ import type {
   ActiveWorkoutWeekItem,
   Feedback,
   Lift,
+  ManualCheckinStatus,
   Workout,
   WorkoutSet,
 } from "../../../domain/workouts/Workout";
-import type { WorkoutRepository } from "../../../domain/workouts/WorkoutRepository";
+import {
+  generateNextLiftPrescription,
+  type ProgressionLiftHistory,
+} from "../../../domain/workouts/progression/generateNextLiftPrescription";
+import type {
+  ManualCheckinDecision,
+  WorkoutRepository,
+} from "../../../domain/workouts/WorkoutRepository";
 import { buildReferenceCatalog } from "../seeds/buildReferenceCatalog";
 
 const deterministicTimestamp = "2026-06-18T00:00:00.000Z";
@@ -403,11 +411,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       );
     const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
     const lifts = this.buildLiftViews(workout.id);
-    const totalSets = lifts.reduce((total, lift) => total + lift.sets.length, 0);
-    const completedSets = lifts.reduce(
-      (total, lift) => total + lift.sets.filter((set) => set.status === "complete").length,
-      0,
-    );
+    const countableSets = lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
+    const completedCountableSets = countableSets.filter((set) => set.status === "complete");
 
     return Promise.resolve({
       program,
@@ -419,14 +424,14 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         currentWeekIndex >= 0 && currentWeekIndex < weekWorkouts.length - 1
           ? weekWorkouts[currentWeekIndex + 1]?.id ?? null
           : null,
-      completedSets,
-      totalSets,
+      completedSets: completedCountableSets.length,
+      totalSets: countableSets.length,
       canFinish:
         workout.status === "active" &&
         !workout.locked &&
-        totalSets > 0 &&
-        completedSets === totalSets &&
-        lifts.every((lift) => lift.status === "complete" && lift.feedbackSubmitted),
+        lifts.length > 0 &&
+        completedCountableSets.length === countableSets.length &&
+        lifts.every((lift) => lift.status === "skipped" || (lift.status === "complete" && lift.feedbackSubmitted)),
       isReadOnly: workout.locked || workout.status !== "active",
       lifts,
     });
@@ -460,7 +465,9 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     set.updatedAt = deterministicTimestamp;
 
     const liftSets = this.sets.filter((item) => item.liftId === lift.id);
-    lift.status = liftSets.every((item) => item.status === "complete") ? "complete" : "active";
+    lift.status = liftSets.every((item) => item.status === "complete" || item.status === "skipped")
+      ? "complete"
+      : "active";
     lift.updatedAt = deterministicTimestamp;
     this.appState.setActiveLift(lift.id);
 
@@ -478,8 +485,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     levelOfPain: number;
     levelOfEffort: number;
   }): Promise<ActiveWorkoutView> {
-    validateFeedbackValue(input.levelOfPain);
-    validateFeedbackValue(input.levelOfEffort);
+    validatePainValue(input.levelOfPain);
+    validateEffortValue(input.levelOfEffort);
 
     const lift = this.lifts.find((item) => item.id === input.liftId);
     const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
@@ -519,6 +526,86 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     return view;
   }
 
+  async resolveManualCheckIn(input: {
+    liftId: number;
+    decision: ManualCheckinDecision;
+  }): Promise<ActiveWorkoutView> {
+    const lift = this.lifts.find((item) => item.id === input.liftId);
+    const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+
+    if (!lift || !workout) {
+      throw new Error("Lift was not found.");
+    }
+
+    if (workout.locked || workout.status !== "active") {
+      throw new Error("This workout is locked.");
+    }
+
+    if (lift.manualCheckinStatus !== "pending") {
+      throw new Error("This lift does not need a manual check-in.");
+    }
+
+    if (input.decision === "skip") {
+      lift.status = "skipped";
+      lift.locked = true;
+      lift.manualCheckinStatus = "resolved";
+      lift.updatedAt = deterministicTimestamp;
+
+      for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
+        set.actualReps = null;
+        set.actualWeight = null;
+        set.status = "skipped";
+        set.locked = true;
+        set.updatedAt = deterministicTimestamp;
+      }
+
+      const view = await this.loadWorkoutView(workout.id);
+
+      if (!view) {
+        throw new Error("Workout could not be loaded after manual check-in.");
+      }
+
+      return view;
+    }
+
+    if (input.decision === "reset") {
+      this.sets = this.sets.filter((set) => set.liftId !== lift.id);
+
+      for (let setOrder = 1; setOrder <= 2; setOrder += 1) {
+        this.createSet({
+          liftId: lift.id,
+          order: setOrder,
+          status: "active",
+          locked: false,
+          plannedReps: null,
+          plannedWeight: null,
+        });
+      }
+    } else if (input.decision !== "continue") {
+      throw new Error("Choose a manual check-in option.");
+    }
+
+    lift.status = "active";
+    lift.locked = false;
+    lift.manualCheckinStatus = "resolved";
+    lift.updatedAt = deterministicTimestamp;
+
+    for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
+      set.status = "active";
+      set.locked = false;
+      set.updatedAt = deterministicTimestamp;
+    }
+
+    this.appState.setActiveLift(lift.id);
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after manual check-in.");
+    }
+
+    return view;
+  }
+
   async finishWorkout(workoutId: number): Promise<ActiveWorkoutView | null> {
     const workout = this.workouts.find((item) => item.id === workoutId);
 
@@ -538,7 +625,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
     const workoutSets = this.getSetsForWorkout(workout.id);
 
-    if (workoutSets.some((set) => set.status !== "complete")) {
+    if (workoutSets.some((set) => set.status !== "complete" && set.status !== "skipped")) {
       throw new Error("Complete every set before finishing the workout.");
     }
 
@@ -662,6 +749,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     order: number;
     status: PowerJackStatus;
     locked: boolean;
+    manualCheckinStatus?: ManualCheckinStatus;
+    manualCheckinSourceLiftId?: number | null;
   }): Lift {
     const lift: Lift = {
       id: this.nextLiftId,
@@ -672,6 +761,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       order: input.order,
       status: input.status,
       planned: true,
+      manualCheckinStatus: input.manualCheckinStatus ?? "none",
+      manualCheckinSourceLiftId: input.manualCheckinSourceLiftId ?? null,
       createdAt: deterministicTimestamp,
       updatedAt: deterministicTimestamp,
     };
@@ -720,6 +811,11 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         status: lift.status,
         locked: lift.locked,
         feedbackSubmitted: this.feedback.some((feedback) => feedback.liftId === lift.id),
+        manualCheckinStatus: lift.manualCheckinStatus,
+        manualCheckinSourceLiftId: lift.manualCheckinSourceLiftId,
+        manualCheckinSourcePain: this.feedback.find(
+          (feedback) => feedback.liftId === lift.manualCheckinSourceLiftId,
+        )?.levelOfPain ?? null,
         sets: this.sets
           .filter((set) => set.liftId === lift.id)
           .sort((left, right) => left.order - right.order)
@@ -757,12 +853,12 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     }
 
     for (const lift of this.lifts.filter((item) => item.workoutId === workoutId)) {
-      lift.status = "complete";
+      lift.status = lift.status === "skipped" ? "skipped" : "complete";
       lift.locked = true;
       lift.updatedAt = deterministicTimestamp;
 
       for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
-        set.status = "complete";
+        set.status = set.status === "skipped" ? "skipped" : "complete";
         set.locked = true;
         set.updatedAt = deterministicTimestamp;
       }
@@ -785,7 +881,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
     for (const lift of this.lifts.filter((item) => item.workoutId === workoutId)) {
       lift.status = "active";
-      lift.locked = false;
+      lift.locked = lift.manualCheckinStatus === "pending";
       lift.hidden = false;
       lift.updatedAt = deterministicTimestamp;
 
@@ -795,7 +891,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
       for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
         set.status = "active";
-        set.locked = false;
+        set.locked = lift.manualCheckinStatus === "pending";
         set.hidden = false;
         set.updatedAt = deterministicTimestamp;
       }
@@ -821,47 +917,110 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       });
 
       for (const [exerciseIndex, exerciseId] of day.exerciseIds.entries()) {
+        const prescription = this.nextLiftPrescription({
+          program,
+          programWeek,
+          workoutDay: day.order,
+          liftOrder: exerciseIndex + 1,
+          exerciseId,
+          focusMuscleIds: template.focusMuscleIds,
+        });
+        const manualCheckinStatus: ManualCheckinStatus = prescription.manualCheckinSourceLiftId
+          ? "pending"
+          : "none";
         const lift = this.createLift({
           workoutId: workout.id,
           exerciseId,
           order: exerciseIndex + 1,
           status: "planned",
           locked: true,
+          manualCheckinStatus,
+          manualCheckinSourceLiftId: prescription.manualCheckinSourceLiftId,
         });
-        const previousSets = this.previousWeekSets({
-          programId: program.id,
-          programWeek: programWeek - 1,
-          workoutDay: day.order,
-          liftOrder: exerciseIndex + 1,
-        });
-        const setPlans =
-          previousSets.length > 0
-            ? previousSets
-            : [
-                { order: 1, actualReps: null, actualWeight: null },
-                { order: 2, actualReps: null, actualWeight: null },
-              ];
 
-        for (const setPlan of setPlans) {
+        for (const setPlan of prescription.sets) {
           this.createSet({
             liftId: lift.id,
             order: setPlan.order,
             status: "planned",
             locked: true,
-            plannedReps: setPlan.actualReps === null ? null : setPlan.actualReps + 1,
-            plannedWeight: setPlan.actualWeight,
+            plannedReps: setPlan.plannedReps,
+            plannedWeight: setPlan.plannedWeight,
           });
         }
       }
     }
   }
 
-  private previousWeekSets(input: {
+  private nextLiftPrescription(input: {
+    program: Program;
+    programWeek: number;
+    workoutDay: number;
+    liftOrder: number;
+    exerciseId: number;
+    focusMuscleIds: number[];
+  }) {
+    const current = this.liftHistory({
+      programId: input.program.id,
+      programWeek: input.programWeek - 1,
+      workoutDay: input.workoutDay,
+      liftOrder: input.liftOrder,
+      exerciseId: input.exerciseId,
+    });
+
+    if (!current) {
+      throw new Error("Previous lift could not be loaded for progression.");
+    }
+
+    const exercise = this.catalog.exercises.find((item) => item.id === input.exerciseId);
+
+    if (!exercise) {
+      throw new Error("Exercise could not be loaded for progression.");
+    }
+
+    const primaryMuscle = this.catalog.muscles.find((muscle) => muscle.name === exercise.primaryMuscleName);
+
+    if (!primaryMuscle) {
+      throw new Error("Exercise primary muscle could not be loaded for progression.");
+    }
+
+    return generateNextLiftPrescription({
+      current,
+      previous: this.liftHistory({
+        programId: input.program.id,
+        programWeek: input.programWeek - 2,
+        workoutDay: input.workoutDay,
+        liftOrder: input.liftOrder,
+        exerciseId: input.exerciseId,
+      }),
+      twoWeeksAgo: this.liftHistory({
+        programId: input.program.id,
+        programWeek: input.programWeek - 3,
+        workoutDay: input.workoutDay,
+        liftOrder: input.liftOrder,
+        exerciseId: input.exerciseId,
+      }),
+      exercise: {
+        primaryMuscleId: primaryMuscle.id,
+        minRepsHypertrophy: exercise.minRepsHypertrophy,
+        maxRepsHypertrophy: exercise.maxRepsHypertrophy,
+      },
+      focusMuscleIds: input.focusMuscleIds,
+      programLengthWeeks: input.program.programLengthWeeks,
+    });
+  }
+
+  private liftHistory(input: {
     programId: number;
     programWeek: number;
     workoutDay: number;
     liftOrder: number;
-  }): Array<{ order: number; actualReps: number | null; actualWeight: number | null }> {
+    exerciseId: number;
+  }): ProgressionLiftHistory | null {
+    if (input.programWeek < 1) {
+      return null;
+    }
+
     const previousWorkout = this.workouts.find(
       (workout) =>
         workout.programId === input.programId &&
@@ -870,25 +1029,41 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     );
 
     if (!previousWorkout) {
-      return [];
+      return null;
     }
 
     const previousLift = this.lifts.find(
-      (lift) => lift.workoutId === previousWorkout.id && lift.order === input.liftOrder,
+      (lift) =>
+        lift.workoutId === previousWorkout.id &&
+        lift.order === input.liftOrder &&
+        lift.exerciseId === input.exerciseId,
     );
 
     if (!previousLift) {
-      return [];
+      return null;
     }
 
-    return this.sets
-      .filter((set) => set.liftId === previousLift.id)
-      .sort((left, right) => left.order - right.order)
-      .map((set) => ({
-        order: set.order,
-        actualReps: set.actualReps,
-        actualWeight: set.actualWeight,
-      }));
+    const feedback = this.feedback.find((item) => item.liftId === previousLift.id);
+
+    return {
+      id: previousLift.id,
+      programWeek: previousWorkout.programWeek,
+      status: previousLift.status,
+      levelOfPain: feedback?.levelOfPain ?? null,
+      levelOfEffort: feedback?.levelOfEffort ?? null,
+      manualCheckinSourceLiftId: previousLift.manualCheckinSourceLiftId,
+      sets: this.sets
+        .filter((set) => set.liftId === previousLift.id)
+        .sort((left, right) => left.order - right.order)
+        .map((set) => ({
+          order: set.order,
+          plannedReps: set.plannedReps,
+          plannedWeight: set.plannedWeight,
+          actualReps: set.actualReps,
+          actualWeight: set.actualWeight,
+          status: set.status,
+        })),
+    };
   }
 }
 
@@ -903,9 +1078,15 @@ function cloneTemplateAggregate(template: TemplateAggregate): TemplateAggregate 
   };
 }
 
-function validateFeedbackValue(value: number): void {
+function validatePainValue(value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > 5) {
-    throw new Error("Choose a feedback value from 1 to 5.");
+    throw new Error("Choose a pain value from 1 to 5.");
+  }
+}
+
+function validateEffortValue(value: number): void {
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error("Choose an effort value from 1 to 5.");
   }
 }
 
