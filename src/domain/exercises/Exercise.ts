@@ -21,6 +21,7 @@ export interface Exercise {
   primaryMuscleId: EntityId;
   secondaryMuscleIds: EntityId[];
   equipmentId: EntityId;
+  repsOnly: boolean;
   minRepsHypertrophy: number;
   maxRepsHypertrophy: number;
   createdAt: string;
@@ -33,6 +34,7 @@ export interface ExerciseSummary {
   primaryMuscleName: string;
   secondaryMuscleNames: string[];
   equipmentName: string;
+  repsOnly: boolean;
   minRepsHypertrophy: number;
   maxRepsHypertrophy: number;
 }

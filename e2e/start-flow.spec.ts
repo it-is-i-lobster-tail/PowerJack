@@ -733,4 +733,43 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveAttribute("placeholder", "10");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveAttribute("placeholder", "100");
   });
+
+  test("reps-only workout disables weight input and logs reps only", async ({ page }) => {
+    await openTemplateFocus(page, "Bodyweight Check");
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.locator("[data-agent-id='exercise-search-input']").fill("pull-up");
+    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+    await page.locator("[data-agent-id='save-template']").click();
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await page.locator("[data-agent-id='program-length-4']").click();
+    await page.locator("[data-agent-id='program-length-next']").click();
+
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+
+    const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
+    const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);
+    const secondRep = page.locator("[data-agent-id^='set-reps-']").nth(1);
+    const secondWeight = page.locator("[data-agent-id^='set-weight-']").nth(1);
+
+    await expect(firstWeight).toBeDisabled();
+    await expect(firstWeight).toHaveValue("180");
+    await expect(secondWeight).toBeDisabled();
+    await expect(secondWeight).toHaveValue("180");
+
+    await firstRep.fill("8");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+
+    await secondRep.fill("7");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+  });
 });

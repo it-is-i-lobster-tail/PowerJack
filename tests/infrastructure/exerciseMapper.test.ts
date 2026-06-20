@@ -10,6 +10,7 @@ describe("mapExerciseSummaryRow", () => {
         primary_muscle_name: "Chest",
         secondary_muscle_names: "Triceps,Shoulders",
         equipment_name: "Barbell",
+        reps_only: 0,
         min_reps_hypertrophy: 6,
         max_reps_hypertrophy: 12,
       }),
@@ -19,6 +20,7 @@ describe("mapExerciseSummaryRow", () => {
       primaryMuscleName: "Chest",
       secondaryMuscleNames: ["Triceps", "Shoulders"],
       equipmentName: "Barbell",
+      repsOnly: false,
       minRepsHypertrophy: 6,
       maxRepsHypertrophy: 12,
     });

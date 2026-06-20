@@ -534,9 +534,10 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       throw new Error("This set is locked.");
     }
 
+    const repsOnly = this.isRepsOnlyExercise(lift.exerciseId);
     set.actualReps = input.actualReps;
-    set.actualWeight = input.actualWeight;
-    set.status = input.actualReps !== null && input.actualWeight !== null ? "complete" : "active";
+    set.actualWeight = repsOnly ? null : input.actualWeight;
+    set.status = input.actualReps !== null && (repsOnly || set.actualWeight !== null) ? "complete" : "active";
     set.updatedAt = deterministicTimestamp;
 
     const liftSets = this.sets.filter((item) => item.liftId === lift.id);
@@ -770,7 +771,6 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         return (
           set.status === "complete" &&
           set.actualReps !== null &&
-          set.actualWeight !== null &&
           completedAt >= from &&
           completedAt < to
         );
@@ -971,6 +971,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         id: lift.id,
         exerciseId: lift.exerciseId,
         exerciseName: this.exerciseName(lift.exerciseId),
+        repsOnly: this.isRepsOnlyExercise(lift.exerciseId),
         order: lift.order,
         status: lift.status,
         locked: lift.locked,
@@ -1000,6 +1001,10 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
   private exerciseName(exerciseId: number): string {
     return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.name ?? "Exercise";
+  }
+
+  private isRepsOnlyExercise(exerciseId: number): boolean {
+    return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.repsOnly ?? false;
   }
 
   private getSetsForWorkout(workoutId: number): WorkoutSet[] {
@@ -1168,6 +1173,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         primaryMuscleId: primaryMuscle.id,
         minRepsHypertrophy: exercise.minRepsHypertrophy,
         maxRepsHypertrophy: exercise.maxRepsHypertrophy,
+        repsOnly: exercise.repsOnly,
       },
       focusMuscleIds: input.focusMuscleIds,
       programLengthWeeks: input.program.programLengthWeeks,
