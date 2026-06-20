@@ -124,6 +124,13 @@ export function AppShell() {
                 New Program
               </button>
               <button
+                data-agent-id="menu-data-visualization"
+                onClick={() => closeMenuAndNavigate("/visualization")}
+                type="button"
+              >
+                Data Visualization
+              </button>
+              <button
                 data-agent-id="menu-new-template"
                 onClick={() => {
                   resetTemplateDraft();
