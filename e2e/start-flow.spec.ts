@@ -116,14 +116,18 @@ async function completeLiftWithFeedback(
   const setCount = await repsInputs.count();
 
   for (let index = 0; index < setCount; index += 1) {
-    await repsInputs.nth(index).fill(reps);
+    const repsInput = repsInputs.nth(index);
+    const weightInput = weightInputs.nth(index);
 
-    if (await weightInputs.nth(index).isEnabled()) {
-      await weightInputs.nth(index).fill(weight);
+    await repsInput.fill(reps);
+
+    if (await weightInput.isEnabled()) {
+      await weightInput.fill(weight);
     }
+
+    await page.waitForTimeout(650);
   }
 
-  await page.waitForTimeout(650);
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
   await page.locator("[data-agent-id='feedback-pain-option-1']").click();
   await page.locator("[data-agent-id='feedback-effort-option-3']").click();
@@ -199,6 +203,8 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
 }
 
 test.describe("start program flow", () => {
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await page.waitForFunction(() => Boolean(window.__POWERJACK_AGENT__));
