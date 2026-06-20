@@ -278,7 +278,9 @@ export function WorkoutViewerPage() {
         markFeedbackLiftAvailable(feedbackLift.id);
         commitView(nextView, { clearPendingPersists: false, preservePendingDrafts: true });
         resetFeedbackModal();
-        setFinishFeedbackHint(null);
+        if (!findFirstLiftNeedingFeedback(nextView)) {
+          setFinishFeedbackHint(null);
+        }
         openFeedbackIfNeeded(nextView);
       })
       .catch((error: unknown) => {
@@ -312,21 +314,14 @@ export function WorkoutViewerPage() {
     setDismissedFeedbackLiftIds(nextDismissedIds);
   }
 
-  function handleOpenFeedbackNeeded(): void {
-    if (!view) {
+  function handleOpenFeedbackNeeded(lift: ActiveWorkoutLiftView): void {
+    if (lift.status !== "complete" || lift.feedbackSubmitted) {
       return;
     }
 
-    const pendingFeedbackLift = findFirstLiftNeedingFeedback(view);
-
-    if (!pendingFeedbackLift) {
-      return;
-    }
-
-    markFeedbackLiftAvailable(pendingFeedbackLift.id);
-    setFinishFeedbackHint(null);
-    blurActiveSetInputForLift(pendingFeedbackLift);
-    setFeedbackLift(pendingFeedbackLift);
+    markFeedbackLiftAvailable(lift.id);
+    blurActiveSetInputForLift(lift);
+    setFeedbackLift(lift);
     setFeedbackPain(null);
     setFeedbackEffort(null);
     setFeedbackError(null);
@@ -462,9 +457,9 @@ export function WorkoutViewerPage() {
   const pendingManualCheckInLift = findPendingManualCheckInLift(view);
   const pendingFeedbackLift = findFirstLiftNeedingFeedback(view);
   const isWorkoutWorkComplete = isWorkoutWorkCompleteWithoutFeedback(view);
-  const shouldShowFeedbackNeeded = Boolean(pendingFeedbackLift && !feedbackLift);
   const shouldShowFinishWorkout = isWorkoutWorkComplete;
   const isFinishBlockedByFeedback = Boolean(pendingFeedbackLift);
+  const finishFeedbackHintId = "finish-feedback-hint";
 
   return (
     <main className="app-screen active-workout-screen" data-agent-id="active-workout-page">
@@ -516,27 +511,9 @@ export function WorkoutViewerPage() {
           ) : null}
         </div>
 
-        {shouldShowFeedbackNeeded ? (
-          <button
-            className="feedback-needed-button"
-            data-agent-id="feedback-needed"
-            onClick={handleOpenFeedbackNeeded}
-            type="button"
-          >
-            <AlertTriangle aria-hidden size={18} strokeWidth={2.4} />
-            Feedback Needed
-          </button>
-        ) : null}
-
         {error ? (
           <p className="active-workout-error" role="alert">
             {error}
-          </p>
-        ) : null}
-
-        {finishFeedbackHint ? (
-          <p className="active-workout-warning" data-agent-id="finish-feedback-hint" role="status">
-            {finishFeedbackHint}
           </p>
         ) : null}
 
@@ -547,15 +524,31 @@ export function WorkoutViewerPage() {
               isReadOnly={view.isReadOnly || Boolean(feedbackLift)}
               key={lift.id}
               lift={lift}
+              onFeedbackNeeded={handleOpenFeedbackNeeded}
               onSetFieldChange={handleSetFieldChange}
+              showFeedbackNeeded={
+                !feedbackLift && !view.isReadOnly && lift.status === "complete" && !lift.feedbackSubmitted
+              }
             />
           ))}
         </div>
 
         {shouldShowFinishWorkout ? (
           <div className="finish-workout-panel">
+            {finishFeedbackHint ? (
+              <p
+                className="active-workout-warning"
+                data-agent-id="finish-feedback-hint"
+                id={finishFeedbackHintId}
+                role="status"
+              >
+                <AlertTriangle aria-hidden size={18} strokeWidth={2.4} />
+                {finishFeedbackHint}
+              </p>
+            ) : null}
             <Button
-              aria-disabled={isFinishBlockedByFeedback}
+              aria-describedby={finishFeedbackHint ? finishFeedbackHintId : undefined}
+              aria-disabled={isFinishBlockedByFeedback || undefined}
               className={isFinishBlockedByFeedback ? "button--soft-disabled" : ""}
               data-agent-id="finish-workout"
               disabled={isSaving}
@@ -916,12 +909,16 @@ function LiftCard({
   draftValues,
   isReadOnly,
   lift,
+  onFeedbackNeeded,
   onSetFieldChange,
+  showFeedbackNeeded,
 }: {
   draftValues: SetDraftValues;
   isReadOnly: boolean;
   lift: ActiveWorkoutLiftView;
+  onFeedbackNeeded: (lift: ActiveWorkoutLiftView) => void;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
+  showFeedbackNeeded: boolean;
 }) {
   const isSkipped = lift.status === "skipped";
   const className = [
@@ -938,6 +935,18 @@ function LiftCard({
         <h2>{lift.exerciseName}</h2>
         <span>{isSkipped ? "Skipped" : `${lift.sets.length} sets`}</span>
       </div>
+
+      {showFeedbackNeeded ? (
+        <button
+          className="feedback-needed-button"
+          data-agent-id={`feedback-needed-lift-${lift.id}`}
+          onClick={() => onFeedbackNeeded(lift)}
+          type="button"
+        >
+          <AlertTriangle aria-hidden size={18} strokeWidth={2.4} />
+          Feedback Needed
+        </button>
+      ) : null}
 
       <div className="set-list">
         {lift.sets.map((set) => (
