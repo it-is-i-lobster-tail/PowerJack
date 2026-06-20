@@ -11,6 +11,7 @@ import { TemplateBuilderPage } from "../features/templates/pages/TemplateBuilder
 import { ActiveWorkoutRedirectPage } from "../features/workouts/pages/ActiveWorkoutRedirectPage";
 import { WorkoutViewerPage } from "../features/workouts/pages/WorkoutViewerPage";
 import { DataVisualizationPage } from "../features/data-visualization/pages/DataVisualizationPage";
+import { ProgramOverviewPage } from "../features/programs/pages/ProgramOverviewPage";
 
 export function createAppRouter() {
   return createBrowserRouter([
@@ -57,6 +58,10 @@ export function createAppRouter() {
         {
           path: "visualization",
           element: <DataVisualizationPage />,
+        },
+        {
+          path: "programs/:programId",
+          element: <ProgramOverviewPage />,
         },
         {
           path: "programs/:programId/workouts/:workoutId",
