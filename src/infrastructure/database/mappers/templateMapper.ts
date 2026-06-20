@@ -6,6 +6,7 @@ export interface TemplateSummaryRow extends Record<string, unknown> {
   workouts_per_week: number;
   exercise_count: number;
   focus_muscles: string | null;
+  used_by_active_program: number;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +27,7 @@ export function mapTemplateSummaryRow(row: TemplateSummaryRow): TemplateSummary 
     workoutsPerWeek: row.workouts_per_week,
     exerciseCount: row.exercise_count,
     focusMuscles: parseFocusMuscles(row.focus_muscles),
+    usedByActiveProgram: Boolean(row.used_by_active_program),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
