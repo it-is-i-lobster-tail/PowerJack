@@ -1,5 +1,17 @@
 import type { AppState } from "../../../domain/app-state/AppState";
+import type {
+  PersistedProgramScheduleCell,
+  ProgramOverviewFocusMuscle,
+  ProgramOverviewSnapshot,
+  ProgramOverviewStatusCounts,
+} from "../../../domain/programs/ProgramOverview";
+import {
+  buildProgramSchedule,
+  calculateProgramProgress,
+  createProgramOverviewStatusCounts,
+} from "../../../domain/programs/ProgramOverview";
 import type { ProgramRepository } from "../../../domain/programs/ProgramRepository";
+import { isPowerJackStatus, type PowerJackStatus } from "../../../domain/status";
 import type { TemplateAggregate } from "../../../domain/templates/Template";
 import type { DatabaseClient } from "../DatabaseClient";
 import { mapAppStateRow, type AppStateRow } from "../mappers/appStateMapper";
@@ -16,8 +28,137 @@ interface ActiveProgramRow extends Record<string, unknown> {
   active_program_id: number | null;
 }
 
+interface ProgramOverviewHeaderRow extends Record<string, unknown> {
+  id: number;
+  name: string;
+  program_length_weeks: number;
+  status: string;
+  locked: number;
+  template_id: number;
+  template_name: string;
+  workouts_per_week: number;
+  focus_muscles: string | null;
+}
+
+interface ProgramOverviewWorkoutRow extends Record<string, unknown> {
+  workout_id: number;
+  program_week: number;
+  workout_day: number;
+  total_sets: number;
+  planned_sets: number;
+  active_sets: number;
+  complete_sets: number;
+  halted_sets: number;
+  skipped_sets: number;
+}
+
+interface TemplateDaySetCountRow extends Record<string, unknown> {
+  workout_day: number;
+  set_count: number;
+}
+
 export class SqliteProgramRepository implements ProgramRepository {
   constructor(private readonly db: DatabaseClient) {}
+
+  async loadOverview(programId: number): Promise<ProgramOverviewSnapshot | null> {
+    const headerRows = await this.db.query<ProgramOverviewHeaderRow>(
+      `
+        SELECT
+          programs.id,
+          programs.name,
+          programs.program_length_weeks,
+          programs.status,
+          programs.locked,
+          programs.template_id,
+          templates.name AS template_name,
+          templates.workouts_per_week,
+          (
+            SELECT GROUP_CONCAT(focus_muscles.id || ':' || focus_muscles.name, '|')
+            FROM (
+              SELECT muscles.id, muscles.name
+              FROM template_focus_muscles
+              INNER JOIN muscles ON muscles.id = template_focus_muscles.muscle_id
+              WHERE template_focus_muscles.template_id = templates.id
+              ORDER BY muscles.name ASC
+            ) AS focus_muscles
+          ) AS focus_muscles
+        FROM programs
+        INNER JOIN templates ON templates.id = programs.template_id
+        WHERE programs.id = ?
+      `,
+      [programId],
+    );
+    const header = headerRows[0];
+
+    if (!header) {
+      return null;
+    }
+
+    const [workoutRows, templateDayRows] = await Promise.all([
+      this.db.query<ProgramOverviewWorkoutRow>(
+        `
+          SELECT
+            workouts.id AS workout_id,
+            workouts.program_week,
+            workouts.workout_day,
+            COUNT(workout_sets.id) AS total_sets,
+            SUM(CASE WHEN workout_sets.status = 'planned' THEN 1 ELSE 0 END) AS planned_sets,
+            SUM(CASE WHEN workout_sets.status = 'active' THEN 1 ELSE 0 END) AS active_sets,
+            SUM(CASE WHEN workout_sets.status = 'complete' THEN 1 ELSE 0 END) AS complete_sets,
+            SUM(CASE WHEN workout_sets.status = 'halted' THEN 1 ELSE 0 END) AS halted_sets,
+            SUM(CASE WHEN workout_sets.status = 'skipped' THEN 1 ELSE 0 END) AS skipped_sets
+          FROM workouts
+          LEFT JOIN lifts ON lifts.workout_id = workouts.id
+          LEFT JOIN workout_sets ON workout_sets.lift_id = lifts.id
+          WHERE workouts.program_id = ?
+          GROUP BY workouts.id
+          ORDER BY workouts.program_week ASC, workouts.workout_day ASC
+        `,
+        [programId],
+      ),
+      this.db.query<TemplateDaySetCountRow>(
+        `
+          SELECT
+            workout_templates."order" AS workout_day,
+            COUNT(lift_templates.id) * 2 AS set_count
+          FROM workout_templates
+          LEFT JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
+          WHERE workout_templates.template_id = ?
+          GROUP BY workout_templates.id
+          ORDER BY workout_templates."order" ASC
+        `,
+        [header.template_id],
+      ),
+    ]);
+
+    const schedule = buildProgramSchedule({
+      programLengthWeeks: header.program_length_weeks,
+      workoutsPerWeek: header.workouts_per_week,
+      persistedCells: workoutRows.map(mapProgramOverviewWorkoutRow),
+      plannedSetCountsByDay: new Map(
+        templateDayRows.map((row) => [row.workout_day, row.set_count] as const),
+      ),
+    });
+    const progress = calculateProgramProgress(schedule);
+
+    return {
+      program: {
+        id: header.id,
+        name: header.name,
+        status: mapStatus(header.status),
+        locked: Boolean(header.locked),
+        templateId: header.template_id,
+        templateName: header.template_name,
+        programLengthWeeks: header.program_length_weeks,
+        workoutsPerWeek: header.workouts_per_week,
+        focusMuscles: parseFocusMuscles(header.focus_muscles),
+        completedSets: progress.completedSets,
+        totalSets: progress.totalSets,
+        progressPercent: progress.progressPercent,
+      },
+      schedule,
+    };
+  }
 
   async startFromTemplate(input: {
     template: TemplateAggregate;
@@ -154,6 +295,47 @@ export class SqliteProgramRepository implements ProgramRepository {
   }
 }
 
+function mapProgramOverviewWorkoutRow(row: ProgramOverviewWorkoutRow): PersistedProgramScheduleCell {
+  const statusCounts: ProgramOverviewStatusCounts = createProgramOverviewStatusCounts({
+    planned: row.planned_sets ?? 0,
+    active: row.active_sets ?? 0,
+    complete: row.complete_sets ?? 0,
+    halted: row.halted_sets ?? 0,
+    skipped: row.skipped_sets ?? 0,
+  });
+
+  return {
+    workoutId: row.workout_id,
+    week: row.program_week,
+    day: row.workout_day,
+    totalSets: row.total_sets,
+    statusCounts,
+  };
+}
+
+function parseFocusMuscles(value: string | null): ProgramOverviewFocusMuscle[] {
+  if (!value) {
+    return [];
+  }
+
+  return value.split("|").map((item) => {
+    const [id, name] = item.split(":");
+
+    return {
+      id: Number(id),
+      name,
+    };
+  });
+}
+
+function mapStatus(value: string): PowerJackStatus {
+  if (!isPowerJackStatus(value)) {
+    throw new Error(`Unknown PowerJack status: ${value}`);
+  }
+
+  return value;
+}
+
 async function haltActiveProgram(client: DatabaseClient, programId: number): Promise<void> {
   await client.run(
     `
@@ -166,7 +348,10 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
   await client.run(
     `
       UPDATE workouts
-      SET status = 'halted', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        locked = 1,
+        updated_at = CURRENT_TIMESTAMP
       WHERE program_id = ?
     `,
     [programId],
@@ -174,7 +359,10 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
   await client.run(
     `
       UPDATE lifts
-      SET status = 'halted', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        locked = 1,
+        updated_at = CURRENT_TIMESTAMP
       WHERE workout_id IN (
         SELECT id
         FROM workouts
@@ -186,7 +374,10 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
   await client.run(
     `
       UPDATE workout_sets
-      SET status = 'halted', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        locked = 1,
+        updated_at = CURRENT_TIMESTAMP
       WHERE lift_id IN (
         SELECT lifts.id
         FROM lifts
