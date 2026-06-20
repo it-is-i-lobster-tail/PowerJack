@@ -6,6 +6,16 @@ import type { TrainingAnalyticsRepository } from "../../../domain/analytics/Trai
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
 import type { Program } from "../../../domain/programs/Program";
+import type {
+  PersistedProgramScheduleCell,
+  ProgramOverviewSnapshot,
+} from "../../../domain/programs/ProgramOverview";
+import {
+  buildProgramSchedule,
+  calculateProgramProgress,
+  countProgramOverviewSetStatus,
+  createProgramOverviewStatusCounts,
+} from "../../../domain/programs/ProgramOverview";
 import type { ProgramRepository } from "../../../domain/programs/ProgramRepository";
 import type { PowerJackStatus } from "../../../domain/status";
 import type {
@@ -296,6 +306,69 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     private readonly appState: InMemoryAppStateRepository,
     private readonly templates: InMemoryTemplateRepository,
   ) {}
+
+  async loadOverview(programId: number): Promise<ProgramOverviewSnapshot | null> {
+    const program = this.programs.find((item) => item.id === programId);
+
+    if (!program) {
+      return null;
+    }
+
+    const template = await this.templates.loadAggregate(program.templateId);
+
+    if (!template) {
+      return null;
+    }
+
+    const persistedCells: PersistedProgramScheduleCell[] = this.workouts
+      .filter((workout) => workout.programId === program.id)
+      .map((workout) => {
+        let statusCounts = createProgramOverviewStatusCounts();
+        const sets = this.getSetsForWorkout(workout.id);
+
+        for (const set of sets) {
+          statusCounts = countProgramOverviewSetStatus(statusCounts, set.status);
+        }
+
+        return {
+          workoutId: workout.id,
+          week: workout.programWeek,
+          day: workout.workoutDay,
+          totalSets: sets.length,
+          statusCounts,
+        };
+      });
+    const schedule = buildProgramSchedule({
+      programLengthWeeks: program.programLengthWeeks,
+      workoutsPerWeek: template.workoutsPerWeek,
+      persistedCells,
+      plannedSetCountsByDay: new Map(
+        template.days.map((day) => [day.order, day.exerciseIds.length * 2] as const),
+      ),
+    });
+    const progress = calculateProgramProgress(schedule);
+
+    return {
+      program: {
+        id: program.id,
+        name: program.name,
+        status: program.status,
+        locked: program.locked,
+        templateId: program.templateId,
+        templateName: template.name,
+        programLengthWeeks: program.programLengthWeeks,
+        workoutsPerWeek: template.workoutsPerWeek,
+        focusMuscles: template.focusMuscleIds
+          .map((muscleId) => this.catalog.muscles.find((muscle) => muscle.id === muscleId))
+          .filter((muscle): muscle is NonNullable<typeof muscle> => Boolean(muscle))
+          .map((muscle) => ({ id: muscle.id, name: muscle.name })),
+        completedSets: progress.completedSets,
+        totalSets: progress.totalSets,
+        progressPercent: progress.progressPercent,
+      },
+      schedule,
+    };
+  }
 
   async startFromTemplate(input: {
     template: TemplateAggregate;
@@ -726,6 +799,43 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     return Promise.resolve(completedEvents);
   }
 
+  loadCompletedSetEventsForProgram(programId: number): Promise<CompletedSetEvent[]> {
+    const completedEvents = this.sets
+      .filter((set) => {
+        const lift = this.lifts.find((item) => item.id === set.liftId);
+        const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+
+        return (
+          workout?.programId === programId &&
+          set.status === "complete" &&
+          set.actualReps !== null &&
+          set.actualWeight !== null
+        );
+      })
+      .flatMap((set): CompletedSetEvent[] => {
+        const lift = this.lifts.find((item) => item.id === set.liftId);
+        const exercise = lift ? this.catalog.exercises.find((item) => item.id === lift.exerciseId) : null;
+        const muscle = exercise
+          ? this.catalog.muscles.find((item) => item.name === exercise.primaryMuscleName)
+          : null;
+
+        if (!lift || !exercise || !muscle) {
+          return [];
+        }
+
+        return [
+          {
+            setId: set.id,
+            muscleId: muscle.id,
+            muscleName: muscle.name,
+            completedAt: set.updatedAt,
+          },
+        ];
+      });
+
+    return Promise.resolve(completedEvents);
+  }
+
   reset(): void {
     this.programs = [];
     this.workouts = [];
@@ -749,17 +859,23 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     }
 
     for (const workout of this.workouts.filter((item) => item.programId === programId)) {
-      workout.status = "halted";
+      if (workout.status !== "complete") {
+        workout.status = "halted";
+      }
       workout.locked = true;
       workout.updatedAt = deterministicTimestamp;
 
       for (const lift of this.lifts.filter((item) => item.workoutId === workout.id)) {
-        lift.status = "halted";
+        if (lift.status !== "complete") {
+          lift.status = "halted";
+        }
         lift.locked = true;
         lift.updatedAt = deterministicTimestamp;
 
         for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
-          set.status = "halted";
+          if (set.status !== "complete") {
+            set.status = "halted";
+          }
           set.locked = true;
           set.updatedAt = deterministicTimestamp;
         }

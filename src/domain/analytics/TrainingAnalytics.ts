@@ -55,6 +55,19 @@ export interface SetVolumeReport {
   rows: SetVolumeMuscleRow[];
 }
 
+export interface ProgramSetVolumeMuscleRow {
+  muscleId: EntityId;
+  muscleName: string;
+  completedSets: number;
+  averageSetsPerWeek: number;
+  isFocusMuscle: boolean;
+}
+
+export interface ProgramSetVolumeReport {
+  totalCompletedSets: number;
+  rows: ProgramSetVolumeMuscleRow[];
+}
+
 export interface PeriodBounds {
   currentStart: Date;
   currentEnd: Date;
@@ -151,6 +164,47 @@ export function buildSetVolumeReport(input: {
     metricValue,
     previousMetricValue,
     metricDelta: metricValue - previousMetricValue,
+    rows,
+  };
+}
+
+export function buildProgramSetVolumeReport(input: {
+  events: CompletedSetEvent[];
+  programLengthWeeks: number;
+  focusMuscleIds: EntityId[];
+}): ProgramSetVolumeReport {
+  const focusMuscleIds = new Set(input.focusMuscleIds);
+  const rowsByMuscle = new Map<EntityId, ProgramSetVolumeMuscleRow>();
+  const durationWeeks = Math.max(input.programLengthWeeks, 1);
+
+  for (const event of input.events) {
+    const existingRow = rowsByMuscle.get(event.muscleId);
+
+    if (existingRow) {
+      existingRow.completedSets += 1;
+      existingRow.averageSetsPerWeek = existingRow.completedSets / durationWeeks;
+      continue;
+    }
+
+    rowsByMuscle.set(event.muscleId, {
+      muscleId: event.muscleId,
+      muscleName: event.muscleName,
+      completedSets: 1,
+      averageSetsPerWeek: 1 / durationWeeks,
+      isFocusMuscle: focusMuscleIds.has(event.muscleId),
+    });
+  }
+
+  const rows = Array.from(rowsByMuscle.values()).sort((left, right) => {
+    if (right.averageSetsPerWeek !== left.averageSetsPerWeek) {
+      return right.averageSetsPerWeek - left.averageSetsPerWeek;
+    }
+
+    return left.muscleName.localeCompare(right.muscleName);
+  });
+
+  return {
+    totalCompletedSets: rows.reduce((total, row) => total + row.completedSets, 0),
     rows,
   };
 }

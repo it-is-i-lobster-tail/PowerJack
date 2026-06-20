@@ -123,6 +123,16 @@ async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").
   }
 }
 
+async function pageHasHorizontalOverflow(page: import("@playwright/test").Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const documentElement = document.documentElement;
+    return (
+      documentElement.scrollWidth > documentElement.clientWidth ||
+      document.body.scrollWidth > document.body.clientWidth
+    );
+  });
+}
+
 test.describe("start program flow", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -307,6 +317,48 @@ test.describe("start program flow", () => {
       new Date().getFullYear().toString(),
     );
     await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Compare");
+  });
+
+  test("Current Program menu opens overview and keeps resume context", async ({ page }, testInfo) => {
+    await createTwoDayTemplate(page, "Overview Check");
+    await startSelectedProgram(page, 8);
+
+    const dayOneUrl = page.url();
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+
+    await expect(page).toHaveURL(/\/programs\/\d+$/);
+    await expect(page.locator("[data-agent-id='current-program-page']")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview Check x1" })).toBeVisible();
+    await expect(page.locator("[data-agent-id='program-progress']")).toContainText("0%");
+    await expect(page.locator("[data-agent-id='program-schedule-cell-w1-d1']")).toContainText("Active");
+    await expect(page.locator("[data-agent-id='program-schedule-cell-w8-d2']")).toContainText("-");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toBeVisible();
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page).toHaveURL(dayOneUrl);
+
+    await completeVisibleWorkout(page);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+
+    await expect(page).toHaveURL(/\/programs\/\d+$/);
+    await expect(page.locator("[data-agent-id='program-progress']")).toContainText("6%");
+    await expect(page.locator("[data-agent-id='program-schedule-cell-w1-d1']")).toContainText("100%");
+    await expect(page.locator("[data-agent-id='program-schedule-cell-w1-d2']")).toContainText("Active");
+    await expect(page.locator("[data-agent-id^='program-volume-row-']")).toContainText("Chest");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+    if (testInfo.project.name === "mobile-chrome") {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(page).toHaveScreenshot("current-program-overview-mobile.png", {
+        animations: "disabled",
+        fullPage: true,
+      });
+    }
   });
 
   test("template edit pre-populates the flow and delete soft-removes unused templates", async ({ page }) => {
@@ -553,11 +605,6 @@ test.describe("start program flow", () => {
       timeout: 500,
     });
     await firstWeight.fill("200");
-    await page.waitForTimeout(150);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged", {
-      timeout: 100,
-    });
-    await page.waitForTimeout(350);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
     await expect(firstSetRow.locator("[data-agent-id^='set-logged-']")).toBeVisible();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
