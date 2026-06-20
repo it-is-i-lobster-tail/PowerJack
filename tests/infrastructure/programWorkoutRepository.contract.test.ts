@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { loadProgramOverview } from "../../src/application/programs/loadProgramOverview";
 import { startProgramFromTemplate } from "../../src/application/programs/startProgramFromTemplate";
 import { saveTemplate } from "../../src/application/templates/saveTemplate";
+import { addSetToLift } from "../../src/application/workouts/addSetToLift";
+import { changeLiftExercise } from "../../src/application/workouts/changeLiftExercise";
 import { finishWorkout } from "../../src/application/workouts/finishWorkout";
+import { removeLastSetFromLift } from "../../src/application/workouts/removeLastSetFromLift";
 import { resolveManualCheckIn } from "../../src/application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../src/application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
@@ -154,6 +157,160 @@ describe("Program and Workout repository contracts", () => {
       actualWeight: 220,
       status: "active",
     });
+  });
+
+  it("adds a manual set and uses the completed set count for next-week progression", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+    const lift = view.lifts[0];
+
+    if (!lift) {
+      throw new Error("Expected lift.");
+    }
+
+    view = await addSetToLift({ liftId: lift.id }, services.workouts);
+
+    expect(view.totalSets).toBe(3);
+    expect(view.completedSets).toBe(0);
+    expect(view.lifts[0]?.sets).toHaveLength(3);
+    expect(view.lifts[0]?.sets[2]).toMatchObject({
+      order: 3,
+      actualReps: null,
+      actualWeight: null,
+      status: "active",
+      locked: false,
+    });
+
+    view = await completeWorkout(services, view, [10, 8, 7], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ order: 1, plannedReps: 11, plannedWeight: 100 }),
+      expect.objectContaining({ order: 2, plannedReps: 9, plannedWeight: 100 }),
+      expect.objectContaining({ order: 3, plannedReps: 8, plannedWeight: 100 }),
+    ]);
+  });
+
+  it("removes the last manual set, including logged values, and keeps at least one set", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+    const lift = view.lifts[0];
+
+    if (!lift) {
+      throw new Error("Expected lift.");
+    }
+
+    view = await addSetToLift({ liftId: lift.id }, services.workouts);
+    const thirdSet = view.lifts[0]?.sets[2];
+
+    if (!thirdSet) {
+      throw new Error("Expected third set.");
+    }
+
+    view = await updateWorkoutSet(
+      { setId: thirdSet.id, actualReps: 7, actualWeight: 100 },
+      services.workouts,
+    );
+
+    expect(view).toMatchObject({ completedSets: 1, totalSets: 3 });
+
+    view = await removeLastSetFromLift({ liftId: lift.id }, services.workouts);
+
+    expect(view).toMatchObject({ completedSets: 0, totalSets: 2 });
+    expect(view.lifts[0]).toMatchObject({ status: "active" });
+    expect(view.lifts[0]?.sets).toHaveLength(2);
+
+    view = await removeLastSetFromLift({ liftId: lift.id }, services.workouts);
+
+    expect(view.totalSets).toBe(1);
+    await expect(removeLastSetFromLift({ liftId: lift.id }, services.workouts)).rejects.toThrow(
+      "A lift must have at least one set.",
+    );
+  });
+
+  it("changes a lift exercise, resets the lift, clears feedback, and updates future weeks", async () => {
+    const services = createInMemoryAppServices();
+    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Barbell Bench Press",
+      status: "complete",
+      feedbackSubmitted: true,
+    });
+
+    view = await changeLiftExercise(
+      { liftId: view.lifts[0]?.id ?? 0, exerciseId: pullUpId },
+      services.workouts,
+    );
+
+    expect(view).toMatchObject({ completedSets: 0, totalSets: 2, canFinish: false });
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+      status: "active",
+      feedbackSubmitted: false,
+    });
+    expect(view.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ order: 1, actualReps: null, actualWeight: null, status: "active" }),
+      expect.objectContaining({ order: 2, actualReps: null, actualWeight: null, status: "active" }),
+    ]);
+
+    view = await completeWorkout(services, view, [8, 7], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+    });
+  });
+
+  it("blocks manual lift edits for locked workouts", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1], [2]]);
+    await startTemplateProgram(services, template.id);
+    const activeView = await loadRequiredActiveWorkout(services);
+    const plannedWorkoutId = activeView.nextWorkoutId;
+
+    if (!plannedWorkoutId) {
+      throw new Error("Expected planned workout.");
+    }
+
+    const plannedView = await services.workouts.loadWorkoutView(plannedWorkoutId);
+    const plannedLiftId = plannedView?.lifts[0]?.id;
+
+    if (!plannedLiftId) {
+      throw new Error("Expected planned lift.");
+    }
+
+    await expect(addSetToLift({ liftId: plannedLiftId }, services.workouts)).rejects.toThrow(
+      "This lift is locked.",
+    );
+    await expect(removeLastSetFromLift({ liftId: plannedLiftId }, services.workouts)).rejects.toThrow(
+      "This lift is locked.",
+    );
+    await expect(
+      changeLiftExercise({ liftId: plannedLiftId, exerciseId: 3 }, services.workouts),
+    ).rejects.toThrow("This lift is locked.");
   });
 
   it("blocks active program replacement until confirmed, then halts and locks the old program", async () => {

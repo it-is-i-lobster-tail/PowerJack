@@ -61,7 +61,7 @@ export interface GenerateNextLiftPrescriptionInput {
 
 const loadIncrementLb = 5;
 const maxRelativeLoadJump = 0.1;
-const maxSets = 5;
+export const maxWorkingSets = 5;
 
 export function generateNextLiftPrescription(
   input: GenerateNextLiftPrescriptionInput,
@@ -127,7 +127,7 @@ export function generateNextLiftPrescription(
     isFocusMuscle &&
     isEligibleForVolume(current, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.previous, exercise, input.programLengthWeeks) &&
-    currentSets.length < maxSets
+    currentSets.length < maxWorkingSets
   ) {
     return addVolumeSet("gate_5_focus_volume", currentSets);
   }
@@ -137,7 +137,7 @@ export function generateNextLiftPrescription(
     isEligibleForVolume(current, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.previous, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.twoWeeksAgo, exercise, input.programLengthWeeks) &&
-    currentSets.length < maxSets
+    currentSets.length < maxWorkingSets
   ) {
     return addVolumeSet("gate_6_non_focus_volume", currentSets);
   }

@@ -1,19 +1,37 @@
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, LockKeyhole, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  LockKeyhole,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { searchExercises } from "../../../application/exercises/searchExercises";
+import { addSetToLift } from "../../../application/workouts/addSetToLift";
+import { changeLiftExercise } from "../../../application/workouts/changeLiftExercise";
 import { finishWorkout } from "../../../application/workouts/finishWorkout";
 import { loadWorkoutView } from "../../../application/workouts/loadWorkoutView";
+import { removeLastSetFromLift } from "../../../application/workouts/removeLastSetFromLift";
 import { resolveManualCheckIn } from "../../../application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../../application/workouts/updateWorkoutSet";
 import { useServices } from "../../../app/useServices";
+import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
 import type {
   ActiveWorkoutLiftView,
   ActiveWorkoutSetView,
   ActiveWorkoutView,
 } from "../../../domain/workouts/Workout";
 import type { ManualCheckinDecision } from "../../../domain/workouts/WorkoutRepository";
+import { maxWorkingSets } from "../../../domain/workouts/progression/generateNextLiftPrescription";
 import { Button } from "../../../shared/ui/Button";
+import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
 import "./ActiveWorkoutPage.css";
 
 interface SetDraftValue {
@@ -71,6 +89,17 @@ export function WorkoutViewerPage() {
   const [manualCheckInStep, setManualCheckInStep] = useState<ManualCheckInStep>("skip");
   const [manualCheckInError, setManualCheckInError] = useState<string | null>(null);
   const [isManualCheckInSaving, setIsManualCheckInSaving] = useState(false);
+  const [openLiftMenuId, setOpenLiftMenuId] = useState<number | null>(null);
+  const [exerciseChangeLift, setExerciseChangeLift] = useState<ActiveWorkoutLiftView | null>(null);
+  const [exerciseChangeQuery, setExerciseChangeQuery] = useState("");
+  const [exerciseChangeResults, setExerciseChangeResults] = useState<ExerciseSummary[]>([]);
+  const [pendingExerciseChange, setPendingExerciseChange] = useState<{
+    lift: ActiveWorkoutLiftView;
+    exercise: ExerciseSummary;
+  } | null>(null);
+  const [removeSetLift, setRemoveSetLift] = useState<ActiveWorkoutLiftView | null>(null);
+  const [isLiftMutationSaving, setIsLiftMutationSaving] = useState(false);
+  const [liftMutationError, setLiftMutationError] = useState<string | null>(null);
 
   const clearPendingSetPersists = useCallback(() => {
     for (const timer of Object.values(persistTimersRef.current)) {
@@ -126,6 +155,17 @@ export function WorkoutViewerPage() {
     setManualCheckInStep("skip");
     setManualCheckInError(null);
     setIsManualCheckInSaving(false);
+  }, []);
+
+  const resetLiftEditing = useCallback(() => {
+    setOpenLiftMenuId(null);
+    setExerciseChangeLift(null);
+    setExerciseChangeQuery("");
+    setExerciseChangeResults([]);
+    setPendingExerciseChange(null);
+    setRemoveSetLift(null);
+    setIsLiftMutationSaving(false);
+    setLiftMutationError(null);
   }, []);
 
   const openFeedbackIfNeeded = useCallback(
@@ -186,6 +226,7 @@ export function WorkoutViewerPage() {
 
         resetFeedbackModal();
         resetManualCheckInModal();
+        resetLiftEditing();
         clearDismissedFeedback();
         setFinishFeedbackHint(null);
         commitView(workoutView);
@@ -216,9 +257,70 @@ export function WorkoutViewerPage() {
     params.programId,
     params.workoutId,
     resetFeedbackModal,
+    resetLiftEditing,
     resetManualCheckInModal,
     services.workouts,
   ]);
+
+  useEffect(() => {
+    if (openLiftMenuId === null) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent | TouchEvent): void {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+
+      if (!event.target.closest(`[data-lift-menu-root="${openLiftMenuId}"]`)) {
+        setOpenLiftMenuId(null);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setOpenLiftMenuId(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openLiftMenuId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const normalizedQuery = exerciseChangeQuery.trim();
+
+    if (!exerciseChangeLift || !normalizedQuery) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    void searchExercises(normalizedQuery, services.exercises)
+      .then((items) => {
+        if (isMounted) {
+          setExerciseChangeResults(items.slice(0, 8));
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to search exercises", error);
+        if (isMounted) {
+          setLiftMutationError("Exercise search failed. Try again.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [exerciseChangeLift, exerciseChangeQuery, services.exercises]);
 
   function persistSet(setId: number, nextDraft: SetDraftValue): void {
     if (hasPendingManualCheckIn(viewRef.current)) {
@@ -374,6 +476,7 @@ export function WorkoutViewerPage() {
     clearPendingSetPersists();
     resetFeedbackModal();
     resetManualCheckInModal();
+    resetLiftEditing();
     clearDismissedFeedback();
     setFinishFeedbackHint(null);
     void navigate(`/programs/${view?.program.id}/workouts/${workoutId}`);
@@ -402,6 +505,151 @@ export function WorkoutViewerPage() {
       })
       .finally(() => {
         setIsManualCheckInSaving(false);
+      });
+  }
+
+  function handleToggleLiftMenu(lift: ActiveWorkoutLiftView): void {
+    if (!canEditLiftInView(viewRef.current, lift) || feedbackLift || isLiftMutationSaving) {
+      return;
+    }
+
+    setLiftMutationError(null);
+    setOpenLiftMenuId((currentId) => (currentId === lift.id ? null : lift.id));
+  }
+
+  function handleOpenExerciseChange(lift: ActiveWorkoutLiftView): void {
+    if (!canEditLiftInView(viewRef.current, lift) || feedbackLift || isLiftMutationSaving) {
+      return;
+    }
+
+    setLiftMutationError(null);
+    setOpenLiftMenuId(null);
+    setExerciseChangeLift(lift);
+    setExerciseChangeQuery("");
+    setExerciseChangeResults([]);
+  }
+
+  function handleAddSet(lift: ActiveWorkoutLiftView): void {
+    if (
+      !canEditLiftInView(viewRef.current, lift) ||
+      feedbackLift ||
+      isLiftMutationSaving ||
+      lift.sets.length >= maxWorkingSets
+    ) {
+      return;
+    }
+
+    setIsLiftMutationSaving(true);
+    setLiftMutationError(null);
+    setOpenLiftMenuId(null);
+    clearPendingSetPersists();
+
+    void addSetToLift({ liftId: lift.id }, services.workouts)
+      .then((nextView) => {
+        commitView(nextView);
+        openFeedbackIfNeeded(nextView);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to add set", error);
+        setLiftMutationError(error instanceof Error ? error.message : "Could not add set.");
+      })
+      .finally(() => {
+        setIsLiftMutationSaving(false);
+      });
+  }
+
+  function handleRemoveLastSet(lift: ActiveWorkoutLiftView): void {
+    if (
+      !canEditLiftInView(viewRef.current, lift) ||
+      feedbackLift ||
+      isLiftMutationSaving ||
+      lift.sets.length <= 1
+    ) {
+      return;
+    }
+
+    setLiftMutationError(null);
+    setOpenLiftMenuId(null);
+
+    if (hasLoggedSetValue(lift.sets[lift.sets.length - 1])) {
+      setRemoveSetLift(lift);
+      return;
+    }
+
+    executeRemoveLastSet(lift);
+  }
+
+  function executeRemoveLastSet(lift: ActiveWorkoutLiftView): void {
+    if (isLiftMutationSaving) {
+      return;
+    }
+
+    setIsLiftMutationSaving(true);
+    setLiftMutationError(null);
+    setRemoveSetLift(null);
+    clearPendingSetPersists();
+
+    void removeLastSetFromLift({ liftId: lift.id }, services.workouts)
+      .then((nextView) => {
+        commitView(nextView);
+        openFeedbackIfNeeded(nextView);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to remove set", error);
+        setLiftMutationError(error instanceof Error ? error.message : "Could not remove set.");
+      })
+      .finally(() => {
+        setIsLiftMutationSaving(false);
+      });
+  }
+
+  function handleSelectReplacementExercise(exercise: ExerciseSummary): void {
+    if (!exerciseChangeLift || !canEditLiftInView(viewRef.current, exerciseChangeLift)) {
+      return;
+    }
+
+    if (exercise.id === exerciseChangeLift.exerciseId) {
+      setExerciseChangeLift(null);
+      setExerciseChangeQuery("");
+      setExerciseChangeResults([]);
+      return;
+    }
+
+    setLiftMutationError(null);
+
+    if (hasLiftLoggedWork(exerciseChangeLift)) {
+      setPendingExerciseChange({ lift: exerciseChangeLift, exercise });
+      return;
+    }
+
+    executeChangeExercise(exerciseChangeLift, exercise);
+  }
+
+  function executeChangeExercise(lift: ActiveWorkoutLiftView, exercise: ExerciseSummary): void {
+    if (isLiftMutationSaving) {
+      return;
+    }
+
+    setIsLiftMutationSaving(true);
+    setLiftMutationError(null);
+    setPendingExerciseChange(null);
+    clearPendingSetPersists();
+
+    void changeLiftExercise({ liftId: lift.id, exerciseId: exercise.id }, services.workouts)
+      .then((nextView) => {
+        commitView(nextView);
+        setExerciseChangeLift(null);
+        setExerciseChangeQuery("");
+        setExerciseChangeResults([]);
+        clearDismissedFeedback();
+        openFeedbackIfNeeded(nextView);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to change exercise", error);
+        setLiftMutationError(error instanceof Error ? error.message : "Could not change exercise.");
+      })
+      .finally(() => {
+        setIsLiftMutationSaving(false);
       });
   }
 
@@ -516,16 +764,27 @@ export function WorkoutViewerPage() {
             {error}
           </p>
         ) : null}
+        {liftMutationError ? (
+          <p className="active-workout-error" data-agent-id="lift-edit-error" role="alert">
+            {liftMutationError}
+          </p>
+        ) : null}
 
         <div className="lift-stack">
           {view.lifts.map((lift) => (
             <LiftCard
               draftValues={draftValues}
+              isLiftMutationSaving={isLiftMutationSaving}
+              isMenuOpen={openLiftMenuId === lift.id}
               isReadOnly={view.isReadOnly || Boolean(feedbackLift)}
               key={lift.id}
               lift={lift}
+              onAddSet={handleAddSet}
+              onChangeExercise={handleOpenExerciseChange}
               onFeedbackNeeded={handleOpenFeedbackNeeded}
+              onRemoveLastSet={handleRemoveLastSet}
               onSetFieldChange={handleSetFieldChange}
+              onToggleMenu={handleToggleLiftMenu}
               showFeedbackNeeded={
                 !feedbackLift && !view.isReadOnly && lift.status === "complete" && !lift.feedbackSubmitted
               }
@@ -590,6 +849,66 @@ export function WorkoutViewerPage() {
             setManualCheckInStep("reset");
           }}
           step={manualCheckInStep}
+        />
+      ) : null}
+
+      {exerciseChangeLift ? (
+        <ExerciseChangeModal
+          error={liftMutationError}
+          isSaving={isLiftMutationSaving}
+          lift={exerciseChangeLift}
+          onClose={() => {
+            setExerciseChangeLift(null);
+            setExerciseChangeQuery("");
+            setExerciseChangeResults([]);
+            setPendingExerciseChange(null);
+            setLiftMutationError(null);
+          }}
+          onQueryChange={(value) => {
+            setExerciseChangeQuery(value);
+            setLiftMutationError(null);
+
+            if (!value.trim()) {
+              setExerciseChangeResults([]);
+            }
+          }}
+          onSelectExercise={handleSelectReplacementExercise}
+          query={exerciseChangeQuery}
+          results={exerciseChangeResults}
+        />
+      ) : null}
+
+      {removeSetLift ? (
+        <ConfirmationModal
+          agentId="remove-last-set-confirmation"
+          body={`Remove the last set from ${removeSetLift.exerciseName}? Logged reps and weight on that set will be deleted.`}
+          cancelLabel="Back"
+          confirmAgentId="modal-delete"
+          confirmLabel={isLiftMutationSaving ? "Removing" : "Remove"}
+          destructive
+          onCancel={() => {
+            if (!isLiftMutationSaving) {
+              setRemoveSetLift(null);
+            }
+          }}
+          onConfirm={() => executeRemoveLastSet(removeSetLift)}
+          title="Remove Last Set"
+        />
+      ) : null}
+
+      {pendingExerciseChange ? (
+        <ConfirmationModal
+          agentId="change-exercise-confirmation"
+          body={`Change ${pendingExerciseChange.lift.exerciseName} to ${pendingExerciseChange.exercise.name}? This resets progression and set entries for this lift.`}
+          cancelLabel="Back"
+          confirmLabel={isLiftMutationSaving ? "Changing" : "Change"}
+          onCancel={() => {
+            if (!isLiftMutationSaving) {
+              setPendingExerciseChange(null);
+            }
+          }}
+          onConfirm={() => executeChangeExercise(pendingExerciseChange.lift, pendingExerciseChange.exercise)}
+          title="Change Exercise"
         />
       ) : null}
     </main>
@@ -665,6 +984,22 @@ function findPendingManualCheckInLift(view: ActiveWorkoutView): ActiveWorkoutLif
 
 function hasPendingManualCheckIn(view: ActiveWorkoutView | null): boolean {
   return view ? Boolean(findPendingManualCheckInLift(view)) : false;
+}
+
+function canEditLiftInView(view: ActiveWorkoutView | null, lift: ActiveWorkoutLiftView): boolean {
+  if (!view || view.isReadOnly || hasPendingManualCheckIn(view) || lift.locked || lift.status === "skipped") {
+    return false;
+  }
+
+  return view.lifts.some((viewLift) => viewLift.id === lift.id);
+}
+
+function hasLoggedSetValue(set: ActiveWorkoutSetView | undefined): boolean {
+  return Boolean(set && (set.actualReps !== null || set.actualWeight !== null));
+}
+
+function hasLiftLoggedWork(lift: ActiveWorkoutLiftView): boolean {
+  return lift.feedbackSubmitted || lift.sets.some(hasLoggedSetValue);
 }
 
 function blurActiveSetInputForLift(lift: ActiveWorkoutLiftView): void {
@@ -905,22 +1240,123 @@ function FeedbackScale({
   );
 }
 
+function ExerciseChangeModal({
+  error,
+  isSaving,
+  lift,
+  onClose,
+  onQueryChange,
+  onSelectExercise,
+  query,
+  results,
+}: {
+  error: string | null;
+  isSaving: boolean;
+  lift: ActiveWorkoutLiftView;
+  onClose: () => void;
+  onQueryChange: (value: string) => void;
+  onSelectExercise: (exercise: ExerciseSummary) => void;
+  query: string;
+  results: ExerciseSummary[];
+}) {
+  return (
+    <div className="feedback-modal-overlay">
+      <section
+        aria-labelledby="change-exercise-title"
+        aria-modal="true"
+        className="exercise-change-modal"
+        data-agent-id="change-exercise-modal"
+        role="dialog"
+      >
+        <div className="feedback-modal__header feedback-modal__header--with-close">
+          <div>
+            <p>Change Exercise</p>
+            <h2 id="change-exercise-title">{lift.exerciseName}</h2>
+          </div>
+          <button
+            aria-label="Close exercise change"
+            className="feedback-modal__close"
+            data-agent-id="change-exercise-close"
+            disabled={isSaving}
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden size={20} strokeWidth={2.4} />
+          </button>
+        </div>
+
+        <label className="exercise-change-search">
+          <span>Exercise search</span>
+          <input
+            autoFocus
+            data-agent-id="change-exercise-search-input"
+            disabled={isSaving}
+            onChange={(event) => onQueryChange(event.currentTarget.value)}
+            placeholder="bench press"
+            value={query}
+          />
+        </label>
+
+        <div className="exercise-change-results">
+          {results.map((exercise) => (
+            <button
+              className="exercise-change-result"
+              data-agent-id={`change-exercise-result-${exercise.id}`}
+              disabled={isSaving}
+              key={exercise.id}
+              onClick={() => onSelectExercise(exercise)}
+              type="button"
+            >
+              <strong>{exercise.name}</strong>
+              <span>
+                {exercise.primaryMuscleName} - {exercise.equipmentName}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {error ? (
+          <p className="feedback-error" data-agent-id="change-exercise-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
 function LiftCard({
   draftValues,
+  isLiftMutationSaving,
+  isMenuOpen,
   isReadOnly,
   lift,
+  onAddSet,
+  onChangeExercise,
   onFeedbackNeeded,
+  onRemoveLastSet,
   onSetFieldChange,
+  onToggleMenu,
   showFeedbackNeeded,
 }: {
   draftValues: SetDraftValues;
+  isLiftMutationSaving: boolean;
+  isMenuOpen: boolean;
   isReadOnly: boolean;
   lift: ActiveWorkoutLiftView;
+  onAddSet: (lift: ActiveWorkoutLiftView) => void;
+  onChangeExercise: (lift: ActiveWorkoutLiftView) => void;
   onFeedbackNeeded: (lift: ActiveWorkoutLiftView) => void;
+  onRemoveLastSet: (lift: ActiveWorkoutLiftView) => void;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
+  onToggleMenu: (lift: ActiveWorkoutLiftView) => void;
   showFeedbackNeeded: boolean;
 }) {
   const isSkipped = lift.status === "skipped";
+  const canEditLift = !isReadOnly && !isSkipped && !lift.locked && !isLiftMutationSaving;
+  const canAddSet = canEditLift && lift.sets.length < maxWorkingSets;
+  const canRemoveSet = canEditLift && lift.sets.length > 1;
+  const menuId = `lift-actions-menu-${lift.id}`;
   const className = [
     "lift-card",
     lift.status === "complete" ? "lift-card--complete" : "",
@@ -933,7 +1369,71 @@ function LiftCard({
     <article className={className} data-agent-id={`lift-card-${lift.id}`}>
       <div className="lift-card__header">
         <h2>{lift.exerciseName}</h2>
-        <span>{isSkipped ? "Skipped" : `${lift.sets.length} sets`}</span>
+        <span className="lift-card__set-count">{isSkipped ? "Skipped" : `${lift.sets.length} sets`}</span>
+        <div className="lift-card__menu" data-lift-menu-root={lift.id}>
+          <button
+            aria-controls={isMenuOpen ? menuId : undefined}
+            aria-expanded={isMenuOpen}
+            aria-haspopup="menu"
+            aria-label={`Open actions for ${lift.exerciseName}`}
+            className={isMenuOpen ? "lift-card__menu-toggle lift-card__menu-toggle--active" : "lift-card__menu-toggle"}
+            data-agent-id={`lift-menu-toggle-${lift.id}`}
+            disabled={!canEditLift}
+            onClick={() => onToggleMenu(lift)}
+            type="button"
+          >
+            <MoreVertical aria-hidden size={22} strokeWidth={2.5} />
+          </button>
+
+          {isMenuOpen ? (
+            <div
+              aria-label={`${lift.exerciseName} actions`}
+              className="lift-card__menu-popover"
+              data-agent-id={menuId}
+              id={menuId}
+              role="menu"
+            >
+              <button
+                data-agent-id={`lift-change-exercise-${lift.id}`}
+                onClick={() => onChangeExercise(lift)}
+                role="menuitem"
+                type="button"
+              >
+                <RefreshCw aria-hidden size={20} strokeWidth={2.4} />
+                <span>
+                  <strong>Change exercise</strong>
+                  <small>Resets progression and sets</small>
+                </span>
+              </button>
+              <button
+                data-agent-id={`lift-add-set-${lift.id}`}
+                disabled={!canAddSet}
+                onClick={() => onAddSet(lift)}
+                role="menuitem"
+                type="button"
+              >
+                <Plus aria-hidden size={22} strokeWidth={2.5} />
+                <span>
+                  <strong>Add set</strong>
+                  <small>{canAddSet ? "Adds one blank set" : `${maxWorkingSets} set limit`}</small>
+                </span>
+              </button>
+              <button
+                data-agent-id={`lift-remove-last-set-${lift.id}`}
+                disabled={!canRemoveSet}
+                onClick={() => onRemoveLastSet(lift)}
+                role="menuitem"
+                type="button"
+              >
+                <Minus aria-hidden size={22} strokeWidth={2.5} />
+                <span>
+                  <strong>Remove last set</strong>
+                  <small>{canRemoveSet ? "Deletes the final row" : "Keep at least one set"}</small>
+                </span>
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {showFeedbackNeeded ? (
