@@ -23,6 +23,7 @@ import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeed
 import { updateWorkoutSet } from "../../../application/workouts/updateWorkoutSet";
 import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
+import { findFollowingWeightSetIds } from "../../../domain/workouts/rules/propagateFollowingSetWeights";
 import type {
   ActiveWorkoutLiftView,
   ActiveWorkoutSetView,
@@ -40,8 +41,14 @@ interface SetDraftValue {
 }
 
 type SetDraftValues = Record<number, SetDraftValue>;
+type SetDraftField = keyof SetDraftValue;
 type SetPersistTimers = Record<number, ReturnType<typeof window.setTimeout>>;
 type ManualCheckInStep = "skip" | "reset";
+
+interface PendingSetPersist {
+  setId: number;
+  draft: SetDraftValue;
+}
 
 const setAutosaveDelayMs = 500;
 const bodyWeightDisplay = "BW";
@@ -71,6 +78,7 @@ export function WorkoutViewerPage() {
   const params = useParams();
   const saveVersionRef = useRef(0);
   const persistTimersRef = useRef<SetPersistTimers>({});
+  const persistingSetIdsRef = useRef<Set<number>>(new Set());
   const draftValuesRef = useRef<SetDraftValues>({});
   const viewRef = useRef<ActiveWorkoutView | null>(null);
   const dismissedFeedbackLiftIdsRef = useRef<Set<number>>(new Set());
@@ -120,12 +128,16 @@ export function WorkoutViewerPage() {
       const nextDraftValues = buildDraftValues(nextView);
 
       if (preservePendingDrafts) {
-        for (const setId of Object.keys(persistTimersRef.current)) {
-          const numericSetId = Number(setId);
-          const pendingDraft = draftValuesRef.current[numericSetId];
+        const preservingSetIds = new Set([
+          ...Object.keys(persistTimersRef.current).map(Number),
+          ...persistingSetIdsRef.current,
+        ]);
+
+        for (const setId of preservingSetIds) {
+          const pendingDraft = draftValuesRef.current[setId];
 
           if (pendingDraft) {
-            nextDraftValues[numericSetId] = pendingDraft;
+            nextDraftValues[setId] = pendingDraft;
           }
         }
       }
@@ -322,7 +334,7 @@ export function WorkoutViewerPage() {
     };
   }, [exerciseChangeLift, exerciseChangeQuery, services.exercises]);
 
-  function persistSet(setId: number, nextDraft: SetDraftValue): void {
+  function persistSet(setId: number, nextDraft: SetDraftValue, changedField: SetDraftField): void {
     if (hasPendingManualCheckIn(viewRef.current)) {
       return;
     }
@@ -330,19 +342,48 @@ export function WorkoutViewerPage() {
     delete persistTimersRef.current[setId];
 
     const previousView = viewRef.current;
+    const propagationSetIds = findDebouncedWeightPropagationSetIds(
+      previousView,
+      setId,
+      nextDraft,
+      changedField,
+    );
+    const nextDraftValues = propagationSetIds.length > 0
+      ? buildPropagatedDraftValues(previousView, propagationSetIds, nextDraft.weight)
+      : draftValuesRef.current;
+    const pendingPersists: PendingSetPersist[] = [
+      { setId, draft: nextDraft },
+      ...propagationSetIds.flatMap((propagationSetId) => {
+        const propagatedDraft = nextDraftValues[propagationSetId];
+        return propagatedDraft ? [{ setId: propagationSetId, draft: propagatedDraft }] : [];
+      }),
+    ];
+    const pendingSetIds = pendingPersists.map((persist) => persist.setId);
+
+    for (const propagationSetId of propagationSetIds) {
+      const existingTimer = persistTimersRef.current[propagationSetId];
+
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+        delete persistTimersRef.current[propagationSetId];
+      }
+    }
+
+    for (const pendingSetId of pendingSetIds) {
+      persistingSetIdsRef.current.add(pendingSetId);
+    }
+
+    if (nextDraftValues !== draftValuesRef.current) {
+      draftValuesRef.current = nextDraftValues;
+      setDraftValues(nextDraftValues);
+    }
+
     const saveVersion = saveVersionRef.current + 1;
     saveVersionRef.current = saveVersion;
     setIsSaving(true);
     setError(null);
 
-    void updateWorkoutSet(
-      {
-        setId,
-        actualReps: toNullableInteger(nextDraft.reps),
-        actualWeight: previousView && isRepsOnlySet(previousView, setId) ? null : toNullableInteger(nextDraft.weight),
-      },
-      services.workouts,
-    )
+    void persistSetDrafts(pendingPersists, previousView)
       .then((nextView) => {
         if (saveVersionRef.current === saveVersion) {
           commitView(nextView, { clearPendingPersists: false, preservePendingDrafts: true });
@@ -353,10 +394,98 @@ export function WorkoutViewerPage() {
         setError(error instanceof Error ? error.message : "Could not save set.");
       })
       .finally(() => {
+        for (const pendingSetId of pendingSetIds) {
+          persistingSetIdsRef.current.delete(pendingSetId);
+        }
+
         if (saveVersionRef.current === saveVersion) {
           setIsSaving(false);
         }
       });
+  }
+
+  async function persistSetDrafts(
+    pendingPersists: readonly PendingSetPersist[],
+    previousView: ActiveWorkoutView | null,
+  ): Promise<ActiveWorkoutView> {
+    let nextView: ActiveWorkoutView | null = null;
+
+    for (const pendingPersist of pendingPersists) {
+      nextView = await updateWorkoutSet(
+        {
+          setId: pendingPersist.setId,
+          actualReps: toNullableInteger(pendingPersist.draft.reps),
+          actualWeight:
+            previousView && isRepsOnlySet(previousView, pendingPersist.setId)
+              ? null
+              : toNullableInteger(pendingPersist.draft.weight),
+        },
+        services.workouts,
+      );
+    }
+
+    if (!nextView) {
+      throw new Error("Could not save set.");
+    }
+
+    return nextView;
+  }
+
+  function findDebouncedWeightPropagationSetIds(
+    previousView: ActiveWorkoutView | null,
+    setId: number,
+    nextDraft: SetDraftValue,
+    changedField: SetDraftField,
+  ): number[] {
+    if (changedField !== "weight" || !previousView) {
+      return [];
+    }
+
+    const liftAndSet = findLiftAndSet(previousView, setId);
+
+    if (
+      !liftAndSet ||
+      liftAndSet.lift.repsOnly ||
+      !isSetEditable(previousView, liftAndSet.lift, liftAndSet.set)
+    ) {
+      return [];
+    }
+
+    return findFollowingWeightSetIds({
+      sets: liftAndSet.lift.sets
+        .filter((set) => isSetEditable(previousView, liftAndSet.lift, set))
+        .map((set) => ({
+          id: set.id,
+          order: set.order,
+        })),
+      editedSetId: setId,
+      nextWeight: nextDraft.weight,
+    });
+  }
+
+  function buildPropagatedDraftValues(
+    previousView: ActiveWorkoutView | null,
+    propagationSetIds: readonly number[],
+    nextWeight: string,
+  ): SetDraftValues {
+    if (!previousView) {
+      return draftValuesRef.current;
+    }
+
+    const nextDraftValues = { ...draftValuesRef.current };
+
+    for (const propagationSetId of propagationSetIds) {
+      const propagatedSet = findLiftAndSet(previousView, propagationSetId)?.set;
+
+      if (!propagatedSet) {
+        continue;
+      }
+
+      const propagatedDraft = nextDraftValues[propagationSetId] ?? valueFromSet(propagatedSet);
+      nextDraftValues[propagationSetId] = { ...propagatedDraft, weight: nextWeight };
+    }
+
+    return nextDraftValues;
   }
 
   function handleSaveFeedback(): void {
@@ -429,7 +558,7 @@ export function WorkoutViewerPage() {
     setFeedbackError(null);
   }
 
-  function scheduleSetPersist(setId: number, nextDraft: SetDraftValue): void {
+  function scheduleSetPersist(setId: number, nextDraft: SetDraftValue, changedField: SetDraftField): void {
     const existingTimer = persistTimersRef.current[setId];
 
     if (existingTimer) {
@@ -437,11 +566,11 @@ export function WorkoutViewerPage() {
     }
 
     persistTimersRef.current[setId] = window.setTimeout(() => {
-      persistSet(setId, nextDraft);
+      persistSet(setId, nextDraft, changedField);
     }, setAutosaveDelayMs);
   }
 
-  function handleSetFieldChange(setId: number, field: keyof SetDraftValue, value: string): void {
+  function handleSetFieldChange(setId: number, field: SetDraftField, value: string): void {
     if (feedbackLift) {
       return;
     }
@@ -454,7 +583,22 @@ export function WorkoutViewerPage() {
       return;
     }
 
-    const currentDraft = draftValuesRef.current[setId] ?? { reps: "", weight: "" };
+    const currentView = viewRef.current;
+    const liftAndSet = currentView ? findLiftAndSet(currentView, setId) : null;
+
+    if (!currentView || !liftAndSet || !isSetEditable(currentView, liftAndSet.lift, liftAndSet.set)) {
+      return;
+    }
+
+    if (field === "weight" && liftAndSet.lift.repsOnly) {
+      return;
+    }
+
+    const currentDraft =
+      draftValuesRef.current[setId] ??
+      valueFromSet(liftAndSet.set, {
+        prefillPlannedWeight: canUsePlannedWeightAsDraft(currentView, liftAndSet.lift, liftAndSet.set),
+      });
     const nextDraft = { ...currentDraft, [field]: value };
     const nextDraftValues = {
       ...draftValuesRef.current,
@@ -464,7 +608,7 @@ export function WorkoutViewerPage() {
     draftValuesRef.current = nextDraftValues;
     setDraftValues(nextDraftValues);
     setFinishFeedbackHint(null);
-    scheduleSetPersist(setId, nextDraft);
+    scheduleSetPersist(setId, nextDraft, field);
   }
 
   function handleOpenWorkout(workoutId: number | null): void {
@@ -1452,7 +1596,7 @@ function LiftCard({
         {lift.sets.map((set) => (
           <SetRow
             draftValue={draftValues[set.id] ?? valueFromSet(set)}
-            isReadOnly={isReadOnly || isSkipped || set.locked}
+            isReadOnly={isReadOnly || isSkipped || lift.locked || set.locked || set.status === "skipped"}
             key={set.id}
             onSetFieldChange={onSetFieldChange}
             repsOnly={lift.repsOnly}
@@ -1549,6 +1693,29 @@ function buildDraftValues(view: ActiveWorkoutView): SetDraftValues {
       ]),
     ),
   );
+}
+
+function findLiftAndSet(
+  view: ActiveWorkoutView,
+  setId: number,
+): { lift: ActiveWorkoutLiftView; set: ActiveWorkoutSetView } | null {
+  for (const lift of view.lifts) {
+    const set = lift.sets.find((item) => item.id === setId);
+
+    if (set) {
+      return { lift, set };
+    }
+  }
+
+  return null;
+}
+
+function isSetEditable(
+  view: ActiveWorkoutView,
+  lift: ActiveWorkoutLiftView,
+  set: ActiveWorkoutSetView,
+): boolean {
+  return !view.isReadOnly && !lift.locked && lift.status !== "skipped" && !set.locked && set.status !== "skipped";
 }
 
 function valueFromSet(
