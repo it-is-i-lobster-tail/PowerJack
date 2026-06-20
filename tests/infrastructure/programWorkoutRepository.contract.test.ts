@@ -7,6 +7,7 @@ import { resolveManualCheckIn } from "../../src/application/workouts/resolveManu
 import { submitLiftFeedback } from "../../src/application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
 import type { AppServices } from "../../src/app/AppServices";
+import type { CompletedSetEvent } from "../../src/domain/analytics/TrainingAnalytics";
 import type { ActiveWorkoutView } from "../../src/domain/workouts/Workout";
 import { createInMemoryAppServices } from "../../src/infrastructure/database/repositories/InMemoryRepositories";
 
@@ -113,7 +114,17 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({
         muscleName: "Chest",
         completedSets: 1,
-        averageSetsPerWeek: 0.25,
+        averageSetsPerWeek: 2,
+      }),
+      expect.objectContaining({
+        muscleName: "Shoulders",
+        completedSets: 0.5,
+        averageSetsPerWeek: 1,
+      }),
+      expect.objectContaining({
+        muscleName: "Triceps",
+        completedSets: 0.5,
+        averageSetsPerWeek: 1,
       }),
     ]);
   });
@@ -290,12 +301,16 @@ describe("Program and Workout repository contracts", () => {
       status: "complete",
     });
 
-    await expect(
-      services.analytics.loadCompletedSetEvents({
-        fromInclusive: "2026-06-17T00:00:00.000Z",
-        toExclusive: "2026-06-19T00:00:00.000Z",
-      }),
-    ).resolves.toHaveLength(2);
+    const completedSetEvents = await services.analytics.loadCompletedSetEvents({
+      fromInclusive: "2026-06-17T00:00:00.000Z",
+      toExclusive: "2026-06-19T00:00:00.000Z",
+    });
+
+    expect(completedSetEvents).toHaveLength(8);
+    expect(sumSetCredits(completedSetEvents, "Back")).toBe(2);
+    expect(sumSetCredits(completedSetEvents, "Biceps")).toBe(1);
+    expect(sumSetCredits(completedSetEvents, "Forearms")).toBe(1);
+    expect(sumSetCredits(completedSetEvents, "Core")).toBe(1);
 
     view = await submitFeedbackForCompletedLifts(services, view);
     const weekTwoDayOne = await finishWorkout(view.workout.id, services.workouts);
@@ -312,6 +327,44 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({ plannedReps: 9, plannedWeight: null, actualWeight: null }),
       expect.objectContaining({ plannedReps: 8, plannedWeight: null, actualWeight: null }),
     ]);
+  });
+
+  it("averages weighted primary and secondary volume through the current program day", async () => {
+    const services = createInMemoryAppServices();
+    const deadliftId = await findExerciseId(services, "Barbell Conventional Deadlift");
+    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const pulldownId = await findExerciseId(services, "Cable One-Arm Pulldown");
+    const rearDeltFlyId = await findExerciseId(services, "Cable Rear Delt Fly");
+    const squatId = await findExerciseId(services, "Barbell Back Squat");
+    const template = await createTemplate(services, [
+      [deadliftId, pullUpId, pulldownId, rearDeltFlyId],
+      [squatId],
+    ]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 10], 10);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const dayTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!dayTwo) {
+      throw new Error("Expected day 2.");
+    }
+
+    const overview = await loadProgramOverview(dayTwo.program.id, {
+      appState: services.appState,
+      programs: services.programs,
+      analytics: services.analytics,
+    });
+
+    expect(overview?.volumeRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ muscleName: "Back", completedSets: 7, averageSetsPerWeek: 7 }),
+        expect.objectContaining({ muscleName: "Shoulders", completedSets: 2, averageSetsPerWeek: 2 }),
+        expect.objectContaining({ muscleName: "Biceps", completedSets: 2, averageSetsPerWeek: 2 }),
+        expect.objectContaining({ muscleName: "Forearms", completedSets: 3, averageSetsPerWeek: 3 }),
+      ]),
+    );
   });
 
   it("requires one feedback row for each completed lift before finishing", async () => {
@@ -534,6 +587,12 @@ async function submitFeedbackForCompletedLifts(
   }
 
   return nextView;
+}
+
+function sumSetCredits(events: CompletedSetEvent[], muscleName: string): number {
+  return events
+    .filter((event) => event.muscleName === muscleName)
+    .reduce((total, event) => total + event.setCredit, 0);
 }
 
 async function startTemplateProgram(services: AppServices, templateId: number) {
