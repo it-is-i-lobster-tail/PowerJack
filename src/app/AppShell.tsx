@@ -1,4 +1,4 @@
-import { Menu, User } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { AppState } from "../domain/app-state/AppState";
@@ -90,16 +90,6 @@ export function AppShell() {
           ) : null}
         </div>
         <div className="app-top-bar__actions" ref={menuRef}>
-          <button
-            aria-disabled="true"
-            aria-label="Profile placeholder"
-            className="app-icon-button"
-            data-agent-id="profile-placeholder"
-            type="button"
-          >
-            <User aria-hidden size={24} strokeWidth={2.2} />
-          </button>
-
           <button
             aria-expanded={isMenuOpen}
             aria-label="Open app menu"
