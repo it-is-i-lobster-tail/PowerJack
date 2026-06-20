@@ -789,6 +789,86 @@ test.describe("start program flow", () => {
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
   });
 
+  test("manual lift menu adds and removes sets on mobile", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoDayTemplate(page, "Manual Set Control");
+    await startSelectedProgram(page, 4);
+
+    const menuToggle = page.locator("[data-agent-id^='lift-menu-toggle-']").first();
+
+    await menuToggle.click();
+    await expect(menuToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("[data-agent-id^='lift-actions-menu-']")).toBeVisible();
+    await testInfo.attach("manual-lift-menu-mobile", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-agent-id^='lift-actions-menu-']")).toHaveCount(0);
+
+    await menuToggle.click();
+    await page.locator("[data-agent-id^='lift-add-set-']").click();
+    await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(3);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 3 sets logged");
+
+    await page.locator("[data-agent-id^='set-reps-']").nth(2).fill("7");
+    await page.locator("[data-agent-id^='set-weight-']").nth(2).fill("100");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 3 sets logged");
+
+    await menuToggle.click();
+    await page.locator("[data-agent-id^='lift-remove-last-set-']").click();
+    await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toContainText("Remove Last Set");
+    await page.locator("[data-agent-id='modal-delete']").click();
+
+    await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+  });
+
+  test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }) => {
+    await createTwoDayTemplate(page, "Exercise Swap");
+    await startSelectedProgram(page, 4);
+
+    await page.locator("[data-agent-id^='set-reps-']").nth(0).fill("12");
+    await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("100");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+
+    await page.locator("[data-agent-id^='lift-menu-toggle-']").first().click();
+    await page.locator("[data-agent-id^='lift-change-exercise-']").click();
+    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='change-exercise-search-input']").fill("pull-up");
+    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await expect(page.locator("[data-agent-id='change-exercise-confirmation']")).toContainText(
+      "Change Exercise",
+    );
+    await page.locator("[data-agent-id='modal-confirm']").click();
+
+    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toBeDisabled();
+
+    await page.locator("[data-agent-id^='set-reps-']").nth(0).fill("8");
+    await page.locator("[data-agent-id^='set-reps-']").nth(1).fill("7");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='feedback-pain-option-1']").click();
+    await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+    await page.locator("[data-agent-id='feedback-save']").click();
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await completeActiveLiftWithFeedback(page, { pain: 1, effort: 3, reps: ["8", "8"], weight: "150" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+  });
+
   test("multiple completed lifts keep their own feedback-needed warnings", async ({ page }) => {
     await openTemplateFocus(page, "Two Lift Feedback");
     await selectFocusAndOpenDays(page);
