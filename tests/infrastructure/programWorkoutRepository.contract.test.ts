@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadProgramOverview } from "../../src/application/programs/loadProgramOverview";
 import { startProgramFromTemplate } from "../../src/application/programs/startProgramFromTemplate";
-import { saveTemplate } from "../../src/application/templates/saveTemplate";
+import { saveTemplate, updateTemplate } from "../../src/application/templates/saveTemplate";
 import { addSetToLift } from "../../src/application/workouts/addSetToLift";
 import { changeLiftExercise } from "../../src/application/workouts/changeLiftExercise";
 import { finishWorkout } from "../../src/application/workouts/finishWorkout";
@@ -412,6 +412,54 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({ plannedReps: 11, plannedWeight: 100, actualReps: null }),
       expect.objectContaining({ plannedReps: 9, plannedWeight: 100, actualReps: null }),
     ]);
+  });
+
+  it("uses active template edits only for future generated weeks", async () => {
+    const services = createInMemoryAppServices();
+    const benchPressId = await findExerciseId(services, "Barbell Bench Press");
+    const squatId = await findExerciseId(services, "Barbell Back Squat");
+    const dumbbellBenchId = await findExerciseId(services, "Dumbbell Bench Press");
+    const template = await createTemplate(services, [[benchPressId], [squatId]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    await updateTemplate(
+      template.id,
+      {
+        name: "Back In Action",
+        focusMuscleIds: [1],
+        workoutsPerWeek: 2,
+        days: [
+          { order: 1, exerciseIds: [dumbbellBenchId] },
+          { order: 2, exerciseIds: [squatId] },
+        ],
+      },
+      services.templates,
+    );
+
+    const currentWeekDayOne = await services.workouts.loadWorkoutView(view.workout.id);
+    expect(currentWeekDayOne?.lifts[0]?.exerciseId).toBe(benchPressId);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    let dayTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!dayTwo) {
+      throw new Error("Expected day 2.");
+    }
+
+    expect(dayTwo.lifts[0]?.exerciseId).toBe(squatId);
+
+    dayTwo = await completeWorkout(services, dayTwo, [6, 5], 200);
+    dayTwo = await submitFeedbackForCompletedLifts(services, dayTwo);
+    const weekTwoDayOne = await finishWorkout(dayTwo.workout.id, services.workouts);
+
+    if (!weekTwoDayOne) {
+      throw new Error("Expected week 2 day 1.");
+    }
+
+    expect(weekTwoDayOne.workout).toMatchObject({ workoutDay: 1, programWeek: 2 });
+    expect(weekTwoDayOne.lifts[0]?.exerciseId).toBe(dumbbellBenchId);
   });
 
   it("logs reps-only exercises without weight and progresses reps without planned weight", async () => {
