@@ -114,6 +114,17 @@ export function AppShell() {
           {isMenuOpen ? (
             <nav className="app-menu" data-agent-id="app-menu" aria-label="App menu">
               <button
+                data-agent-id="menu-current-program"
+                onClick={() =>
+                  closeMenuAndNavigate(
+                    appState?.activeProgramId ? `/programs/${appState.activeProgramId}` : "/",
+                  )
+                }
+                type="button"
+              >
+                Current Program
+              </button>
+              <button
                 data-agent-id="menu-new-program"
                 onClick={() => {
                   resetProgramDraft();

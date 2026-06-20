@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { loadProgramOverview } from "../../src/application/programs/loadProgramOverview";
 import { startProgramFromTemplate } from "../../src/application/programs/startProgramFromTemplate";
 import { saveTemplate } from "../../src/application/templates/saveTemplate";
 import { finishWorkout } from "../../src/application/workouts/finishWorkout";
@@ -54,6 +55,68 @@ describe("Program and Workout repository contracts", () => {
     });
   });
 
+  it("loads a reusable program overview with future weeks synthesized from the template", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1], [2]]);
+
+    await startProgramFromTemplate(
+      { templateId: template.id, programLengthWeeks: 4 },
+      {
+        appState: services.appState,
+        templates: services.templates,
+        programs: services.programs,
+      },
+    );
+
+    let view = await loadRequiredActiveWorkout(services);
+    const firstSet = view.lifts[0]?.sets[0];
+
+    if (!firstSet) {
+      throw new Error("Expected first set.");
+    }
+
+    view = await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 12, actualWeight: 220 },
+      services.workouts,
+    );
+
+    const overview = await loadProgramOverview(view.program.id, {
+      appState: services.appState,
+      programs: services.programs,
+      analytics: services.analytics,
+    });
+
+    expect(overview?.program).toMatchObject({
+      id: view.program.id,
+      templateName: "Back In Action",
+      workoutsPerWeek: 2,
+      completedSets: 1,
+      totalSets: 16,
+      progressPercent: 6,
+    });
+    expect(overview?.schedule).toHaveLength(8);
+    expect(overview?.schedule[0]).toMatchObject({
+      workoutId: view.workout.id,
+      isActive: true,
+    });
+    expect(overview?.schedule[0]?.statusCounts.complete).toBe(1);
+    expect(overview?.schedule[0]?.statusCounts.active).toBe(1);
+    expect(overview?.schedule[2]).toMatchObject({
+      week: 2,
+      day: 1,
+      source: "planned",
+      totalSets: 2,
+    });
+    expect(overview?.schedule[2]?.statusCounts.planned).toBe(2);
+    expect(overview?.volumeRows).toEqual([
+      expect.objectContaining({
+        muscleName: "Chest",
+        completedSets: 1,
+        averageSetsPerWeek: 0.25,
+      }),
+    ]);
+  });
+
   it("updates set and lift status when values are entered or cleared", async () => {
     const services = createInMemoryAppServices();
     const template = await createTemplate(services, [[1]]);
@@ -97,6 +160,16 @@ describe("Program and Workout repository contracts", () => {
     const template = await createTemplate(services, [[1]]);
     await startTemplateProgram(services, template.id);
     const oldView = await loadRequiredActiveWorkout(services);
+    const firstSet = oldView.lifts[0]?.sets[0];
+
+    if (!firstSet) {
+      throw new Error("Expected first set.");
+    }
+
+    await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 12, actualWeight: 220 },
+      services.workouts,
+    );
 
     await expect(startTemplateProgram(services, template.id)).rejects.toThrow("An active program already exists.");
 
@@ -122,7 +195,9 @@ describe("Program and Workout repository contracts", () => {
     expect(oldLockedView?.program).toMatchObject({ status: "halted", locked: true });
     expect(oldLockedView?.workout).toMatchObject({ status: "halted", locked: true });
     expect(oldLockedView?.lifts[0]).toMatchObject({ status: "halted", locked: true });
-    expect(oldLockedView?.lifts[0]?.sets[0]).toMatchObject({ status: "halted", locked: true });
+    expect(oldLockedView?.completedSets).toBe(1);
+    expect(oldLockedView?.lifts[0]?.sets[0]).toMatchObject({ status: "complete", locked: true });
+    expect(oldLockedView?.lifts[0]?.sets[1]).toMatchObject({ status: "halted", locked: true });
   });
 
   it("finishes workouts, activates the next workout, and creates the next week with progression", async () => {
