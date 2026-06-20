@@ -655,15 +655,24 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='feedback-close']").click();
 
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='feedback-needed']")).toBeVisible();
+    const firstLiftCard = page.locator("[data-agent-id^='lift-card-']").nth(0);
+    const firstLiftFeedbackNeeded = firstLiftCard.locator("[data-agent-id^='feedback-needed-lift-']");
+    await expect(firstLiftFeedbackNeeded).toBeVisible();
+    await expect(firstLiftCard).toContainText("Feedback Needed");
+    await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
     await page.locator("[data-agent-id='finish-workout']").click({ force: true });
-    await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toContainText(
+    const finishPanel = page.locator(".finish-workout-panel");
+    await expect(finishPanel.locator("[data-agent-id='finish-feedback-hint']")).toContainText(
       "Complete lift feedback before finishing.",
     );
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute(
+      "aria-describedby",
+      "finish-feedback-hint",
+    );
 
-    await page.locator("[data-agent-id='feedback-needed']").click();
+    await firstLiftFeedbackNeeded.click();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await page.locator("[data-agent-id='feedback-pain-option-1']").click();
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeDisabled();
@@ -671,7 +680,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeEnabled();
     await page.locator("[data-agent-id='feedback-save']").click();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id^='feedback-needed-lift-']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
@@ -687,12 +696,97 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
 
-    await page.locator("[data-agent-id='finish-workout']").click();
+    await page.locator("[data-agent-id='finish-workout']").click({ force: true });
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+  });
+
+  test("multiple completed lifts keep their own feedback-needed warnings", async ({ page }) => {
+    await openTemplateFocus(page, "Two Lift Feedback");
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+    await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.locator("[data-agent-id='exercise-search-input']").fill("deadlift");
+    await page.getByRole("button", { name: /Barbell Conventional Deadlift/ }).click();
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+    await page.locator("[data-agent-id='save-template']").click();
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await page.locator("[data-agent-id='program-length-4']").click();
+    await page.locator("[data-agent-id='program-length-next']").click();
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const liftCards = page.locator("[data-agent-id^='lift-card-']");
+    const firstLiftCard = liftCards.nth(0);
+    const secondLiftCard = liftCards.nth(1);
+
+    await expect(firstLiftCard).toContainText("Barbell Bench Press");
+    await expect(secondLiftCard).toContainText("Barbell Conventional Deadlift");
+
+    await reps.nth(0).fill("10");
+    await weights.nth(0).fill("100");
+    await reps.nth(1).fill("8");
+    await weights.nth(1).fill("100");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='feedback-close']").click();
+
+    await reps.nth(2).fill("5");
+    await weights.nth(2).fill("225");
+    await reps.nth(3).fill("5");
+    await weights.nth(3).fill("225");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("4 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='feedback-close']").click();
+
+    const firstFeedbackNeeded = firstLiftCard.locator("[data-agent-id^='feedback-needed-lift-']");
+    const secondFeedbackNeeded = secondLiftCard.locator("[data-agent-id^='feedback-needed-lift-']");
+
+    await expect(page.locator("[data-agent-id^='feedback-needed-lift-']")).toHaveCount(2);
+    await expect(firstFeedbackNeeded).toBeVisible();
+    await expect(secondFeedbackNeeded).toBeVisible();
+    await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
+
+    await page.locator("[data-agent-id='finish-workout']").click({ force: true });
+    await expect(page.locator(".finish-workout-panel [data-agent-id='finish-feedback-hint']")).toContainText(
+      "Complete lift feedback before finishing.",
+    );
+
+    await firstFeedbackNeeded.click();
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText("Barbell Bench Press");
+    await page.locator("[data-agent-id='feedback-pain-option-1']").click();
+    await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+    await page.locator("[data-agent-id='feedback-save']").click();
+
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+    await expect(firstLiftCard.locator("[data-agent-id^='feedback-needed-lift-']")).toHaveCount(0);
+    await expect(secondFeedbackNeeded).toBeVisible();
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toBeVisible();
+
+    await secondFeedbackNeeded.click();
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(
+      "Barbell Conventional Deadlift",
+    );
+    await page.locator("[data-agent-id='feedback-pain-option-1']").click();
+    await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+    await page.locator("[data-agent-id='feedback-save']").click();
+
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id^='feedback-needed-lift-']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
   });
 
   test("high-pain manual check-in can skip and carries forward", async ({ page }) => {
