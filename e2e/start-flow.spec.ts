@@ -156,26 +156,22 @@ async function completeVisibleWorkout(page: import("@playwright/test").Page) {
 
 async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").Page) {
   const resume = page.locator("[data-agent-id='resume-workout']");
-  const profile = page.locator("[data-agent-id='profile-placeholder']");
   const menu = page.locator("[data-agent-id='app-menu-toggle']");
 
   await expect(resume).toBeVisible();
 
   const viewport = page.viewportSize();
   const resumeBox = await resume.boundingBox();
-  const profileBox = await profile.boundingBox();
   const menuBox = await menu.boundingBox();
 
   expect(viewport).not.toBeNull();
   expect(resumeBox).not.toBeNull();
-  expect(profileBox).not.toBeNull();
   expect(menuBox).not.toBeNull();
 
-  if (viewport && resumeBox && profileBox && menuBox) {
+  if (viewport && resumeBox && menuBox) {
     const resumeCenter = resumeBox.x + resumeBox.width / 2;
     expect(Math.abs(resumeCenter - viewport.width / 2)).toBeLessThanOrEqual(12);
-    expect(resumeBox.x + resumeBox.width).toBeLessThan(profileBox.x);
-    expect(profileBox.x + profileBox.width).toBeLessThan(menuBox.x);
+    expect(resumeBox.x + resumeBox.width).toBeLessThan(menuBox.x);
   }
 }
 
@@ -208,7 +204,7 @@ test.describe("start program flow", () => {
     await page.goto("/");
 
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
-    await expect(page.locator("[data-agent-id='profile-placeholder']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='profile-placeholder']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='app-menu-toggle']")).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "New Program" })).toBeVisible();
@@ -933,7 +929,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveAttribute("placeholder", "10");
-    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveAttribute("placeholder", "100");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("100");
+    await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("95");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("95");
   });
 
   test("reps-only workout disables weight input and logs reps only", async ({ page }) => {
@@ -962,9 +960,9 @@ test.describe("start program flow", () => {
     const secondWeight = page.locator("[data-agent-id^='set-weight-']").nth(1);
 
     await expect(firstWeight).toBeDisabled();
-    await expect(firstWeight).toHaveValue("180");
+    await expect(firstWeight).toHaveValue("BW");
     await expect(secondWeight).toBeDisabled();
-    await expect(secondWeight).toHaveValue("180");
+    await expect(secondWeight).toHaveValue("BW");
 
     await firstRep.fill("8");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
