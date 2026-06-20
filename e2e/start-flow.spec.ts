@@ -58,6 +58,19 @@ async function createWeightedVolumeTemplate(page: import("@playwright/test").Pag
   await expect(page).toHaveURL(/\/start\/select-template$/);
 }
 
+async function createTwoLiftFirstDayTemplate(page: import("@playwright/test").Page, name = "Two Lift Day") {
+  await openTemplateFocus(page, name);
+  await selectFocusAndOpenDays(page);
+  await page.locator("[data-agent-id='template-days-per-week-2']").click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Conventional Deadlift/);
+  await page.locator("[data-agent-id='template-day-2']").click();
+  await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+  await page.locator("[data-agent-id='save-template']").click();
+  await expect(page).toHaveURL(/\/start\/select-template$/);
+}
+
 async function startSelectedProgram(page: import("@playwright/test").Page, weeks = 8) {
   await page.locator("[data-agent-id='select-template-next']").click();
   await expect(page).toHaveURL(/\/start\/program-length$/);
@@ -103,14 +116,18 @@ async function completeLiftWithFeedback(
   const setCount = await repsInputs.count();
 
   for (let index = 0; index < setCount; index += 1) {
-    await repsInputs.nth(index).fill(reps);
+    const repsInput = repsInputs.nth(index);
+    const weightInput = weightInputs.nth(index);
 
-    if (await weightInputs.nth(index).isEnabled()) {
-      await weightInputs.nth(index).fill(weight);
+    await repsInput.fill(reps);
+
+    if (await weightInput.isEnabled()) {
+      await weightInput.fill(weight);
     }
+
+    await page.waitForTimeout(650);
   }
 
-  await page.waitForTimeout(650);
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
   await page.locator("[data-agent-id='feedback-pain-option-1']").click();
   await page.locator("[data-agent-id='feedback-effort-option-3']").click();
@@ -156,26 +173,22 @@ async function completeVisibleWorkout(page: import("@playwright/test").Page) {
 
 async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").Page) {
   const resume = page.locator("[data-agent-id='resume-workout']");
-  const profile = page.locator("[data-agent-id='profile-placeholder']");
   const menu = page.locator("[data-agent-id='app-menu-toggle']");
 
   await expect(resume).toBeVisible();
 
   const viewport = page.viewportSize();
   const resumeBox = await resume.boundingBox();
-  const profileBox = await profile.boundingBox();
   const menuBox = await menu.boundingBox();
 
   expect(viewport).not.toBeNull();
   expect(resumeBox).not.toBeNull();
-  expect(profileBox).not.toBeNull();
   expect(menuBox).not.toBeNull();
 
-  if (viewport && resumeBox && profileBox && menuBox) {
+  if (viewport && resumeBox && menuBox) {
     const resumeCenter = resumeBox.x + resumeBox.width / 2;
     expect(Math.abs(resumeCenter - viewport.width / 2)).toBeLessThanOrEqual(12);
-    expect(resumeBox.x + resumeBox.width).toBeLessThan(profileBox.x);
-    expect(profileBox.x + profileBox.width).toBeLessThan(menuBox.x);
+    expect(resumeBox.x + resumeBox.width).toBeLessThan(menuBox.x);
   }
 }
 
@@ -190,6 +203,8 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
 }
 
 test.describe("start program flow", () => {
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await page.waitForFunction(() => Boolean(window.__POWERJACK_AGENT__));
@@ -208,7 +223,7 @@ test.describe("start program flow", () => {
     await page.goto("/");
 
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
-    await expect(page.locator("[data-agent-id='profile-placeholder']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='profile-placeholder']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='app-menu-toggle']")).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "New Program" })).toBeVisible();
@@ -548,32 +563,35 @@ test.describe("start program flow", () => {
     await expectResumeCenteredBeforeIcons(page);
 
     await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active Program Template");
-    await expect(page.locator("[data-agent-id='template-lock-badge-1']")).toContainText("Locked");
-    await expect(page.locator("[data-agent-id='edit-template-1']")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(page.locator("[data-agent-id='template-row-1']")).not.toContainText("Locked");
+    await expect(page.locator("[data-agent-id='edit-template-1']")).not.toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='delete-template-1']")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-
-    await page.locator("[data-agent-id='template-lock-badge-1']").click();
-    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
-      "Cannot Edit Or Delete Templates In Use By Active Program",
-    );
-    await page.locator("[data-agent-id='modal-back']").click();
 
     await page.locator("[data-agent-id='delete-template-1']").click({ force: true });
     await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
       "Cannot Delete Templates In Use By Active Program",
     );
     await page.locator("[data-agent-id='modal-back']").click();
-    await page.locator("[data-agent-id='edit-template-1']").click({ force: true });
-    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
-      "Cannot Edit Templates In Use By Active Program",
+
+    await page.locator("[data-agent-id='edit-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Editing an active template will adjust progression of all remaining weeks of program.",
+    );
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Does not affect current week.",
     );
     await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+
+    await page.locator("[data-agent-id='edit-template-1']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveValue("Replace Me");
+    await page.locator("[data-agent-id='template-name-back']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
 
     await page.locator("[data-agent-id='template-row-1'] .template-row__select").click();
     await page.locator("[data-agent-id='select-template-next']").click();
@@ -791,6 +809,77 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+  });
+
+  test("active workout propagates final debounced weights and persists them", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Weight Autofill");
+    await startSelectedProgram(page, 4);
+
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOne = weights.nth(0);
+    const benchSetTwo = weights.nth(1);
+    const deadliftSetOne = weights.nth(2);
+    const deadliftSetTwo = weights.nth(3);
+
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Barbell Conventional Deadlift" })).toBeVisible();
+    await expect(weights).toHaveCount(4);
+
+    await benchSetOne.click();
+    await page.keyboard.type("100", { delay: 40 });
+    await expect(benchSetOne).toHaveValue("100");
+    await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("100");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await benchSetTwo.fill("200");
+    await page.waitForTimeout(650);
+    await expect(benchSetOne).toHaveValue("100");
+    await expect(benchSetTwo).toHaveValue("200");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await benchSetOne.fill("185");
+    await expect(benchSetOne).toHaveValue("185");
+    await expect(benchSetTwo).toHaveValue("200", { timeout: 100 });
+
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("185");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(weights).toHaveCount(4);
+    await expect(benchSetOne).toHaveValue("185");
+    await expect(benchSetTwo).toHaveValue("185");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+  });
+
+  test("active workout propagates final debounced weights on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoLiftFirstDayTemplate(page, "Mobile Weight Autofill");
+    await startSelectedProgram(page, 4);
+
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOne = weights.nth(0);
+    const benchSetTwo = weights.nth(1);
+    const deadliftSetOne = weights.nth(2);
+
+    await expect(weights).toHaveCount(4);
+    await benchSetOne.click();
+    await page.keyboard.type("135", { delay: 40 });
+    await expect(benchSetOne).toHaveValue("135");
+    await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("135");
+    await expect(deadliftSetOne).toHaveValue("");
   });
 
   test("manual lift menu adds and removes sets on mobile", async ({ page }, testInfo) => {
@@ -1013,7 +1102,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveAttribute("placeholder", "10");
-    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveAttribute("placeholder", "100");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("100");
+    await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("95");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("95");
   });
 
   test("reps-only workout disables weight input and logs reps only", async ({ page }) => {
@@ -1042,9 +1133,9 @@ test.describe("start program flow", () => {
     const secondWeight = page.locator("[data-agent-id^='set-weight-']").nth(1);
 
     await expect(firstWeight).toBeDisabled();
-    await expect(firstWeight).toHaveValue("180");
+    await expect(firstWeight).toHaveValue("BW");
     await expect(secondWeight).toBeDisabled();
-    await expect(secondWeight).toHaveValue("180");
+    await expect(secondWeight).toHaveValue("BW");
 
     await firstRep.fill("8");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");

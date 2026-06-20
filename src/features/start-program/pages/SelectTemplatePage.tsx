@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listTemplates } from "../../../application/templates/listTemplates";
@@ -10,9 +10,10 @@ import { useTemplateDraftStore } from "../../templates/state/templateDraftStore"
 import { useStartProgramStore } from "../state/startProgramStore";
 import "./SelectTemplatePage.css";
 
-const EDIT_ACTIVE_TEMPLATE_MESSAGE = "Cannot Edit Templates In Use By Active Program";
+const EDIT_ACTIVE_TEMPLATE_TITLE =
+  "Editing an active template will adjust progression of all remaining weeks of program.";
+const EDIT_ACTIVE_TEMPLATE_BODY = "Does not affect current week.";
 const DELETE_ACTIVE_TEMPLATE_MESSAGE = "Cannot Delete Templates In Use By Active Program";
-const LOCKED_ACTIVE_TEMPLATE_MESSAGE = "Cannot Edit Or Delete Templates In Use By Active Program";
 
 export function SelectTemplatePage() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export function SelectTemplatePage() {
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [blockedTemplateMessage, setBlockedTemplateMessage] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<TemplateSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TemplateSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -63,20 +65,8 @@ export function SelectTemplatePage() {
     }
   }
 
-  async function handleEditTemplate(template: TemplateSummary): Promise<void> {
-    if (template.usedByActiveProgram) {
-      setBlockedTemplateMessage(EDIT_ACTIVE_TEMPLATE_MESSAGE);
-      return;
-    }
-
-    const isUsedByActiveProgram = await services.templates.isUsedByActiveProgram(template.id);
-
-    if (isUsedByActiveProgram) {
-      setBlockedTemplateMessage(EDIT_ACTIVE_TEMPLATE_MESSAGE);
-      return;
-    }
-
-    const aggregate = await services.templates.loadAggregate(template.id);
+  async function openTemplateEditor(templateId: number): Promise<void> {
+    const aggregate = await services.templates.loadAggregate(templateId);
 
     if (!aggregate) {
       await reloadTemplates();
@@ -85,6 +75,32 @@ export function SelectTemplatePage() {
 
     loadTemplateDraft(aggregate);
     void navigate("/templates/new/name");
+  }
+
+  async function handleEditTemplate(template: TemplateSummary): Promise<void> {
+    if (template.usedByActiveProgram) {
+      setEditTarget(template);
+      return;
+    }
+
+    const isUsedByActiveProgram = await services.templates.isUsedByActiveProgram(template.id);
+
+    if (isUsedByActiveProgram) {
+      setEditTarget(template);
+      return;
+    }
+
+    await openTemplateEditor(template.id);
+  }
+
+  async function confirmEditActiveTemplate(): Promise<void> {
+    if (!editTarget) {
+      return;
+    }
+
+    const templateId = editTarget.id;
+    setEditTarget(null);
+    await openTemplateEditor(templateId);
   }
 
   async function handleDeleteTemplate(template: TemplateSummary): Promise<void> {
@@ -145,7 +161,6 @@ export function SelectTemplatePage() {
               templates.map((template) => {
                 const isSelected = selectedTemplateId === template.id;
                 const isLocked = template.usedByActiveProgram;
-                const lockBadgeId = `template-lock-badge-${template.id}`;
                 const rowClassName = [
                   "template-row",
                   isSelected ? "template-row--selected" : "",
@@ -197,26 +212,9 @@ export function SelectTemplatePage() {
                       ) : null}
                     </button>
                     <span className="template-row__actions">
-                      {isLocked ? (
-                        <button
-                          aria-label={`Template ${template.name} is locked while in use`}
-                          className="template-row__lock-badge"
-                          data-agent-id={lockBadgeId}
-                          id={lockBadgeId}
-                          onClick={() => setBlockedTemplateMessage(LOCKED_ACTIVE_TEMPLATE_MESSAGE)}
-                          type="button"
-                        >
-                          <LockKeyhole aria-hidden size={14} strokeWidth={2.4} />
-                          <span>Locked</span>
-                        </button>
-                      ) : null}
                       <span className="template-row__action-buttons">
                         <button
-                          aria-describedby={isLocked ? lockBadgeId : undefined}
-                          aria-disabled={isLocked ? "true" : undefined}
-                          aria-label={
-                            isLocked ? `Edit ${template.name} locked while in use` : `Edit ${template.name}`
-                          }
+                          aria-label={`Edit ${template.name}`}
                           className="template-row__icon-button"
                           data-agent-id={`edit-template-${template.id}`}
                           onClick={() => {
@@ -227,7 +225,6 @@ export function SelectTemplatePage() {
                           <Pencil aria-hidden size={22} strokeWidth={2.2} />
                         </button>
                         <button
-                          aria-describedby={isLocked ? lockBadgeId : undefined}
                           aria-disabled={isLocked ? "true" : undefined}
                           aria-label={
                             isLocked ? `Delete ${template.name} locked while in use` : `Delete ${template.name}`
@@ -292,6 +289,19 @@ export function SelectTemplatePage() {
           agentId="template-in-use-dialog"
           onCancel={() => setBlockedTemplateMessage(null)}
           title={blockedTemplateMessage}
+        />
+      ) : null}
+      {editTarget ? (
+        <ConfirmationModal
+          agentId="template-active-edit-confirmation"
+          body={EDIT_ACTIVE_TEMPLATE_BODY}
+          confirmLabel="Confirm"
+          destructive
+          onCancel={() => setEditTarget(null)}
+          onConfirm={() => {
+            void confirmEditActiveTemplate();
+          }}
+          title={EDIT_ACTIVE_TEMPLATE_TITLE}
         />
       ) : null}
       {deleteTarget ? (
