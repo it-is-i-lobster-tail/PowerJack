@@ -12,6 +12,7 @@ import {
 } from "../../../domain/workouts/Workout";
 import {
   generateNextLiftPrescription,
+  maxWorkingSets,
   type ProgressionLiftHistory,
   type ProgressionLiftSet,
 } from "../../../domain/workouts/progression/generateNextLiftPrescription";
@@ -81,6 +82,33 @@ interface SetMutationRow extends Record<string, unknown> {
   workout_locked: number;
   workout_status: string;
   reps_only: number;
+}
+
+interface LiftMutationRow extends Record<string, unknown> {
+  lift_id: number;
+  exercise_id: number;
+  workout_id: number;
+  workout_day: number;
+  lift_order: number;
+  lift_locked: number;
+  lift_status: string;
+  manual_checkin_status: string;
+  workout_locked: number;
+  workout_status: string;
+  program_id: number;
+  template_id: number;
+}
+
+interface SetCountRow extends Record<string, unknown> {
+  count: number;
+  max_order: number | null;
+}
+
+interface LastSetRow extends Record<string, unknown> {
+  id: number;
+  actual_reps: number | null;
+  actual_weight: number | null;
+  status: string;
 }
 
 interface LiftFeedbackMutationRow extends Record<string, unknown> {
@@ -371,6 +399,243 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
 
     if (!view) {
       throw new Error("Workout could not be loaded after set update.");
+    }
+
+    return view;
+  }
+
+  async addSetToLift(input: { liftId: EntityId }): Promise<ActiveWorkoutView> {
+    const workoutId = await this.db.transaction(async (client) => {
+      const lift = await loadEditableLiftForMutation(client, input.liftId);
+      const setRows = await client.query<SetCountRow>(
+        'SELECT COUNT(*) AS count, MAX("order") AS max_order FROM workout_sets WHERE lift_id = ?',
+        [input.liftId],
+      );
+      const setCount = setRows[0]?.count ?? 0;
+
+      if (setCount >= maxWorkingSets) {
+        throw new Error(`A lift can have at most ${maxWorkingSets} sets.`);
+      }
+
+      await client.run(
+        `
+          INSERT INTO workout_sets
+            (
+              planned_reps,
+              actual_reps,
+              planned_weight,
+              actual_weight,
+              "order",
+              lift_id,
+              locked,
+              hidden,
+              status,
+              planned,
+              created_at,
+              updated_at
+            )
+          VALUES (NULL, NULL, NULL, NULL, ?, ?, 0, 0, 'active', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `,
+        [(setRows[0]?.max_order ?? 0) + 1, input.liftId],
+      );
+      await client.run(
+        `
+          UPDATE lifts
+          SET status = 'active', updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [input.liftId],
+      );
+      await client.run(
+        `
+          UPDATE app_state
+          SET active_lift_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `,
+        [input.liftId],
+      );
+
+      return lift.workout_id;
+    });
+
+    const view = await this.loadWorkoutView(workoutId);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after set add.");
+    }
+
+    return view;
+  }
+
+  async removeLastSetFromLift(input: { liftId: EntityId }): Promise<ActiveWorkoutView> {
+    const workoutId = await this.db.transaction(async (client) => {
+      const lift = await loadEditableLiftForMutation(client, input.liftId);
+      const setRows = await client.query<SetCountRow>(
+        'SELECT COUNT(*) AS count, MAX("order") AS max_order FROM workout_sets WHERE lift_id = ?',
+        [input.liftId],
+      );
+      const setCount = setRows[0]?.count ?? 0;
+
+      if (setCount <= 1) {
+        throw new Error("A lift must have at least one set.");
+      }
+
+      const lastSetRows = await client.query<LastSetRow>(
+        `
+          SELECT id, actual_reps, actual_weight, status
+          FROM workout_sets
+          WHERE lift_id = ?
+          ORDER BY "order" DESC
+          LIMIT 1
+        `,
+        [input.liftId],
+      );
+      const lastSet = lastSetRows[0];
+
+      if (!lastSet) {
+        throw new Error("Workout set was not found.");
+      }
+
+      await client.run("DELETE FROM workout_sets WHERE id = ?", [lastSet.id]);
+      await refreshLiftStatusFromSets(client, input.liftId);
+      await client.run(
+        `
+          UPDATE app_state
+          SET active_lift_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `,
+        [input.liftId],
+      );
+
+      return lift.workout_id;
+    });
+
+    const view = await this.loadWorkoutView(workoutId);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after set removal.");
+    }
+
+    return view;
+  }
+
+  async changeLiftExercise(input: {
+    liftId: EntityId;
+    exerciseId: EntityId;
+  }): Promise<ActiveWorkoutView> {
+    const workoutId = await this.db.transaction(async (client) => {
+      const lift = await loadEditableLiftForMutation(client, input.liftId);
+      const exerciseRows = await client.query<CountRow>(
+        "SELECT COUNT(*) AS count FROM exercises WHERE id = ?",
+        [input.exerciseId],
+      );
+
+      if ((exerciseRows[0]?.count ?? 0) === 0) {
+        throw new Error("Exercise was not found.");
+      }
+
+      if (lift.exercise_id === input.exerciseId) {
+        return lift.workout_id;
+      }
+
+      const liftTemplateRows = await client.query<CountRow>(
+        `
+          SELECT COUNT(*) AS count
+          FROM workout_templates
+          INNER JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
+          WHERE
+            workout_templates.template_id = ?
+            AND workout_templates."order" = ?
+            AND lift_templates."order" = ?
+        `,
+        [lift.template_id, lift.workout_day, lift.lift_order],
+      );
+
+      if ((liftTemplateRows[0]?.count ?? 0) === 0) {
+        throw new Error("Lift template was not found.");
+      }
+
+      await client.run(
+        `
+          UPDATE lift_templates
+          SET exercise_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (
+            SELECT lift_templates.id
+            FROM workout_templates
+            INNER JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
+            WHERE
+              workout_templates.template_id = ?
+              AND workout_templates."order" = ?
+              AND lift_templates."order" = ?
+          )
+        `,
+        [input.exerciseId, lift.template_id, lift.workout_day, lift.lift_order],
+      );
+      await client.run(
+        `
+          UPDATE templates
+          SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [lift.template_id],
+      );
+      await client.run("DELETE FROM feedback WHERE lift_id = ?", [input.liftId]);
+      await client.run("DELETE FROM workout_sets WHERE lift_id = ?", [input.liftId]);
+      await client.run(
+        `
+          UPDATE lifts
+          SET
+            exercise_id = ?,
+            status = 'active',
+            locked = 0,
+            manual_checkin_status = 'none',
+            manual_checkin_source_lift_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [input.exerciseId, input.liftId],
+      );
+
+      for (let setOrder = 1; setOrder <= 2; setOrder += 1) {
+        await client.run(
+          `
+            INSERT INTO workout_sets
+              (
+                planned_reps,
+                actual_reps,
+                planned_weight,
+                actual_weight,
+                "order",
+                lift_id,
+                locked,
+                hidden,
+                status,
+                planned,
+                created_at,
+                updated_at
+              )
+            VALUES (NULL, NULL, NULL, NULL, ?, ?, 0, 0, 'active', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `,
+          [setOrder, input.liftId],
+        );
+      }
+
+      await client.run(
+        `
+          UPDATE app_state
+          SET active_lift_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `,
+        [input.liftId],
+      );
+
+      return lift.workout_id;
+    });
+
+    const view = await this.loadWorkoutView(workoutId);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after exercise change.");
     }
 
     return view;
@@ -793,6 +1058,83 @@ function mapProgressionSet(row: LiftHistorySetRow): ProgressionLiftSet {
     actualWeight: row.actual_weight,
     status: mapStatus(row.status),
   };
+}
+
+async function loadEditableLiftForMutation(
+  client: DatabaseClient,
+  liftId: EntityId,
+): Promise<LiftMutationRow> {
+  const rows = await client.query<LiftMutationRow>(
+    `
+      SELECT
+        lifts.id AS lift_id,
+        lifts.exercise_id,
+        lifts.workout_id,
+        workouts.workout_day,
+        lifts."order" AS lift_order,
+        lifts.locked AS lift_locked,
+        lifts.status AS lift_status,
+        lifts.manual_checkin_status,
+        workouts.locked AS workout_locked,
+        workouts.status AS workout_status,
+        workouts.program_id,
+        programs.template_id
+      FROM lifts
+      INNER JOIN workouts ON workouts.id = lifts.workout_id
+      INNER JOIN programs ON programs.id = workouts.program_id
+      WHERE lifts.id = ?
+    `,
+    [liftId],
+  );
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error("Lift was not found.");
+  }
+
+  if (row.lift_locked || row.workout_locked || row.workout_status !== "active") {
+    throw new Error("This lift is locked.");
+  }
+
+  if (row.manual_checkin_status === "pending") {
+    throw new Error("Resolve manual check-in before editing this lift.");
+  }
+
+  const pendingRows = await client.query<CountRow>(
+    `
+      SELECT COUNT(*) AS count
+      FROM lifts
+      WHERE workout_id = ? AND manual_checkin_status = 'pending'
+    `,
+    [row.workout_id],
+  );
+
+  if ((pendingRows[0]?.count ?? 0) > 0) {
+    throw new Error("Resolve manual check-in before editing this workout.");
+  }
+
+  return row;
+}
+
+async function refreshLiftStatusFromSets(client: DatabaseClient, liftId: EntityId): Promise<void> {
+  const incompleteRows = await client.query<CountRow>(
+    `
+      SELECT COUNT(*) AS count
+      FROM workout_sets
+      WHERE lift_id = ? AND status NOT IN ('complete', 'skipped')
+    `,
+    [liftId],
+  );
+  const liftStatus: PowerJackStatus = (incompleteRows[0]?.count ?? 0) === 0 ? "complete" : "active";
+
+  await client.run(
+    `
+      UPDATE lifts
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    [liftStatus, liftId],
+  );
 }
 
 function validatePainValue(value: number): void {
