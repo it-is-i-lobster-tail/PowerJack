@@ -1,6 +1,8 @@
 import type { AppServices } from "../../../app/AppServices";
 import type { AppState } from "../../../domain/app-state/AppState";
 import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
+import type { CompletedSetEvent } from "../../../domain/analytics/TrainingAnalytics";
+import type { TrainingAnalyticsRepository } from "../../../domain/analytics/TrainingAnalyticsRepository";
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
 import type { Program } from "../../../domain/programs/Program";
@@ -277,7 +279,7 @@ class InMemoryTemplateRepository implements TemplateRepository {
   }
 }
 
-class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository {
+class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository, TrainingAnalyticsRepository {
   private readonly catalog = buildReferenceCatalog();
   private programs: Program[] = [];
   private workouts: Workout[] = [];
@@ -676,6 +678,52 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
     this.activateWorkout(nextWorkout.id);
     return this.loadWorkoutView(nextWorkout.id);
+  }
+
+  loadCompletedSetEvents(input: {
+    fromInclusive: string;
+    toExclusive: string;
+  }): Promise<CompletedSetEvent[]> {
+    const from = new Date(input.fromInclusive);
+    const to = new Date(input.toExclusive);
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return Promise.reject(new Error("Invalid analytics date range."));
+    }
+
+    const completedEvents = this.sets
+      .filter((set) => {
+        const completedAt = new Date(set.updatedAt);
+        return (
+          set.status === "complete" &&
+          set.actualReps !== null &&
+          set.actualWeight !== null &&
+          completedAt >= from &&
+          completedAt < to
+        );
+      })
+      .flatMap((set): CompletedSetEvent[] => {
+        const lift = this.lifts.find((item) => item.id === set.liftId);
+        const exercise = lift ? this.catalog.exercises.find((item) => item.id === lift.exerciseId) : null;
+        const muscle = exercise
+          ? this.catalog.muscles.find((item) => item.name === exercise.primaryMuscleName)
+          : null;
+
+        if (!lift || !exercise || !muscle) {
+          return [];
+        }
+
+        return [
+          {
+            setId: set.id,
+            muscleId: muscle.id,
+            muscleName: muscle.name,
+            completedAt: set.updatedAt,
+          },
+        ];
+      });
+
+    return Promise.resolve(completedEvents);
   }
 
   reset(): void {
@@ -1103,6 +1151,7 @@ export function createInMemoryAppServices(): AppServices {
     templates,
     programs: training,
     workouts: training,
+    analytics: training,
     resetForAgent: async () => {
       await appState.resetForAgent();
       training.reset();

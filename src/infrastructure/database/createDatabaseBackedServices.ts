@@ -5,6 +5,7 @@ import { SqliteAppStateRepository } from "./repositories/SqliteAppStateRepositor
 import { SqliteExerciseCatalogRepository } from "./repositories/SqliteExerciseCatalogRepository";
 import { SqliteProgramRepository } from "./repositories/SqliteProgramRepository";
 import { SqliteTemplateRepository } from "./repositories/SqliteTemplateRepository";
+import { SqliteTrainingAnalyticsRepository } from "./repositories/SqliteTrainingAnalyticsRepository";
 import { SqliteWorkoutRepository } from "./repositories/SqliteWorkoutRepository";
 import { seedReferenceData } from "./seeds/seedReferenceData";
 
@@ -25,6 +26,7 @@ export async function createDatabaseBackedServices(): Promise<AppServices> {
     templates,
     programs,
     workouts,
+    analytics: new SqliteTrainingAnalyticsRepository(db),
     resetForAgent: async () => {
       await appState.resetForAgent();
       await programs.resetForAgent();
