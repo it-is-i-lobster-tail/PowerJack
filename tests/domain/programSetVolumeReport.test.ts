@@ -5,36 +5,43 @@ import {
 } from "../../src/domain/analytics/TrainingAnalytics";
 
 describe("program set volume report", () => {
-  it("normalizes completed program sets to average sets per week", () => {
+  it("normalizes credited muscle sets to average sets per elapsed week", () => {
     const events: CompletedSetEvent[] = [
       completedSet(1, 1, "Back"),
+      completedSet(1, 2, "Biceps", 0.5),
       completedSet(2, 1, "Back"),
+      completedSet(2, 2, "Biceps", 0.5),
       completedSet(3, 4, "Chest"),
-      completedSet(4, 4, "Chest"),
-      completedSet(5, 4, "Chest"),
     ];
 
     const report = buildProgramSetVolumeReport({
       events,
-      programLengthWeeks: 4,
+      elapsedWeeks: 2,
       focusMuscleIds: [1],
     });
 
-    expect(report.totalCompletedSets).toBe(5);
+    expect(report.totalCompletedSets).toBe(3);
     expect(report.rows).toEqual([
-      {
-        muscleId: 4,
-        muscleName: "Chest",
-        completedSets: 3,
-        averageSetsPerWeek: 0.75,
-        isFocusMuscle: false,
-      },
       {
         muscleId: 1,
         muscleName: "Back",
         completedSets: 2,
-        averageSetsPerWeek: 0.5,
+        averageSetsPerWeek: 1,
         isFocusMuscle: true,
+      },
+      {
+        muscleId: 2,
+        muscleName: "Biceps",
+        completedSets: 1,
+        averageSetsPerWeek: 0.5,
+        isFocusMuscle: false,
+      },
+      {
+        muscleId: 4,
+        muscleName: "Chest",
+        completedSets: 1,
+        averageSetsPerWeek: 0.5,
+        isFocusMuscle: false,
       },
     ]);
   });
@@ -42,7 +49,7 @@ describe("program set volume report", () => {
   it("keeps alphabetical ordering when average volume ties", () => {
     const report = buildProgramSetVolumeReport({
       events: [completedSet(1, 2, "Biceps"), completedSet(2, 1, "Back")],
-      programLengthWeeks: 2,
+      elapsedWeeks: 2,
       focusMuscleIds: [],
     });
 
@@ -50,11 +57,12 @@ describe("program set volume report", () => {
   });
 });
 
-function completedSet(setId: number, muscleId: number, muscleName: string): CompletedSetEvent {
+function completedSet(setId: number, muscleId: number, muscleName: string, setCredit = 1): CompletedSetEvent {
   return {
     setId,
     muscleId,
     muscleName,
     completedAt: "2026-06-19T12:00:00.000Z",
+    setCredit,
   };
 }

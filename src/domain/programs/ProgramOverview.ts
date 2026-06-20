@@ -154,6 +154,35 @@ export function markActiveProgramSchedule(input: {
   }));
 }
 
+export function calculateProgramElapsedWeeks(input: {
+  schedule: ActiveProgramOverviewScheduleCell[];
+  programLengthWeeks: number;
+  workoutsPerWeek: number;
+}): number {
+  const programLengthWeeks = Math.max(input.programLengthWeeks, 1);
+  const workoutsPerWeek = Math.max(input.workoutsPerWeek, 1);
+  const activeCell = input.schedule.find((cell) => cell.isActive);
+  const latestPersistedCell = input.schedule
+    .filter((cell) => cell.source === "persisted")
+    .sort((left, right) => {
+      if (right.week !== left.week) {
+        return right.week - left.week;
+      }
+
+      return right.day - left.day;
+    })[0];
+  const currentCell = activeCell ?? latestPersistedCell ?? input.schedule[0];
+
+  if (!currentCell) {
+    return 1 / workoutsPerWeek;
+  }
+
+  const week = clampNumber(currentCell.week, 1, programLengthWeeks);
+  const day = clampNumber(currentCell.day, 1, workoutsPerWeek);
+
+  return Math.max((week - 1) + day / workoutsPerWeek, 1 / workoutsPerWeek);
+}
+
 export function buildProgramOverviewSegments(
   cell: ProgramOverviewScheduleCell,
 ): ProgramOverviewSegment[] {
@@ -172,4 +201,8 @@ export function buildProgramOverviewSegments(
 
 function scheduleCellKey(week: number, day: number): string {
   return `${week}:${day}`;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
