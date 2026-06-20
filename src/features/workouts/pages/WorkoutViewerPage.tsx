@@ -44,7 +44,7 @@ type SetPersistTimers = Record<number, ReturnType<typeof window.setTimeout>>;
 type ManualCheckInStep = "skip" | "reset";
 
 const setAutosaveDelayMs = 500;
-const temporaryBodyWeightDisplayLb = "180";
+const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
   { value: 1, label: "Mild" },
   { value: 2, label: "Noticeable" },
@@ -1533,7 +1533,7 @@ function SetRow({
           pattern="[0-9]*"
           placeholder={set.plannedWeight?.toString() ?? ""}
           type="text"
-          value={repsOnly ? temporaryBodyWeightDisplayLb : draftValue.weight}
+          value={repsOnly ? bodyWeightDisplay : draftValue.weight}
         />
       </label>
     </div>
@@ -1542,15 +1542,33 @@ function SetRow({
 
 function buildDraftValues(view: ActiveWorkoutView): SetDraftValues {
   return Object.fromEntries(
-    view.lifts.flatMap((lift) => lift.sets.map((set) => [set.id, valueFromSet(set)])),
+    view.lifts.flatMap((lift) =>
+      lift.sets.map((set) => [
+        set.id,
+        valueFromSet(set, { prefillPlannedWeight: canUsePlannedWeightAsDraft(view, lift, set) }),
+      ]),
+    ),
   );
 }
 
-function valueFromSet(set: ActiveWorkoutSetView): SetDraftValue {
+function valueFromSet(
+  set: ActiveWorkoutSetView,
+  options: { prefillPlannedWeight?: boolean } = {},
+): SetDraftValue {
+  const weight = set.actualWeight ?? (options.prefillPlannedWeight ? set.plannedWeight : null);
+
   return {
     reps: set.actualReps?.toString() ?? "",
-    weight: set.actualWeight?.toString() ?? "",
+    weight: weight?.toString() ?? "",
   };
+}
+
+function canUsePlannedWeightAsDraft(
+  view: ActiveWorkoutView,
+  lift: ActiveWorkoutLiftView,
+  set: ActiveWorkoutSetView,
+): boolean {
+  return !view.isReadOnly && !lift.repsOnly && !lift.locked && !set.locked && set.status !== "skipped";
 }
 
 function isAllowedIntegerInput(value: string): boolean {
