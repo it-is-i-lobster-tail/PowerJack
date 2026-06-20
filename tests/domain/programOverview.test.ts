@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProgramOverviewSegments,
   buildProgramSchedule,
+  calculateProgramElapsedWeeks,
   calculateProgramProgress,
   createProgramOverviewStatusCounts,
   markActiveProgramSchedule,
@@ -109,6 +110,88 @@ describe("program overview", () => {
         activeWorkoutId: 10,
       })[0]?.isActive,
     ).toBe(false);
+  });
+
+  it("calculates elapsed weeks from the active program day", () => {
+    const weekOneDayOne = markActiveProgramSchedule({
+      schedule: buildProgramSchedule({
+        programLengthWeeks: 4,
+        workoutsPerWeek: 4,
+        persistedCells: [
+          {
+            workoutId: 10,
+            week: 1,
+            day: 1,
+            totalSets: 2,
+            statusCounts: createProgramOverviewStatusCounts({ active: 2 }),
+          },
+        ],
+        plannedSetCountsByDay: new Map([[1, 2]]),
+      }),
+      displayedProgramId: 1,
+      activeProgramId: 1,
+      activeWorkoutId: 10,
+    });
+    const weekOneDayTwo = markActiveProgramSchedule({
+      schedule: buildProgramSchedule({
+        programLengthWeeks: 4,
+        workoutsPerWeek: 2,
+        persistedCells: [
+          {
+            workoutId: 11,
+            week: 1,
+            day: 2,
+            totalSets: 2,
+            statusCounts: createProgramOverviewStatusCounts({ active: 2 }),
+          },
+        ],
+        plannedSetCountsByDay: new Map([[2, 2]]),
+      }),
+      displayedProgramId: 1,
+      activeProgramId: 1,
+      activeWorkoutId: 11,
+    });
+    const weekThreeDayTwo = markActiveProgramSchedule({
+      schedule: buildProgramSchedule({
+        programLengthWeeks: 4,
+        workoutsPerWeek: 4,
+        persistedCells: [
+          {
+            workoutId: 12,
+            week: 3,
+            day: 2,
+            totalSets: 2,
+            statusCounts: createProgramOverviewStatusCounts({ active: 2 }),
+          },
+        ],
+        plannedSetCountsByDay: new Map([[2, 2]]),
+      }),
+      displayedProgramId: 1,
+      activeProgramId: 1,
+      activeWorkoutId: 12,
+    });
+
+    expect(
+      calculateProgramElapsedWeeks({
+        schedule: weekOneDayOne,
+        programLengthWeeks: 4,
+        workoutsPerWeek: 4,
+      }),
+    ).toBe(0.25);
+    expect(
+      calculateProgramElapsedWeeks({
+        schedule: weekOneDayTwo,
+        programLengthWeeks: 4,
+        workoutsPerWeek: 2,
+      }),
+    ).toBe(1);
+    expect(
+      calculateProgramElapsedWeeks({
+        schedule: weekThreeDayTwo,
+        programLengthWeeks: 4,
+        workoutsPerWeek: 4,
+      }),
+    ).toBe(2.5);
   });
 
   it("builds proportional complete skipped and halted segments", () => {
