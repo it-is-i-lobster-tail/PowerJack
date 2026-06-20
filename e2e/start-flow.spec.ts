@@ -457,9 +457,7 @@ test.describe("start program flow", () => {
     await expectResumeCenteredBeforeIcons(page);
 
     await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active Program Template");
-    await expect(page.locator("[data-agent-id='template-lock-badge-1']")).toContainText(
-      "Locked While In Use",
-    );
+    await expect(page.locator("[data-agent-id='template-lock-badge-1']")).toContainText("Locked");
     await expect(page.locator("[data-agent-id='edit-template-1']")).toHaveAttribute(
       "aria-disabled",
       "true",

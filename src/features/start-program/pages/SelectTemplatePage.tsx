@@ -207,7 +207,7 @@ export function SelectTemplatePage() {
                           type="button"
                         >
                           <LockKeyhole aria-hidden size={14} strokeWidth={2.4} />
-                          <span>Locked While In Use</span>
+                          <span>Locked</span>
                         </button>
                       ) : null}
                       <span className="template-row__action-buttons">
