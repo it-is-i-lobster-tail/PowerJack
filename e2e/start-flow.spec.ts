@@ -38,6 +38,26 @@ async function startSelectedProgram(page: import("@playwright/test").Page, weeks
   await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
 }
 
+async function completeVisibleWorkout(page: import("@playwright/test").Page) {
+  const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
+  const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);
+  const secondRep = page.locator("[data-agent-id^='set-reps-']").nth(1);
+  const secondWeight = page.locator("[data-agent-id^='set-weight-']").nth(1);
+
+  await firstRep.fill("12");
+  await firstWeight.fill("220");
+  await secondRep.fill("10");
+  await secondWeight.fill("220");
+  await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+  await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+  await page.locator("[data-agent-id='feedback-pain-option-1']").click();
+  await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+  await page.locator("[data-agent-id='feedback-save']").click();
+  await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+  await page.locator("[data-agent-id='finish-workout']").click();
+  await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+}
+
 async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").Page) {
   const resume = page.locator("[data-agent-id='resume-workout']");
   const profile = page.locator("[data-agent-id='profile-placeholder']");
@@ -191,6 +211,13 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='app-menu-toggle']").click();
 
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
+    await page.locator("[data-agent-id='menu-data-visualization']").click();
+    await expect(page).toHaveURL(/\/visualization$/);
+    await expect(page.locator("[data-agent-id='visualization-empty-state']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='data-visualization-page']")).not.toContainText(/No change vs/i);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-new-template']").click();
     await expect(page).toHaveURL(/\/templates\/new\/name$/);
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
@@ -203,6 +230,41 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("[data-agent-id='app-menu']")).toHaveCount(0);
+  });
+
+  test("Data Visualization shows completed set volume and switches chart types", async ({ page }) => {
+    await createTwoDayTemplate(page, "Chart Check");
+    await startSelectedProgram(page);
+    await completeVisibleWorkout(page);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-data-visualization']").click();
+
+    await expect(page).toHaveURL(/\/visualization/);
+    await expect(page.locator("[data-agent-id='data-visualization-page']")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sets by muscle group" })).toBeVisible();
+    await expect(page.locator("[data-agent-id='visualization-total']")).toContainText("2");
+    await expect(page.locator("[data-agent-id^='visualization-bar-']")).toContainText("Chest");
+
+    await page.locator("[data-agent-id='visualization-chart-trigger']").click();
+    await page.locator("[data-agent-id='visualization-view-heatmap']").click();
+    await expect(page.locator("[data-agent-id='visualization-heatmap']")).toContainText("Chest");
+
+    await page.locator("[data-agent-id='visualization-chart-trigger']").click();
+    await page.locator("[data-agent-id='visualization-view-sparklines']").click();
+    await expect(page.locator("[data-agent-id^='visualization-sparkline-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Sparklines");
+
+    await page.locator("[data-agent-id='visualization-chart-trigger']").click();
+    await page.locator("[data-agent-id='visualization-view-compare']").click();
+    await expect(page.locator("[data-agent-id^='visualization-compare-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id='visualization-summary-compare']")).toBeVisible();
+
+    await page.locator("[data-agent-id='visualization-range-year']").click();
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText(
+      new Date().getFullYear().toString(),
+    );
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Compare");
   });
 
   test("template edit pre-populates the flow and delete soft-removes unused templates", async ({ page }) => {
