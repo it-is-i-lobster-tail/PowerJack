@@ -38,6 +38,7 @@ import type {
 } from "../../../domain/workouts/Workout";
 import {
   generateNextLiftPrescription,
+  maxWorkingSets,
   type ProgressionLiftHistory,
 } from "../../../domain/workouts/progression/generateNextLiftPrescription";
 import type {
@@ -283,6 +284,34 @@ class InMemoryTemplateRepository implements TemplateRepository {
 
   isUsedByActiveProgram(id: number): Promise<boolean> {
     return Promise.resolve(this.activeTemplateChecker(id));
+  }
+
+  replaceExerciseInTemplateDay(input: {
+    templateId: number;
+    workoutDay: number;
+    liftOrder: number;
+    exerciseId: number;
+  }): void {
+    const aggregate = this.templateAggregates.get(input.templateId);
+    const summary = this.templates.find((template) => template.id === input.templateId);
+
+    if (!aggregate || !summary || this.deletedTemplateIds.has(input.templateId)) {
+      throw new Error("Lift template was not found.");
+    }
+
+    const day = aggregate.days.find((item) => item.order === input.workoutDay);
+
+    if (!day || input.liftOrder < 1 || input.liftOrder > day.exerciseIds.length) {
+      throw new Error("Lift template was not found.");
+    }
+
+    day.exerciseIds[input.liftOrder - 1] = input.exerciseId;
+    summary.updatedAt = deterministicTimestamp;
+    const detail = this.templateDetails.get(input.templateId);
+
+    if (detail) {
+      detail.updatedAt = deterministicTimestamp;
+    }
   }
 
   setActiveTemplateChecker(activeTemplateChecker: (templateId: number) => boolean): void {
@@ -560,6 +589,121 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
     if (!view) {
       throw new Error("Workout could not be loaded after set update.");
+    }
+
+    return view;
+  }
+
+  async addSetToLift(input: { liftId: number }): Promise<ActiveWorkoutView> {
+    const { lift, workout } = this.requireEditableLift(input.liftId);
+    const liftSets = this.sets.filter((item) => item.liftId === lift.id);
+
+    if (liftSets.length >= maxWorkingSets) {
+      throw new Error(`A lift can have at most ${maxWorkingSets} sets.`);
+    }
+
+    const nextOrder = liftSets.reduce((maxOrder, set) => Math.max(maxOrder, set.order), 0) + 1;
+    this.createSet({
+      liftId: lift.id,
+      order: nextOrder,
+      status: "active",
+      locked: false,
+      plannedReps: null,
+      plannedWeight: null,
+    });
+    lift.status = "active";
+    lift.updatedAt = deterministicTimestamp;
+    this.appState.setActiveLift(lift.id);
+
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after set add.");
+    }
+
+    return view;
+  }
+
+  async removeLastSetFromLift(input: { liftId: number }): Promise<ActiveWorkoutView> {
+    const { lift, workout } = this.requireEditableLift(input.liftId);
+    const liftSets = this.sets
+      .filter((item) => item.liftId === lift.id)
+      .sort((left, right) => left.order - right.order);
+
+    if (liftSets.length <= 1) {
+      throw new Error("A lift must have at least one set.");
+    }
+
+    const lastSet = liftSets[liftSets.length - 1];
+
+    if (!lastSet) {
+      throw new Error("Workout set was not found.");
+    }
+
+    this.sets = this.sets.filter((set) => set.id !== lastSet.id);
+    this.refreshLiftStatusFromSets(lift.id);
+    this.appState.setActiveLift(lift.id);
+
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after set removal.");
+    }
+
+    return view;
+  }
+
+  async changeLiftExercise(input: {
+    liftId: number;
+    exerciseId: number;
+  }): Promise<ActiveWorkoutView> {
+    const { lift, workout, program } = this.requireEditableLift(input.liftId);
+
+    if (!this.catalog.exercises.some((exercise) => exercise.id === input.exerciseId)) {
+      throw new Error("Exercise was not found.");
+    }
+
+    if (lift.exerciseId === input.exerciseId) {
+      const view = await this.loadWorkoutView(workout.id);
+
+      if (!view) {
+        throw new Error("Workout could not be loaded after exercise change.");
+      }
+
+      return view;
+    }
+
+    this.templates.replaceExerciseInTemplateDay({
+      templateId: program.templateId,
+      workoutDay: workout.workoutDay,
+      liftOrder: lift.order,
+      exerciseId: input.exerciseId,
+    });
+    this.feedback = this.feedback.filter((feedback) => feedback.liftId !== lift.id);
+    this.sets = this.sets.filter((set) => set.liftId !== lift.id);
+    lift.exerciseId = input.exerciseId;
+    lift.status = "active";
+    lift.locked = false;
+    lift.manualCheckinStatus = "none";
+    lift.manualCheckinSourceLiftId = null;
+    lift.updatedAt = deterministicTimestamp;
+
+    for (let setOrder = 1; setOrder <= 2; setOrder += 1) {
+      this.createSet({
+        liftId: lift.id,
+        order: setOrder,
+        status: "active",
+        locked: false,
+        plannedReps: null,
+        plannedWeight: null,
+      });
+    }
+
+    this.appState.setActiveLift(lift.id);
+    const view = await this.loadWorkoutView(workout.id);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after exercise change.");
     }
 
     return view;
@@ -1019,6 +1163,48 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
   private getSetsForWorkout(workoutId: number): WorkoutSet[] {
     const liftIds = new Set(this.lifts.filter((lift) => lift.workoutId === workoutId).map((lift) => lift.id));
     return this.sets.filter((set) => liftIds.has(set.liftId));
+  }
+
+  private requireEditableLift(liftId: number): {
+    lift: Lift;
+    workout: Workout;
+    program: Program;
+  } {
+    const lift = this.lifts.find((item) => item.id === liftId);
+    const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+    const program = workout ? this.programs.find((item) => item.id === workout.programId) : null;
+
+    if (!lift || !workout || !program) {
+      throw new Error("Lift was not found.");
+    }
+
+    if (lift.locked || workout.locked || workout.status !== "active") {
+      throw new Error("This lift is locked.");
+    }
+
+    if (lift.manualCheckinStatus === "pending") {
+      throw new Error("Resolve manual check-in before editing this lift.");
+    }
+
+    if (this.lifts.some((item) => item.workoutId === workout.id && item.manualCheckinStatus === "pending")) {
+      throw new Error("Resolve manual check-in before editing this workout.");
+    }
+
+    return { lift, workout, program };
+  }
+
+  private refreshLiftStatusFromSets(liftId: number): void {
+    const lift = this.lifts.find((item) => item.id === liftId);
+
+    if (!lift) {
+      throw new Error("Lift was not found.");
+    }
+
+    const liftSets = this.sets.filter((set) => set.liftId === liftId);
+    lift.status = liftSets.every((set) => set.status === "complete" || set.status === "skipped")
+      ? "complete"
+      : "active";
+    lift.updatedAt = deterministicTimestamp;
   }
 
   private lockCompletedWorkout(workoutId: number): void {
