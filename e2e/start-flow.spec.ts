@@ -38,6 +38,46 @@ async function startSelectedProgram(page: import("@playwright/test").Page, weeks
   await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
 }
 
+async function completeActiveLiftWithFeedback(
+  page: import("@playwright/test").Page,
+  options: { pain: number; effort: number; reps?: [string, string]; weight?: string },
+) {
+  const reps = options.reps ?? ["10", "8"];
+  const weight = options.weight ?? "100";
+  const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
+  const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);
+  const secondRep = page.locator("[data-agent-id^='set-reps-']").nth(1);
+  const secondWeight = page.locator("[data-agent-id^='set-weight-']").nth(1);
+
+  await firstRep.fill(reps[0]);
+  await firstWeight.fill(weight);
+  await secondRep.fill(reps[1]);
+  await secondWeight.fill(weight);
+  await page.waitForTimeout(650);
+  await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+  await page.locator(`[data-agent-id='feedback-pain-option-${options.pain}']`).click();
+  await page.locator(`[data-agent-id='feedback-effort-option-${options.effort}']`).click();
+  await page.locator("[data-agent-id='feedback-save']").click();
+  await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+  await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+}
+
+async function openWeekTwoBenchManualCheckIn(
+  page: import("@playwright/test").Page,
+  options: { templateName: string; pain: number },
+) {
+  await createTwoDayTemplate(page, options.templateName);
+  await startSelectedProgram(page, 4);
+  await completeActiveLiftWithFeedback(page, { pain: options.pain, effort: 3 });
+  await page.locator("[data-agent-id='finish-workout']").click();
+  await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+  await completeActiveLiftWithFeedback(page, { pain: 1, effort: 3, reps: ["8", "8"], weight: "150" });
+  await page.locator("[data-agent-id='finish-workout']").click();
+  await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
+  await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+  await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toBeVisible();
+}
+
 async function completeVisibleWorkout(page: import("@playwright/test").Page) {
   const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
   const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);
@@ -96,6 +136,7 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
 test.describe("start program flow", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
+    await page.waitForFunction(() => Boolean(window.__POWERJACK_AGENT__));
     await page.evaluate(async () => {
       const harness = window as unknown as {
         __POWERJACK_AGENT__?: {
@@ -104,6 +145,7 @@ test.describe("start program flow", () => {
       };
       await harness.__POWERJACK_AGENT__?.reset();
     });
+    await page.goto("/");
   });
 
   test("renders the New Program screen at /", async ({ page }) => {
@@ -571,34 +613,57 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged", {
       timeout: 100,
     });
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(650);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
 
     await firstRep.fill("12");
     await firstWeight.fill("220");
     await secondRep.fill("10");
     await secondWeight.fill("220");
-    await page.waitForTimeout(450);
+    await expect(secondWeight).toBeFocused();
+    await page.waitForTimeout(650);
 
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
-    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await expect(secondWeight).not.toBeFocused();
+    await expect(secondWeight).toBeDisabled();
+    await page.keyboard.press("Backspace");
+    await expect(secondWeight).toHaveValue("220");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeDisabled();
+    await page.locator("[data-agent-id='feedback-close']").click();
+
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='feedback-needed']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
+    await page.locator("[data-agent-id='finish-workout']").click({ force: true });
+    await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toContainText(
+      "Complete lift feedback before finishing.",
+    );
+
+    await page.locator("[data-agent-id='feedback-needed']").click();
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await page.locator("[data-agent-id='feedback-pain-option-1']").click();
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeDisabled();
     await page.locator("[data-agent-id='feedback-effort-option-3']").click();
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeEnabled();
     await page.locator("[data-agent-id='feedback-save']").click();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
 
     await firstRep.fill("");
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(650);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
 
     await firstRep.fill("12");
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(650);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
@@ -609,5 +674,63 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+  });
+
+  test("high-pain manual check-in can skip and carries forward", async ({ page }) => {
+    await openWeekTwoBenchManualCheckIn(page, { templateName: "Bench Check", pain: 4 });
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
+      "Last week Barbell Bench Press caused a pain of 4/5",
+    );
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeDisabled();
+    await page.locator("[data-agent-id='manual-checkin-skip-yes']").click();
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 0 sets logged");
+    await expect(page.locator("[data-agent-id^='set-skipped-']")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+
+    await page.locator("[data-agent-id='finish-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await completeActiveLiftWithFeedback(page, { pain: 1, effort: 3, reps: ["8", "8"], weight: "150" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 3/4");
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
+      "Last week Barbell Bench Press caused a pain of 4/5",
+    );
+  });
+
+  test("high-pain manual check-in can reset on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openWeekTwoBenchManualCheckIn(page, { templateName: "Mobile Bench Check", pain: 5 });
+
+    await page.locator("[data-agent-id='manual-checkin-skip-no']").click();
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
+      "Would you like to reset progress for Barbell Bench Press?",
+    );
+    await page.locator("[data-agent-id='manual-checkin-reset-yes']").click();
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id^='set-weight-']")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("");
+  });
+
+  test("high-pain manual check-in can continue without reset", async ({ page }) => {
+    await openWeekTwoBenchManualCheckIn(page, { templateName: "Continue Bench Check", pain: 4 });
+
+    await page.locator("[data-agent-id='manual-checkin-skip-no']").click();
+    await page.locator("[data-agent-id='manual-checkin-reset-no']").click();
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
+    await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveAttribute("placeholder", "10");
+    await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveAttribute("placeholder", "100");
   });
 });
