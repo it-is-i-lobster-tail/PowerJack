@@ -30,6 +30,34 @@ async function createTwoDayTemplate(page: import("@playwright/test").Page, name 
   await expect(page).toHaveURL(/\/start\/select-template$/);
 }
 
+async function addExerciseToCurrentTemplateDay(
+  page: import("@playwright/test").Page,
+  searchTerm: string,
+  exerciseName: RegExp,
+) {
+  await page.locator("[data-agent-id='add-exercise']").click();
+  await page.locator("[data-agent-id='exercise-search-input']").fill(searchTerm);
+  await page.getByRole("button", { name: exerciseName }).click();
+}
+
+async function createWeightedVolumeTemplate(page: import("@playwright/test").Page) {
+  await openTemplateFocus(page, "Weighted Volume");
+  await page.locator(".muscle-focus-grid").getByRole("button", { name: "Back" }).click();
+  await page.locator(".muscle-focus-grid").getByRole("button", { name: "Biceps" }).click();
+  await page.locator(".muscle-focus-grid").getByRole("button", { name: "Shoulders" }).click();
+  await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+  await page.locator("[data-agent-id='template-days-per-week-2']").click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Conventional Deadlift/);
+  await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull-Up/);
+  await addExerciseToCurrentTemplateDay(page, "one-arm pulldown", /^Cable One-Arm Pulldown/);
+  await addExerciseToCurrentTemplateDay(page, "rear delt fly", /^Cable Rear Delt Fly/);
+  await page.locator("[data-agent-id='template-day-2']").click();
+  await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+  await page.locator("[data-agent-id='save-template']").click();
+  await expect(page).toHaveURL(/\/start\/select-template$/);
+}
+
 async function startSelectedProgram(page: import("@playwright/test").Page, weeks = 8) {
   await page.locator("[data-agent-id='select-template-next']").click();
   await expect(page).toHaveURL(/\/start\/program-length$/);
@@ -60,6 +88,34 @@ async function completeActiveLiftWithFeedback(
   await page.locator("[data-agent-id='feedback-save']").click();
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
   await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+}
+
+async function completeLiftWithFeedback(
+  page: import("@playwright/test").Page,
+  exerciseName: string,
+  options: { reps?: string; weight?: string } = {},
+) {
+  const liftCard = page.locator("[data-agent-id^='lift-card-']").filter({ hasText: exerciseName });
+  const repsInputs = liftCard.locator("[data-agent-id^='set-reps-']");
+  const weightInputs = liftCard.locator("[data-agent-id^='set-weight-']");
+  const reps = options.reps ?? "10";
+  const weight = options.weight ?? "10";
+  const setCount = await repsInputs.count();
+
+  for (let index = 0; index < setCount; index += 1) {
+    await repsInputs.nth(index).fill(reps);
+
+    if (await weightInputs.nth(index).isEnabled()) {
+      await weightInputs.nth(index).fill(weight);
+    }
+  }
+
+  await page.waitForTimeout(650);
+  await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
+  await page.locator("[data-agent-id='feedback-pain-option-1']").click();
+  await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+  await page.locator("[data-agent-id='feedback-save']").click();
+  await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
 }
 
 async function openWeekTwoBenchManualCheckIn(
@@ -296,7 +352,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='data-visualization-page']")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Sets by muscle group" })).toBeVisible();
     await expect(page.locator("[data-agent-id='visualization-total']")).toContainText("2");
-    await expect(page.locator("[data-agent-id^='visualization-bar-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id^='visualization-bar-']").filter({ hasText: "Chest" })).toContainText("Chest");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
     await page.locator("[data-agent-id='visualization-view-heatmap']").click();
@@ -304,12 +360,12 @@ test.describe("start program flow", () => {
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
     await page.locator("[data-agent-id='visualization-view-sparklines']").click();
-    await expect(page.locator("[data-agent-id^='visualization-sparkline-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id^='visualization-sparkline-']").filter({ hasText: "Chest" })).toContainText("Chest");
     await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Sparklines");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
     await page.locator("[data-agent-id='visualization-view-compare']").click();
-    await expect(page.locator("[data-agent-id^='visualization-compare-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id^='visualization-compare-']").filter({ hasText: "Chest" })).toContainText("Chest");
     await expect(page.locator("[data-agent-id='visualization-summary-compare']")).toBeVisible();
 
     await page.locator("[data-agent-id='visualization-range-year']").click();
@@ -317,6 +373,41 @@ test.describe("start program flow", () => {
       new Date().getFullYear().toString(),
     );
     await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Compare");
+  });
+
+  test("completed secondary muscles count as half sets in volume views", async ({ page }) => {
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+    await completeLiftWithFeedback(page, "Barbell Conventional Deadlift");
+    await completeLiftWithFeedback(page, "Pull-Up");
+    await completeLiftWithFeedback(page, "Cable One-Arm Pulldown");
+    await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+    await page.locator("[data-agent-id='finish-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+$/);
+
+    const programVolumeRows = page.locator("[data-agent-id^='program-volume-row-']");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("7.0");
+    await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Biceps" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-data-visualization']").click();
+    await expect(page).toHaveURL(/\/visualization/);
+    await expect(page.locator("[data-agent-id='visualization-total']")).toContainText("8.0");
+
+    const visualizationRows = page.locator("[data-agent-id^='visualization-bar-']");
+    await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("7.0");
+    await expect(visualizationRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
+    await expect(visualizationRows.filter({ hasText: "Biceps" })).toContainText("2.0");
+    await expect(visualizationRows.filter({ hasText: "Forearms" })).toContainText("3.0");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
   });
 
   test("Current Program menu opens overview and keeps resume context", async ({ page }, testInfo) => {
@@ -349,7 +440,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='program-progress']")).toContainText("6%");
     await expect(page.locator("[data-agent-id='program-schedule-cell-w1-d1']")).toContainText("100%");
     await expect(page.locator("[data-agent-id='program-schedule-cell-w1-d2']")).toContainText("Active");
-    await expect(page.locator("[data-agent-id^='program-volume-row-']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id^='program-volume-row-']").filter({ hasText: "Chest" })).toContainText("Chest");
     expect(await pageHasHorizontalOverflow(page)).toBe(false);
 
     if (testInfo.project.name === "mobile-chrome") {

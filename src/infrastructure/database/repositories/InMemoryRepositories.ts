@@ -1,7 +1,10 @@
 import type { AppServices } from "../../../app/AppServices";
 import type { AppState } from "../../../domain/app-state/AppState";
 import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
-import type { CompletedSetEvent } from "../../../domain/analytics/TrainingAnalytics";
+import {
+  buildCompletedSetEventsForMuscles,
+  type CompletedSetEvent,
+} from "../../../domain/analytics/TrainingAnalytics";
 import type { TrainingAnalyticsRepository } from "../../../domain/analytics/TrainingAnalyticsRepository";
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
@@ -778,22 +781,20 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       .flatMap((set): CompletedSetEvent[] => {
         const lift = this.lifts.find((item) => item.id === set.liftId);
         const exercise = lift ? this.catalog.exercises.find((item) => item.id === lift.exerciseId) : null;
-        const muscle = exercise
+        const primaryMuscle = exercise
           ? this.catalog.muscles.find((item) => item.name === exercise.primaryMuscleName)
           : null;
 
-        if (!lift || !exercise || !muscle) {
+        if (!lift || !exercise || !primaryMuscle) {
           return [];
         }
 
-        return [
-          {
-            setId: set.id,
-            muscleId: muscle.id,
-            muscleName: muscle.name,
-            completedAt: set.updatedAt,
-          },
-        ];
+        return buildCompletedSetEventsForMuscles({
+          setId: set.id,
+          completedAt: set.updatedAt,
+          primaryMuscle,
+          secondaryMuscles: resolveSecondaryMuscles(this.catalog.muscles, exercise.secondaryMuscleNames),
+        });
       });
 
     return Promise.resolve(completedEvents);
@@ -808,29 +809,26 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         return (
           workout?.programId === programId &&
           set.status === "complete" &&
-          set.actualReps !== null &&
-          set.actualWeight !== null
+          set.actualReps !== null
         );
       })
       .flatMap((set): CompletedSetEvent[] => {
         const lift = this.lifts.find((item) => item.id === set.liftId);
         const exercise = lift ? this.catalog.exercises.find((item) => item.id === lift.exerciseId) : null;
-        const muscle = exercise
+        const primaryMuscle = exercise
           ? this.catalog.muscles.find((item) => item.name === exercise.primaryMuscleName)
           : null;
 
-        if (!lift || !exercise || !muscle) {
+        if (!lift || !exercise || !primaryMuscle) {
           return [];
         }
 
-        return [
-          {
-            setId: set.id,
-            muscleId: muscle.id,
-            muscleName: muscle.name,
-            completedAt: set.updatedAt,
-          },
-        ];
+        return buildCompletedSetEventsForMuscles({
+          setId: set.id,
+          completedAt: set.updatedAt,
+          primaryMuscle,
+          secondaryMuscles: resolveSecondaryMuscles(this.catalog.muscles, exercise.secondaryMuscleNames),
+        });
       });
 
     return Promise.resolve(completedEvents);
@@ -1258,6 +1256,13 @@ function validateEffortValue(value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > 5) {
     throw new Error("Choose an effort value from 1 to 5.");
   }
+}
+
+function resolveSecondaryMuscles(muscles: Muscle[], secondaryMuscleNames: string[]): Muscle[] {
+  return secondaryMuscleNames.flatMap((muscleName) => {
+    const muscle = muscles.find((item) => item.name === muscleName);
+    return muscle ? [muscle] : [];
+  });
 }
 
 export function createInMemoryAppServices(): AppServices {

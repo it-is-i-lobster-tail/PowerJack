@@ -306,7 +306,7 @@ function BarsChart({ report }: { report: SetVolumeReport }) {
             <div className="bars-row__track" aria-hidden>
               <span style={{ width: `${(row.metricValue / max) * 100}%` }} />
             </div>
-            <strong>{formatMetricValue(row.metricValue, report.range)}</strong>
+            <strong>{formatMetricValue(row.metricValue)}</strong>
           </div>
         ))}
       </div>
@@ -332,7 +332,7 @@ function HeatmapChart({ report }: { report: SetVolumeReport }) {
         ))}
         <span className="heatmap-grid__label">All</span>
         {report.rows.map((row) => (
-          <HeatmapRow key={row.muscleId} max={max} range={report.range} row={row} />
+          <HeatmapRow key={row.muscleId} max={max} row={row} />
         ))}
       </div>
       <p className="visualization-note">Darker cells carry more {report.metricUnitLabel} for that bucket.</p>
@@ -342,11 +342,9 @@ function HeatmapChart({ report }: { report: SetVolumeReport }) {
 
 function HeatmapRow({
   max,
-  range,
   row,
 }: {
   max: number;
-  range: SetVisualizationRange;
   row: SetVolumeMuscleRow;
 }) {
   return (
@@ -358,10 +356,10 @@ function HeatmapRow({
           data-intensity={Math.ceil((value / max) * 4)}
           key={`${row.muscleId}-${index}`}
         >
-          {value > 0 ? formatMetricValue(value, range) : "-"}
+          {value > 0 ? formatMetricValue(value) : "-"}
         </span>
       ))}
-      <span className="heatmap-cell heatmap-cell--total">{formatMetricValue(row.metricValue, range)}</span>
+      <span className="heatmap-cell heatmap-cell--total">{formatMetricValue(row.metricValue)}</span>
     </>
   );
 }
@@ -374,13 +372,13 @@ function SparklinesChart({ report }: { report: SetVolumeReport }) {
           <article className="sparkline-card" data-agent-id={`visualization-sparkline-${row.muscleId}`} key={row.muscleId}>
             <div>
               <h3>{row.muscleName}</h3>
-              <span className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta, report.range)}</span>
+              <span className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta)}</span>
             </div>
             <strong>
-              {formatMetricValue(row.metricValue, report.range)}
+              {formatMetricValue(row.metricValue)}
               <small> {report.metricUnitLabel}</small>
             </strong>
-            <Sparkline range={report.range} values={row.bucketValues} isDown={row.metricDelta < 0} />
+            <Sparkline values={row.bucketValues} isDown={row.metricDelta < 0} />
           </article>
         ))}
       </div>
@@ -421,7 +419,7 @@ function CompareChart({ report }: { report: SetVolumeReport }) {
                 style={{ left: `${(row.previousMetricValue / max) * 100}%` }}
               />
             </div>
-            <strong className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta, report.range)}</strong>
+            <strong className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta)}</strong>
           </div>
         ))}
       </div>
@@ -432,11 +430,9 @@ function CompareChart({ report }: { report: SetVolumeReport }) {
 
 function Sparkline({
   isDown,
-  range,
   values,
 }: {
   isDown: boolean;
-  range: SetVisualizationRange;
   values: number[];
 }) {
   const points = buildSparklinePoints(values);
@@ -445,7 +441,7 @@ function Sparkline({
     <svg
       className="sparkline"
       role="img"
-      aria-label={`Bucket values ${values.map((value) => formatMetricValue(value, range)).join(", ")}`}
+      aria-label={`Bucket values ${values.map((value) => formatMetricValue(value)).join(", ")}`}
       viewBox="0 0 120 42"
     >
       <polyline className={isDown ? "sparkline__line sparkline__line--down" : "sparkline__line"} points={points} />
@@ -563,13 +559,13 @@ function ChartHeader({ report, view }: { report: SetVolumeReport; view: SetVisua
       <div className="visualization-panel__header visualization-panel__header--compare">
         <div>
           <span>{report.periodLabel} {report.range === "week" ? "total" : "average"}</span>
-          <strong data-agent-id="visualization-total">{formatMetricValue(report.metricValue, report.range)}</strong>
+          <strong data-agent-id="visualization-total">{formatMetricValue(report.metricValue)}</strong>
           <small>{report.metricUnitLabel}</small>
         </div>
         <div>
           <span>vs {report.previousPeriodLabel}</span>
           <strong className={deltaClassName(report.metricDelta)} data-agent-id="visualization-summary-compare">
-            {formatComparisonDelta(report.metricDelta, report.range)}
+            {formatComparisonDelta(report.metricDelta)}
           </strong>
         </div>
       </div>
@@ -583,7 +579,7 @@ function ChartHeader({ report, view }: { report: SetVolumeReport; view: SetVisua
         <h2>{report.periodLabel}</h2>
       </div>
       <div className="visualization-panel__metric">
-        <strong data-agent-id="visualization-total">{formatMetricValue(report.metricValue, report.range)}</strong>
+        <strong data-agent-id="visualization-total">{formatMetricValue(report.metricValue)}</strong>
         <small>{report.metricUnitLabel}</small>
       </div>
     </div>
@@ -619,24 +615,24 @@ function storeVisualizationView(value: SetVisualizationView): void {
   }
 }
 
-function formatDelta(value: number, range: SetVisualizationRange): string {
+function formatDelta(value: number): string {
   if (value > 0) {
-    return `+${formatMetricValue(value, range)}`;
+    return `+${formatMetricValue(value)}`;
   }
 
   if (value < 0) {
-    return `-${formatMetricValue(Math.abs(value), range)}`;
+    return `-${formatMetricValue(Math.abs(value))}`;
   }
 
-  return "0";
+  return formatMetricValue(0);
 }
 
-function formatComparisonDelta(value: number, range: SetVisualizationRange): string {
+function formatComparisonDelta(value: number): string {
   if (value === 0) {
     return "No change";
   }
 
-  return formatDelta(value, range);
+  return formatDelta(value);
 }
 
 function deltaClassName(value: number): string {
@@ -651,18 +647,14 @@ function deltaClassName(value: number): string {
   return "delta-pill";
 }
 
-function formatMetricValue(value: number, range: SetVisualizationRange): string {
-  if (range === "week") {
-    return `${Math.round(value)}`;
-  }
-
+function formatMetricValue(value: number): string {
   if (value > 0 && value < 0.1) {
     return "<0.1";
   }
 
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 1,
   }).format(value);
 }
 
