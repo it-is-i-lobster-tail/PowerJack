@@ -63,13 +63,14 @@ export async function seedReferenceData(db: DatabaseClient): Promise<void> {
     await db.run(
       `
         INSERT OR IGNORE INTO exercises
-          (name, primary_muscle_id, equipment_id, min_reps_hypertrophy, max_reps_hypertrophy)
-        VALUES (?, ?, ?, ?, ?)
+          (name, primary_muscle_id, equipment_id, reps_only, min_reps_hypertrophy, max_reps_hypertrophy)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         exercise.name,
         primaryMuscleId,
         equipmentId,
+        exercise.repsOnly ? 1 : 0,
         exercise.minRepsHypertrophy,
         exercise.maxRepsHypertrophy,
       ],
@@ -80,6 +81,7 @@ export async function seedReferenceData(db: DatabaseClient): Promise<void> {
         SET
           primary_muscle_id = ?,
           equipment_id = ?,
+          reps_only = ?,
           min_reps_hypertrophy = ?,
           max_reps_hypertrophy = ?,
           updated_at = CURRENT_TIMESTAMP
@@ -88,6 +90,7 @@ export async function seedReferenceData(db: DatabaseClient): Promise<void> {
       [
         primaryMuscleId,
         equipmentId,
+        exercise.repsOnly ? 1 : 0,
         exercise.minRepsHypertrophy,
         exercise.maxRepsHypertrophy,
         exercise.name,

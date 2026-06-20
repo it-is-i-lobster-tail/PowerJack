@@ -55,10 +55,10 @@ describe("reference seed data", () => {
     ]);
   });
 
-  it("uses the no-duplicate 201-exercise catalog", () => {
+  it("uses the no-duplicate 208-exercise catalog", () => {
     const names = referenceExercises.map((exercise) => exercise.name);
 
-    expect(names).toHaveLength(201);
+    expect(names).toHaveLength(208);
     expect(names).toEqual(
       expect.arrayContaining([
         "Barbell Bench Press",
@@ -72,6 +72,13 @@ describe("reference seed data", () => {
         "Machine Seated Leg Curl",
         "Machine Calf Raise",
         "Weighted Dip",
+        "Incline Push-Up",
+        "Deficit Push-Up",
+        "Modified Candlestick",
+        "Negative Pull-Up",
+        "Archer Push-Up",
+        "Weighted Push-Up",
+        "Weighted Inverted Row",
         "Smith Machine Bench Press",
         "Landmine Row",
         "EZ Bar Curl",
@@ -156,6 +163,7 @@ describe("reference seed data", () => {
       maxRepsHypertrophy: 25,
     });
     expect(referenceExercises.find((exercise) => exercise.name === "Weighted Pull-Up")).toMatchObject({
+      repsOnly: false,
       minRepsHypertrophy: 4,
       maxRepsHypertrophy: 10,
     });
@@ -174,8 +182,27 @@ describe("reference seed data", () => {
     expect(referenceExercises.find((exercise) => exercise.name === "Nordic Hamstring Curl")).toMatchObject({
       primaryMuscle: "Hamstrings",
       equipment: "Bodyweight",
+      repsOnly: true,
       minRepsHypertrophy: 6,
       maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Pull-Up")).toMatchObject({
+      equipment: "Bodyweight",
+      repsOnly: true,
+      minRepsHypertrophy: 5,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Weighted Push-Up")).toMatchObject({
+      equipment: "Bodyweight",
+      repsOnly: false,
+      minRepsHypertrophy: 6,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Incline Push-Up")).toMatchObject({
+      equipment: "Bodyweight",
+      repsOnly: true,
+      minRepsHypertrophy: 12,
+      maxRepsHypertrophy: 30,
     });
   });
 });

@@ -1,0 +1,2 @@
+ALTER TABLE exercises
+ADD COLUMN reps_only INTEGER NOT NULL DEFAULT 0 CHECK (reps_only IN (0, 1));

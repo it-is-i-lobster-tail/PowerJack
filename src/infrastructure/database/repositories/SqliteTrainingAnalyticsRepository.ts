@@ -31,7 +31,6 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
         WHERE
           workout_sets.status = 'complete'
           AND workout_sets.actual_reps IS NOT NULL
-          AND workout_sets.actual_weight IS NOT NULL
           AND datetime(workout_sets.updated_at) >= datetime(?)
           AND datetime(workout_sets.updated_at) < datetime(?)
         ORDER BY workout_sets.updated_at ASC, muscles.name ASC

@@ -246,6 +246,74 @@ describe("Program and Workout repository contracts", () => {
     ]);
   });
 
+  it("logs reps-only exercises without weight and progresses reps without planned weight", async () => {
+    const services = createInMemoryAppServices();
+    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const template = await createTemplate(services, [[pullUpId]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+    });
+
+    const firstSet = view.lifts[0]?.sets[0];
+    const secondSet = view.lifts[0]?.sets[1];
+
+    if (!firstSet || !secondSet) {
+      throw new Error("Expected two pull-up sets.");
+    }
+
+    view = await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 8, actualWeight: null },
+      services.workouts,
+    );
+
+    expect(view.completedSets).toBe(1);
+    expect(view.lifts[0]?.sets[0]).toMatchObject({
+      actualReps: 8,
+      actualWeight: null,
+      status: "complete",
+    });
+
+    view = await updateWorkoutSet(
+      { setId: secondSet.id, actualReps: 7, actualWeight: 180 },
+      services.workouts,
+    );
+
+    expect(view.completedSets).toBe(2);
+    expect(view.lifts[0]).toMatchObject({ status: "complete" });
+    expect(view.lifts[0]?.sets[1]).toMatchObject({
+      actualReps: 7,
+      actualWeight: null,
+      status: "complete",
+    });
+
+    await expect(
+      services.analytics.loadCompletedSetEvents({
+        fromInclusive: "2026-06-17T00:00:00.000Z",
+        toExclusive: "2026-06-19T00:00:00.000Z",
+      }),
+    ).resolves.toHaveLength(2);
+
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwoDayOne = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwoDayOne) {
+      throw new Error("Expected week 2 day 1.");
+    }
+
+    expect(weekTwoDayOne.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+    });
+    expect(weekTwoDayOne.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ plannedReps: 9, plannedWeight: null, actualWeight: null }),
+      expect.objectContaining({ plannedReps: 8, plannedWeight: null, actualWeight: null }),
+    ]);
+  });
+
   it("requires one feedback row for each completed lift before finishing", async () => {
     const services = createInMemoryAppServices();
     const template = await createTemplate(services, [[1]]);
@@ -439,6 +507,17 @@ async function createTemplate(services: AppServices, exerciseIdsByDay: number[][
     },
     services.templates,
   );
+}
+
+async function findExerciseId(services: AppServices, name: string): Promise<number> {
+  const exercises = await services.exercises.searchExercises(name);
+  const exercise = exercises.find((item) => item.name === name);
+
+  if (!exercise) {
+    throw new Error(`Expected exercise ${name}.`);
+  }
+
+  return exercise.id;
 }
 
 async function submitFeedbackForCompletedLifts(
