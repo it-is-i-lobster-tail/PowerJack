@@ -10,6 +10,7 @@ import { TemplateDaysPerWeekPage } from "../features/templates/pages/TemplateDay
 import { TemplateBuilderPage } from "../features/templates/pages/TemplateBuilderPage";
 import { ActiveWorkoutRedirectPage } from "../features/workouts/pages/ActiveWorkoutRedirectPage";
 import { WorkoutViewerPage } from "../features/workouts/pages/WorkoutViewerPage";
+import { DataVisualizationPage } from "../features/data-visualization/pages/DataVisualizationPage";
 
 export function createAppRouter() {
   return createBrowserRouter([
@@ -52,6 +53,10 @@ export function createAppRouter() {
         {
           path: "workouts/active",
           element: <ActiveWorkoutRedirectPage />,
+        },
+        {
+          path: "visualization",
+          element: <DataVisualizationPage />,
         },
         {
           path: "programs/:programId/workouts/:workoutId",
