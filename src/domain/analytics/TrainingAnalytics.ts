@@ -11,6 +11,12 @@ export interface CompletedSetEvent {
   muscleId: EntityId;
   muscleName: string;
   completedAt: string;
+  setCredit: number;
+}
+
+export interface CompletedSetMuscle {
+  id: EntityId;
+  name: string;
 }
 
 export interface SetVolumeBucket {
@@ -88,23 +94,27 @@ export function buildSetVolumeReport(input: {
   const bounds = getPeriodBounds(input.range, input.periodStart);
   const buckets = buildBuckets(input.range, bounds.currentStart, bounds.currentEnd);
   const rowsByMuscle = new Map<EntityId, SetVolumeMuscleRow>();
+  const currentSetIds = new Set<EntityId>();
+  const previousSetIds = new Set<EntityId>();
 
   for (const event of input.events) {
     const completedAt = parseCompletedAt(event.completedAt);
     const row = ensureRow(rowsByMuscle, event, buckets.length);
 
     if (isWithin(completedAt, bounds.currentStart, bounds.currentEnd)) {
-      row.completedSets += 1;
+      currentSetIds.add(event.setId);
+      row.completedSets += event.setCredit;
 
       const bucketIndex = buckets.findIndex((bucket) =>
         isWithin(completedAt, new Date(bucket.startDate), new Date(bucket.endDate)),
       );
 
       if (bucketIndex >= 0) {
-        row.bucketCounts[bucketIndex] += 1;
+        row.bucketCounts[bucketIndex] += event.setCredit;
       }
     } else if (isWithin(completedAt, bounds.previousStart, bounds.previousEnd)) {
-      row.previousCompletedSets += 1;
+      previousSetIds.add(event.setId);
+      row.previousCompletedSets += event.setCredit;
     }
   }
 
@@ -138,8 +148,8 @@ export function buildSetVolumeReport(input: {
       return left.muscleName.localeCompare(right.muscleName);
     });
 
-  const totalCompletedSets = rows.reduce((total, row) => total + row.completedSets, 0);
-  const previousTotalCompletedSets = rows.reduce((total, row) => total + row.previousCompletedSets, 0);
+  const totalCompletedSets = currentSetIds.size;
+  const previousTotalCompletedSets = previousSetIds.size;
   const metricValue = normalizeCompletedSets(totalCompletedSets, input.range, weeksBetween(bounds.currentStart, bounds.currentEnd));
   const previousMetricValue = normalizeCompletedSets(
     previousTotalCompletedSets,
@@ -170,18 +180,20 @@ export function buildSetVolumeReport(input: {
 
 export function buildProgramSetVolumeReport(input: {
   events: CompletedSetEvent[];
-  programLengthWeeks: number;
+  elapsedWeeks: number;
   focusMuscleIds: EntityId[];
 }): ProgramSetVolumeReport {
   const focusMuscleIds = new Set(input.focusMuscleIds);
   const rowsByMuscle = new Map<EntityId, ProgramSetVolumeMuscleRow>();
-  const durationWeeks = Math.max(input.programLengthWeeks, 1);
+  const setIds = new Set<EntityId>();
+  const durationWeeks = input.elapsedWeeks > 0 ? input.elapsedWeeks : 1;
 
   for (const event of input.events) {
+    setIds.add(event.setId);
     const existingRow = rowsByMuscle.get(event.muscleId);
 
     if (existingRow) {
-      existingRow.completedSets += 1;
+      existingRow.completedSets += event.setCredit;
       existingRow.averageSetsPerWeek = existingRow.completedSets / durationWeeks;
       continue;
     }
@@ -189,8 +201,8 @@ export function buildProgramSetVolumeReport(input: {
     rowsByMuscle.set(event.muscleId, {
       muscleId: event.muscleId,
       muscleName: event.muscleName,
-      completedSets: 1,
-      averageSetsPerWeek: 1 / durationWeeks,
+      completedSets: event.setCredit,
+      averageSetsPerWeek: event.setCredit / durationWeeks,
       isFocusMuscle: focusMuscleIds.has(event.muscleId),
     });
   }
@@ -204,9 +216,35 @@ export function buildProgramSetVolumeReport(input: {
   });
 
   return {
-    totalCompletedSets: rows.reduce((total, row) => total + row.completedSets, 0),
+    totalCompletedSets: setIds.size,
     rows,
   };
+}
+
+export function buildCompletedSetEventsForMuscles(input: {
+  setId: EntityId;
+  completedAt: string;
+  primaryMuscle: CompletedSetMuscle;
+  secondaryMuscles: CompletedSetMuscle[];
+}): CompletedSetEvent[] {
+  return [
+    {
+      setId: input.setId,
+      muscleId: input.primaryMuscle.id,
+      muscleName: input.primaryMuscle.name,
+      completedAt: input.completedAt,
+      setCredit: 1,
+    },
+    ...input.secondaryMuscles
+      .filter((muscle) => muscle.id !== input.primaryMuscle.id)
+      .map((muscle) => ({
+        setId: input.setId,
+        muscleId: muscle.id,
+        muscleName: muscle.name,
+        completedAt: input.completedAt,
+        setCredit: 0.5,
+      })),
+  ];
 }
 
 export function getDefaultPeriodStart(range: SetVisualizationRange, now = new Date()): Date {
