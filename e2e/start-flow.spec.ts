@@ -547,12 +547,29 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expectResumeCenteredBeforeIcons(page);
 
-    await page.locator("[data-agent-id='delete-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active Program Template");
+    await expect(page.locator("[data-agent-id='template-lock-badge-1']")).toContainText("Locked");
+    await expect(page.locator("[data-agent-id='edit-template-1']")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(page.locator("[data-agent-id='delete-template-1']")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await page.locator("[data-agent-id='template-lock-badge-1']").click();
+    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
+      "Cannot Edit Or Delete Templates In Use By Active Program",
+    );
+    await page.locator("[data-agent-id='modal-back']").click();
+
+    await page.locator("[data-agent-id='delete-template-1']").click({ force: true });
     await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
       "Cannot Delete Templates In Use By Active Program",
     );
     await page.locator("[data-agent-id='modal-back']").click();
-    await page.locator("[data-agent-id='edit-template-1']").click();
+    await page.locator("[data-agent-id='edit-template-1']").click({ force: true });
     await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
       "Cannot Edit Templates In Use By Active Program",
     );

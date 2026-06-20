@@ -155,7 +155,14 @@ class InMemoryTemplateRepository implements TemplateRepository {
   private nextId = 1;
 
   list(): Promise<TemplateSummary[]> {
-    return Promise.resolve(this.templates.filter((template) => !this.deletedTemplateIds.has(template.id)));
+    return Promise.resolve(
+      this.templates
+        .filter((template) => !this.deletedTemplateIds.has(template.id))
+        .map((template) => ({
+          ...template,
+          usedByActiveProgram: this.activeTemplateChecker(template.id),
+        })),
+    );
   }
 
   findById(id: number): Promise<Template | null> {
@@ -199,6 +206,7 @@ class InMemoryTemplateRepository implements TemplateRepository {
         .map((id) => this.catalog.muscles.find((muscle) => muscle.id === id))
         .filter((muscle): muscle is NonNullable<typeof muscle> => Boolean(muscle))
         .map((muscle) => ({ id: muscle.id, name: muscle.name })),
+      usedByActiveProgram: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -243,6 +251,7 @@ class InMemoryTemplateRepository implements TemplateRepository {
         .map((muscleId) => this.catalog.muscles.find((muscle) => muscle.id === muscleId))
         .filter((muscle): muscle is NonNullable<typeof muscle> => Boolean(muscle))
         .map((muscle) => ({ id: muscle.id, name: muscle.name })),
+      usedByActiveProgram: this.activeTemplateChecker(id),
       updatedAt: deterministicTimestamp,
     };
 

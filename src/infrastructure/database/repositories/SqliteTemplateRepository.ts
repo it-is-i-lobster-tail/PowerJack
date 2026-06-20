@@ -48,6 +48,14 @@ export class SqliteTemplateRepository implements TemplateRepository {
               ORDER BY muscles.name ASC
             ) AS focus_muscles
           ) AS focus_muscles,
+          EXISTS (
+            SELECT 1
+            FROM app_state
+            INNER JOIN programs ON programs.id = app_state.active_program_id
+            WHERE app_state.id = 1
+              AND programs.template_id = templates.id
+              AND programs.status = 'active'
+          ) AS used_by_active_program,
           templates.created_at,
           templates.updated_at
         FROM templates
@@ -218,6 +226,14 @@ export class SqliteTemplateRepository implements TemplateRepository {
               ORDER BY muscles.name ASC
             ) AS focus_muscles
           ) AS focus_muscles,
+          EXISTS (
+            SELECT 1
+            FROM app_state
+            INNER JOIN programs ON programs.id = app_state.active_program_id
+            WHERE app_state.id = 1
+              AND programs.template_id = templates.id
+              AND programs.status = 'active'
+          ) AS used_by_active_program,
           templates.created_at,
           templates.updated_at
         FROM templates
