@@ -84,6 +84,35 @@ describe("set volume report", () => {
     );
   });
 
+  it("credits secondary muscle events without double-counting physical sets", () => {
+    const report = buildSetVolumeReport({
+      events: [
+        completedSet(1, 1, "Back", "2026-06-15T12:00:00.000Z", 1),
+        completedSet(1, 2, "Biceps", "2026-06-15T12:00:00.000Z", 0.5),
+        completedSet(2, 1, "Back", "2026-06-16T12:00:00.000Z", 1),
+      ],
+      periodStart: new Date(2026, 5, 15),
+      range: "week",
+    });
+
+    expect(report.totalCompletedSets).toBe(2);
+    expect(report.metricValue).toBe(2);
+    expect(report.rows).toEqual([
+      expect.objectContaining({
+        muscleName: "Back",
+        completedSets: 2,
+        bucketCounts: [1, 1, 0, 0, 0, 0, 0],
+        metricValue: 2,
+      }),
+      expect.objectContaining({
+        muscleName: "Biceps",
+        completedSets: 0.5,
+        bucketCounts: [0.5, 0, 0, 0, 0, 0, 0],
+        metricValue: 0.5,
+      }),
+    ]);
+  });
+
   it("normalizes arbitrary dates to the requested period start", () => {
     expect(serializePeriodStart(parsePeriodStart("2026-08-19", "quarter"))).toBe("2026-07-01");
     expect(serializePeriodStart(parsePeriodStart("2026-08-19", "year"))).toBe("2026-01-01");
@@ -95,11 +124,13 @@ function completedSet(
   muscleId: number,
   muscleName: string,
   completedAt: string,
+  setCredit = 1,
 ): CompletedSetEvent {
   return {
     setId,
     muscleId,
     muscleName,
     completedAt,
+    setCredit,
   };
 }

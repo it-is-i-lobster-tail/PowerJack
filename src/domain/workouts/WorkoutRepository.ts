@@ -11,6 +11,16 @@ export interface WorkoutRepository {
     actualReps: number | null;
     actualWeight: number | null;
   }): Promise<ActiveWorkoutView>;
+  addSetToLift(input: {
+    liftId: EntityId;
+  }): Promise<ActiveWorkoutView>;
+  removeLastSetFromLift(input: {
+    liftId: EntityId;
+  }): Promise<ActiveWorkoutView>;
+  changeLiftExercise(input: {
+    liftId: EntityId;
+    exerciseId: EntityId;
+  }): Promise<ActiveWorkoutView>;
   submitLiftFeedback(input: {
     liftId: EntityId;
     levelOfPain: number;

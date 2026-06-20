@@ -6,6 +6,7 @@ import type { TrainingAnalyticsRepository } from "../../domain/analytics/Trainin
 import type { AppStateRepository } from "../../domain/app-state/AppStateRepository";
 import type { EntityId } from "../../domain/ids";
 import {
+  calculateProgramElapsedWeeks,
   markActiveProgramSchedule,
   type ActiveProgramOverviewScheduleCell,
   type ProgramOverviewSummary,
@@ -36,20 +37,26 @@ export async function loadProgramOverview(
     repositories.appState.load(),
     repositories.analytics.loadCompletedSetEventsForProgram(programId),
   ]);
+  const schedule = markActiveProgramSchedule({
+    schedule: overview.schedule,
+    displayedProgramId: overview.program.id,
+    activeProgramId: appState?.activeProgramId ?? null,
+    activeWorkoutId: appState?.activeWorkoutId ?? null,
+  });
+  const elapsedWeeks = calculateProgramElapsedWeeks({
+    schedule,
+    programLengthWeeks: overview.program.programLengthWeeks,
+    workoutsPerWeek: overview.program.workoutsPerWeek,
+  });
   const volumeReport = buildProgramSetVolumeReport({
     events: completedSetEvents,
-    programLengthWeeks: overview.program.programLengthWeeks,
+    elapsedWeeks,
     focusMuscleIds: overview.program.focusMuscles.map((muscle) => muscle.id),
   });
 
   return {
     program: overview.program,
-    schedule: markActiveProgramSchedule({
-      schedule: overview.schedule,
-      displayedProgramId: overview.program.id,
-      activeProgramId: appState?.activeProgramId ?? null,
-      activeWorkoutId: appState?.activeWorkoutId ?? null,
-    }),
+    schedule,
     volumeRows: volumeReport.rows,
   };
 }
