@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { loadProgramOverview } from "../../src/application/programs/loadProgramOverview";
 import { startProgramFromTemplate } from "../../src/application/programs/startProgramFromTemplate";
 import { saveTemplate, updateTemplate } from "../../src/application/templates/saveTemplate";
+import { addSetToLift } from "../../src/application/workouts/addSetToLift";
+import { changeLiftExercise } from "../../src/application/workouts/changeLiftExercise";
 import { finishWorkout } from "../../src/application/workouts/finishWorkout";
+import { removeLastSetFromLift } from "../../src/application/workouts/removeLastSetFromLift";
 import { resolveManualCheckIn } from "../../src/application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../src/application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
 import type { AppServices } from "../../src/app/AppServices";
+import type { CompletedSetEvent } from "../../src/domain/analytics/TrainingAnalytics";
 import type { ActiveWorkoutView } from "../../src/domain/workouts/Workout";
 import { createInMemoryAppServices } from "../../src/infrastructure/database/repositories/InMemoryRepositories";
 
@@ -113,7 +117,17 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({
         muscleName: "Chest",
         completedSets: 1,
-        averageSetsPerWeek: 0.25,
+        averageSetsPerWeek: 2,
+      }),
+      expect.objectContaining({
+        muscleName: "Shoulders",
+        completedSets: 0.5,
+        averageSetsPerWeek: 1,
+      }),
+      expect.objectContaining({
+        muscleName: "Triceps",
+        completedSets: 0.5,
+        averageSetsPerWeek: 1,
       }),
     ]);
   });
@@ -154,6 +168,160 @@ describe("Program and Workout repository contracts", () => {
       actualWeight: 220,
       status: "active",
     });
+  });
+
+  it("adds a manual set and uses the completed set count for next-week progression", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+    const lift = view.lifts[0];
+
+    if (!lift) {
+      throw new Error("Expected lift.");
+    }
+
+    view = await addSetToLift({ liftId: lift.id }, services.workouts);
+
+    expect(view.totalSets).toBe(3);
+    expect(view.completedSets).toBe(0);
+    expect(view.lifts[0]?.sets).toHaveLength(3);
+    expect(view.lifts[0]?.sets[2]).toMatchObject({
+      order: 3,
+      actualReps: null,
+      actualWeight: null,
+      status: "active",
+      locked: false,
+    });
+
+    view = await completeWorkout(services, view, [10, 8, 7], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ order: 1, plannedReps: 11, plannedWeight: 100 }),
+      expect.objectContaining({ order: 2, plannedReps: 9, plannedWeight: 100 }),
+      expect.objectContaining({ order: 3, plannedReps: 8, plannedWeight: 100 }),
+    ]);
+  });
+
+  it("removes the last manual set, including logged values, and keeps at least one set", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+    const lift = view.lifts[0];
+
+    if (!lift) {
+      throw new Error("Expected lift.");
+    }
+
+    view = await addSetToLift({ liftId: lift.id }, services.workouts);
+    const thirdSet = view.lifts[0]?.sets[2];
+
+    if (!thirdSet) {
+      throw new Error("Expected third set.");
+    }
+
+    view = await updateWorkoutSet(
+      { setId: thirdSet.id, actualReps: 7, actualWeight: 100 },
+      services.workouts,
+    );
+
+    expect(view).toMatchObject({ completedSets: 1, totalSets: 3 });
+
+    view = await removeLastSetFromLift({ liftId: lift.id }, services.workouts);
+
+    expect(view).toMatchObject({ completedSets: 0, totalSets: 2 });
+    expect(view.lifts[0]).toMatchObject({ status: "active" });
+    expect(view.lifts[0]?.sets).toHaveLength(2);
+
+    view = await removeLastSetFromLift({ liftId: lift.id }, services.workouts);
+
+    expect(view.totalSets).toBe(1);
+    await expect(removeLastSetFromLift({ liftId: lift.id }, services.workouts)).rejects.toThrow(
+      "A lift must have at least one set.",
+    );
+  });
+
+  it("changes a lift exercise, resets the lift, clears feedback, and updates future weeks", async () => {
+    const services = createInMemoryAppServices();
+    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Barbell Bench Press",
+      status: "complete",
+      feedbackSubmitted: true,
+    });
+
+    view = await changeLiftExercise(
+      { liftId: view.lifts[0]?.id ?? 0, exerciseId: pullUpId },
+      services.workouts,
+    );
+
+    expect(view).toMatchObject({ completedSets: 0, totalSets: 2, canFinish: false });
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+      status: "active",
+      feedbackSubmitted: false,
+    });
+    expect(view.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ order: 1, actualReps: null, actualWeight: null, status: "active" }),
+      expect.objectContaining({ order: 2, actualReps: null, actualWeight: null, status: "active" }),
+    ]);
+
+    view = await completeWorkout(services, view, [8, 7], 100);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts[0]).toMatchObject({
+      exerciseName: "Pull-Up",
+      repsOnly: true,
+    });
+  });
+
+  it("blocks manual lift edits for locked workouts", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1], [2]]);
+    await startTemplateProgram(services, template.id);
+    const activeView = await loadRequiredActiveWorkout(services);
+    const plannedWorkoutId = activeView.nextWorkoutId;
+
+    if (!plannedWorkoutId) {
+      throw new Error("Expected planned workout.");
+    }
+
+    const plannedView = await services.workouts.loadWorkoutView(plannedWorkoutId);
+    const plannedLiftId = plannedView?.lifts[0]?.id;
+
+    if (!plannedLiftId) {
+      throw new Error("Expected planned lift.");
+    }
+
+    await expect(addSetToLift({ liftId: plannedLiftId }, services.workouts)).rejects.toThrow(
+      "This lift is locked.",
+    );
+    await expect(removeLastSetFromLift({ liftId: plannedLiftId }, services.workouts)).rejects.toThrow(
+      "This lift is locked.",
+    );
+    await expect(
+      changeLiftExercise({ liftId: plannedLiftId, exerciseId: 3 }, services.workouts),
+    ).rejects.toThrow("This lift is locked.");
   });
 
   it("blocks active program replacement until confirmed, then halts and locks the old program", async () => {
@@ -338,12 +506,16 @@ describe("Program and Workout repository contracts", () => {
       status: "complete",
     });
 
-    await expect(
-      services.analytics.loadCompletedSetEvents({
-        fromInclusive: "2026-06-17T00:00:00.000Z",
-        toExclusive: "2026-06-19T00:00:00.000Z",
-      }),
-    ).resolves.toHaveLength(2);
+    const completedSetEvents = await services.analytics.loadCompletedSetEvents({
+      fromInclusive: "2026-06-17T00:00:00.000Z",
+      toExclusive: "2026-06-19T00:00:00.000Z",
+    });
+
+    expect(completedSetEvents).toHaveLength(8);
+    expect(sumSetCredits(completedSetEvents, "Back")).toBe(2);
+    expect(sumSetCredits(completedSetEvents, "Biceps")).toBe(1);
+    expect(sumSetCredits(completedSetEvents, "Forearms")).toBe(1);
+    expect(sumSetCredits(completedSetEvents, "Core")).toBe(1);
 
     view = await submitFeedbackForCompletedLifts(services, view);
     const weekTwoDayOne = await finishWorkout(view.workout.id, services.workouts);
@@ -360,6 +532,44 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({ plannedReps: 9, plannedWeight: null, actualWeight: null }),
       expect.objectContaining({ plannedReps: 8, plannedWeight: null, actualWeight: null }),
     ]);
+  });
+
+  it("averages weighted primary and secondary volume through the current program day", async () => {
+    const services = createInMemoryAppServices();
+    const deadliftId = await findExerciseId(services, "Barbell Conventional Deadlift");
+    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const pulldownId = await findExerciseId(services, "Cable One-Arm Pulldown");
+    const rearDeltFlyId = await findExerciseId(services, "Cable Rear Delt Fly");
+    const squatId = await findExerciseId(services, "Barbell Back Squat");
+    const template = await createTemplate(services, [
+      [deadliftId, pullUpId, pulldownId, rearDeltFlyId],
+      [squatId],
+    ]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 10], 10);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const dayTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!dayTwo) {
+      throw new Error("Expected day 2.");
+    }
+
+    const overview = await loadProgramOverview(dayTwo.program.id, {
+      appState: services.appState,
+      programs: services.programs,
+      analytics: services.analytics,
+    });
+
+    expect(overview?.volumeRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ muscleName: "Back", completedSets: 7, averageSetsPerWeek: 7 }),
+        expect.objectContaining({ muscleName: "Shoulders", completedSets: 2, averageSetsPerWeek: 2 }),
+        expect.objectContaining({ muscleName: "Biceps", completedSets: 2, averageSetsPerWeek: 2 }),
+        expect.objectContaining({ muscleName: "Forearms", completedSets: 3, averageSetsPerWeek: 3 }),
+      ]),
+    );
   });
 
   it("requires one feedback row for each completed lift before finishing", async () => {
@@ -582,6 +792,12 @@ async function submitFeedbackForCompletedLifts(
   }
 
   return nextView;
+}
+
+function sumSetCredits(events: CompletedSetEvent[], muscleName: string): number {
+  return events
+    .filter((event) => event.muscleName === muscleName)
+    .reduce((total, event) => total + event.setCredit, 0);
 }
 
 async function startTemplateProgram(services: AppServices, templateId: number) {

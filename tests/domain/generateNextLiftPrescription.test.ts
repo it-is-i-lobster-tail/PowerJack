@@ -134,6 +134,19 @@ describe("generateNextLiftPrescription", () => {
     ]);
   });
 
+  it("uses every completed working set when a lifter manually adds volume", () => {
+    const result = generateNextLiftPrescription(
+      input({ current: lift({ pain: 1, effort: 4, reps: [10, 8, 7], weight: 185 }) }),
+    );
+
+    expect(result.gate).toBe("gate_7_reps");
+    expect(result.sets).toEqual([
+      { order: 1, plannedReps: 11, plannedWeight: 185 },
+      { order: 2, plannedReps: 9, plannedWeight: 185 },
+      { order: 3, plannedReps: 8, plannedWeight: 185 },
+    ]);
+  });
+
   it("holds max reps when the five pound jump would exceed ten percent", () => {
     const result = generateNextLiftPrescription(
       input({ current: lift({ pain: 1, effort: 4, reps: [12, 12], weight: 40 }) }),
