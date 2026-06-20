@@ -26,6 +26,7 @@ type SetPersistTimers = Record<number, ReturnType<typeof window.setTimeout>>;
 type ManualCheckInStep = "skip" | "reset";
 
 const setAutosaveDelayMs = 500;
+const temporaryBodyWeightDisplayLb = "180";
 const painFeedbackOptions = [
   { value: 1, label: "Mild" },
   { value: 2, label: "Noticeable" },
@@ -236,7 +237,7 @@ export function WorkoutViewerPage() {
       {
         setId,
         actualReps: toNullableInteger(nextDraft.reps),
-        actualWeight: toNullableInteger(nextDraft.weight),
+        actualWeight: previousView && isRepsOnlySet(previousView, setId) ? null : toNullableInteger(nextDraft.weight),
       },
       services.workouts,
     )
@@ -945,6 +946,7 @@ function LiftCard({
             isReadOnly={isReadOnly || isSkipped || set.locked}
             key={set.id}
             onSetFieldChange={onSetFieldChange}
+            repsOnly={lift.repsOnly}
             set={set}
           />
         ))}
@@ -957,11 +959,13 @@ function SetRow({
   draftValue,
   isReadOnly,
   onSetFieldChange,
+  repsOnly,
   set,
 }: {
   draftValue: SetDraftValue;
   isReadOnly: boolean;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
+  repsOnly: boolean;
   set: ActiveWorkoutSetView;
 }) {
   const isComplete = set.status === "complete";
@@ -1014,13 +1018,13 @@ function SetRow({
         <input
           aria-label={`Set ${set.order} weight`}
           data-agent-id={`set-weight-${set.id}`}
-          disabled={isReadOnly}
+          disabled={isReadOnly || repsOnly}
           inputMode="numeric"
           onChange={(event) => onSetFieldChange(set.id, "weight", event.currentTarget.value)}
           pattern="[0-9]*"
           placeholder={set.plannedWeight?.toString() ?? ""}
           type="text"
-          value={draftValue.weight}
+          value={repsOnly ? temporaryBodyWeightDisplayLb : draftValue.weight}
         />
       </label>
     </div>
@@ -1046,4 +1050,8 @@ function isAllowedIntegerInput(value: string): boolean {
 
 function toNullableInteger(value: string): number | null {
   return value === "" ? null : Number(value);
+}
+
+function isRepsOnlySet(view: ActiveWorkoutView, setId: number): boolean {
+  return view.lifts.some((lift) => lift.repsOnly && lift.sets.some((set) => set.id === setId));
 }

@@ -56,6 +56,7 @@ interface LiftSetRow extends Record<string, unknown> {
   lift_id: number;
   exercise_id: number;
   exercise_name: string;
+  reps_only: number;
   lift_order: number;
   lift_status: string;
   lift_locked: number;
@@ -79,6 +80,7 @@ interface SetMutationRow extends Record<string, unknown> {
   set_locked: number;
   workout_locked: number;
   workout_status: string;
+  reps_only: number;
 }
 
 interface LiftFeedbackMutationRow extends Record<string, unknown> {
@@ -118,6 +120,7 @@ interface LiftIdRow extends Record<string, unknown> {
 interface TemplateLiftRow extends Record<string, unknown> {
   workout_order: number;
   exercise_id: number;
+  reps_only: number;
   lift_order: number;
   primary_muscle_id: number;
   min_reps_hypertrophy: number;
@@ -225,6 +228,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             lifts.id AS lift_id,
             lifts.exercise_id,
             exercises.name AS exercise_name,
+            exercises.reps_only,
             lifts."order" AS lift_order,
             lifts.status AS lift_status,
             lifts.locked AS lift_locked,
@@ -294,9 +298,11 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             lifts.workout_id,
             workout_sets.locked AS set_locked,
             workouts.locked AS workout_locked,
-            workouts.status AS workout_status
+            workouts.status AS workout_status,
+            exercises.reps_only
           FROM workout_sets
           INNER JOIN lifts ON lifts.id = workout_sets.lift_id
+          INNER JOIN exercises ON exercises.id = lifts.exercise_id
           INNER JOIN workouts ON workouts.id = lifts.workout_id
           WHERE workout_sets.id = ?
         `,
@@ -312,8 +318,10 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         throw new Error("This set is locked.");
       }
 
+      const repsOnly = Boolean(row.reps_only);
+      const nextActualWeight = repsOnly ? null : input.actualWeight;
       const nextStatus: PowerJackStatus =
-        input.actualReps !== null && input.actualWeight !== null ? "complete" : "active";
+        input.actualReps !== null && (repsOnly || nextActualWeight !== null) ? "complete" : "active";
 
       await client.run(
         `
@@ -325,7 +333,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
-        [input.actualReps, input.actualWeight, nextStatus, input.setId],
+        [input.actualReps, nextActualWeight, nextStatus, input.setId],
       );
 
       const incompleteRows = await client.query<CountRow>(
@@ -731,6 +739,7 @@ function mapLiftSetRows(rows: LiftSetRow[]): ActiveWorkoutLiftView[] {
         id: row.lift_id,
         exerciseId: row.exercise_id,
         exerciseName: row.exercise_name,
+        repsOnly: Boolean(row.reps_only),
         order: row.lift_order,
         status: mapStatus(row.lift_status),
         locked: Boolean(row.lift_locked),
@@ -938,6 +947,7 @@ async function createProgramWeek(
       SELECT
         workout_templates."order" AS workout_order,
         lift_templates.exercise_id,
+        exercises.reps_only,
         lift_templates."order" AS lift_order,
         exercises.primary_muscle_id,
         exercises.min_reps_hypertrophy,
@@ -1088,6 +1098,7 @@ async function buildNextLiftPrescription(
       primaryMuscleId: input.liftRow.primary_muscle_id,
       minRepsHypertrophy: input.liftRow.min_reps_hypertrophy,
       maxRepsHypertrophy: input.liftRow.max_reps_hypertrophy,
+      repsOnly: Boolean(input.liftRow.reps_only),
     },
     focusMuscleIds: input.focusMuscleIds,
     programLengthWeeks: input.programLengthWeeks,

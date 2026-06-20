@@ -16,6 +16,7 @@ export interface ProgressionExercise {
   minRepsHypertrophy: number;
   maxRepsHypertrophy: number;
   primaryMuscleId: EntityId;
+  repsOnly: boolean;
 }
 
 export interface ProgressionLiftSet {
@@ -71,7 +72,7 @@ export function generateNextLiftPrescription(
     return carryForwardSkippedLift(current);
   }
 
-  const currentSets = completedWorkingSets(current);
+  const currentSets = completedWorkingSets(current, exercise);
   const levelOfPain = requireFeedbackValue(current.levelOfPain, "pain");
   const levelOfEffort = requireFeedbackValue(current.levelOfEffort, "effort");
 
@@ -142,11 +143,14 @@ export function generateNextLiftPrescription(
   }
 
   const loadReadyRepThreshold = Math.ceil(0.85 * exercise.maxRepsHypertrophy);
-  const canIncreaseLoad = currentSets.every(
-    (set) =>
-      set.actualReps >= loadReadyRepThreshold &&
-      loadIncrementLb / set.actualWeight <= maxRelativeLoadJump,
-  );
+  const canIncreaseLoad =
+    !exercise.repsOnly &&
+    currentSets.every(
+      (set) =>
+        set.actualReps >= loadReadyRepThreshold &&
+        set.actualWeight !== null &&
+        loadIncrementLb / set.actualWeight <= maxRelativeLoadJump,
+    );
 
   if (canIncreaseLoad) {
     return {
@@ -156,7 +160,7 @@ export function generateNextLiftPrescription(
         currentSets.map((set) => ({
           order: set.order,
           plannedReps: set.actualReps,
-          plannedWeight: set.actualWeight + loadIncrementLb,
+          plannedWeight: requireActualWeight(set) + loadIncrementLb,
         })),
       ),
     };
@@ -184,7 +188,7 @@ function carryForwardSkippedLift(current: ProgressionLiftHistory): NextLiftPresc
     .slice()
     .sort((left, right) => left.order - right.order)
     .map((set) => {
-      if (set.plannedReps === null || set.plannedWeight === null) {
+      if (set.plannedReps === null) {
         throw new Error("Skipped lift is missing its held prescription.");
       }
 
@@ -204,7 +208,7 @@ function carryForwardSkippedLift(current: ProgressionLiftHistory): NextLiftPresc
 
 function addVolumeSet(
   gate: "gate_5_focus_volume" | "gate_6_non_focus_volume",
-  currentSets: Array<ProgressionLiftSet & { actualReps: number; actualWeight: number }>,
+  currentSets: CompletedProgressionSet[],
 ): NextLiftPrescription {
   const copiedSets = copyActualSets(currentSets);
   const lastSet = currentSets[currentSets.length - 1];
@@ -240,8 +244,10 @@ function isEligibleForVolume(
     return false;
   }
 
-  return completedWorkingSets(lift).every((set) => set.actualReps >= exercise.minRepsHypertrophy);
+  return completedWorkingSets(lift, exercise).every((set) => set.actualReps >= exercise.minRepsHypertrophy);
 }
+
+type CompletedProgressionSet = ProgressionLiftSet & { actualReps: number; actualWeight: number | null };
 
 function targetEffortCeiling(programWeek: number, programLengthWeeks: number): number {
   const progress = programWeek / programLengthWeeks;
@@ -259,7 +265,8 @@ function targetEffortCeiling(programWeek: number, programLengthWeeks: number): n
 
 function completedWorkingSets(
   lift: ProgressionLiftHistory,
-): Array<ProgressionLiftSet & { actualReps: number; actualWeight: number }> {
+  exercise: ProgressionExercise,
+): CompletedProgressionSet[] {
   const sets = lift.sets
     .filter((set) => set.status !== "skipped")
     .slice()
@@ -270,7 +277,7 @@ function completedWorkingSets(
   }
 
   return sets.map((set) => {
-    if (set.actualReps === null || set.actualWeight === null) {
+    if (set.actualReps === null || (!exercise.repsOnly && set.actualWeight === null)) {
       throw new Error("Cannot progress a lift before every working set is logged.");
     }
 
@@ -279,13 +286,21 @@ function completedWorkingSets(
 }
 
 function copyActualSets(
-  sets: Array<ProgressionLiftSet & { actualReps: number; actualWeight: number }>,
+  sets: CompletedProgressionSet[],
 ): NextLiftSetPrescription[] {
   return sets.map((set) => ({
     order: set.order,
     plannedReps: set.actualReps,
     plannedWeight: set.actualWeight,
   }));
+}
+
+function requireActualWeight(set: CompletedProgressionSet): number {
+  if (set.actualWeight === null) {
+    throw new Error("Cannot add load to a lift without logged weight.");
+  }
+
+  return set.actualWeight;
 }
 
 function renumber(sets: NextLiftSetPrescription[]): NextLiftSetPrescription[] {

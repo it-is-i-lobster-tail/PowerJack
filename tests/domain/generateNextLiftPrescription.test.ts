@@ -9,6 +9,7 @@ const exercise = {
   minRepsHypertrophy: 6,
   maxRepsHypertrophy: 12,
   primaryMuscleId: 4,
+  repsOnly: false,
 };
 
 describe("generateNextLiftPrescription", () => {
@@ -145,6 +146,26 @@ describe("generateNextLiftPrescription", () => {
     ]);
   });
 
+  it("progresses reps-only lifts without adding or carrying weight", () => {
+    const result = generateNextLiftPrescription(
+      input({
+        current: lift({ pain: 1, effort: 4, reps: [20, 18], weight: null }),
+        exercise: {
+          minRepsHypertrophy: 8,
+          maxRepsHypertrophy: 25,
+          primaryMuscleId: 4,
+          repsOnly: true,
+        },
+      }),
+    );
+
+    expect(result.gate).toBe("gate_7_reps");
+    expect(result.sets).toEqual([
+      { order: 1, plannedReps: 21, plannedWeight: null },
+      { order: 2, plannedReps: 19, plannedWeight: null },
+    ]);
+  });
+
   it("carries skipped manual-check-in lifts forward", () => {
     const result = generateNextLiftPrescription(
       input({
@@ -197,7 +218,7 @@ function lift({
   pain: number | null;
   effort: number | null;
   reps: number[];
-  weight: number;
+  weight: number | null;
   status?: ProgressionLiftHistory["status"];
 }): ProgressionLiftHistory {
   return {
