@@ -9,13 +9,21 @@ export async function submitLiftFeedback(
   },
   repository: WorkoutRepository,
 ) {
-  if (!isFeedbackScaleValue(input.levelOfPain) || !isFeedbackScaleValue(input.levelOfEffort)) {
-    throw new Error("Choose a feedback value from 1 to 5.");
+  if (!isPainScaleValue(input.levelOfPain)) {
+    throw new Error("Choose a pain value from 1 to 5.");
+  }
+
+  if (!isEffortScaleValue(input.levelOfEffort)) {
+    throw new Error("Choose an effort value from 1 to 5.");
   }
 
   return repository.submitLiftFeedback(input);
 }
 
-function isFeedbackScaleValue(value: number): boolean {
+function isPainScaleValue(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 5;
+}
+
+function isEffortScaleValue(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= 5;
 }

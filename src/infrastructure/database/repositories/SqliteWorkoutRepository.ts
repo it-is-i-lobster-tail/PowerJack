@@ -1,14 +1,24 @@
 import type { EntityId } from "../../../domain/ids";
 import type { Program } from "../../../domain/programs/Program";
 import { isPowerJackStatus, type PowerJackStatus } from "../../../domain/status";
-import type {
-  ActiveWorkoutLiftView,
-  ActiveWorkoutSetView,
-  ActiveWorkoutView,
-  ActiveWorkoutWeekItem,
-  Workout,
+import {
+  manualCheckinStatuses,
+  type ActiveWorkoutLiftView,
+  type ActiveWorkoutSetView,
+  type ActiveWorkoutView,
+  type ActiveWorkoutWeekItem,
+  type ManualCheckinStatus,
+  type Workout,
 } from "../../../domain/workouts/Workout";
-import type { WorkoutRepository } from "../../../domain/workouts/WorkoutRepository";
+import {
+  generateNextLiftPrescription,
+  type ProgressionLiftHistory,
+  type ProgressionLiftSet,
+} from "../../../domain/workouts/progression/generateNextLiftPrescription";
+import type {
+  ManualCheckinDecision,
+  WorkoutRepository,
+} from "../../../domain/workouts/WorkoutRepository";
 import type { DatabaseClient } from "../DatabaseClient";
 
 interface AppStateActiveWorkoutRow extends Record<string, unknown> {
@@ -50,6 +60,9 @@ interface LiftSetRow extends Record<string, unknown> {
   lift_status: string;
   lift_locked: number;
   feedback_submitted: number;
+  manual_checkin_status: string;
+  manual_checkin_source_lift_id: number | null;
+  manual_checkin_source_pain: number | null;
   set_id: number;
   set_order: number;
   planned_reps: number | null;
@@ -106,12 +119,39 @@ interface TemplateLiftRow extends Record<string, unknown> {
   workout_order: number;
   exercise_id: number;
   lift_order: number;
+  primary_muscle_id: number;
+  min_reps_hypertrophy: number;
+  max_reps_hypertrophy: number;
 }
 
-interface PreviousSetRow extends Record<string, unknown> {
+interface LiftHistoryRow extends Record<string, unknown> {
+  lift_id: number;
+  program_week: number;
+  lift_status: string;
+  level_of_pain: number | null;
+  level_of_effort: number | null;
+  manual_checkin_source_lift_id: number | null;
+}
+
+interface LiftHistorySetRow extends Record<string, unknown> {
   order: number;
+  planned_reps: number | null;
+  planned_weight: number | null;
   actual_reps: number | null;
   actual_weight: number | null;
+  status: string;
+}
+
+interface FocusMuscleRow extends Record<string, unknown> {
+  muscle_id: number;
+}
+
+interface ResolveManualCheckinRow extends Record<string, unknown> {
+  lift_id: number;
+  workout_id: number;
+  manual_checkin_status: string;
+  workout_locked: number;
+  workout_status: string;
 }
 
 interface LastInsertIdRow extends Record<string, unknown> {
@@ -189,6 +229,9 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             lifts.status AS lift_status,
             lifts.locked AS lift_locked,
             CASE WHEN feedback.id IS NULL THEN 0 ELSE 1 END AS feedback_submitted,
+            lifts.manual_checkin_status,
+            lifts.manual_checkin_source_lift_id,
+            source_feedback.level_of_pain AS manual_checkin_source_pain,
             workout_sets.id AS set_id,
             workout_sets."order" AS set_order,
             workout_sets.planned_reps,
@@ -201,6 +244,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           INNER JOIN exercises ON exercises.id = lifts.exercise_id
           INNER JOIN workout_sets ON workout_sets.lift_id = lifts.id
           LEFT JOIN feedback ON feedback.lift_id = lifts.id
+          LEFT JOIN feedback AS source_feedback ON source_feedback.lift_id = lifts.manual_checkin_source_lift_id
           WHERE lifts.workout_id = ?
           ORDER BY lifts."order" ASC, workout_sets."order" ASC
         `,
@@ -210,11 +254,8 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
 
     const weekWorkouts = weekRows.map(mapWeekWorkout);
     const lifts = mapLiftSetRows(liftSetRows);
-    const totalSets = lifts.reduce((total, lift) => total + lift.sets.length, 0);
-    const completedSets = lifts.reduce(
-      (total, lift) => total + lift.sets.filter((set) => set.status === "complete").length,
-      0,
-    );
+    const countableSets = lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
+    const completedCountableSets = countableSets.filter((set) => set.status === "complete");
     const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
 
     return {
@@ -227,14 +268,14 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         currentWeekIndex >= 0 && currentWeekIndex < weekWorkouts.length - 1
           ? weekWorkouts[currentWeekIndex + 1]?.id ?? null
           : null,
-      completedSets,
-      totalSets,
+      completedSets: completedCountableSets.length,
+      totalSets: countableSets.length,
       canFinish:
         workout.status === "active" &&
         !workout.locked &&
-        totalSets > 0 &&
-        completedSets === totalSets &&
-        lifts.every((lift) => lift.status === "complete" && lift.feedbackSubmitted),
+        lifts.length > 0 &&
+        completedCountableSets.length === countableSets.length &&
+        lifts.every((lift) => lift.status === "skipped" || (lift.status === "complete" && lift.feedbackSubmitted)),
       isReadOnly: workout.locked || workout.status !== "active",
       lifts,
     };
@@ -291,7 +332,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         `
           SELECT COUNT(*) AS count
           FROM workout_sets
-          WHERE lift_id = ? AND status != 'complete'
+          WHERE lift_id = ? AND status NOT IN ('complete', 'skipped')
         `,
         [row.lift_id],
       );
@@ -332,8 +373,8 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
     levelOfPain: number;
     levelOfEffort: number;
   }): Promise<ActiveWorkoutView> {
-    validateFeedbackValue(input.levelOfPain);
-    validateFeedbackValue(input.levelOfEffort);
+    validatePainValue(input.levelOfPain);
+    validateEffortValue(input.levelOfEffort);
 
     const workoutId = await this.db.transaction(async (client) => {
       const rows = await client.query<LiftFeedbackMutationRow>(
@@ -385,6 +426,139 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
     return view;
   }
 
+  async resolveManualCheckIn(input: {
+    liftId: EntityId;
+    decision: ManualCheckinDecision;
+  }): Promise<ActiveWorkoutView> {
+    const workoutId = await this.db.transaction(async (client) => {
+      const rows = await client.query<ResolveManualCheckinRow>(
+        `
+          SELECT
+            lifts.id AS lift_id,
+            lifts.workout_id,
+            lifts.manual_checkin_status,
+            workouts.locked AS workout_locked,
+            workouts.status AS workout_status
+          FROM lifts
+          INNER JOIN workouts ON workouts.id = lifts.workout_id
+          WHERE lifts.id = ?
+        `,
+        [input.liftId],
+      );
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("Lift was not found.");
+      }
+
+      if (row.workout_locked || row.workout_status !== "active") {
+        throw new Error("This workout is locked.");
+      }
+
+      if (row.manual_checkin_status !== "pending") {
+        throw new Error("This lift does not need a manual check-in.");
+      }
+
+      if (input.decision === "skip") {
+        await client.run(
+          `
+            UPDATE workout_sets
+            SET
+              actual_reps = NULL,
+              actual_weight = NULL,
+              status = 'skipped',
+              locked = 1,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE lift_id = ?
+          `,
+          [input.liftId],
+        );
+        await client.run(
+          `
+            UPDATE lifts
+            SET
+              status = 'skipped',
+              locked = 1,
+              manual_checkin_status = 'resolved',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
+          [input.liftId],
+        );
+        return row.workout_id;
+      }
+
+      if (input.decision === "reset") {
+        await client.run("DELETE FROM workout_sets WHERE lift_id = ?", [input.liftId]);
+
+        for (let setOrder = 1; setOrder <= 2; setOrder += 1) {
+          await client.run(
+            `
+              INSERT INTO workout_sets
+                (
+                  planned_reps,
+                  actual_reps,
+                  planned_weight,
+                  actual_weight,
+                  "order",
+                  lift_id,
+                  locked,
+                  hidden,
+                  status,
+                  planned,
+                  created_at,
+                  updated_at
+                )
+              VALUES (NULL, NULL, NULL, NULL, ?, ?, 0, 0, 'active', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `,
+            [setOrder, input.liftId],
+          );
+        }
+      } else if (input.decision !== "continue") {
+        throw new Error("Choose a manual check-in option.");
+      }
+
+      await client.run(
+        `
+          UPDATE workout_sets
+          SET status = 'active', locked = 0, updated_at = CURRENT_TIMESTAMP
+          WHERE lift_id = ?
+        `,
+        [input.liftId],
+      );
+      await client.run(
+        `
+          UPDATE lifts
+          SET
+            status = 'active',
+            locked = 0,
+            manual_checkin_status = 'resolved',
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [input.liftId],
+      );
+      await client.run(
+        `
+          UPDATE app_state
+          SET active_lift_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `,
+        [input.liftId],
+      );
+
+      return row.workout_id;
+    });
+
+    const view = await this.loadWorkoutView(workoutId);
+
+    if (!view) {
+      throw new Error("Workout could not be loaded after manual check-in.");
+    }
+
+    return view;
+  }
+
   async finishWorkout(workoutId: EntityId): Promise<ActiveWorkoutView | null> {
     const nextWorkoutId = await this.db.transaction(async (client) => {
       const rows = await client.query<FinishWorkoutRow>(
@@ -418,7 +592,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           SELECT COUNT(*) AS count
           FROM workout_sets
           INNER JOIN lifts ON lifts.id = workout_sets.lift_id
-          WHERE lifts.workout_id = ? AND workout_sets.status != 'complete'
+          WHERE lifts.workout_id = ? AND workout_sets.status NOT IN ('complete', 'skipped')
         `,
         [workoutId],
       );
@@ -460,6 +634,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             programId: workout.program_id,
             templateId: workout.template_id,
             programWeek: nextWeek,
+            programLengthWeeks: workout.program_length_weeks,
           });
         }
 
@@ -560,6 +735,9 @@ function mapLiftSetRows(rows: LiftSetRow[]): ActiveWorkoutLiftView[] {
         status: mapStatus(row.lift_status),
         locked: Boolean(row.lift_locked),
         feedbackSubmitted: Boolean(row.feedback_submitted),
+        manualCheckinStatus: mapManualCheckinStatus(row.manual_checkin_status),
+        manualCheckinSourceLiftId: row.manual_checkin_source_lift_id,
+        manualCheckinSourcePain: row.manual_checkin_source_pain,
         sets: [],
       };
 
@@ -589,9 +767,34 @@ function mapStatus(value: string): PowerJackStatus {
   return value;
 }
 
-function validateFeedbackValue(value: number): void {
+function mapManualCheckinStatus(value: string): ManualCheckinStatus {
+  if (!manualCheckinStatuses.includes(value as ManualCheckinStatus)) {
+    throw new Error(`Unknown manual check-in status: ${value}`);
+  }
+
+  return value as ManualCheckinStatus;
+}
+
+function mapProgressionSet(row: LiftHistorySetRow): ProgressionLiftSet {
+  return {
+    order: row.order,
+    plannedReps: row.planned_reps,
+    plannedWeight: row.planned_weight,
+    actualReps: row.actual_reps,
+    actualWeight: row.actual_weight,
+    status: mapStatus(row.status),
+  };
+}
+
+function validatePainValue(value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > 5) {
-    throw new Error("Choose a feedback value from 1 to 5.");
+    throw new Error("Choose a pain value from 1 to 5.");
+  }
+}
+
+function validateEffortValue(value: number): void {
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error("Choose an effort value from 1 to 5.");
   }
 }
 
@@ -599,7 +802,10 @@ async function lockCompletedWorkout(client: DatabaseClient, workoutId: EntityId)
   await client.run(
     `
       UPDATE workout_sets
-      SET status = 'complete', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'complete' END,
+        locked = 1,
+        updated_at = CURRENT_TIMESTAMP
       WHERE lift_id IN (SELECT id FROM lifts WHERE workout_id = ?)
     `,
     [workoutId],
@@ -607,7 +813,10 @@ async function lockCompletedWorkout(client: DatabaseClient, workoutId: EntityId)
   await client.run(
     `
       UPDATE lifts
-      SET status = 'complete', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'complete' END,
+        locked = 1,
+        updated_at = CURRENT_TIMESTAMP
       WHERE workout_id = ?
     `,
     [workoutId],
@@ -661,7 +870,11 @@ async function activateWorkout(client: DatabaseClient, workoutId: EntityId): Pro
   await client.run(
     `
       UPDATE lifts
-      SET status = 'active', locked = 0, hidden = 0, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = 'active',
+        locked = CASE WHEN manual_checkin_status = 'pending' THEN 1 ELSE 0 END,
+        hidden = 0,
+        updated_at = CURRENT_TIMESTAMP
       WHERE workout_id = ?
     `,
     [workoutId],
@@ -669,10 +882,21 @@ async function activateWorkout(client: DatabaseClient, workoutId: EntityId): Pro
   await client.run(
     `
       UPDATE workout_sets
-      SET status = 'active', locked = 0, hidden = 0, updated_at = CURRENT_TIMESTAMP
+      SET
+        status = 'active',
+        locked = CASE
+          WHEN lift_id IN (
+            SELECT id
+            FROM lifts
+            WHERE workout_id = ? AND manual_checkin_status = 'pending'
+          ) THEN 1
+          ELSE 0
+        END,
+        hidden = 0,
+        updated_at = CURRENT_TIMESTAMP
       WHERE lift_id IN (SELECT id FROM lifts WHERE workout_id = ?)
     `,
-    [workoutId],
+    [workoutId, workoutId],
   );
 
   const firstLiftRows = await client.query<LiftIdRow>(
@@ -702,21 +926,35 @@ async function activateWorkout(client: DatabaseClient, workoutId: EntityId): Pro
 
 async function createProgramWeek(
   client: DatabaseClient,
-  input: { programId: EntityId; templateId: EntityId; programWeek: number },
+  input: {
+    programId: EntityId;
+    templateId: EntityId;
+    programWeek: number;
+    programLengthWeeks: number;
+  },
 ): Promise<void> {
   const templateRows = await client.query<TemplateLiftRow>(
     `
       SELECT
         workout_templates."order" AS workout_order,
         lift_templates.exercise_id,
-        lift_templates."order" AS lift_order
+        lift_templates."order" AS lift_order,
+        exercises.primary_muscle_id,
+        exercises.min_reps_hypertrophy,
+        exercises.max_reps_hypertrophy
       FROM workout_templates
       INNER JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
+      INNER JOIN exercises ON exercises.id = lift_templates.exercise_id
       WHERE workout_templates.template_id = ?
       ORDER BY workout_templates."order" ASC, lift_templates."order" ASC
     `,
     [input.templateId],
   );
+  const focusMuscleRows = await client.query<FocusMuscleRow>(
+    "SELECT muscle_id FROM template_focus_muscles WHERE template_id = ?",
+    [input.templateId],
+  );
+  const focusMuscleIds = focusMuscleRows.map((row) => row.muscle_id);
   const liftsByDay = new Map<number, TemplateLiftRow[]>();
 
   for (const row of templateRows) {
@@ -736,31 +974,48 @@ async function createProgramWeek(
     const workoutId = await loadLastInsertId(client);
 
     for (const liftRow of liftRows) {
+      const prescription = await buildNextLiftPrescription(client, {
+        programId: input.programId,
+        programWeek: input.programWeek,
+        workoutDay: dayOrder,
+        liftRow,
+        focusMuscleIds,
+        programLengthWeeks: input.programLengthWeeks,
+      });
+      const manualCheckinStatus: ManualCheckinStatus = prescription.manualCheckinSourceLiftId
+        ? "pending"
+        : "none";
+
       await client.run(
         `
           INSERT INTO lifts
-            (exercise_id, workout_id, locked, hidden, "order", status, planned, created_at, updated_at)
-          VALUES (?, ?, 1, 0, ?, 'planned', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            (
+              exercise_id,
+              workout_id,
+              locked,
+              hidden,
+              "order",
+              status,
+              planned,
+              manual_checkin_status,
+              manual_checkin_source_lift_id,
+              created_at,
+              updated_at
+            )
+          VALUES (?, ?, 1, 0, ?, 'planned', 1, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `,
-        [liftRow.exercise_id, workoutId, liftRow.lift_order],
+        [
+          liftRow.exercise_id,
+          workoutId,
+          liftRow.lift_order,
+          manualCheckinStatus,
+          prescription.manualCheckinSourceLiftId,
+        ],
       );
 
       const liftId = await loadLastInsertId(client);
-      const previousSets = await loadPreviousWeekSets(client, {
-        programId: input.programId,
-        programWeek: input.programWeek - 1,
-        workoutDay: dayOrder,
-        liftOrder: liftRow.lift_order,
-      });
-      const setPlans =
-        previousSets.length > 0
-          ? previousSets
-          : [
-              { order: 1, actual_reps: null, actual_weight: null },
-              { order: 2, actual_reps: null, actual_weight: null },
-            ];
 
-      for (const setPlan of setPlans) {
+      for (const setPlan of prescription.sets) {
         await client.run(
           `
             INSERT INTO workout_sets
@@ -780,40 +1035,132 @@ async function createProgramWeek(
               )
             VALUES (?, NULL, ?, NULL, ?, ?, 1, 0, 'planned', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `,
-          [
-            setPlan.actual_reps === null ? null : setPlan.actual_reps + 1,
-            setPlan.actual_weight,
-            setPlan.order,
-            liftId,
-          ],
+          [setPlan.plannedReps, setPlan.plannedWeight, setPlan.order, liftId],
         );
       }
     }
   }
 }
 
-async function loadPreviousWeekSets(
+async function buildNextLiftPrescription(
   client: DatabaseClient,
-  input: { programId: EntityId; programWeek: number; workoutDay: number; liftOrder: number },
-): Promise<PreviousSetRow[]> {
-  return client.query<PreviousSetRow>(
+  input: {
+    programId: EntityId;
+    programWeek: number;
+    workoutDay: number;
+    liftRow: TemplateLiftRow;
+    focusMuscleIds: EntityId[];
+    programLengthWeeks: number;
+  },
+) {
+  const current = await loadLiftHistory(client, {
+    programId: input.programId,
+    programWeek: input.programWeek - 1,
+    workoutDay: input.workoutDay,
+    liftOrder: input.liftRow.lift_order,
+    exerciseId: input.liftRow.exercise_id,
+  });
+
+  if (!current) {
+    throw new Error("Previous lift could not be loaded for progression.");
+  }
+
+  const previous = await loadLiftHistory(client, {
+    programId: input.programId,
+    programWeek: input.programWeek - 2,
+    workoutDay: input.workoutDay,
+    liftOrder: input.liftRow.lift_order,
+    exerciseId: input.liftRow.exercise_id,
+  });
+  const twoWeeksAgo = await loadLiftHistory(client, {
+    programId: input.programId,
+    programWeek: input.programWeek - 3,
+    workoutDay: input.workoutDay,
+    liftOrder: input.liftRow.lift_order,
+    exerciseId: input.liftRow.exercise_id,
+  });
+
+  return generateNextLiftPrescription({
+    current,
+    previous,
+    twoWeeksAgo,
+    exercise: {
+      primaryMuscleId: input.liftRow.primary_muscle_id,
+      minRepsHypertrophy: input.liftRow.min_reps_hypertrophy,
+      maxRepsHypertrophy: input.liftRow.max_reps_hypertrophy,
+    },
+    focusMuscleIds: input.focusMuscleIds,
+    programLengthWeeks: input.programLengthWeeks,
+  });
+}
+
+async function loadLiftHistory(
+  client: DatabaseClient,
+  input: {
+    programId: EntityId;
+    programWeek: number;
+    workoutDay: number;
+    liftOrder: number;
+    exerciseId: EntityId;
+  },
+): Promise<ProgressionLiftHistory | null> {
+  if (input.programWeek < 1) {
+    return null;
+  }
+
+  const liftRows = await client.query<LiftHistoryRow>(
     `
       SELECT
-        workout_sets."order",
-        workout_sets.actual_reps,
-        workout_sets.actual_weight
+        lifts.id AS lift_id,
+        workouts.program_week,
+        lifts.status AS lift_status,
+        feedback.level_of_pain,
+        feedback.level_of_effort,
+        lifts.manual_checkin_source_lift_id
       FROM workouts
       INNER JOIN lifts ON lifts.workout_id = workouts.id
-      INNER JOIN workout_sets ON workout_sets.lift_id = lifts.id
+      LEFT JOIN feedback ON feedback.lift_id = lifts.id
       WHERE
         workouts.program_id = ?
         AND workouts.program_week = ?
         AND workouts.workout_day = ?
         AND lifts."order" = ?
-      ORDER BY workout_sets."order" ASC
+        AND lifts.exercise_id = ?
+      LIMIT 1
     `,
-    [input.programId, input.programWeek, input.workoutDay, input.liftOrder],
+    [input.programId, input.programWeek, input.workoutDay, input.liftOrder, input.exerciseId],
   );
+  const lift = liftRows[0];
+
+  if (!lift) {
+    return null;
+  }
+
+  const setRows = await client.query<LiftHistorySetRow>(
+    `
+      SELECT
+        "order",
+        planned_reps,
+        planned_weight,
+        actual_reps,
+        actual_weight,
+        status
+      FROM workout_sets
+      WHERE lift_id = ?
+      ORDER BY "order" ASC
+    `,
+    [lift.lift_id],
+  );
+
+  return {
+    id: lift.lift_id,
+    programWeek: lift.program_week,
+    status: mapStatus(lift.lift_status),
+    levelOfPain: lift.level_of_pain,
+    levelOfEffort: lift.level_of_effort,
+    manualCheckinSourceLiftId: lift.manual_checkin_source_lift_id,
+    sets: setRows.map(mapProgressionSet),
+  };
 }
 
 async function loadLastInsertId(client: DatabaseClient): Promise<number> {
