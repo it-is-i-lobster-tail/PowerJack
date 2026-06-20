@@ -58,6 +58,19 @@ async function createWeightedVolumeTemplate(page: import("@playwright/test").Pag
   await expect(page).toHaveURL(/\/start\/select-template$/);
 }
 
+async function createTwoLiftFirstDayTemplate(page: import("@playwright/test").Page, name = "Two Lift Day") {
+  await openTemplateFocus(page, name);
+  await selectFocusAndOpenDays(page);
+  await page.locator("[data-agent-id='template-days-per-week-2']").click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Conventional Deadlift/);
+  await page.locator("[data-agent-id='template-day-2']").click();
+  await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+  await page.locator("[data-agent-id='save-template']").click();
+  await expect(page).toHaveURL(/\/start\/select-template$/);
+}
+
 async function startSelectedProgram(page: import("@playwright/test").Page, weeks = 8) {
   await page.locator("[data-agent-id='select-template-next']").click();
   await expect(page).toHaveURL(/\/start\/program-length$/);
@@ -787,6 +800,77 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+  });
+
+  test("active workout propagates final debounced weights and persists them", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Weight Autofill");
+    await startSelectedProgram(page, 4);
+
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOne = weights.nth(0);
+    const benchSetTwo = weights.nth(1);
+    const deadliftSetOne = weights.nth(2);
+    const deadliftSetTwo = weights.nth(3);
+
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Barbell Conventional Deadlift" })).toBeVisible();
+    await expect(weights).toHaveCount(4);
+
+    await benchSetOne.click();
+    await page.keyboard.type("100", { delay: 40 });
+    await expect(benchSetOne).toHaveValue("100");
+    await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("100");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await benchSetTwo.fill("200");
+    await page.waitForTimeout(650);
+    await expect(benchSetOne).toHaveValue("100");
+    await expect(benchSetTwo).toHaveValue("200");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await benchSetOne.fill("185");
+    await expect(benchSetOne).toHaveValue("185");
+    await expect(benchSetTwo).toHaveValue("200", { timeout: 100 });
+
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("185");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(weights).toHaveCount(4);
+    await expect(benchSetOne).toHaveValue("185");
+    await expect(benchSetTwo).toHaveValue("185");
+    await expect(deadliftSetOne).toHaveValue("");
+    await expect(deadliftSetTwo).toHaveValue("");
+  });
+
+  test("active workout propagates final debounced weights on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoLiftFirstDayTemplate(page, "Mobile Weight Autofill");
+    await startSelectedProgram(page, 4);
+
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOne = weights.nth(0);
+    const benchSetTwo = weights.nth(1);
+    const deadliftSetOne = weights.nth(2);
+
+    await expect(weights).toHaveCount(4);
+    await benchSetOne.click();
+    await page.keyboard.type("135", { delay: 40 });
+    await expect(benchSetOne).toHaveValue("135");
+    await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
+    await page.waitForTimeout(650);
+    await expect(benchSetTwo).toHaveValue("135");
+    await expect(deadliftSetOne).toHaveValue("");
   });
 
   test("manual lift menu adds and removes sets on mobile", async ({ page }, testInfo) => {

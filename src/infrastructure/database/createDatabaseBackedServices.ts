@@ -1,4 +1,5 @@
 import type { AppServices } from "../../app/AppServices";
+import type { DatabaseClient } from "./DatabaseClient";
 import { openPowerJackDatabase } from "./openDatabase";
 import { runMigrations } from "./runMigrations";
 import { SqliteAppStateRepository } from "./repositories/SqliteAppStateRepository";
@@ -11,8 +12,10 @@ import { seedReferenceData } from "./seeds/seedReferenceData";
 
 export async function createDatabaseBackedServices(): Promise<AppServices> {
   const db = await openPowerJackDatabase();
-  await runMigrations(db);
-  await seedReferenceData(db);
+  await suspendPersistence(db, async () => {
+    await runMigrations(db);
+    await seedReferenceData(db);
+  });
 
   const appState = new SqliteAppStateRepository(db);
   const templates = new SqliteTemplateRepository(db);
@@ -31,6 +34,34 @@ export async function createDatabaseBackedServices(): Promise<AppServices> {
       await appState.resetForAgent();
       await programs.resetForAgent();
       await templates.resetForAgent();
+      await flushPendingWrites(db);
     },
   };
+}
+
+interface WebPersistenceControls {
+  flushPendingWrites(): Promise<void>;
+  suspendPersistence<TResult>(operation: () => Promise<TResult>): Promise<TResult>;
+}
+
+function hasWebPersistenceControls(db: DatabaseClient): db is DatabaseClient & WebPersistenceControls {
+  const controls = db as Partial<WebPersistenceControls>;
+  return typeof controls.flushPendingWrites === "function" && typeof controls.suspendPersistence === "function";
+}
+
+async function suspendPersistence<TResult>(
+  db: DatabaseClient,
+  operation: () => Promise<TResult>,
+): Promise<TResult> {
+  if (!hasWebPersistenceControls(db)) {
+    return operation();
+  }
+
+  return db.suspendPersistence(operation);
+}
+
+async function flushPendingWrites(db: DatabaseClient): Promise<void> {
+  if (hasWebPersistenceControls(db)) {
+    await db.flushPendingWrites();
+  }
 }

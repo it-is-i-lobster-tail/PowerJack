@@ -4,13 +4,20 @@ import { defineCustomElements } from "jeep-sqlite/loader";
 import type { DatabaseClient } from "./DatabaseClient";
 
 class CapacitorDatabaseClient implements DatabaseClient {
+  private hasPendingWebStoreSave = false;
+  private webPersistenceSuspendDepth = 0;
+  private webTransactionDepth = 0;
+
   constructor(
     private readonly db: SQLiteDBConnection,
+    private readonly sqlite: SQLiteConnection,
+    private readonly databaseName: string,
     private readonly usesWebStore: boolean,
   ) {}
 
   async execute(sql: string): Promise<void> {
     await this.db.execute(sql);
+    await this.queueWebStoreSave();
   }
 
   async query<TRecord extends Record<string, unknown>>(sql: string, values: unknown[] = []): Promise<TRecord[]> {
@@ -20,11 +27,31 @@ class CapacitorDatabaseClient implements DatabaseClient {
 
   async run(sql: string, values: unknown[] = []): Promise<void> {
     await this.db.run(sql, values);
+    await this.queueWebStoreSave();
   }
 
   async transaction<TResult>(operation: (client: DatabaseClient) => Promise<TResult>): Promise<TResult> {
     if (this.usesWebStore) {
-      return operation(this);
+      this.webTransactionDepth += 1;
+
+      try {
+        const result = await operation(this);
+        this.webTransactionDepth -= 1;
+
+        if (this.webTransactionDepth === 0) {
+          await this.flushWebStoreSave();
+        }
+
+        return result;
+      } catch (error) {
+        this.webTransactionDepth -= 1;
+
+        if (this.webTransactionDepth === 0) {
+          this.hasPendingWebStoreSave = false;
+        }
+
+        throw error;
+      }
     }
 
     await this.execute("BEGIN TRANSACTION");
@@ -37,6 +64,51 @@ class CapacitorDatabaseClient implements DatabaseClient {
       await this.execute("ROLLBACK");
       throw error;
     }
+  }
+
+  async suspendPersistence<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
+    this.webPersistenceSuspendDepth += 1;
+
+    try {
+      return await operation();
+    } finally {
+      this.webPersistenceSuspendDepth -= 1;
+    }
+  }
+
+  async flushPendingWrites(): Promise<void> {
+    if (this.webTransactionDepth > 0) {
+      return;
+    }
+
+    await this.flushWebStoreSave();
+  }
+
+  private async queueWebStoreSave(): Promise<void> {
+    if (!this.usesWebStore) {
+      return;
+    }
+
+    if (this.webPersistenceSuspendDepth > 0) {
+      return;
+    }
+
+    this.hasPendingWebStoreSave = true;
+
+    if (this.webTransactionDepth > 0) {
+      return;
+    }
+
+    await this.flushWebStoreSave();
+  }
+
+  private async flushWebStoreSave(): Promise<void> {
+    if (!this.usesWebStore || !this.hasPendingWebStoreSave) {
+      return;
+    }
+
+    await this.sqlite.saveToStore(this.databaseName);
+    this.hasPendingWebStoreSave = false;
   }
 }
 
@@ -55,7 +127,7 @@ export async function openPowerJackDatabase(): Promise<DatabaseClient> {
     : await sqlite.createConnection(databaseName, false, "no-encryption", 1, false);
 
   await db.open();
-  return new CapacitorDatabaseClient(db, usesWebStore);
+  return new CapacitorDatabaseClient(db, sqlite, databaseName, usesWebStore);
 }
 
 async function setupWebSqlite(sqlite: SQLiteConnection): Promise<void> {
