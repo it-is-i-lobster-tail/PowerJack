@@ -31,6 +31,7 @@ describe("TemplateRepository contract", () => {
       name: "Back In Action",
       workoutsPerWeek: 2,
       exerciseCount: 3,
+      usedByActiveProgram: false,
       focusMuscles: [
         { id: 1, name: "Back" },
         { id: 2, name: "Biceps" },
@@ -124,6 +125,14 @@ describe("TemplateRepository contract", () => {
 
     await expect(services.templates.isUsedByActiveProgram(activeTemplate.id)).resolves.toBe(true);
     await expect(services.templates.isUsedByActiveProgram(unusedTemplate.id)).resolves.toBe(false);
+
+    const listedTemplates = await services.templates.list();
+    expect(listedTemplates.find((template) => template.id === activeTemplate.id)).toMatchObject({
+      usedByActiveProgram: true,
+    });
+    expect(listedTemplates.find((template) => template.id === unusedTemplate.id)).toMatchObject({
+      usedByActiveProgram: false,
+    });
 
     await services.templates.softDelete(unusedTemplate.id);
 

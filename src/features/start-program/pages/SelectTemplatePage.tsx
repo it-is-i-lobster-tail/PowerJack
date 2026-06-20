@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listTemplates } from "../../../application/templates/listTemplates";
@@ -9,6 +9,10 @@ import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
 import { useTemplateDraftStore } from "../../templates/state/templateDraftStore";
 import { useStartProgramStore } from "../state/startProgramStore";
 import "./SelectTemplatePage.css";
+
+const EDIT_ACTIVE_TEMPLATE_MESSAGE = "Cannot Edit Templates In Use By Active Program";
+const DELETE_ACTIVE_TEMPLATE_MESSAGE = "Cannot Delete Templates In Use By Active Program";
+const LOCKED_ACTIVE_TEMPLATE_MESSAGE = "Cannot Edit Or Delete Templates In Use By Active Program";
 
 export function SelectTemplatePage() {
   const navigate = useNavigate();
@@ -60,10 +64,15 @@ export function SelectTemplatePage() {
   }
 
   async function handleEditTemplate(template: TemplateSummary): Promise<void> {
+    if (template.usedByActiveProgram) {
+      setBlockedTemplateMessage(EDIT_ACTIVE_TEMPLATE_MESSAGE);
+      return;
+    }
+
     const isUsedByActiveProgram = await services.templates.isUsedByActiveProgram(template.id);
 
     if (isUsedByActiveProgram) {
-      setBlockedTemplateMessage("Cannot Edit Templates In Use By Active Program");
+      setBlockedTemplateMessage(EDIT_ACTIVE_TEMPLATE_MESSAGE);
       return;
     }
 
@@ -79,10 +88,15 @@ export function SelectTemplatePage() {
   }
 
   async function handleDeleteTemplate(template: TemplateSummary): Promise<void> {
+    if (template.usedByActiveProgram) {
+      setBlockedTemplateMessage(DELETE_ACTIVE_TEMPLATE_MESSAGE);
+      return;
+    }
+
     const isUsedByActiveProgram = await services.templates.isUsedByActiveProgram(template.id);
 
     if (isUsedByActiveProgram) {
-      setBlockedTemplateMessage("Cannot Delete Templates In Use By Active Program");
+      setBlockedTemplateMessage(DELETE_ACTIVE_TEMPLATE_MESSAGE);
       return;
     }
 
@@ -128,70 +142,110 @@ export function SelectTemplatePage() {
                 <p>Add a template to choose exercises and training days.</p>
               </div>
             ) : (
-              templates.map((template) => (
-                <div
-                  aria-selected={selectedTemplateId === template.id}
-                  className={
-                    selectedTemplateId === template.id
-                      ? "template-row template-row--selected"
-                      : "template-row"
-                  }
-                  data-agent-id={`template-row-${template.id}`}
-                  key={template.id}
-                  role="row"
-                >
-                  <button
-                    aria-pressed={selectedTemplateId === template.id}
-                    className="template-row__select"
-                    onClick={() => setSelectedTemplateId(template.id)}
-                    type="button"
+              templates.map((template) => {
+                const isSelected = selectedTemplateId === template.id;
+                const isLocked = template.usedByActiveProgram;
+                const lockBadgeId = `template-lock-badge-${template.id}`;
+                const rowClassName = [
+                  "template-row",
+                  isSelected ? "template-row--selected" : "",
+                  isLocked ? "template-row--locked" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+                return (
+                  <div
+                    aria-selected={isSelected}
+                    className={rowClassName}
+                    data-agent-id={`template-row-${template.id}`}
+                    key={template.id}
+                    role="row"
                   >
-                    <span className="template-row__text">
-                      <span className="template-row__name">{template.name}</span>
-                      <span className="template-row__meta">
-                        {template.workoutsPerWeek} days per week · {template.exerciseCount} exercises
+                    <button
+                      aria-pressed={isSelected}
+                      className="template-row__select"
+                      onClick={() => setSelectedTemplateId(template.id)}
+                      type="button"
+                    >
+                      <span className="template-row__text">
+                        {isLocked ? (
+                          <span
+                            className="template-row__status"
+                            data-agent-id={`active-template-label-${template.id}`}
+                          >
+                            Active Program Template
+                          </span>
+                        ) : null}
+                        <span className="template-row__name">{template.name}</span>
+                        <span className="template-row__meta">
+                          {template.workoutsPerWeek} days per week · {template.exerciseCount} exercises
+                        </span>
+                      </span>
+                      {template.focusMuscles.length > 0 ? (
+                        <span className="template-row__focus" aria-label="Focus muscles">
+                          {template.focusMuscles.map((muscle) => (
+                            <span
+                              className="template-row__chip"
+                              data-agent-id={`template-focus-chip-${muscle.id}`}
+                              key={muscle.id}
+                            >
+                              {muscle.name}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </button>
+                    <span className="template-row__actions">
+                      {isLocked ? (
+                        <button
+                          aria-label={`Template ${template.name} is locked while in use`}
+                          className="template-row__lock-badge"
+                          data-agent-id={lockBadgeId}
+                          id={lockBadgeId}
+                          onClick={() => setBlockedTemplateMessage(LOCKED_ACTIVE_TEMPLATE_MESSAGE)}
+                          type="button"
+                        >
+                          <LockKeyhole aria-hidden size={14} strokeWidth={2.4} />
+                          <span>Locked While In Use</span>
+                        </button>
+                      ) : null}
+                      <span className="template-row__action-buttons">
+                        <button
+                          aria-describedby={isLocked ? lockBadgeId : undefined}
+                          aria-disabled={isLocked ? "true" : undefined}
+                          aria-label={
+                            isLocked ? `Edit ${template.name} locked while in use` : `Edit ${template.name}`
+                          }
+                          className="template-row__icon-button"
+                          data-agent-id={`edit-template-${template.id}`}
+                          onClick={() => {
+                            void handleEditTemplate(template);
+                          }}
+                          type="button"
+                        >
+                          <Pencil aria-hidden size={22} strokeWidth={2.2} />
+                        </button>
+                        <button
+                          aria-describedby={isLocked ? lockBadgeId : undefined}
+                          aria-disabled={isLocked ? "true" : undefined}
+                          aria-label={
+                            isLocked ? `Delete ${template.name} locked while in use` : `Delete ${template.name}`
+                          }
+                          className="template-row__icon-button"
+                          data-agent-id={`delete-template-${template.id}`}
+                          onClick={() => {
+                            void handleDeleteTemplate(template);
+                          }}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden size={23} strokeWidth={2.2} />
+                        </button>
                       </span>
                     </span>
-                    {template.focusMuscles.length > 0 ? (
-                      <span className="template-row__focus" aria-label="Focus muscles">
-                        {template.focusMuscles.map((muscle) => (
-                          <span
-                            className="template-row__chip"
-                            data-agent-id={`template-focus-chip-${muscle.id}`}
-                            key={muscle.id}
-                          >
-                            {muscle.name}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </button>
-                  <span className="template-row__actions">
-                    <button
-                      aria-label={`Edit ${template.name}`}
-                      className="template-row__icon-button"
-                      data-agent-id={`edit-template-${template.id}`}
-                      onClick={() => {
-                        void handleEditTemplate(template);
-                      }}
-                      type="button"
-                    >
-                      <Pencil aria-hidden size={22} strokeWidth={2.2} />
-                    </button>
-                    <button
-                      aria-label={`Delete ${template.name}`}
-                      className="template-row__icon-button"
-                      data-agent-id={`delete-template-${template.id}`}
-                      onClick={() => {
-                        void handleDeleteTemplate(template);
-                      }}
-                      type="button"
-                    >
-                      <Trash2 aria-hidden size={23} strokeWidth={2.2} />
-                    </button>
-                  </span>
-                </div>
-              ))
+                  </div>
+                );
+              })
             )}
           </div>
 

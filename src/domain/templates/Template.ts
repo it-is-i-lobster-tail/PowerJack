@@ -11,6 +11,7 @@ export interface TemplateSummary {
   workoutsPerWeek: number;
   exerciseCount: number;
   focusMuscles: TemplateFocusMuscle[];
+  usedByActiveProgram: boolean;
   createdAt: string;
   updatedAt: string;
 }
