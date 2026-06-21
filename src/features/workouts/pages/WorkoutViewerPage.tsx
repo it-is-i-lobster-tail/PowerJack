@@ -50,7 +50,7 @@ interface PendingSetPersist {
   draft: SetDraftValue;
 }
 
-const setAutosaveDelayMs = 500;
+const setAutosaveDelayMs = 850;
 const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
   { value: 1, label: "None" },
