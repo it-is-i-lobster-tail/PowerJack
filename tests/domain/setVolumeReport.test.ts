@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSetVolumeReport,
+  getPeriodBounds,
   parsePeriodStart,
   serializePeriodStart,
   type CompletedSetEvent,
@@ -114,8 +115,24 @@ describe("set volume report", () => {
   });
 
   it("normalizes arbitrary dates to the requested period start", () => {
-    expect(serializePeriodStart(parsePeriodStart("2026-08-19", "quarter"))).toBe("2026-07-01");
-    expect(serializePeriodStart(parsePeriodStart("2026-08-19", "year"))).toBe("2026-01-01");
+    const now = new Date(2026, 8, 30, 12);
+
+    expect(serializePeriodStart(parsePeriodStart("2026-08-19", "quarter", now))).toBe("2026-07-01");
+    expect(serializePeriodStart(parsePeriodStart("2026-08-19", "year", now))).toBe("2026-01-01");
+  });
+
+  it("clamps visualization periods to Jan 1 2026 through the current period", () => {
+    const now = new Date(2026, 5, 21, 12);
+
+    expect(serializePeriodStart(parsePeriodStart("2025-12-01", "month", now))).toBe("2026-01-01");
+    expect(serializePeriodStart(parsePeriodStart("2027-01-01", "year", now))).toBe("2026-01-01");
+    expect(serializePeriodStart(parsePeriodStart("2026-07-01", "quarter", now))).toBe("2026-04-01");
+    expect(serializePeriodStart(parsePeriodStart("2026-06-22", "week", now))).toBe("2026-06-15");
+
+    const firstWeekBounds = getPeriodBounds("week", parsePeriodStart("2026-01-01", "week", now));
+
+    expect(serializePeriodStart(firstWeekBounds.currentStart)).toBe("2026-01-01");
+    expect(serializePeriodStart(firstWeekBounds.currentEnd)).toBe("2026-01-05");
   });
 });
 

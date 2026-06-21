@@ -9,6 +9,8 @@ import {
 import { useServices } from "../../../app/useServices";
 import {
   classifyWeeklySetVolume,
+  setVolumeBandLabels,
+  setVolumeBandOrder,
   type SetVolumeBand,
 } from "../../../domain/analytics/TrainingAnalytics";
 import {
@@ -28,16 +30,6 @@ const segmentClassNames: Record<ProgramOverviewSegment["status"], string> = {
   complete: "program-schedule-cell__segment--complete",
   skipped: "program-schedule-cell__segment--skipped",
   halted: "program-schedule-cell__segment--halted",
-};
-
-const volumeBandOrder: SetVolumeBand[] = ["not-ideal", "maintaining", "growth", "max-growth", "overtraining"];
-
-const volumeBandLabels: Record<SetVolumeBand, string> = {
-  "not-ideal": "Not Ideal",
-  maintaining: "Maintaining",
-  growth: "Growth",
-  "max-growth": "Max Growth",
-  overtraining: "Overtraining",
 };
 
 const volumeBandClassNames: Record<SetVolumeBand, string> = {
@@ -318,7 +310,7 @@ function ProgramVolume({ view }: { view: ProgramOverviewView }) {
           <div className="program-volume-list">
             {view.volumeRows.map((row) => {
               const band = classifyWeeklySetVolume(row.averageSetsPerWeek);
-              const bandLabel = volumeBandLabels[band];
+              const bandLabel = setVolumeBandLabels[band];
 
               return (
                 <div
@@ -361,10 +353,10 @@ function ProgramVolume({ view }: { view: ProgramOverviewView }) {
 function ProgramVolumeLegend() {
   return (
     <div className="program-volume-legend" data-agent-id="program-volume-legend" aria-label="Volume guidance legend">
-      {volumeBandOrder.map((band) => (
+      {setVolumeBandOrder.map((band) => (
         <span data-agent-id={`program-volume-legend-${band}`} key={band}>
           <i className={`program-volume-legend__swatch ${volumeBandClassNames[band]}`} aria-hidden />
-          {volumeBandLabels[band]}
+          {setVolumeBandLabels[band]}
         </span>
       ))}
     </div>
