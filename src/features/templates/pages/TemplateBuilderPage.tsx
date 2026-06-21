@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowLeft, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { searchExercises } from "../../../application/exercises/searchExercises";
 import { saveTemplate, updateTemplate } from "../../../application/templates/saveTemplate";
@@ -75,6 +75,9 @@ export function TemplateBuilderPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+  const dayTabsStyle = {
+    "--template-day-count": workoutsPerWeek,
+  } as CSSProperties & Record<"--template-day-count", number>;
 
   useEffect(() => {
     let isMounted = true;
@@ -277,7 +280,7 @@ export function TemplateBuilderPage() {
           <span>{workoutsPerWeek} Days Per Week</span>
         </header>
 
-        <div className="day-tabs" role="tablist" aria-label="Template days">
+        <div className="day-tabs" role="tablist" aria-label="Template days" style={dayTabsStyle}>
           {Array.from({ length: workoutsPerWeek }, (_, index) => {
             const day = index + 1;
 
