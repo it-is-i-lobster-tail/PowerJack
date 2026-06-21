@@ -1,23 +1,14 @@
-.select-template-screen {
+.templates-screen {
   padding-top: var(--space-4);
 }
 
-.select-template-flow {
+.templates-flow {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
 }
 
-.flow-header p {
-  margin: 0 0 var(--space-2);
-  color: var(--color-accent);
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.flow-header h1 {
+.templates-header h1 {
   margin: 0;
   color: var(--color-text-primary);
   font-size: clamp(30px, 6vw, 42px);

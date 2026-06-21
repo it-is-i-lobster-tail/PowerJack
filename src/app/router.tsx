@@ -8,6 +8,7 @@ import { TemplateNamePage } from "../features/templates/pages/TemplateNamePage";
 import { TemplateMuscleFocusPage } from "../features/templates/pages/TemplateMuscleFocusPage";
 import { TemplateDaysPerWeekPage } from "../features/templates/pages/TemplateDaysPerWeekPage";
 import { TemplateBuilderPage } from "../features/templates/pages/TemplateBuilderPage";
+import { TemplatesListPage } from "../features/templates/pages/TemplatesListPage";
 import { ActiveWorkoutRedirectPage } from "../features/workouts/pages/ActiveWorkoutRedirectPage";
 import { WorkoutViewerPage } from "../features/workouts/pages/WorkoutViewerPage";
 import { DataVisualizationPage } from "../features/data-visualization/pages/DataVisualizationPage";
@@ -34,6 +35,10 @@ export function createAppRouter() {
         {
           path: "start/days-per-week",
           element: <DaysPerWeekPage />,
+        },
+        {
+          path: "templates",
+          element: <TemplatesListPage />,
         },
         {
           path: "templates/new/name",

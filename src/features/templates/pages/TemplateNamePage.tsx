@@ -8,6 +8,7 @@ import "./TemplateNamePage.css";
 export function TemplateNamePage() {
   const navigate = useNavigate();
   const name = useTemplateDraftStore((state) => state.name);
+  const returnPath = useTemplateDraftStore((state) => state.returnPath);
   const setName = useTemplateDraftStore((state) => state.setName);
   const nameLength = name.length;
   const isNameTooLong = nameLength > 64;
@@ -40,7 +41,7 @@ export function TemplateNamePage() {
             label: "Back",
             leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
             onClick: () => {
-              void navigate("/start/select-template");
+              void navigate(returnPath);
             },
           }}
           rightAction={{
