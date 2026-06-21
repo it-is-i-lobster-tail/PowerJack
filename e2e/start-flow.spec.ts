@@ -1021,6 +1021,11 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id^='set-weight-']").nth(1).fill("100");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await expect(page.locator("[data-agent-id='feedback-pain-option-1']")).toContainText("None");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-2']")).toContainText("Some");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-3']")).toContainText("Pinch");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-4']")).toContainText("High");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-2']")).toContainText("Tough");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-3']")).toContainText("Challenge");
 
     await expectFeedbackOptionsOnSingleRow(page, "feedback-pain-option");
     await expectFeedbackOptionsOnSingleRow(page, "feedback-effort-option");
