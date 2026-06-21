@@ -223,15 +223,15 @@ export function buildProgramSetVolumeReport(input: {
 }
 
 export function classifyWeeklySetVolume(value: number): SetVolumeBand {
-  if (value >= 25) {
+  if (value > 25) {
     return "overtraining";
   }
 
-  if (value >= 15) {
+  if (value >= 12) {
     return "max-growth";
   }
 
-  if (value >= 7) {
+  if (value >= 6) {
     return "growth";
   }
 
