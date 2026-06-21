@@ -8,6 +8,10 @@ import {
 } from "../../../application/programs/loadProgramOverview";
 import { useServices } from "../../../app/useServices";
 import {
+  classifyWeeklySetVolume,
+  type SetVolumeBand,
+} from "../../../domain/analytics/TrainingAnalytics";
+import {
   buildProgramOverviewSegments,
   type ActiveProgramOverviewScheduleCell,
   type ProgramOverviewSegment,
@@ -24,6 +28,24 @@ const segmentClassNames: Record<ProgramOverviewSegment["status"], string> = {
   complete: "program-schedule-cell__segment--complete",
   skipped: "program-schedule-cell__segment--skipped",
   halted: "program-schedule-cell__segment--halted",
+};
+
+const volumeBandOrder: SetVolumeBand[] = ["not-ideal", "maintaining", "growth", "max-growth", "overtraining"];
+
+const volumeBandLabels: Record<SetVolumeBand, string> = {
+  "not-ideal": "Not Ideal",
+  maintaining: "Maintaining",
+  growth: "Growth",
+  "max-growth": "Max Growth",
+  overtraining: "Overtraining",
+};
+
+const volumeBandClassNames: Record<SetVolumeBand, string> = {
+  "not-ideal": "program-volume-band--not-ideal",
+  maintaining: "program-volume-band--maintaining",
+  growth: "program-volume-band--growth",
+  "max-growth": "program-volume-band--max-growth",
+  overtraining: "program-volume-band--overtraining",
 };
 
 export function ProgramOverviewPage() {
@@ -292,32 +314,60 @@ function ProgramVolume({ view }: { view: ProgramOverviewView }) {
       </div>
 
       {view.volumeRows.length > 0 ? (
-        <div className="program-volume-list">
-          {view.volumeRows.map((row) => (
-            <div className="program-volume-row" data-agent-id={`program-volume-row-${row.muscleId}`} key={row.muscleId}>
-              <div className="program-volume-row__label">
-                <strong>{row.muscleName}</strong>
-                {row.isFocusMuscle ? <span>Focus</span> : null}
-              </div>
-              <div className="program-volume-row__track" aria-hidden>
-                <span
-                  className={row.isFocusMuscle ? "program-volume-row__bar program-volume-row__bar--focus" : "program-volume-row__bar"}
-                  style={{ width: `${(row.averageSetsPerWeek / maxVolume) * 100}%` }}
-                />
-              </div>
-              <div className="program-volume-row__value">
-                <strong>{formatAverageSets(row.averageSetsPerWeek)}</strong>
-                <span>sets/wk</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="program-volume-list">
+            {view.volumeRows.map((row) => {
+              const band = classifyWeeklySetVolume(row.averageSetsPerWeek);
+              const bandLabel = volumeBandLabels[band];
+
+              return (
+                <div
+                  aria-label={programVolumeRowLabel(row.muscleName, row.averageSetsPerWeek, bandLabel, row.isFocusMuscle)}
+                  className="program-volume-row"
+                  data-agent-id={`program-volume-row-${row.muscleId}`}
+                  data-volume-band={band}
+                  key={row.muscleId}
+                  role="group"
+                >
+                  <div className="program-volume-row__label">
+                    <strong>{row.muscleName}</strong>
+                    {row.isFocusMuscle ? <span>Focus</span> : null}
+                  </div>
+                  <div className="program-volume-row__track" aria-hidden>
+                    <span
+                      className={`program-volume-row__bar ${volumeBandClassNames[band]}`}
+                      style={{ width: `${(row.averageSetsPerWeek / maxVolume) * 100}%` }}
+                    />
+                  </div>
+                  <div className="program-volume-row__value">
+                    <strong>{formatAverageSets(row.averageSetsPerWeek)}</strong>
+                    <span>sets/wk</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <ProgramVolumeLegend />
+        </>
       ) : (
         <p className="program-volume-empty" data-agent-id="program-volume-empty">
           No completed sets yet.
         </p>
       )}
     </section>
+  );
+}
+
+function ProgramVolumeLegend() {
+  return (
+    <div className="program-volume-legend" data-agent-id="program-volume-legend" aria-label="Volume guidance legend">
+      {volumeBandOrder.map((band) => (
+        <span data-agent-id={`program-volume-legend-${band}`} key={band}>
+          <i className={`program-volume-legend__swatch ${volumeBandClassNames[band]}`} aria-hidden />
+          {volumeBandLabels[band]}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -346,6 +396,16 @@ function scheduleCellLabel(cell: ActiveProgramOverviewScheduleCell): string {
 
 function formatStatus(status: PowerJackStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function programVolumeRowLabel(
+  muscleName: string,
+  averageSetsPerWeek: number,
+  bandLabel: string,
+  isFocusMuscle: boolean,
+): string {
+  const focusLabel = isFocusMuscle ? ", focus muscle" : "";
+  return `${muscleName}, ${formatAverageSets(averageSetsPerWeek)} sets per week, ${bandLabel}${focusLabel}`;
 }
 
 function formatAverageSets(value: number): string {
