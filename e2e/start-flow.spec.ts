@@ -233,6 +233,32 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
   });
 }
 
+async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
+  await page.addInitScript((fixedIso) => {
+    const fixedTime = new Date(fixedIso).getTime();
+    const RealDate = Date;
+
+    class MockDate extends RealDate {
+      constructor(...args: ConstructorParameters<DateConstructor>) {
+        if (args.length === 0) {
+          super(fixedTime);
+          return;
+        }
+
+        super(...args);
+      }
+
+      static now() {
+        return fixedTime;
+      }
+    }
+
+    MockDate.UTC = RealDate.UTC;
+    MockDate.parse = RealDate.parse;
+    window.Date = MockDate as DateConstructor;
+  }, isoTimestamp);
+}
+
 async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwright/test").Page): Promise<void> {
   const options = page.locator("[data-agent-id='template-days-per-week-options']").getByRole("radio");
 
@@ -576,24 +602,57 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='visualization-bar-']").filter({ hasText: "Chest" })).toContainText("Chest");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
+    await expect(page.locator("[data-agent-id='visualization-view-menu']").getByRole("menuitemradio")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id='visualization-view-sparklines']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-view-compare']")).toHaveCount(0);
     await page.locator("[data-agent-id='visualization-view-heatmap']").click();
     await expect(page.locator("[data-agent-id='visualization-heatmap']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Heatmap");
+    await expect(page.locator("[data-agent-id='visualization-heatmap-legend']")).toContainText("Growth");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
-    await page.locator("[data-agent-id='visualization-view-sparklines']").click();
-    await expect(page.locator("[data-agent-id^='visualization-sparkline-']").filter({ hasText: "Chest" })).toContainText("Chest");
-    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Sparklines");
-
-    await page.locator("[data-agent-id='visualization-chart-trigger']").click();
-    await page.locator("[data-agent-id='visualization-view-compare']").click();
-    await expect(page.locator("[data-agent-id^='visualization-compare-']").filter({ hasText: "Chest" })).toContainText("Chest");
-    await expect(page.locator("[data-agent-id='visualization-summary-compare']")).toBeVisible();
+    await page.locator("[data-agent-id='visualization-view-bars']").click();
+    await expect(page.locator("[data-agent-id^='visualization-bar-']").filter({ hasText: "Chest" })).toHaveAttribute(
+      "data-volume-band",
+      "not-ideal",
+    );
+    await expect(page.locator("[data-agent-id='visualization-bar-legend']")).toContainText("Maintenance");
 
     await page.locator("[data-agent-id='visualization-range-year']").click();
     await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText(
       new Date().getFullYear().toString(),
     );
-    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Compare");
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Bars");
+  });
+
+  test("Data Visualization keeps period navigation inside available dates", async ({ page }) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
+
+    await page.goto("/visualization?range=month&start=2026-06-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("June 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toBeVisible();
+
+    await page.locator("[data-agent-id='visualization-previous-period']").click();
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("May 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toBeVisible();
+
+    await page.goto("/visualization?range=month&start=2026-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("January 2026");
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toBeVisible();
+
+    await page.goto("/visualization?range=quarter&start=2026-07-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("Q2 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+
+    await page.goto("/visualization?range=year&start=2027-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+
+    await page.goto("/visualization?range=week&start=2026-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("Jan 1-4, 2026");
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toHaveCount(0);
   });
 
   test("completed secondary muscles count as half sets in volume views", async ({ page }) => {
@@ -615,8 +674,8 @@ test.describe("start program flow", () => {
     const volumeLegend = page.locator("[data-agent-id='program-volume-legend']");
 
     await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("6.0");
-    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "maintaining");
-    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("aria-label", /Maintaining/);
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "growth");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("aria-label", /Growth/);
     await expect(programVolumeRows.filter({ hasText: "Glutes" })).toContainText("2.0");
     await expect(programVolumeRows.filter({ hasText: "Glutes" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
@@ -626,7 +685,7 @@ test.describe("start program flow", () => {
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(volumeLegend).toContainText("Not Ideal");
-    await expect(volumeLegend).toContainText("Maintaining");
+    await expect(volumeLegend).toContainText("Maintenance");
     await expect(volumeLegend).toContainText("Growth");
     await expect(volumeLegend).toContainText("Max Growth");
     await expect(volumeLegend).toContainText("Overtraining");
@@ -639,6 +698,7 @@ test.describe("start program flow", () => {
 
     const visualizationRows = page.locator("[data-agent-id^='visualization-bar-']");
     await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(visualizationRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "growth");
     await expect(visualizationRows.filter({ hasText: "Glutes" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Biceps" })).toContainText("2.0");
