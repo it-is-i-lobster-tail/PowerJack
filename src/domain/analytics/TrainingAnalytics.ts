@@ -2,6 +2,7 @@ import type { EntityId } from "../ids";
 
 export type SetVisualizationRange = "week" | "month" | "quarter" | "year";
 export type SetVisualizationView = "bars" | "heatmap" | "sparklines" | "compare";
+export type SetVolumeBand = "not-ideal" | "maintaining" | "growth" | "max-growth" | "overtraining";
 
 export const setVisualizationRanges: SetVisualizationRange[] = ["week", "month", "quarter", "year"];
 export const setVisualizationViews: SetVisualizationView[] = ["bars", "heatmap", "sparklines", "compare"];
@@ -219,6 +220,26 @@ export function buildProgramSetVolumeReport(input: {
     totalCompletedSets: setIds.size,
     rows,
   };
+}
+
+export function classifyWeeklySetVolume(value: number): SetVolumeBand {
+  if (value >= 25) {
+    return "overtraining";
+  }
+
+  if (value >= 15) {
+    return "max-growth";
+  }
+
+  if (value >= 7) {
+    return "growth";
+  }
+
+  if (value >= 4) {
+    return "maintaining";
+  }
+
+  return "not-ideal";
 }
 
 export function buildCompletedSetEventsForMuscles(input: {

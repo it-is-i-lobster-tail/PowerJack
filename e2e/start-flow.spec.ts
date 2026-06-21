@@ -587,11 +587,24 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+$/);
 
     const programVolumeRows = page.locator("[data-agent-id^='program-volume-row-']");
+    const volumeLegend = page.locator("[data-agent-id='program-volume-legend']");
+
     await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "maintaining");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("aria-label", /Maintaining/);
     await expect(programVolumeRows.filter({ hasText: "Glutes" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Glutes" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Biceps" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Biceps" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
+    await expect(programVolumeRows.filter({ hasText: "Forearms" })).toHaveAttribute("data-volume-band", "not-ideal");
+    await expect(volumeLegend).toContainText("Not Ideal");
+    await expect(volumeLegend).toContainText("Maintaining");
+    await expect(volumeLegend).toContainText("Growth");
+    await expect(volumeLegend).toContainText("Max Growth");
+    await expect(volumeLegend).toContainText("Overtraining");
     expect(await pageHasHorizontalOverflow(page)).toBe(false);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
