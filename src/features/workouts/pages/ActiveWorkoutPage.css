@@ -327,11 +327,6 @@
     background-color var(--motion-normal) ease;
 }
 
-.set-row--complete {
-  border-color: var(--color-accent-strong);
-  background: var(--color-success-soft);
-}
-
 .set-row--skipped {
   border-color: var(--color-warning);
   background: var(--color-warning-soft);
