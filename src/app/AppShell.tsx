@@ -83,9 +83,9 @@ export function AppShell() {
                   void navigate(activeWorkoutPath);
                 }
               }}
-              variant="outline"
+              variant="primary"
             >
-              Resume Workout
+              Resume workout
             </Button>
           ) : null}
         </div>
@@ -112,7 +112,7 @@ export function AppShell() {
                 }
                 type="button"
               >
-                Current Program
+                Current program
               </button>
               <button
                 data-agent-id="menu-new-program"
@@ -122,14 +122,14 @@ export function AppShell() {
                 }}
                 type="button"
               >
-                New Program
+                New program
               </button>
               <button
                 data-agent-id="menu-data-visualization"
                 onClick={() => closeMenuAndNavigate("/visualization")}
                 type="button"
               >
-                Data Visualization
+                Data visualization
               </button>
               <button
                 data-agent-id="menu-new-template"
@@ -139,7 +139,7 @@ export function AppShell() {
                 }}
                 type="button"
               >
-                New Template
+                New template
               </button>
             </nav>
           ) : null}

@@ -134,7 +134,7 @@ function ProgramSummary({ view }: { view: ProgramOverviewView }) {
       <SummaryMetric
         icon={<Clock3 aria-hidden size={28} strokeWidth={2.2} />}
         label="Length"
-        value={`${view.program.programLengthWeeks} Weeks`}
+        value={`${view.program.programLengthWeeks} weeks`}
       />
       <div className="program-summary__metric">
         <Activity aria-hidden size={28} strokeWidth={2.2} />
@@ -194,7 +194,7 @@ function ProgramSchedule({ view }: { view: ProgramOverviewView }) {
     <section className="program-panel program-schedule" data-agent-id="program-schedule" aria-labelledby="program-schedule-title">
       <div className="program-panel__header">
         <CalendarDays aria-hidden size={22} strokeWidth={2.2} />
-        <h2 id="program-schedule-title">Program Schedule</h2>
+        <h2 id="program-schedule-title">Program schedule</h2>
       </div>
 
       <div className="program-schedule-grid" style={scheduleStyle}>
@@ -286,7 +286,7 @@ function ProgramVolume({ view }: { view: ProgramOverviewView }) {
       <div className="program-panel__header program-volume__header">
         <BarChart3 aria-hidden size={22} strokeWidth={2.2} />
         <div>
-          <h2 id="program-volume-title">Volume Tracking</h2>
+          <h2 id="program-volume-title">Volume tracking</h2>
           <p>Avg weekly sets by muscle group</p>
         </div>
       </div>

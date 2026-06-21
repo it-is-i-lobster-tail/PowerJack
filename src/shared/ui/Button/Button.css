@@ -28,11 +28,15 @@
 .button:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
 
 .button:disabled {
   cursor: not-allowed;
-  opacity: 0.46;
+  background: var(--color-disabled-surface);
+  border-color: var(--color-border-soft);
+  color: var(--color-disabled-text);
+  opacity: 1;
 }
 
 .button--full {
@@ -41,22 +45,23 @@
 
 .button--primary {
   background: var(--color-accent);
-  color: #07110b;
+  color: var(--color-on-accent);
 }
 
 .button--secondary {
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  background: var(--color-surface-secondary);
+  border-color: var(--color-border-soft);
+  color: var(--color-text-secondary);
 }
 
 .button--outline {
-  background: transparent;
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-strong);
+  color: var(--color-text-primary);
 }
 
 .button--danger {
-  background: transparent;
+  background: var(--color-warning-soft);
   border-color: var(--color-warning);
   color: var(--color-warning);
 }
