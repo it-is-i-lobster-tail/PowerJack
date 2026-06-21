@@ -16,7 +16,7 @@ export function TemplateNamePage() {
   return (
     <main className="app-screen app-screen--centered" data-agent-id="template-name-page">
       <section className="setup-card app-flow" aria-labelledby="template-name-title">
-        <h1 id="template-name-title">Name Template</h1>
+        <h1 id="template-name-title">Name your template</h1>
 
         <label className="template-name-field">
           <span>Template name</span>
@@ -24,7 +24,7 @@ export function TemplateNamePage() {
             autoFocus
             data-agent-id="template-name-input"
             onChange={(event) => setName(event.target.value)}
-            placeholder="My New Template"
+            placeholder="My new template"
             value={name}
           />
           {isNameTooLong ? (

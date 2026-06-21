@@ -71,7 +71,7 @@ export function ProgramLengthPage() {
   return (
     <main className="app-screen app-screen--centered" data-agent-id="program-length-page">
       <section className="setup-card app-flow" aria-labelledby="program-length-title">
-        <h1 id="program-length-title">Program Length in Weeks</h1>
+        <h1 id="program-length-title">How many weeks do you want to train?</h1>
 
         <div className="choice-grid" role="radiogroup" aria-label="Program length in weeks">
           {programLengthOptions.map((weeks) => (
@@ -125,7 +125,7 @@ export function ProgramLengthPage() {
           onConfirm={() => {
             void handleStart(true);
           }}
-          title="Halt Current Program and Start New One"
+          title="Halt current program and start new one"
         />
       ) : null}
     </main>

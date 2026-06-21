@@ -14,7 +14,7 @@ import "./SelectTemplatePage.css";
 const EDIT_ACTIVE_TEMPLATE_TITLE =
   "Editing an active template will adjust progression of all remaining weeks of program.";
 const EDIT_ACTIVE_TEMPLATE_BODY = "Does not affect current week.";
-const DELETE_ACTIVE_TEMPLATE_MESSAGE = "Cannot Delete Templates In Use By Active Program";
+const DELETE_ACTIVE_TEMPLATE_MESSAGE = "Cannot delete templates in use by active program";
 
 export function SelectTemplatePage() {
   const navigate = useNavigate();
@@ -147,8 +147,8 @@ export function SelectTemplatePage() {
     <main className="app-screen select-template-screen" data-agent-id="select-template-page">
       <section className="app-flow select-template-flow" aria-labelledby="select-template-title">
         <div className="flow-header">
-          <p>NEW PROGRAM</p>
-          <h1 id="select-template-title">Select Template</h1>
+          <p>New program</p>
+          <h1 id="select-template-title">Select template</h1>
         </div>
 
         <div className="template-grid" role="grid" aria-label="Templates" data-agent-id="template-grid">
@@ -190,7 +190,7 @@ export function SelectTemplatePage() {
                             className="template-row__status"
                             data-agent-id={`active-template-label-${template.id}`}
                           >
-                            Active Program Template
+                            Active program template
                           </span>
                         ) : null}
                         <span className="template-row__name">{template.name}</span>
@@ -257,7 +257,7 @@ export function SelectTemplatePage() {
             }}
             variant="outline"
           >
-            Add Template
+            Add template
           </Button>
         </div>
 
@@ -311,7 +311,7 @@ export function SelectTemplatePage() {
           onConfirm={() => {
             void confirmDeleteTemplate();
           }}
-          title={`Confirm Deleting Template ${deleteTarget.name}`}
+          title={`Confirm deleting template ${deleteTarget.name}`}
         />
       ) : null}
     </main>
