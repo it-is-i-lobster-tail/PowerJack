@@ -265,6 +265,47 @@ async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwr
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").Page, dayCount: number): Promise<void> {
+  const tabs = page.locator("[data-agent-id^='template-day-']");
+
+  await expect(tabs).toHaveCount(dayCount);
+
+  const viewport = page.viewportSize();
+  const boxes = await tabs.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+
+      return {
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      };
+    }),
+  );
+  const firstTop = boxes[0]?.top ?? 0;
+
+  expect(viewport).not.toBeNull();
+
+  for (const box of boxes) {
+    expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+
+    if (viewport) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(viewport.width);
+    }
+  }
+
+  for (let index = 1; index < boxes.length; index += 1) {
+    expect(boxes[index].left).toBeGreaterThan(boxes[index - 1].left);
+  }
+
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function expectFeedbackOptionsOnSingleRow(
   page: import("@playwright/test").Page,
   dataAgentPrefix: string,
@@ -424,6 +465,20 @@ test.describe("start program flow", () => {
     await expectTemplateDaysPerWeekOptionsInSingleRow(page);
   });
 
+  test("Template builder keeps every day visible without horizontal scrolling", async ({ page }) => {
+    await openTemplateFocus(page);
+    await selectFocusAndOpenDays(page);
+
+    await page.locator("[data-agent-id='template-days-per-week-6']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+    await expectTemplateBuilderDayTabsFit(page, 6);
+    await page.locator("[data-agent-id='template-day-6']").click();
+    await expect(page.locator("[data-agent-id='template-day-6']")).toHaveAttribute("aria-selected", "true");
+    await expectTemplateBuilderDayTabsFit(page, 6);
+  });
+
   test("new template saves only after every day has an exercise", async ({ page }) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
@@ -532,11 +587,24 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+$/);
 
     const programVolumeRows = page.locator("[data-agent-id^='program-volume-row-']");
+    const volumeLegend = page.locator("[data-agent-id='program-volume-legend']");
+
     await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "maintaining");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("aria-label", /Maintaining/);
     await expect(programVolumeRows.filter({ hasText: "Glutes" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Glutes" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Biceps" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Biceps" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
+    await expect(programVolumeRows.filter({ hasText: "Forearms" })).toHaveAttribute("data-volume-band", "not-ideal");
+    await expect(volumeLegend).toContainText("Not Ideal");
+    await expect(volumeLegend).toContainText("Maintaining");
+    await expect(volumeLegend).toContainText("Growth");
+    await expect(volumeLegend).toContainText("Max Growth");
+    await expect(volumeLegend).toContainText("Overtraining");
     expect(await pageHasHorizontalOverflow(page)).toBe(false);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
@@ -1021,6 +1089,11 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id^='set-weight-']").nth(1).fill("100");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await expect(page.locator("[data-agent-id='feedback-pain-option-1']")).toContainText("None");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-2']")).toContainText("Some");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-3']")).toContainText("Pinch");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-4']")).toContainText("High");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-2']")).toContainText("Tough");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-3']")).toContainText("Challenge");
 
     await expectFeedbackOptionsOnSingleRow(page, "feedback-pain-option");
     await expectFeedbackOptionsOnSingleRow(page, "feedback-effort-option");
