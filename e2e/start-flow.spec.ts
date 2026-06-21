@@ -1009,6 +1009,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-finish-workout-feedback-blocked-mobile.png");
     await page.locator("[data-agent-id='finish-workout']").click({ force: true });
     const finishPanel = page.locator(".finish-workout-panel");
     await expect(finishPanel.locator("[data-agent-id='finish-feedback-hint']")).toContainText(
