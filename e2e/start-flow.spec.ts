@@ -113,6 +113,10 @@ async function completeLiftWithFeedback(
   const weightInputs = liftCard.locator("[data-agent-id^='set-weight-']");
   const reps = options.reps ?? "10";
   const weight = options.weight ?? "10";
+
+  await expect(liftCard).toBeVisible();
+  await expect(repsInputs.first()).toBeVisible();
+
   const setCount = await repsInputs.count();
 
   for (let index = 0; index < setCount; index += 1) {
