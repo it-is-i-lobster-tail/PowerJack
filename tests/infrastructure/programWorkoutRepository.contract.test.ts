@@ -369,6 +369,66 @@ describe("Program and Workout repository contracts", () => {
     expect(oldLockedView?.lifts[0]?.sets[1]).toMatchObject({ status: "halted", locked: true });
   });
 
+  it("lists active halted and complete program summaries newest first", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1]]);
+    await startTemplateProgram(services, template.id);
+    let completeView = await loadRequiredActiveWorkout(services);
+
+    for (let week = 1; week <= 4; week += 1) {
+      const completedView = await submitFeedbackForCompletedLifts(
+        services,
+        await completeWorkout(services, completeView, [10, 8], 100),
+      );
+      const nextView = await finishWorkout(completedView.workout.id, services.workouts);
+
+      if (week < 4) {
+        if (!nextView) {
+          throw new Error("Expected next week workout.");
+        }
+
+        completeView = nextView;
+      }
+    }
+
+    await startTemplateProgram(services, template.id);
+    const haltedCandidate = await loadRequiredActiveWorkout(services);
+    const firstSet = haltedCandidate.lifts[0]?.sets[0];
+
+    if (!firstSet) {
+      throw new Error("Expected first set.");
+    }
+
+    await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 12, actualWeight: 220 },
+      services.workouts,
+    );
+    await startProgramFromTemplate(
+      { templateId: template.id, programLengthWeeks: 4, replaceActiveProgram: true },
+      {
+        appState: services.appState,
+        templates: services.templates,
+        programs: services.programs,
+      },
+    );
+
+    const summaries = await services.programs.listSummaries();
+
+    expect(summaries.map((summary) => summary.status)).toEqual(["active", "halted", "complete"]);
+    expect(summaries.map((summary) => summary.name)).toEqual([
+      "Back In Action x3",
+      "Back In Action x2",
+      "Back In Action x1",
+    ]);
+    expect(summaries[0]).toMatchObject({
+      templateName: "Back In Action",
+      focusMuscles: [{ id: 1, name: "Back" }],
+      progressPercent: 0,
+    });
+    expect(summaries[1]).toMatchObject({ progressPercent: 13 });
+    expect(summaries[2]).toMatchObject({ progressPercent: 100 });
+  });
+
   it("finishes workouts, activates the next workout, and creates the next week with progression", async () => {
     const services = createInMemoryAppServices();
     const template = await createTemplate(services, [[1], [2]]);

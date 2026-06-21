@@ -3,9 +3,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  GitCompare,
   Grid3X3,
-  LineChart,
 } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -14,14 +12,20 @@ import { loadSetVolumeReport } from "../../../application/analytics/loadSetVolum
 import { useServices } from "../../../app/useServices";
 import {
   addRange,
+  clampPeriodStart,
+  classifyWeeklySetVolume,
   getDefaultPeriodStart,
+  getPeriodNavigationBounds,
   isSetVisualizationRange,
   isSetVisualizationView,
   parsePeriodStart,
   serializePeriodStart,
   setVisualizationRanges,
+  setVolumeBandLabels,
+  setVolumeBandOrder,
   type SetVisualizationRange,
   type SetVisualizationView,
+  type SetVolumeBand,
   type SetVolumeMuscleRow,
   type SetVolumeReport,
 } from "../../../domain/analytics/TrainingAnalytics";
@@ -42,9 +46,15 @@ const rangeLabels: Record<SetVisualizationRange, string> = {
 const viewOptions: Array<{ value: SetVisualizationView; label: string; icon: ReactNode }> = [
   { value: "bars", label: "Bars", icon: <BarChart3 aria-hidden size={16} strokeWidth={2.4} /> },
   { value: "heatmap", label: "Heatmap", icon: <Grid3X3 aria-hidden size={16} strokeWidth={2.4} /> },
-  { value: "sparklines", label: "Sparklines", icon: <LineChart aria-hidden size={16} strokeWidth={2.4} /> },
-  { value: "compare", label: "Compare", icon: <GitCompare aria-hidden size={16} strokeWidth={2.4} /> },
 ];
+
+const volumeBandClassNames: Record<SetVolumeBand, string> = {
+  "not-ideal": "visualization-volume-band--not-ideal",
+  maintaining: "visualization-volume-band--maintaining",
+  growth: "visualization-volume-band--growth",
+  "max-growth": "visualization-volume-band--max-growth",
+  overtraining: "visualization-volume-band--overtraining",
+};
 
 const storedViewKey = "powerjack.visualization.view";
 const chartPickerCloseMs = 140;
@@ -52,12 +62,16 @@ const chartPickerCloseMs = 140;
 export function DataVisualizationPage() {
   const services = useServices();
   const [searchParams, setSearchParams] = useSearchParams();
+  const now = useMemo(() => new Date(), []);
   const range = parseRange(searchParams.get("range"));
   const view = parseView(searchParams.get("view"), getStoredVisualizationView());
   const periodStart = useMemo(
-    () => parsePeriodStart(searchParams.get("start"), range),
-    [range, searchParams],
+    () => parsePeriodStart(searchParams.get("start"), range, now),
+    [now, range, searchParams],
   );
+  const navigationBounds = useMemo(() => getPeriodNavigationBounds(range, now), [now, range]);
+  const canShowPreviousPeriod = periodStart > navigationBounds.minStart;
+  const canShowNextPeriod = periodStart < navigationBounds.maxStart;
   const periodStartKey = serializePeriodStart(periodStart);
   const requestKey = `${range}:${periodStartKey}`;
   const [loadState, setLoadState] = useState<LoadState>({
@@ -128,11 +142,12 @@ export function DataVisualizationPage() {
 
     const nextRange = next.range ?? range;
     const nextPeriodStart =
-      next.periodStart ?? (next.range && next.range !== range ? getDefaultPeriodStart(nextRange) : periodStart);
+      next.periodStart ?? (next.range && next.range !== range ? getDefaultPeriodStart(nextRange, now) : periodStart);
+    const clampedPeriodStart = clampPeriodStart(nextRange, nextPeriodStart, now);
     const params = new URLSearchParams();
     params.set("range", nextRange);
     params.set("view", next.view ?? view);
-    params.set("start", serializePeriodStart(nextPeriodStart));
+    params.set("start", serializePeriodStart(clampedPeriodStart));
     setSearchParams(params);
   }
 
@@ -187,25 +202,33 @@ export function DataVisualizationPage() {
 
           <div className={hasCurrentData ? "visualization-toolbar visualization-toolbar--with-chart" : "visualization-toolbar"}>
             <div className="visualization-period-nav">
-              <button
-                aria-label={`Show previous ${range}`}
-                data-agent-id="visualization-previous-period"
-                onClick={() => updateVisualizationParams({ periodStart: addRange(periodStart, range, -1) })}
-                type="button"
-              >
-                <ChevronLeft aria-hidden size={22} strokeWidth={2.4} />
-              </button>
+              {canShowPreviousPeriod ? (
+                <button
+                  aria-label={`Show previous ${range}`}
+                  data-agent-id="visualization-previous-period"
+                  onClick={() => updateVisualizationParams({ periodStart: addRange(periodStart, range, -1) })}
+                  type="button"
+                >
+                  <ChevronLeft aria-hidden size={22} strokeWidth={2.4} />
+                </button>
+              ) : (
+                <span className="visualization-period-nav__spacer" data-agent-id="visualization-previous-period-boundary" />
+              )}
               <strong data-agent-id="visualization-period-label">
                 {report?.periodLabel ?? rangeLabels[range]}
               </strong>
-              <button
-                aria-label={`Show next ${range}`}
-                data-agent-id="visualization-next-period"
-                onClick={() => updateVisualizationParams({ periodStart: addRange(periodStart, range, 1) })}
-                type="button"
-              >
-                <ChevronRight aria-hidden size={22} strokeWidth={2.4} />
-              </button>
+              {canShowNextPeriod ? (
+                <button
+                  aria-label={`Show next ${range}`}
+                  data-agent-id="visualization-next-period"
+                  onClick={() => updateVisualizationParams({ periodStart: addRange(periodStart, range, 1) })}
+                  type="button"
+                >
+                  <ChevronRight aria-hidden size={22} strokeWidth={2.4} />
+                </button>
+              ) : (
+                <span className="visualization-period-nav__spacer" data-agent-id="visualization-next-period-boundary" />
+              )}
             </div>
 
             {shouldRenderChartPicker ? (
@@ -262,7 +285,7 @@ function VisualizationContent({
     <section className={hasData ? "visualization-panel" : "visualization-panel visualization-panel--empty"} data-agent-id={`visualization-${view}`}>
       {hasData ? (
         <>
-          <ChartHeader report={report} view={view} />
+          <ChartHeader report={report} />
           <ChartByView report={report} view={view} />
         </>
       ) : (
@@ -287,36 +310,49 @@ function ChartByView({
       return <BarsChart report={report} />;
     case "heatmap":
       return <HeatmapChart report={report} />;
-    case "sparklines":
-      return <SparklinesChart report={report} />;
-    case "compare":
-      return <CompareChart report={report} />;
   }
 }
 
 function BarsChart({ report }: { report: SetVolumeReport }) {
-  const max = Math.max(...report.rows.map((row) => row.metricValue), 1);
+  const rows = getCurrentRows(report);
+  const max = Math.max(...rows.map((row) => row.metricValue), 1);
 
   return (
     <>
       <div className="bars-list">
-        {report.rows.map((row) => (
-          <div className="bars-row" data-agent-id={`visualization-bar-${row.muscleId}`} key={row.muscleId}>
-            <span>{row.muscleName}</span>
-            <div className="bars-row__track" aria-hidden>
-              <span style={{ width: `${(row.metricValue / max) * 100}%` }} />
+        {rows.map((row) => {
+          const band = classifyWeeklySetVolume(row.metricValue);
+          const bandLabel = setVolumeBandLabels[band];
+
+          return (
+            <div
+              aria-label={`${row.muscleName}, ${formatMetricValue(row.metricValue)} ${report.metricUnitLabel}, ${bandLabel}`}
+              className="bars-row"
+              data-agent-id={`visualization-bar-${row.muscleId}`}
+              data-volume-band={band}
+              key={row.muscleId}
+              role="group"
+            >
+              <span>{row.muscleName}</span>
+              <div className="bars-row__track" aria-hidden>
+                <span
+                  className={volumeBandClassNames[band]}
+                  style={{ width: `${(row.metricValue / max) * 100}%` }}
+                />
+              </div>
+              <strong>{formatMetricValue(row.metricValue)}</strong>
             </div>
-            <strong>{formatMetricValue(row.metricValue)}</strong>
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <VolumeBandLegend agentPrefix="visualization-bar" />
       <p className="visualization-note">{formatMetricNote(report)}</p>
     </>
   );
 }
 
 function HeatmapChart({ report }: { report: SetVolumeReport }) {
-  const max = Math.max(...report.rows.flatMap((row) => row.bucketValues), 1);
+  const rows = getCurrentRows(report);
   const gridStyle = {
     "--bucket-count": report.buckets.length.toString(),
   } as CSSProperties & Record<"--bucket-count", string>;
@@ -331,126 +367,69 @@ function HeatmapChart({ report }: { report: SetVolumeReport }) {
           </span>
         ))}
         <span className="heatmap-grid__label">All</span>
-        {report.rows.map((row) => (
-          <HeatmapRow key={row.muscleId} max={max} row={row} />
+        {rows.map((row) => (
+          <HeatmapRow key={row.muscleId} report={report} row={row} />
         ))}
       </div>
-      <p className="visualization-note">Darker cells carry more {report.metricUnitLabel} for that bucket.</p>
+      <VolumeBandLegend agentPrefix="visualization-heatmap" />
+      <p className="visualization-note">Cells use the volume guidance colors for each bucket.</p>
     </>
   );
 }
 
 function HeatmapRow({
-  max,
+  report,
   row,
 }: {
-  max: number;
+  report: SetVolumeReport;
   row: SetVolumeMuscleRow;
 }) {
+  const totalBand = classifyWeeklySetVolume(row.metricValue);
+
   return (
     <>
       <span className="heatmap-grid__muscle">{row.muscleName}</span>
-      {row.bucketValues.map((value, index) => (
-        <span
-          className="heatmap-cell"
-          data-intensity={Math.ceil((value / max) * 4)}
-          key={`${row.muscleId}-${index}`}
-        >
-          {value > 0 ? formatMetricValue(value) : "-"}
+      {row.bucketValues.map((value, index) => {
+        const bucket = report.buckets[index];
+        const band = classifyWeeklySetVolume(value);
+
+        return (
+          <span
+            aria-label={`${row.muscleName}, ${bucket?.label ?? "bucket"}: ${formatMetricValue(value)} ${report.metricUnitLabel}, ${setVolumeBandLabels[band]}`}
+            className={`heatmap-cell ${volumeBandClassNames[band]}`}
+            data-volume-band={band}
+            key={`${row.muscleId}-${index}`}
+          >
+            {value > 0 ? formatMetricValue(value) : "-"}
+          </span>
+        );
+      })}
+      <span
+        aria-label={`${row.muscleName} total: ${formatMetricValue(row.metricValue)} ${report.metricUnitLabel}, ${setVolumeBandLabels[totalBand]}`}
+        className={`heatmap-cell heatmap-cell--total ${volumeBandClassNames[totalBand]}`}
+        data-volume-band={totalBand}
+      >
+        {formatMetricValue(row.metricValue)}
+      </span>
+    </>
+  );
+}
+
+function VolumeBandLegend({ agentPrefix }: { agentPrefix: string }) {
+  return (
+    <div className="visualization-volume-legend" data-agent-id={`${agentPrefix}-legend`} aria-label="Volume guidance legend">
+      {setVolumeBandOrder.map((band) => (
+        <span data-agent-id={`${agentPrefix}-legend-${band}`} key={band}>
+          <i className={`visualization-volume-legend__swatch ${volumeBandClassNames[band]}`} aria-hidden />
+          {setVolumeBandLabels[band]}
         </span>
       ))}
-      <span className="heatmap-cell heatmap-cell--total">{formatMetricValue(row.metricValue)}</span>
-    </>
+    </div>
   );
 }
 
-function SparklinesChart({ report }: { report: SetVolumeReport }) {
-  return (
-    <>
-      <div className="sparkline-grid">
-        {report.rows.map((row) => (
-          <article className="sparkline-card" data-agent-id={`visualization-sparkline-${row.muscleId}`} key={row.muscleId}>
-            <div>
-              <h3>{row.muscleName}</h3>
-              <span className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta)}</span>
-            </div>
-            <strong>
-              {formatMetricValue(row.metricValue)}
-              <small> {report.metricUnitLabel}</small>
-            </strong>
-            <Sparkline values={row.bucketValues} isDown={row.metricDelta < 0} />
-          </article>
-        ))}
-      </div>
-      <p className="visualization-note">Each line shows the selected range split into smaller buckets.</p>
-    </>
-  );
-}
-
-function CompareChart({ report }: { report: SetVolumeReport }) {
-  const max = Math.max(
-    ...report.rows.flatMap((row) => [row.metricValue, row.previousMetricValue]),
-    1,
-  );
-
-  return (
-    <>
-      <div className="compare-legend" aria-hidden>
-        <span>
-          <i className="compare-legend__current" />
-          Current
-        </span>
-        <span>
-          <i className="compare-legend__previous" />
-          Previous
-        </span>
-      </div>
-      <div className="compare-list">
-        {report.rows.map((row) => (
-          <div className="compare-row" data-agent-id={`visualization-compare-${row.muscleId}`} key={row.muscleId}>
-            <span>{row.muscleName}</span>
-            <div className="compare-row__track">
-              <span
-                className="compare-row__bar"
-                style={{ width: `${(row.metricValue / max) * 100}%` }}
-              />
-              <span
-                className="compare-row__marker"
-                style={{ left: `${(row.previousMetricValue / max) * 100}%` }}
-              />
-            </div>
-            <strong className={deltaClassName(row.metricDelta)}>{formatDelta(row.metricDelta)}</strong>
-          </div>
-        ))}
-      </div>
-      <p className="visualization-note">Markers and values keep the comparison readable without relying on color alone.</p>
-    </>
-  );
-}
-
-function Sparkline({
-  isDown,
-  values,
-}: {
-  isDown: boolean;
-  values: number[];
-}) {
-  const points = buildSparklinePoints(values);
-
-  return (
-    <svg
-      className="sparkline"
-      role="img"
-      aria-label={`Bucket values ${values.map((value) => formatMetricValue(value)).join(", ")}`}
-      viewBox="0 0 120 42"
-    >
-      <polyline className={isDown ? "sparkline__line sparkline__line--down" : "sparkline__line"} points={points} />
-      {points.split(" ").map((point) => {
-        const [cx, cy] = point.split(",");
-        return <circle cx={cx} cy={cy} key={point} r="2.4" />;
-      })}
-    </svg>
-  );
+function getCurrentRows(report: SetVolumeReport): SetVolumeMuscleRow[] {
+  return report.rows.filter((row) => row.metricValue > 0);
 }
 
 function ChartTypePicker({
@@ -553,25 +532,7 @@ function SegmentedControl<TValue extends string>({
   );
 }
 
-function ChartHeader({ report, view }: { report: SetVolumeReport; view: SetVisualizationView }) {
-  if (view === "compare") {
-    return (
-      <div className="visualization-panel__header visualization-panel__header--compare">
-        <div>
-          <span>{report.periodLabel} {report.range === "week" ? "total" : "average"}</span>
-          <strong data-agent-id="visualization-total">{formatMetricValue(report.metricValue)}</strong>
-          <small>{report.metricUnitLabel}</small>
-        </div>
-        <div>
-          <span>vs {report.previousPeriodLabel}</span>
-          <strong className={deltaClassName(report.metricDelta)} data-agent-id="visualization-summary-compare">
-            {formatComparisonDelta(report.metricDelta)}
-          </strong>
-        </div>
-      </div>
-    );
-  }
-
+function ChartHeader({ report }: { report: SetVolumeReport }) {
   return (
     <div className="visualization-panel__header">
       <div>
@@ -615,38 +576,6 @@ function storeVisualizationView(value: SetVisualizationView): void {
   }
 }
 
-function formatDelta(value: number): string {
-  if (value > 0) {
-    return `+${formatMetricValue(value)}`;
-  }
-
-  if (value < 0) {
-    return `-${formatMetricValue(Math.abs(value))}`;
-  }
-
-  return formatMetricValue(0);
-}
-
-function formatComparisonDelta(value: number): string {
-  if (value === 0) {
-    return "No change";
-  }
-
-  return formatDelta(value);
-}
-
-function deltaClassName(value: number): string {
-  if (value > 0) {
-    return "delta-pill delta-pill--up";
-  }
-
-  if (value < 0) {
-    return "delta-pill delta-pill--down";
-  }
-
-  return "delta-pill";
-}
-
 function formatMetricValue(value: number): string {
   if (value > 0 && value < 0.1) {
     return "<0.1";
@@ -664,25 +593,4 @@ function formatMetricNote(report: SetVolumeReport): string {
   }
 
   return "Values are normalized to average completed sets per week.";
-}
-
-function buildSparklinePoints(values: number[]): string {
-  const width = 112;
-  const height = 30;
-  const xOffset = 4;
-  const yOffset = 6;
-  const max = Math.max(...values, 1);
-  const divisor = Math.max(values.length - 1, 1);
-
-  return values
-    .map((value, index) => {
-      const x = xOffset + (index / divisor) * width;
-      const y = yOffset + height - (value / max) * height;
-      return `${roundSvgNumber(x)},${roundSvgNumber(y)}`;
-    })
-    .join(" ");
-}
-
-function roundSvgNumber(value: number): number {
-  return Math.round(value * 10) / 10;
 }
