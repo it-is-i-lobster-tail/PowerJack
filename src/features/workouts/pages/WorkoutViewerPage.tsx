@@ -54,15 +54,15 @@ const setAutosaveDelayMs = 500;
 const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
   { value: 1, label: "None" },
-  { value: 2, label: "Noticeable" },
-  { value: 3, label: "High" },
-  { value: 4, label: "Sharp" },
+  { value: 2, label: "Some" },
+  { value: 3, label: "Pinch" },
+  { value: 4, label: "High" },
   { value: 5, label: "Pure evil" },
 ] as const;
 const effortFeedbackOptions = [
   { value: 1, label: "Easy" },
-  { value: 2, label: "Manageable" },
-  { value: 3, label: "Challenging" },
+  { value: 2, label: "Tough" },
+  { value: 3, label: "Challenge" },
   { value: 4, label: "Very hard" },
   { value: 5, label: "Too much" },
 ] as const;
