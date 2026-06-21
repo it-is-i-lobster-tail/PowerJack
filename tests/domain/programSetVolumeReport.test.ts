@@ -61,12 +61,12 @@ describe("program set volume report", () => {
   it.each([
     [3.9, "not-ideal"],
     [4, "maintaining"],
-    [6.9, "maintaining"],
-    [7, "growth"],
-    [14.9, "growth"],
-    [15, "max-growth"],
-    [24.9, "max-growth"],
-    [25, "overtraining"],
+    [5.9, "maintaining"],
+    [6, "growth"],
+    [11.9, "growth"],
+    [12, "max-growth"],
+    [25, "max-growth"],
+    [25.1, "overtraining"],
   ] satisfies Array<[number, SetVolumeBand]>)("classifies %s sets per week as %s", (value, band) => {
     expect(classifyWeeklySetVolume(value)).toBe(band);
   });
