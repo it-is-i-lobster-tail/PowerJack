@@ -314,6 +314,17 @@ test.describe("start program flow", () => {
     await expect(page.getByRole("heading", { name: "New Program" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start new program" })).toBeVisible();
     await expect(page.locator("[data-agent-id='new-program-page']")).toBeVisible();
+
+    const viewport = page.viewportSize();
+    const homeCardBox = await page.locator("[data-agent-id='new-program-page'] .home-card").boundingBox();
+
+    expect(viewport).not.toBeNull();
+    expect(homeCardBox).not.toBeNull();
+
+    if (viewport && homeCardBox) {
+      const cardCenter = homeCardBox.x + homeCardBox.width / 2;
+      expect(Math.abs(cardCenter - viewport.width / 2)).toBeLessThanOrEqual(4);
+    }
   });
 
   test("Start navigates to empty Select Template", async ({ page }) => {
