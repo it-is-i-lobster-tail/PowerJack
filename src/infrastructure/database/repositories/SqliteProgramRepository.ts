@@ -1,4 +1,5 @@
 import type { AppState } from "../../../domain/app-state/AppState";
+import type { ProgramListSummary } from "../../../domain/programs/ProgramList";
 import type {
   PersistedProgramScheduleCell,
   ProgramOverviewFocusMuscle,
@@ -26,6 +27,12 @@ interface LastInsertIdRow extends Record<string, unknown> {
 
 interface ActiveProgramRow extends Record<string, unknown> {
   active_program_id: number | null;
+}
+
+interface ProgramListHeaderRow extends Record<string, unknown> {
+  id: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ProgramOverviewHeaderRow extends Record<string, unknown> {
@@ -59,6 +66,38 @@ interface TemplateDaySetCountRow extends Record<string, unknown> {
 
 export class SqliteProgramRepository implements ProgramRepository {
   constructor(private readonly db: DatabaseClient) {}
+
+  async listSummaries(): Promise<ProgramListSummary[]> {
+    const rows = await this.db.query<ProgramListHeaderRow>(
+      `
+        SELECT id, created_at, updated_at
+        FROM programs
+        ORDER BY created_at DESC, id DESC
+      `,
+    );
+    const overviews = await Promise.all(rows.map((row) => this.loadOverview(row.id)));
+
+    return rows.flatMap((row, index) => {
+      const overview = overviews[index];
+
+      if (!overview) {
+        return [];
+      }
+
+      return [
+        {
+          id: overview.program.id,
+          name: overview.program.name,
+          status: overview.program.status,
+          templateName: overview.program.templateName,
+          focusMuscles: overview.program.focusMuscles,
+          progressPercent: overview.program.progressPercent,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        },
+      ];
+    });
+  }
 
   async loadOverview(programId: number): Promise<ProgramOverviewSnapshot | null> {
     const headerRows = await this.db.query<ProgramOverviewHeaderRow>(
