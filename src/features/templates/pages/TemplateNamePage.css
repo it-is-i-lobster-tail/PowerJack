@@ -7,14 +7,14 @@
 .template-name-field span {
   color: var(--color-text-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .template-name-field input {
   min-height: 68px;
   width: 100%;
   padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-input);
   background: var(--color-input);
   color: var(--color-text-primary);
@@ -23,13 +23,13 @@
 }
 
 .template-name-field input:focus {
-  border-color: var(--color-accent);
-  outline: 2px solid rgba(34, 197, 94, 0.22);
+  border-color: var(--color-accent-strong);
+  outline: 2px solid var(--color-focus-ring);
 }
 
 .template-name-count {
   align-self: flex-end;
   color: var(--color-error);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
 }
