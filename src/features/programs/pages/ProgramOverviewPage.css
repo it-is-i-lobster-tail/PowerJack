@@ -356,11 +356,11 @@
 }
 
 .program-volume-band--maintaining {
-  background: var(--color-border-strong);
+  background: var(--color-warning);
 }
 
 .program-volume-band--growth {
-  background: var(--color-warning);
+  background: var(--color-info);
 }
 
 .program-volume-band--max-growth {

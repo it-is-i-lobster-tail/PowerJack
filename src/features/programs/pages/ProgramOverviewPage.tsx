@@ -34,7 +34,7 @@ const volumeBandOrder: SetVolumeBand[] = ["not-ideal", "maintaining", "growth", 
 
 const volumeBandLabels: Record<SetVolumeBand, string> = {
   "not-ideal": "Not Ideal",
-  maintaining: "Maintaining",
+  maintaining: "Maintenance",
   growth: "Growth",
   "max-growth": "Max Growth",
   overtraining: "Overtraining",
