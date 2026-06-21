@@ -8,6 +8,7 @@ import {
 import type { TrainingAnalyticsRepository } from "../../../domain/analytics/TrainingAnalyticsRepository";
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
+import { normalizeExerciseSearchText } from "../../../domain/exercises/searchNormalization";
 import type { Program } from "../../../domain/programs/Program";
 import type {
   PersistedProgramScheduleCell,
@@ -126,7 +127,7 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
   }
 
   searchExercises(query: string): Promise<ExerciseSummary[]> {
-    const normalizedQuery = query.toLowerCase();
+    const normalizedQuery = normalizeExerciseSearchText(query);
 
     const results = this.catalog.exercises
       .filter((exercise) => {
@@ -135,10 +136,12 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
         }
 
         return (
-          exercise.name.toLowerCase().includes(normalizedQuery) ||
-          exercise.primaryMuscleName.toLowerCase().includes(normalizedQuery) ||
-          exercise.equipmentName.toLowerCase().includes(normalizedQuery) ||
-          exercise.secondaryMuscleNames.some((muscle) => muscle.toLowerCase().includes(normalizedQuery))
+          normalizeExerciseSearchText(exercise.name).includes(normalizedQuery) ||
+          normalizeExerciseSearchText(exercise.primaryMuscleName).includes(normalizedQuery) ||
+          normalizeExerciseSearchText(exercise.equipmentName).includes(normalizedQuery) ||
+          exercise.secondaryMuscleNames.some((muscle) =>
+            normalizeExerciseSearchText(muscle).includes(normalizedQuery),
+          )
         );
       })
       .slice(0, 40);
