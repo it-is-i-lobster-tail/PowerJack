@@ -237,13 +237,6 @@
   margin-top: auto;
 }
 
-.flow-actions {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
 @media (max-width: 620px) {
   .template-row {
     grid-template-columns: 1fr;

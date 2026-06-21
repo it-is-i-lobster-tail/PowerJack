@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "../../../shared/ui/Button";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "../../start-program/pages/SetupChoicePage.css";
 import "./TemplateNamePage.css";
@@ -34,29 +34,25 @@ export function TemplateNamePage() {
           ) : null}
         </label>
 
-        <div className="setup-card__actions">
-          <Button
-            data-agent-id="template-name-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          leftAction={{
+            agentId: "template-name-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/start/select-template");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="template-name-next"
-            disabled={!canContinue}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "template-name-next",
+            disabled: !canContinue,
+            label: "Next",
+            onClick: () => {
               void navigate("/templates/new/muscle-focus");
-            }}
-            trailingIcon={<ArrowRight aria-hidden size={28} strokeWidth={2.4} />}
-            variant="outline"
-          >
-            Next
-          </Button>
-        </div>
+            },
+            trailingIcon: <ArrowRight aria-hidden size={28} strokeWidth={2.4} />,
+          }}
+        />
       </section>
     </main>
   );
