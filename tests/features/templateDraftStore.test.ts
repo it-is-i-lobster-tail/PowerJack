@@ -67,4 +67,36 @@ describe("templateDraftStore", () => {
       },
     });
   });
+
+  it("resets to the new-program return path by default", () => {
+    useTemplateDraftStore.getState().reset("/templates");
+    useTemplateDraftStore.getState().reset();
+
+    expect(useTemplateDraftStore.getState().returnPath).toBe("/start/select-template");
+  });
+
+  it("tracks templates-list return path for new and edited templates", () => {
+    useTemplateDraftStore.getState().reset("/templates");
+
+    expect(useTemplateDraftStore.getState().returnPath).toBe("/templates");
+
+    useTemplateDraftStore.getState().loadFromAggregate(
+      {
+        id: 42,
+        name: "Loaded Template",
+        workoutsPerWeek: 2,
+        focusMuscleIds: [1, 2],
+        days: [
+          { id: 101, order: 1, exerciseIds: [10, 20] },
+          { id: 102, order: 2, exerciseIds: [30] },
+        ],
+      },
+      "/templates",
+    );
+
+    expect(useTemplateDraftStore.getState()).toMatchObject({
+      editingTemplateId: 42,
+      returnPath: "/templates",
+    });
+  });
 });

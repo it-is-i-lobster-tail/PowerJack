@@ -44,6 +44,7 @@ export function TemplateBuilderPage() {
   const navigate = useNavigate();
   const services = useServices();
   const editingTemplateId = useTemplateDraftStore((state) => state.editingTemplateId);
+  const returnPath = useTemplateDraftStore((state) => state.returnPath);
   const name = useTemplateDraftStore((state) => state.name);
   const focusMuscleIds = useTemplateDraftStore((state) => state.focusMuscleIds);
   const workoutsPerWeek = useTemplateDraftStore((state) => state.workoutsPerWeek);
@@ -197,8 +198,10 @@ export function TemplateBuilderPage() {
       const savedTemplate = editingTemplateId
         ? await updateTemplate(editingTemplateId, toDraft(), services.templates)
         : await saveTemplate(toDraft(), services.templates);
-      setSelectedTemplateId(savedTemplate.id);
-      void navigate("/start/select-template");
+      if (returnPath === "/start/select-template") {
+        setSelectedTemplateId(savedTemplate.id);
+      }
+      void navigate(returnPath);
     } catch (error: unknown) {
       console.error("Failed to save template", error);
       setSaveError("Template could not be saved. Try again.");

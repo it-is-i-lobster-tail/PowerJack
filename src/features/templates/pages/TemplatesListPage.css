@@ -1,0 +1,18 @@
+.templates-screen {
+  padding-top: var(--space-4);
+}
+
+.templates-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.templates-header h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(30px, 6vw, 42px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
