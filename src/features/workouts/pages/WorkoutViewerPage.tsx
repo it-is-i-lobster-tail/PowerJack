@@ -53,7 +53,7 @@ interface PendingSetPersist {
 const setAutosaveDelayMs = 500;
 const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
-  { value: 1, label: "Mild" },
+  { value: 1, label: "None" },
   { value: 2, label: "Noticeable" },
   { value: 3, label: "High" },
   { value: 4, label: "Sharp" },

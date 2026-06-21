@@ -265,6 +265,28 @@ async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwr
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectFeedbackOptionsOnSingleRow(
+  page: import("@playwright/test").Page,
+  dataAgentPrefix: string,
+) {
+  const boxes = await page.locator(`[data-agent-id^='${dataAgentPrefix}-']`).evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { bottom: rect.bottom, top: rect.top };
+    }),
+  );
+
+  expect(boxes).toHaveLength(5);
+  const firstBox = boxes[0];
+
+  expect(firstBox).toBeDefined();
+
+  for (const box of boxes) {
+    expect(Math.abs(box.top - firstBox.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box.bottom - firstBox.bottom)).toBeLessThanOrEqual(1);
+  }
+}
+
 test.describe("start program flow", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -973,6 +995,23 @@ test.describe("start program flow", () => {
     await page.waitForTimeout(650);
     await expect(benchSetTwo).toHaveValue("135");
     await expect(deadliftSetOne).toHaveValue("");
+  });
+
+  test("feedback scales stay in one row on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoDayTemplate(page, "Mobile Feedback Scale");
+    await startSelectedProgram(page, 4);
+
+    await page.locator("[data-agent-id^='set-reps-']").nth(0).fill("10");
+    await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("100");
+    await page.locator("[data-agent-id^='set-reps-']").nth(1).fill("8");
+    await page.locator("[data-agent-id^='set-weight-']").nth(1).fill("100");
+    await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='feedback-pain-option-1']")).toContainText("None");
+
+    await expectFeedbackOptionsOnSingleRow(page, "feedback-pain-option");
+    await expectFeedbackOptionsOnSingleRow(page, "feedback-effort-option");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
   });
 
   test("manual lift menu adds and removes sets on mobile", async ({ page }, testInfo) => {
