@@ -148,6 +148,7 @@
 
 .visualization-chart-slot--expanded {
   max-width: 190px;
+  overflow: visible;
   opacity: 1;
   transition-duration: 100ms;
 }
