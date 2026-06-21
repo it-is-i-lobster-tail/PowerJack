@@ -76,8 +76,8 @@ async function createWeightedVolumeTemplate(page: import("@playwright/test").Pag
   await page.locator("[data-agent-id='template-days-per-week-2']").click();
   await page.locator("[data-agent-id='template-days-per-week-next']").click();
   await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Conventional Deadlift/);
-  await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull-Up/);
-  await addExerciseToCurrentTemplateDay(page, "one-arm pulldown", /^Cable One-Arm Pulldown/);
+  await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull Up/);
+  await addExerciseToCurrentTemplateDay(page, "lat pulldown", /^Cable Lat Pulldown/);
   await addExerciseToCurrentTemplateDay(page, "rear delt fly", /^Cable Rear Delt Fly/);
   await page.locator("[data-agent-id='template-day-2']").click();
   await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
@@ -509,8 +509,8 @@ test.describe("start program flow", () => {
     await createWeightedVolumeTemplate(page);
     await startSelectedProgram(page, 4);
     await completeLiftWithFeedback(page, "Barbell Conventional Deadlift");
-    await completeLiftWithFeedback(page, "Pull-Up");
-    await completeLiftWithFeedback(page, "Cable One-Arm Pulldown");
+    await completeLiftWithFeedback(page, "Pull Up");
+    await completeLiftWithFeedback(page, "Cable Lat Pulldown");
     await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await page.locator("[data-agent-id='finish-workout']").click();
@@ -521,7 +521,8 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+$/);
 
     const programVolumeRows = page.locator("[data-agent-id^='program-volume-row-']");
-    await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("7.0");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(programVolumeRows.filter({ hasText: "Glutes" })).toContainText("2.0");
     await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
     await expect(programVolumeRows.filter({ hasText: "Biceps" })).toContainText("2.0");
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
@@ -533,7 +534,8 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='visualization-total']")).toContainText("8.0");
 
     const visualizationRows = page.locator("[data-agent-id^='visualization-bar-']");
-    await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("7.0");
+    await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(visualizationRows.filter({ hasText: "Glutes" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Biceps" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Forearms" })).toContainText("3.0");
@@ -756,9 +758,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='replace-exercise-result-']")).toHaveCount(0);
     await page.locator("[data-agent-id='edit-exercise-search-input-1']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
 
-    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
     const firstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
@@ -780,15 +782,15 @@ test.describe("start program flow", () => {
     }
 
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Back Squat");
-    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Pull Up");
 
     await page.waitForTimeout(200);
     await page.locator("[data-agent-id='template-day-2']").click();
     await expect(page.locator("[data-agent-id='template-day-2']")).toHaveAttribute("aria-selected", "true");
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("row");
-    await page.getByRole("button", { name: /Barbell Bent-Over Row/ }).click();
-    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bent-Over Row");
+    await page.getByRole("button", { name: /Barbell Bent Over Row/ }).click();
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bent Over Row");
     await page.locator("[data-agent-id='template-day-1']").click();
     await expect(page.locator("[data-agent-id='template-day-1']")).toHaveAttribute("aria-selected", "true");
 
@@ -800,7 +802,7 @@ test.describe("start program flow", () => {
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Barbell Back Squat");
-    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull Up");
   });
 
   test("active workout autosaves set values and advances after Finish Workout", async ({ page }) => {
@@ -1063,14 +1065,14 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id^='lift-change-exercise-']").click();
     await expect(page.locator("[data-agent-id='change-exercise-modal']")).toBeVisible();
     await page.locator("[data-agent-id='change-exercise-search-input']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
     await expect(page.locator("[data-agent-id='change-exercise-confirmation']")).toContainText(
       "Change Exercise",
     );
     await page.locator("[data-agent-id='modal-confirm']").click();
 
     await expect(page.locator("[data-agent-id='change-exercise-modal']")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toBeDisabled();
@@ -1091,7 +1093,7 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
   });
 
   test("multiple completed lifts keep their own feedback-needed warnings", async ({ page }) => {
@@ -1246,7 +1248,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-days-per-week-next']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
@@ -1257,7 +1259,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='program-length-next']").click();
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
 
     const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
     const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);

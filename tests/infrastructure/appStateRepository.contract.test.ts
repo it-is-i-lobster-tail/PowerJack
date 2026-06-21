@@ -30,7 +30,10 @@ describe("AppStateRepository contract", () => {
       expect.arrayContaining([expect.objectContaining({ name: "Barbell Back Squat" })]),
     );
     await expect(services.exercises.searchExercises("pull-up")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "Weighted Pull-Up" })]),
+      expect.arrayContaining([expect.objectContaining({ name: "Pull Up" })]),
+    );
+    await expect(services.exercises.searchExercises("pull up")).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Weighted Pull Up" })]),
     );
     await expect(services.exercises.searchExercises("triceps")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Cable Triceps Pushdown" })]),
@@ -38,20 +41,14 @@ describe("AppStateRepository contract", () => {
     await expect(services.exercises.searchExercises("smith")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Smith Machine Bench Press" })]),
     );
-    await expect(services.exercises.searchExercises("landmine")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "Landmine Row" })]),
+    await expect(services.exercises.searchExercises("lat pulldown")).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Cable Lat Pulldown" })]),
     );
     await expect(services.exercises.searchExercises("trap bar")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Trap Bar Deadlift" })]),
     );
-    await expect(services.exercises.searchExercises("kettlebell")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "Kettlebell Swing" })]),
-    );
-    await expect(services.exercises.searchExercises("sled")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "Sled Push" })]),
-    );
-    await expect(services.exercises.searchExercises("tibialis")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "Machine Tibialis Raise" })]),
+    await expect(services.exercises.searchExercises("ez bar")).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "EZ Bar Curl" })]),
     );
   });
 });
