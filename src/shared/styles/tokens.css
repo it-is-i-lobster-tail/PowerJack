@@ -22,6 +22,7 @@
   --color-warning: #d8a15f;
   --color-warning-soft: #33271a;
   --color-info: #3b82f6;
+  --color-info-soft: #172554;
   --color-error: #e17874;
   --color-error-soft: #3a2221;
   --color-success: var(--color-accent);
