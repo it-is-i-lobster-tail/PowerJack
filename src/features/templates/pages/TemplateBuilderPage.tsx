@@ -272,9 +272,9 @@ export function TemplateBuilderPage() {
     <main className="app-screen template-builder-screen" data-agent-id="template-builder-page">
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
-          <p>{editingTemplateId ? "EDIT TEMPLATE" : "NEW TEMPLATE"}</p>
+          <p>{editingTemplateId ? "Edit template" : "New template"}</p>
           <h1 id="template-builder-title">{name.trim()}</h1>
-          <span>{workoutsPerWeek} Days Per Week</span>
+          <span>{workoutsPerWeek} days per week</span>
         </header>
 
         <div className="day-tabs" role="tablist" aria-label="Template days">
@@ -346,7 +346,7 @@ export function TemplateBuilderPage() {
           {isSearchOpen ? (
             <div className="exercise-search" data-agent-id="exercise-search-panel">
               <div className="exercise-search__top">
-                <h3>Add Exercise</h3>
+                <h3>Add exercise</h3>
                 <button
                   aria-label="Close exercise search"
                   className="builder-icon-button"
@@ -388,7 +388,7 @@ export function TemplateBuilderPage() {
               onClick={handleOpenAddSearch}
               variant="outline"
             >
-              Add Exercise
+              Add exercise
             </Button>
           )}
         </section>
@@ -504,7 +504,7 @@ function SortableExerciseRow({
       {isEditing ? (
         <div className="exercise-search exercise-search--inline" data-agent-id={`edit-exercise-panel-${index + 1}`}>
           <div className="exercise-search__top">
-            <h3>Edit Exercise</h3>
+            <h3>Edit exercise</h3>
             <button
               aria-label="Close exercise edit"
               className="builder-icon-button"

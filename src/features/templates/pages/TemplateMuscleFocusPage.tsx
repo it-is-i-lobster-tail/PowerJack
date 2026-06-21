@@ -51,7 +51,7 @@ export function TemplateMuscleFocusPage() {
     <main className="app-screen app-screen--centered" data-agent-id="template-muscle-focus-page">
       <section className="setup-card app-flow" aria-labelledby="template-muscle-focus-title">
         <div className="muscle-focus-header">
-          <h1 id="template-muscle-focus-title">Muscle Group Focus</h1>
+          <h1 id="template-muscle-focus-title">What would you like to focus on?</h1>
           <span data-agent-id="template-focus-counter">{focusMuscleIds.length}/4</span>
         </div>
 

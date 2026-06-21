@@ -168,7 +168,7 @@ export function DataVisualizationPage() {
       <section className="app-flow visualization-flow" aria-labelledby="data-visualization-title">
         <div className="visualization-header">
           <div>
-            <p>PROGRESS</p>
+            <p>Progress</p>
             <h1 id="data-visualization-title">Sets by muscle group</h1>
           </div>
         </div>

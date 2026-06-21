@@ -45,7 +45,7 @@ export function FlowActionBar({ className = "", leftAction, rightAction }: FlowA
         leadingIcon={rightAction.leadingIcon}
         onClick={rightAction.onClick}
         trailingIcon={rightAction.trailingIcon}
-        variant={rightAction.variant ?? "outline"}
+        variant={rightAction.variant ?? "primary"}
       >
         {rightAction.label}
       </Button>
