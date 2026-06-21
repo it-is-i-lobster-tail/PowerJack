@@ -832,14 +832,14 @@
   }
 
   .feedback-scale__options {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
   }
 
   .feedback-option {
-    min-height: 62px;
-    padding: 6px 4px;
-    font-size: 11px;
+    min-height: 58px;
+    padding: 6px 2px;
+    font-size: 10px;
   }
 
   .feedback-option span {
