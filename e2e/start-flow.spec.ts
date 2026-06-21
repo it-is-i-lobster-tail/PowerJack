@@ -958,6 +958,19 @@ test.describe("start program flow", () => {
     await firstWeight.fill("200");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
     await expect(firstSetRow.locator("[data-agent-id^='set-logged-']")).toBeVisible();
+    const unloggedSetRowStyle = await page
+      .locator("[data-agent-id^='set-row-']")
+      .nth(1)
+      .evaluate((element) => {
+        const style = window.getComputedStyle(element);
+
+        return {
+          backgroundColor: style.backgroundColor,
+          borderTopColor: style.borderTopColor,
+        };
+      });
+    await expect(firstSetRow).toHaveCSS("background-color", unloggedSetRowStyle.backgroundColor);
+    await expect(firstSetRow).toHaveCSS("border-top-color", unloggedSetRowStyle.borderTopColor);
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
     await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-logged-mobile.png");
 
