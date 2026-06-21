@@ -22,6 +22,10 @@
   gap: var(--space-4);
 }
 
+.choice-grid--days-per-week {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .choice-button {
   min-height: 88px;
   border: 1px solid var(--color-border);
@@ -74,8 +78,18 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .choice-grid--days-per-week {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
   .choice-button {
     min-height: 72px;
+  }
+
+  .choice-grid--days-per-week .choice-button {
+    min-height: 64px;
+    font-size: 28px;
   }
 
   .setup-card__actions {
@@ -90,5 +104,16 @@
 
   .setup-card__actions {
     flex-direction: column-reverse;
+  }
+}
+
+@media (max-width: 360px) {
+  .choice-grid--days-per-week {
+    gap: var(--space-1);
+  }
+
+  .choice-grid--days-per-week .choice-button {
+    min-height: 56px;
+    font-size: 24px;
   }
 }

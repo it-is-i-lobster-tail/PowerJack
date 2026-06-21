@@ -206,6 +206,38 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
   });
 }
 
+async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwright/test").Page): Promise<void> {
+  const options = page.locator("[data-agent-id='template-days-per-week-options']").getByRole("radio");
+
+  await expect(options).toHaveCount(5);
+
+  const boxes = await options.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+
+      return {
+        height: rect.height,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+      };
+    }),
+  );
+  const firstTop = boxes[0]?.top ?? 0;
+
+  for (const box of boxes) {
+    expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+
+  for (let index = 1; index < boxes.length; index += 1) {
+    expect(boxes[index].left).toBeGreaterThan(boxes[index - 1].left);
+  }
+
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 test.describe("start program flow", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -300,6 +332,18 @@ test.describe("start program flow", () => {
     await muscleGrid.getByRole("button", { name: "Core" }).click();
     await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("4/4");
     await expect(muscleGrid.getByRole("button", { name: "Core" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("Template Days Per Week keeps all options in one row", async ({ page }) => {
+    await openTemplateFocus(page);
+    await selectFocusAndOpenDays(page);
+
+    await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
+    await expectTemplateDaysPerWeekOptionsInSingleRow(page);
+
+    await page.locator("[data-agent-id='template-days-per-week-6']").click();
+    await expect(page.locator("[data-agent-id='template-days-per-week-6']")).toHaveAttribute("aria-checked", "true");
+    await expectTemplateDaysPerWeekOptionsInSingleRow(page);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }) => {
