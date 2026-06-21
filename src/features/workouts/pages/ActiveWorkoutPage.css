@@ -444,10 +444,11 @@
   background: var(--color-surface);
 }
 
-.button--soft-disabled[aria-disabled="true"] {
-  border-color: var(--color-border);
+.button.button--soft-disabled[aria-disabled="true"] {
+  background: var(--color-disabled-surface);
+  border-color: var(--color-border-soft);
   color: var(--color-disabled-text);
-  opacity: 0.64;
+  opacity: 1;
 }
 
 .feedback-modal-overlay {
