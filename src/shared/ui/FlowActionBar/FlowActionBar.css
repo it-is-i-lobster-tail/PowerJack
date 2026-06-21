@@ -1,0 +1,30 @@
+.flow-action-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.flow-action-bar__button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+}
+
+.flow-action-bar__button > span:not(.button__icon) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 440px) {
+  .flow-action-bar {
+    gap: var(--space-4);
+  }
+
+  .flow-action-bar__button {
+    padding-inline: var(--space-5);
+  }
+}

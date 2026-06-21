@@ -6,6 +6,7 @@ import { useServices } from "../../../app/useServices";
 import type { TemplateSummary } from "../../../domain/templates/Template";
 import { Button } from "../../../shared/ui/Button";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../../templates/state/templateDraftStore";
 import { useStartProgramStore } from "../state/startProgramStore";
 import "./SelectTemplatePage.css";
@@ -260,29 +261,25 @@ export function SelectTemplatePage() {
           </Button>
         </div>
 
-        <div className="flow-actions">
-          <Button
-            data-agent-id="select-template-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          leftAction={{
+            agentId: "select-template-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="select-template-next"
-            disabled={!selectedTemplateId}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "select-template-next",
+            disabled: !selectedTemplateId,
+            label: "Next",
+            onClick: () => {
               void navigate("/start/program-length");
-            }}
-            trailingIcon={<ArrowRight aria-hidden size={28} strokeWidth={2.4} />}
-            variant="outline"
-          >
-            Next
-          </Button>
-        </div>
+            },
+            trailingIcon: <ArrowRight aria-hidden size={28} strokeWidth={2.4} />,
+          }}
+        />
       </section>
       {blockedTemplateMessage ? (
         <ConfirmationModal
