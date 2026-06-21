@@ -4,8 +4,8 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { startProgramFromTemplate } from "../../../application/programs/startProgramFromTemplate";
 import { useServices } from "../../../app/useServices";
 import { validateProgramLengthWeeks } from "../../../domain/programs/rules/validateProgramLengthWeeks";
-import { Button } from "../../../shared/ui/Button";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useStartProgramStore } from "../state/startProgramStore";
 import "./SetupChoicePage.css";
 
@@ -95,29 +95,25 @@ export function ProgramLengthPage() {
           </p>
         ) : null}
 
-        <div className="setup-card__actions">
-          <Button
-            data-agent-id="program-length-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          leftAction={{
+            agentId: "program-length-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/start/select-template");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="program-length-next"
-            disabled={!canContinue || isStarting}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "program-length-next",
+            disabled: !canContinue || isStarting,
+            label: isStarting ? "Starting" : "Start",
+            onClick: () => {
               void handleStart();
-            }}
-            trailingIcon={<ArrowRight aria-hidden size={28} strokeWidth={2.4} />}
-            variant="outline"
-          >
-            {isStarting ? "Starting" : "Start"}
-          </Button>
-        </div>
+            },
+            trailingIcon: <ArrowRight aria-hidden size={28} strokeWidth={2.4} />,
+          }}
+        />
       </section>
       {showReplaceConfirmation ? (
         <ConfirmationModal

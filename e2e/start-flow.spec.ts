@@ -14,6 +14,33 @@ async function selectFocusAndOpenDays(page: import("@playwright/test").Page) {
   await page.locator("[data-agent-id='template-muscle-focus-next']").click();
 }
 
+async function expectActionsOnSingleRow(
+  page: import("@playwright/test").Page,
+  leftAgentId: string,
+  rightAgentId: string,
+) {
+  const leftAction = page.locator(`[data-agent-id='${leftAgentId}']`);
+  const rightAction = page.locator(`[data-agent-id='${rightAgentId}']`);
+
+  await expect(leftAction).toBeVisible();
+  await expect(rightAction).toBeVisible();
+
+  const [leftBox, rightBox] = await Promise.all([leftAction.boundingBox(), rightAction.boundingBox()]);
+
+  expect(leftBox, `${leftAgentId} should have a layout box`).not.toBeNull();
+  expect(rightBox, `${rightAgentId} should have a layout box`).not.toBeNull();
+
+  if (!leftBox || !rightBox) {
+    return;
+  }
+
+  const leftCenterY = leftBox.y + leftBox.height / 2;
+  const rightCenterY = rightBox.y + rightBox.height / 2;
+
+  expect(Math.abs(leftCenterY - rightCenterY)).toBeLessThanOrEqual(2);
+  expect(leftBox.x + leftBox.width).toBeLessThanOrEqual(rightBox.x);
+}
+
 async function createTwoDayTemplate(page: import("@playwright/test").Page, name = "Back In Action") {
   await openTemplateFocus(page, name);
   await selectFocusAndOpenDays(page);
@@ -259,6 +286,24 @@ test.describe("start program flow", () => {
       "My New Template",
     );
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
+  });
+
+  test("setup navigation actions stay on one row at narrow mobile width", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.goto("/start/select-template");
+
+    await expectActionsOnSingleRow(page, "select-template-back", "select-template-next");
+
+    await page.locator("[data-agent-id='add-template']").click();
+    await expectActionsOnSingleRow(page, "template-name-back", "template-name-next");
+
+    await page.locator("[data-agent-id='template-name-input']").fill("Mobile Buttons");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await expectActionsOnSingleRow(page, "template-muscle-focus-back", "template-muscle-focus-next");
+
+    await page.locator(".muscle-focus-grid").getByRole("button", { name: "Back" }).click();
+    await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+    await expectActionsOnSingleRow(page, "template-days-per-week-back", "template-days-per-week-next");
   });
 
   test("Name Template enforces the 64 character limit", async ({ page }) => {

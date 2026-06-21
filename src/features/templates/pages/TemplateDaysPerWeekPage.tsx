@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Button } from "../../../shared/ui/Button";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "../../start-program/pages/SetupChoicePage.css";
 
@@ -42,29 +42,25 @@ export function TemplateDaysPerWeekPage() {
           ))}
         </div>
 
-        <div className="setup-card__actions">
-          <Button
-            data-agent-id="template-days-per-week-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          leftAction={{
+            agentId: "template-days-per-week-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/templates/new/muscle-focus");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="template-days-per-week-next"
-            disabled={!workoutsPerWeek}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "template-days-per-week-next",
+            disabled: !workoutsPerWeek,
+            label: "Next",
+            onClick: () => {
               void navigate("/templates/new/builder");
-            }}
-            trailingIcon={<ArrowRight aria-hidden size={28} strokeWidth={2.4} />}
-            variant="outline"
-          >
-            Next
-          </Button>
-        </div>
+            },
+            trailingIcon: <ArrowRight aria-hidden size={28} strokeWidth={2.4} />,
+          }}
+        />
       </section>
     </main>
   );
