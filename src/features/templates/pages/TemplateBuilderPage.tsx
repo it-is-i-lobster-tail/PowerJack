@@ -23,6 +23,7 @@ import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
 import { validateTemplateDraft } from "../../../domain/templates/rules/validateTemplateDraft";
 import { Button } from "../../../shared/ui/Button";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useStartProgramStore } from "../../start-program/state/startProgramStore";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "./TemplateBuilderPage.css";
@@ -399,29 +400,26 @@ export function TemplateBuilderPage() {
           </p>
         ) : null}
 
-        <div className="flow-actions template-builder-actions">
-          <Button
-            data-agent-id="template-builder-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          className="template-builder-actions"
+          leftAction={{
+            agentId: "template-builder-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/templates/new/days-per-week");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="save-template"
-            disabled={!canSave}
-            leadingIcon={<Save aria-hidden size={24} strokeWidth={2.4} />}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "save-template",
+            disabled: !canSave,
+            label: "Save",
+            leadingIcon: <Save aria-hidden size={24} strokeWidth={2.4} />,
+            onClick: () => {
               void handleSave();
-            }}
-            variant="outline"
-          >
-            Save
-          </Button>
-        </div>
+            },
+          }}
+        />
       </section>
     </main>
   );

@@ -58,13 +58,6 @@
   color: #07110b;
 }
 
-.setup-card__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
 .setup-card__error {
   margin: calc(var(--space-4) * -1) 0 0;
   color: var(--color-error);
@@ -91,19 +84,11 @@
     min-height: 64px;
     font-size: 28px;
   }
-
-  .setup-card__actions {
-    align-items: stretch;
-  }
 }
 
 @media (max-width: 440px) {
   .setup-card {
     padding: var(--space-5);
-  }
-
-  .setup-card__actions {
-    flex-direction: column-reverse;
   }
 }
 

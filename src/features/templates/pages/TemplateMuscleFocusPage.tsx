@@ -4,7 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { listMuscles } from "../../../application/exercises/listMuscles";
 import { useServices } from "../../../app/useServices";
 import type { Muscle } from "../../../domain/exercises/Exercise";
-import { Button } from "../../../shared/ui/Button";
+import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "../../start-program/pages/SetupChoicePage.css";
 import "./TemplateMuscleFocusPage.css";
@@ -82,29 +82,25 @@ export function TemplateMuscleFocusPage() {
           )}
         </div>
 
-        <div className="setup-card__actions">
-          <Button
-            data-agent-id="template-muscle-focus-back"
-            leadingIcon={<ArrowLeft aria-hidden size={28} strokeWidth={2.4} />}
-            onClick={() => {
+        <FlowActionBar
+          leftAction={{
+            agentId: "template-muscle-focus-back",
+            label: "Back",
+            leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
+            onClick: () => {
               void navigate("/templates/new/name");
-            }}
-            variant="secondary"
-          >
-            Back
-          </Button>
-          <Button
-            data-agent-id="template-muscle-focus-next"
-            disabled={!canContinue}
-            onClick={() => {
+            },
+          }}
+          rightAction={{
+            agentId: "template-muscle-focus-next",
+            disabled: !canContinue,
+            label: "Next",
+            onClick: () => {
               void navigate("/templates/new/days-per-week");
-            }}
-            trailingIcon={<ArrowRight aria-hidden size={28} strokeWidth={2.4} />}
-            variant="outline"
-          >
-            Next
-          </Button>
-        </div>
+            },
+            trailingIcon: <ArrowRight aria-hidden size={28} strokeWidth={2.4} />,
+          }}
+        />
       </section>
     </main>
   );
