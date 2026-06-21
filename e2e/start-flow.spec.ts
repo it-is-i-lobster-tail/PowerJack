@@ -582,7 +582,10 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
@@ -752,6 +755,61 @@ test.describe("start program flow", () => {
     }
   });
 
+  test("Programs list pins active programs and filters history", async ({ page }, testInfo) => {
+    await createTwoDayTemplate(page, "List Check");
+    await startSelectedProgram(page, 4);
+    await completeVisibleWorkout(page);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("List Check x1");
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Current program");
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Active");
+
+    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+
+    await page.locator("[data-agent-id='program-filter-all']").click();
+    await page.locator("[data-agent-id='program-list-new-program']").click();
+    await page.locator("[data-agent-id='template-row-1'] .template-row__select").click();
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await page.locator("[data-agent-id='program-length-4']").click();
+    await page.locator("[data-agent-id='program-length-next']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+
+    const cards = page.locator("[data-agent-id='program-card-list'] > [data-agent-id^='program-card-']");
+    await expect(cards.nth(0)).toContainText("List Check x2");
+    await expect(cards.nth(0)).toContainText("Current program");
+    await expect(cards.nth(1)).toContainText("List Check x1");
+    await expect(cards.nth(1)).toContainText("Halted");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+    if (testInfo.project.name === "mobile-chrome") {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(page).toHaveScreenshot("program-list-mobile.png", {
+        animations: "disabled",
+        fullPage: true,
+      });
+    }
+
+    await page.locator("[data-agent-id='program-filter-halted']").click();
+    await expect(page.locator("[data-agent-id='program-card-1']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='program-card-list']")).not.toContainText("List Check x2");
+
+    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+
+    await page.locator("[data-agent-id='program-filter-halted']").click();
+    await page.locator("[data-agent-id='program-card-details-1']").click();
+    await expect(page).toHaveURL(/\/programs\/1$/);
+    await expect(page.locator("[data-agent-id='current-program-page']")).toBeVisible();
+  });
+
   test("template edit pre-populates the flow and delete soft-removes unused templates", async ({ page }) => {
     await createTwoDayTemplate(page, "Manage Me");
 
@@ -844,7 +902,10 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Replace Me x1");
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expectResumeCenteredBeforeIcons(page);
 
@@ -899,7 +960,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
