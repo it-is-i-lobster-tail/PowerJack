@@ -250,7 +250,7 @@ describe("Program and Workout repository contracts", () => {
 
   it("changes a lift exercise, resets the lift, clears feedback, and updates future weeks", async () => {
     const services = createInMemoryAppServices();
-    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const pullUpId = await findExerciseId(services, "Pull Up");
     const template = await createTemplate(services, [[1]]);
     await startTemplateProgram(services, template.id);
     let view = await loadRequiredActiveWorkout(services);
@@ -271,7 +271,7 @@ describe("Program and Workout repository contracts", () => {
 
     expect(view).toMatchObject({ completedSets: 0, totalSets: 2, canFinish: false });
     expect(view.lifts[0]).toMatchObject({
-      exerciseName: "Pull-Up",
+      exerciseName: "Pull Up",
       repsOnly: true,
       status: "active",
       feedbackSubmitted: false,
@@ -290,7 +290,7 @@ describe("Program and Workout repository contracts", () => {
     }
 
     expect(weekTwo.lifts[0]).toMatchObject({
-      exerciseName: "Pull-Up",
+      exerciseName: "Pull Up",
       repsOnly: true,
     });
   });
@@ -464,13 +464,13 @@ describe("Program and Workout repository contracts", () => {
 
   it("logs reps-only exercises without weight and progresses reps without planned weight", async () => {
     const services = createInMemoryAppServices();
-    const pullUpId = await findExerciseId(services, "Pull-Up");
+    const pullUpId = await findExerciseId(services, "Pull Up");
     const template = await createTemplate(services, [[pullUpId]]);
     await startTemplateProgram(services, template.id);
     let view = await loadRequiredActiveWorkout(services);
 
     expect(view.lifts[0]).toMatchObject({
-      exerciseName: "Pull-Up",
+      exerciseName: "Pull Up",
       repsOnly: true,
     });
 
@@ -525,7 +525,7 @@ describe("Program and Workout repository contracts", () => {
     }
 
     expect(weekTwoDayOne.lifts[0]).toMatchObject({
-      exerciseName: "Pull-Up",
+      exerciseName: "Pull Up",
       repsOnly: true,
     });
     expect(weekTwoDayOne.lifts[0]?.sets).toEqual([
@@ -537,8 +537,8 @@ describe("Program and Workout repository contracts", () => {
   it("averages weighted primary and secondary volume through the current program day", async () => {
     const services = createInMemoryAppServices();
     const deadliftId = await findExerciseId(services, "Barbell Conventional Deadlift");
-    const pullUpId = await findExerciseId(services, "Pull-Up");
-    const pulldownId = await findExerciseId(services, "Cable One-Arm Pulldown");
+    const pullUpId = await findExerciseId(services, "Pull Up");
+    const pulldownId = await findExerciseId(services, "Cable Lat Pulldown");
     const rearDeltFlyId = await findExerciseId(services, "Cable Rear Delt Fly");
     const squatId = await findExerciseId(services, "Barbell Back Squat");
     const template = await createTemplate(services, [
@@ -564,7 +564,8 @@ describe("Program and Workout repository contracts", () => {
 
     expect(overview?.volumeRows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ muscleName: "Back", completedSets: 7, averageSetsPerWeek: 7 }),
+        expect.objectContaining({ muscleName: "Back", completedSets: 6, averageSetsPerWeek: 6 }),
+        expect.objectContaining({ muscleName: "Glutes", completedSets: 2, averageSetsPerWeek: 2 }),
         expect.objectContaining({ muscleName: "Shoulders", completedSets: 2, averageSetsPerWeek: 2 }),
         expect.objectContaining({ muscleName: "Biceps", completedSets: 2, averageSetsPerWeek: 2 }),
         expect.objectContaining({ muscleName: "Forearms", completedSets: 3, averageSetsPerWeek: 3 }),

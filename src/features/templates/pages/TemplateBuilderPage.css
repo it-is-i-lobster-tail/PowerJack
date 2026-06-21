@@ -32,16 +32,16 @@
 }
 
 .day-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--template-day-count), minmax(0, 1fr));
   gap: var(--space-3);
-  overflow-x: auto;
   padding-bottom: var(--space-1);
 }
 
 .day-tab {
-  min-width: 116px;
   min-height: 64px;
-  padding: 0 var(--space-4);
+  min-width: 0;
+  padding: 0 var(--space-2);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-button);
   background: transparent;
@@ -308,6 +308,16 @@
 }
 
 @media (max-width: 620px) {
+  .day-tabs {
+    gap: var(--space-2);
+  }
+
+  .day-tab {
+    min-height: 56px;
+    padding: 0 var(--space-1);
+    font-size: 15px;
+  }
+
   .builder-panel {
     min-height: 360px;
     padding: var(--space-4);
@@ -355,5 +365,16 @@
 
   .builder-panel__add {
     align-self: stretch;
+  }
+}
+
+@media (max-width: 360px) {
+  .day-tabs {
+    gap: var(--space-1);
+  }
+
+  .day-tab {
+    min-height: 52px;
+    font-size: 13px;
   }
 }
