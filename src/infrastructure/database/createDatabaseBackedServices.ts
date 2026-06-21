@@ -34,6 +34,9 @@ export async function createDatabaseBackedServices(): Promise<AppServices> {
       await appState.resetForAgent();
       await programs.resetForAgent();
       await templates.resetForAgent();
+      await suspendPersistence(db, async () => {
+        await seedReferenceData(db);
+      });
       await flushPendingWrites(db);
     },
   };

@@ -1,5 +1,6 @@
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
+import { normalizeExerciseSearchText } from "../../../domain/exercises/searchNormalization";
 import type { DatabaseClient } from "../DatabaseClient";
 import {
   mapExerciseSummaryRow,
@@ -17,7 +18,7 @@ export class SqliteExerciseCatalogRepository implements ExerciseCatalogRepositor
   }
 
   async searchExercises(query: string): Promise<ExerciseSummary[]> {
-    const normalizedQuery = `%${query.toLowerCase()}%`;
+    const normalizedQuery = `%${normalizeExerciseSearchText(query)}%`;
     const rows = await this.db.query<ExerciseSummaryRow>(
       `
         SELECT
@@ -36,9 +37,9 @@ export class SqliteExerciseCatalogRepository implements ExerciseCatalogRepositor
           ON exercise_secondary_muscles.exercise_id = exercises.id
         LEFT JOIN muscles AS secondary_muscles
           ON secondary_muscles.id = exercise_secondary_muscles.muscle_id
-        WHERE lower(exercises.name) LIKE ?
-           OR lower(primary_muscles.name) LIKE ?
-           OR lower(equipment.name) LIKE ?
+        WHERE lower(replace(exercises.name, '-', ' ')) LIKE ?
+           OR lower(replace(primary_muscles.name, '-', ' ')) LIKE ?
+           OR lower(replace(equipment.name, '-', ' ')) LIKE ?
         GROUP BY exercises.id
         ORDER BY exercises.name ASC
         LIMIT 40
