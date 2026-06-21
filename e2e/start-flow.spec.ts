@@ -61,6 +61,28 @@ async function createTwoDayTemplate(page: import("@playwright/test").Page, name 
   await expect(page).toHaveURL(/\/start\/select-template$/);
 }
 
+async function createTwoDayTemplateFromTemplatesPage(
+  page: import("@playwright/test").Page,
+  name = "List Template",
+) {
+  await page.goto("/templates");
+  await page.locator("[data-agent-id='templates-add-template']").click();
+  await page.locator("[data-agent-id='template-name-input']").fill(name);
+  await page.locator("[data-agent-id='template-name-next']").click();
+  await selectFocusAndOpenDays(page);
+  await page.locator("[data-agent-id='template-days-per-week-2']").click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await page.locator("[data-agent-id='add-exercise']").click();
+  await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+  await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+  await page.locator("[data-agent-id='template-day-2']").click();
+  await page.locator("[data-agent-id='add-exercise']").click();
+  await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+  await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+  await page.locator("[data-agent-id='save-template']").click();
+  await expect(page).toHaveURL(/\/templates$/);
+}
+
 async function addExerciseToCurrentTemplateDay(
   page: import("@playwright/test").Page,
   searchTerm: string,
@@ -577,8 +599,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='data-visualization-page']")).not.toContainText(/No change vs/i);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-template']").click();
-    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await page.locator("[data-agent-id='menu-templates']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
@@ -592,6 +615,53 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("[data-agent-id='app-menu']")).toHaveCount(0);
+  });
+
+  test("Templates page lists and manages templates outside new-program selection", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/templates");
+
+    await expect(page.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-add-template']")).toBeVisible();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-templates-empty-mobile.png");
+
+    await createTwoDayTemplateFromTemplatesPage(page, "List Managed");
+
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText("List Managed");
+    await page.locator("[data-agent-id='templates-template-row-1'] .template-row__select--static").click();
+    await expect(page).toHaveURL(/\/templates$/);
+
+    await page.goto("/start/select-template");
+    await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("List Managed");
+    await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
+
+    await page.goto("/templates");
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveValue("List Managed");
+    await page.locator("[data-agent-id='template-name-input']").fill("List Updated");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("2/4");
+    await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+    await expect(page.locator("[data-agent-id='template-days-per-week-2']")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expect(page.locator("[data-agent-id='save-template']")).toBeEnabled();
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText("List Updated");
+
+    await page.locator("[data-agent-id='templates-delete-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-delete-confirmation']")).toContainText(
+      "Confirm deleting template List Updated",
+    );
+    await page.locator("[data-agent-id='modal-delete']").click();
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toHaveCount(0);
   });
 
   test("Data Visualization shows completed set volume and switches chart types", async ({ page }) => {
@@ -900,6 +970,36 @@ test.describe("start program flow", () => {
 
     const firstProgramUrl = page.url();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-templates']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText(
+      "Active program template",
+    );
+    await expect(page.locator("[data-agent-id='templates-delete-template-1']")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await page.locator("[data-agent-id='templates-delete-template-1']").click({ force: true });
+    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
+      "Cannot delete templates in use by active program",
+    );
+    await page.locator("[data-agent-id='modal-back']").click();
+
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Editing an active template will adjust progression of all remaining weeks of program.",
+    );
+    await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await page.locator("[data-agent-id='template-name-back']").click();
+    await expect(page).toHaveURL(/\/templates$/);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-programs']").click();
