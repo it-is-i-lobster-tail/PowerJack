@@ -1,11 +1,20 @@
 import type { EntityId } from "../ids";
 
 export type SetVisualizationRange = "week" | "month" | "quarter" | "year";
-export type SetVisualizationView = "bars" | "heatmap" | "sparklines" | "compare";
+export type SetVisualizationView = "bars" | "heatmap";
 export type SetVolumeBand = "not-ideal" | "maintaining" | "growth" | "max-growth" | "overtraining";
 
 export const setVisualizationRanges: SetVisualizationRange[] = ["week", "month", "quarter", "year"];
-export const setVisualizationViews: SetVisualizationView[] = ["bars", "heatmap", "sparklines", "compare"];
+export const setVisualizationViews: SetVisualizationView[] = ["bars", "heatmap"];
+export const setVisualizationMinimumYear = 2026;
+export const setVolumeBandOrder: SetVolumeBand[] = ["not-ideal", "maintaining", "growth", "max-growth", "overtraining"];
+export const setVolumeBandLabels: Record<SetVolumeBand, string> = {
+  "not-ideal": "Not Ideal",
+  maintaining: "Maintenance",
+  growth: "Growth",
+  "max-growth": "Max Growth",
+  overtraining: "Overtraining",
+};
 
 export interface CompletedSetEvent {
   setId: EntityId;
@@ -164,8 +173,8 @@ export function buildSetVolumeReport(input: {
     periodEnd: bounds.currentEnd.toISOString(),
     previousPeriodStart: bounds.previousStart.toISOString(),
     previousPeriodEnd: bounds.previousEnd.toISOString(),
-    periodLabel: formatPeriodLabel(input.range, bounds.currentStart),
-    previousPeriodLabel: formatPeriodLabel(input.range, bounds.previousStart),
+    periodLabel: formatPeriodLabel(input.range, bounds.currentStart, bounds.currentEnd),
+    previousPeriodLabel: formatPeriodLabel(input.range, bounds.previousStart, bounds.previousEnd),
     buckets,
     totalCompletedSets,
     previousTotalCompletedSets,
@@ -223,15 +232,15 @@ export function buildProgramSetVolumeReport(input: {
 }
 
 export function classifyWeeklySetVolume(value: number): SetVolumeBand {
-  if (value >= 25) {
+  if (value > 25) {
     return "overtraining";
   }
 
-  if (value >= 15) {
+  if (value >= 12) {
     return "max-growth";
   }
 
-  if (value >= 7) {
+  if (value >= 6) {
     return "growth";
   }
 
@@ -269,11 +278,11 @@ export function buildCompletedSetEventsForMuscles(input: {
 }
 
 export function getDefaultPeriodStart(range: SetVisualizationRange, now = new Date()): Date {
-  return startOfRange(range, now);
+  return clampPeriodStart(range, now, now);
 }
 
 export function getPeriodBounds(range: SetVisualizationRange, periodStart: Date): PeriodBounds {
-  const currentStart = startOfRange(range, periodStart);
+  const currentStart = normalizePeriodStart(range, periodStart);
   const currentEnd = addRange(currentStart, range, 1);
   const previousStart = addRange(currentStart, range, -1);
 
@@ -288,13 +297,13 @@ export function getPeriodBounds(range: SetVisualizationRange, periodStart: Date)
 export function addRange(date: Date, range: SetVisualizationRange, amount: number): Date {
   switch (range) {
     case "week":
-      return addDays(date, amount * 7);
+      return normalizePeriodStart(range, addDays(date, amount * 7));
     case "month":
-      return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+      return normalizePeriodStart(range, new Date(date.getFullYear(), date.getMonth() + amount, 1));
     case "quarter":
-      return new Date(date.getFullYear(), date.getMonth() + amount * 3, 1);
+      return normalizePeriodStart(range, new Date(date.getFullYear(), date.getMonth() + amount * 3, 1));
     case "year":
-      return new Date(date.getFullYear() + amount, 0, 1);
+      return normalizePeriodStart(range, new Date(date.getFullYear() + amount, 0, 1));
   }
 }
 
@@ -330,7 +339,7 @@ export function parsePeriodStart(value: string | null, range: SetVisualizationRa
     return getDefaultPeriodStart(range, now);
   }
 
-  return startOfRange(range, parsed);
+  return clampPeriodStart(range, parsed, now);
 }
 
 export function isSetVisualizationRange(value: string | null): value is SetVisualizationRange {
@@ -338,7 +347,35 @@ export function isSetVisualizationRange(value: string | null): value is SetVisua
 }
 
 export function isSetVisualizationView(value: string | null): value is SetVisualizationView {
-  return value === "bars" || value === "heatmap" || value === "sparklines" || value === "compare";
+  return value === "bars" || value === "heatmap";
+}
+
+export function getPeriodNavigationBounds(range: SetVisualizationRange, now = new Date()): {
+  minStart: Date;
+  maxStart: Date;
+} {
+  const minStart = getSetVisualizationMinimumStart();
+  const maxStart = normalizePeriodStart(range, now);
+
+  return {
+    minStart,
+    maxStart: maxStart < minStart ? minStart : maxStart,
+  };
+}
+
+export function clampPeriodStart(range: SetVisualizationRange, date: Date, now = new Date()): Date {
+  const periodStart = normalizePeriodStart(range, date);
+  const { minStart, maxStart } = getPeriodNavigationBounds(range, now);
+
+  if (periodStart < minStart) {
+    return minStart;
+  }
+
+  if (periodStart > maxStart) {
+    return maxStart;
+  }
+
+  return periodStart;
 }
 
 function ensureRow(
@@ -375,7 +412,7 @@ function buildBuckets(
 ): SetVolumeBucket[] {
   switch (range) {
     case "week":
-      return Array.from({ length: 7 }, (_, index) => {
+      return Array.from({ length: Math.ceil((periodEnd.getTime() - periodStart.getTime()) / dayMs) }, (_, index) => {
         const start = addDays(periodStart, index);
         const end = addDays(start, 1);
         const label = dayNames.format(start);
@@ -436,6 +473,17 @@ function startOfRange(range: SetVisualizationRange, date: Date): Date {
   }
 }
 
+function normalizePeriodStart(range: SetVisualizationRange, date: Date): Date {
+  const periodStart = startOfRange(range, date);
+  const minStart = getSetVisualizationMinimumStart();
+
+  return periodStart < minStart ? minStart : periodStart;
+}
+
+function getSetVisualizationMinimumStart(): Date {
+  return new Date(setVisualizationMinimumYear, 0, 1);
+}
+
 function startOfWeek(date: Date): Date {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const mondayOffset = (start.getDay() + 6) % 7;
@@ -458,10 +506,10 @@ function normalizeCompletedSets(count: number, range: SetVisualizationRange, dur
   return count / durationWeeks;
 }
 
-function formatPeriodLabel(range: SetVisualizationRange, start: Date): string {
+function formatPeriodLabel(range: SetVisualizationRange, start: Date, endExclusive: Date): string {
   switch (range) {
     case "week": {
-      const end = addDays(start, 6);
+      const end = endExclusive > start ? addDays(endExclusive, -1) : start;
       const startMonth = shortMonthNames.format(start);
       const endMonth = shortMonthNames.format(end);
       const startDay = start.getDate();
