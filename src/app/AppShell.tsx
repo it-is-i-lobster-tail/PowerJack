@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { AppState } from "../domain/app-state/AppState";
 import { Button } from "../shared/ui/Button";
-import { useStartProgramStore } from "../features/start-program/state/startProgramStore";
 import { useTemplateDraftStore } from "../features/templates/state/templateDraftStore";
 import { useServices } from "./useServices";
 import "./AppShell.css";
@@ -13,7 +12,6 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const resetProgramDraft = useStartProgramStore((state) => state.reset);
   const resetTemplateDraft = useTemplateDraftStore((state) => state.reset);
   const [appState, setAppState] = useState<AppState | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -115,14 +113,11 @@ export function AppShell() {
                 Current program
               </button>
               <button
-                data-agent-id="menu-new-program"
-                onClick={() => {
-                  resetProgramDraft();
-                  closeMenuAndNavigate("/start/select-template");
-                }}
+                data-agent-id="menu-programs"
+                onClick={() => closeMenuAndNavigate("/programs")}
                 type="button"
               >
-                New program
+                Programs
               </button>
               <button
                 data-agent-id="menu-data-visualization"
