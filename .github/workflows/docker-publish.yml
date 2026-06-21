@@ -96,9 +96,12 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           pull: true
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          sbom: true
-          provenance: mode=max
+
+          # Publish Docker media types so Unraid Docker Manager can compare digests.
+          outputs: type=registry,oci-mediatypes=false
+
+          # OCI attestation manifests can make Unraid report the image as "not available".
+          sbom: false
+          provenance: false
