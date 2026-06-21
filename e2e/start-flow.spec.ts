@@ -265,6 +265,47 @@ async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwr
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").Page, dayCount: number): Promise<void> {
+  const tabs = page.locator("[data-agent-id^='template-day-']");
+
+  await expect(tabs).toHaveCount(dayCount);
+
+  const viewport = page.viewportSize();
+  const boxes = await tabs.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+
+      return {
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      };
+    }),
+  );
+  const firstTop = boxes[0]?.top ?? 0;
+
+  expect(viewport).not.toBeNull();
+
+  for (const box of boxes) {
+    expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+
+    if (viewport) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(viewport.width);
+    }
+  }
+
+  for (let index = 1; index < boxes.length; index += 1) {
+    expect(boxes[index].left).toBeGreaterThan(boxes[index - 1].left);
+  }
+
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function expectFeedbackOptionsOnSingleRow(
   page: import("@playwright/test").Page,
   dataAgentPrefix: string,
@@ -422,6 +463,20 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-days-per-week-6']").click();
     await expect(page.locator("[data-agent-id='template-days-per-week-6']")).toHaveAttribute("aria-checked", "true");
     await expectTemplateDaysPerWeekOptionsInSingleRow(page);
+  });
+
+  test("Template builder keeps every day visible without horizontal scrolling", async ({ page }) => {
+    await openTemplateFocus(page);
+    await selectFocusAndOpenDays(page);
+
+    await page.locator("[data-agent-id='template-days-per-week-6']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+    await expectTemplateBuilderDayTabsFit(page, 6);
+    await page.locator("[data-agent-id='template-day-6']").click();
+    await expect(page.locator("[data-agent-id='template-day-6']")).toHaveAttribute("aria-selected", "true");
+    await expectTemplateBuilderDayTabsFit(page, 6);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }) => {
