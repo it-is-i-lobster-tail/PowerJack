@@ -26,7 +26,12 @@ export function TemplateDaysPerWeekPage() {
       <section className="setup-card app-flow" aria-labelledby="template-days-per-week-title">
         <h1 id="template-days-per-week-title">Days Per Week</h1>
 
-        <div className="choice-grid" role="radiogroup" aria-label="Template training days per week">
+        <div
+          className="choice-grid choice-grid--days-per-week"
+          data-agent-id="template-days-per-week-options"
+          role="radiogroup"
+          aria-label="Template training days per week"
+        >
           {daysPerWeekOptions.map((days) => (
             <button
               aria-checked={workoutsPerWeek === days}
