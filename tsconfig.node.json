@@ -4,8 +4,11 @@
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true
+    "strict": true,
+    "types": ["node"]
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "capacitor.config.ts", "e2e/**/*.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "capacitor.config.ts", "e2e/**/*.ts", "scripts/**/*.mjs"]
 }
