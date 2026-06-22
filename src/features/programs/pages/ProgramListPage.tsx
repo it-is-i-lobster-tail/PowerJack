@@ -79,7 +79,7 @@ export function ProgramListPage() {
   }
 
   return (
-    <main className="app-screen program-list-screen" data-agent-id="program-list-page">
+    <main className="app-screen app-screen--scrollable program-list-screen" data-agent-id="program-list-page">
       <section className="app-flow program-list-flow" aria-labelledby="program-list-title">
         <header className="program-list-header">
           <div>

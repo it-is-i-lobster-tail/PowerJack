@@ -26,7 +26,7 @@ export function SelectTemplatePage() {
   });
 
   return (
-    <main className="app-screen select-template-screen" data-agent-id="select-template-page">
+    <main className="app-screen app-screen--scrollable select-template-screen" data-agent-id="select-template-page">
       <section className="app-flow select-template-flow" aria-labelledby="select-template-title">
         <div className="flow-header">
           <p>New program</p>
