@@ -742,6 +742,56 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-row-1']")).toHaveAttribute("aria-selected", "true");
   });
 
+  test("template builder copies one day to another without changing the active day", async ({
+    page,
+  }, testInfo) => {
+    await openTemplateFocus(page, "Copy Builder");
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-4']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await expect(page.locator("[data-agent-id='template-day-copy']")).toHaveCount(0);
+    await addExerciseToCurrentTemplateDay(page, "leg press", /^Leg Press Quads - Leg Press$/);
+    await addExerciseToCurrentTemplateDay(page, "leg extension", /^Machine Leg Extension Quads - Machine$/);
+    await expect(page.locator("[data-agent-id='template-day-copy']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='template-day-copy']")).toContainText("Copy exercises");
+
+    await page.locator("[data-agent-id='template-day-copy']").click();
+    await expect(page.locator("[data-agent-id='copy-day-modal']")).toContainText("Copy exercises to what day?");
+    await expect(page.locator("[data-agent-id='copy-day-modal']")).toContainText(
+      "Replaces all exercise for selected day.",
+    );
+    await expect(page.locator("[data-agent-id='copy-day-target-1']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='copy-day-target-2']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='copy-day-target-3']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='copy-day-target-4']")).toBeVisible();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-copy-day-modal-mobile.png");
+
+    await page.locator("[data-agent-id='copy-day-cancel']").click();
+    await expect(page.locator("[data-agent-id='copy-day-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-day-1']")).toHaveAttribute("aria-selected", "true");
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press/);
+    await page.locator("[data-agent-id='template-day-3']").click();
+    await addExerciseToCurrentTemplateDay(page, "squat", /^Barbell Back Squat/);
+    await page.locator("[data-agent-id='template-day-4']").click();
+    await addExerciseToCurrentTemplateDay(page, "row", /^Barbell Bent Over Row/);
+
+    await page.locator("[data-agent-id='template-day-1']").click();
+    await page.locator("[data-agent-id='template-day-copy']").click();
+    await page.locator("[data-agent-id='copy-day-target-3']").click();
+    await expect(page.locator("[data-agent-id='copy-day-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-day-1']")).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("[data-agent-id='save-template']")).toBeEnabled();
+
+    await page.locator("[data-agent-id='template-day-3']").click();
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Leg Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Machine Leg Extension");
+    await expect(page.locator("[data-agent-id='template-exercise-3']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-builder-page']")).not.toContainText("Barbell Back Squat");
+  });
+
   test("top chrome menu opens and navigates to new flows", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.locator("[data-agent-id='app-menu-toggle']").click();

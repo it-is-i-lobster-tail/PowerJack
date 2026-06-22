@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy as CopyIcon, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { listExerciseSummariesByIds } from "../../../application/exercises/listExerciseSummariesByIds";
@@ -61,6 +61,7 @@ export function TemplateBuilderPage() {
   const exerciseRowIdsByDay = useTemplateDraftStore((state) => state.exerciseRowIdsByDay);
   const setActiveDay = useTemplateDraftStore((state) => state.setActiveDay);
   const addExerciseToDay = useTemplateDraftStore((state) => state.addExerciseToDay);
+  const copyExercisesToDay = useTemplateDraftStore((state) => state.copyExercisesToDay);
   const reorderExerciseInDay = useTemplateDraftStore((state) => state.reorderExerciseInDay);
   const replaceExerciseInDay = useTemplateDraftStore((state) => state.replaceExerciseInDay);
   const removeExerciseFromDay = useTemplateDraftStore((state) => state.removeExerciseFromDay);
@@ -73,6 +74,7 @@ export function TemplateBuilderPage() {
   const [editSearchResults, setEditSearchResults] = useState<ExerciseSummary[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [copySourceDay, setCopySourceDay] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const sensors = useSensors(
@@ -321,12 +323,14 @@ export function TemplateBuilderPage() {
   function handleOpenAddSearch(): void {
     setEditingIndex(null);
     clearEditQuery();
+    setCopySourceDay(null);
     setIsSearchOpen(true);
   }
 
   function handleOpenEdit(index: number): void {
     setIsSearchOpen(false);
     clearAddQuery();
+    setCopySourceDay(null);
     setEditingIndex(index);
     clearEditQuery();
   }
@@ -336,7 +340,29 @@ export function TemplateBuilderPage() {
     clearEditQuery();
     setIsSearchOpen(false);
     clearAddQuery();
+    setCopySourceDay(null);
     setActiveDay(day);
+  }
+
+  function handleOpenCopyDay(): void {
+    if (currentExerciseIds.length === 0) {
+      return;
+    }
+
+    setEditingIndex(null);
+    clearEditQuery();
+    setIsSearchOpen(false);
+    clearAddQuery();
+    setCopySourceDay(activeDay);
+  }
+
+  function handleCopyDay(targetDay: number): void {
+    if (copySourceDay === null) {
+      return;
+    }
+
+    copyExercisesToDay(copySourceDay, targetDay);
+    setCopySourceDay(null);
   }
 
   function handleAddQueryChange(value: string): void {
@@ -397,9 +423,23 @@ export function TemplateBuilderPage() {
         <section className="builder-panel" aria-labelledby="active-day-title">
           <div className="builder-panel__header">
             <h2 id="active-day-title">Day {activeDay}</h2>
-            <span>
-              {currentExerciseIds.length} {currentExerciseIds.length === 1 ? "exercise" : "exercises"}
-            </span>
+            <div className="builder-panel__header-actions">
+              {currentExerciseIds.length > 0 ? (
+                <button
+                  aria-label={`Copy Day ${activeDay} exercises`}
+                  className="builder-panel__copy"
+                  data-agent-id="template-day-copy"
+                  onClick={handleOpenCopyDay}
+                  type="button"
+                >
+                  <CopyIcon aria-hidden size={20} strokeWidth={2.2} />
+                  <span>Copy exercises</span>
+                </button>
+              ) : null}
+              <span>
+                {currentExerciseIds.length} {currentExerciseIds.length === 1 ? "exercise" : "exercises"}
+              </span>
+            </div>
           </div>
 
           {currentExerciseIds.length === 0 ? (
@@ -506,6 +546,15 @@ export function TemplateBuilderPage() {
           )}
         </section>
 
+        {copySourceDay !== null ? (
+          <CopyDayModal
+            dayCount={workoutsPerWeek}
+            onCancel={() => setCopySourceDay(null)}
+            onCopy={handleCopyDay}
+            sourceDay={copySourceDay}
+          />
+        ) : null}
+
         <p className="template-builder-hint">{validation.ok ? "Ready to save." : validation.message}</p>
         {saveError ? (
           <p className="template-builder-error" data-agent-id="template-save-error" role="alert">
@@ -535,6 +584,60 @@ export function TemplateBuilderPage() {
         />
       </section>
     </main>
+  );
+}
+
+function CopyDayModal({
+  dayCount,
+  onCancel,
+  onCopy,
+  sourceDay,
+}: {
+  dayCount: number;
+  onCancel: () => void;
+  onCopy: (targetDay: number) => void;
+  sourceDay: number;
+}) {
+  const targetDays = Array.from({ length: dayCount }, (_, index) => index + 1).filter((day) => day !== sourceDay);
+
+  return (
+    <div className="copy-day-modal-overlay" role="presentation">
+      <section
+        aria-describedby="copy-day-modal-description"
+        aria-labelledby="copy-day-modal-title"
+        aria-modal="true"
+        className="copy-day-modal"
+        data-agent-id="copy-day-modal"
+        role="dialog"
+      >
+        <button
+          aria-label="Cancel copy"
+          className="copy-day-modal__close"
+          data-agent-id="copy-day-cancel"
+          onClick={onCancel}
+          type="button"
+        >
+          <X aria-hidden size={20} strokeWidth={2.4} />
+        </button>
+        <div className="copy-day-modal__header">
+          <h2 id="copy-day-modal-title">Copy exercises to what day?</h2>
+          <p id="copy-day-modal-description">Replaces all exercise for selected day.</p>
+        </div>
+        <div className="copy-day-modal__targets" aria-label="Copy target days">
+          {targetDays.map((day) => (
+            <button
+              className="copy-day-modal__target"
+              data-agent-id={`copy-day-target-${day}`}
+              key={day}
+              onClick={() => onCopy(day)}
+              type="button"
+            >
+              Day {day}
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
