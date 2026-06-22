@@ -101,7 +101,7 @@ async function createWeightedVolumeTemplate(page: import("@playwright/test").Pag
   await page.locator("[data-agent-id='template-muscle-focus-next']").click();
   await page.locator("[data-agent-id='template-days-per-week-2']").click();
   await page.locator("[data-agent-id='template-days-per-week-next']").click();
-  await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Conventional Deadlift/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Deadlift/);
   await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull Up/);
   await addExerciseToCurrentTemplateDay(page, "lat pulldown", /^Cable Lat Pulldown/);
   await addExerciseToCurrentTemplateDay(page, "rear delt fly", /^Cable Rear Delt Fly/);
@@ -117,7 +117,7 @@ async function createTwoLiftFirstDayTemplate(page: import("@playwright/test").Pa
   await page.locator("[data-agent-id='template-days-per-week-2']").click();
   await page.locator("[data-agent-id='template-days-per-week-next']").click();
   await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
-  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Conventional Deadlift/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Deadlift/);
   await page.locator("[data-agent-id='template-day-2']").click();
   await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
   await page.locator("[data-agent-id='save-template']").click();
@@ -735,7 +735,7 @@ test.describe("start program flow", () => {
   test("completed secondary muscles count as half sets in volume views", async ({ page }) => {
     await createWeightedVolumeTemplate(page);
     await startSelectedProgram(page, 4);
-    await completeLiftWithFeedback(page, "Barbell Conventional Deadlift");
+    await completeLiftWithFeedback(page, "Barbell Deadlift");
     await completeLiftWithFeedback(page, "Pull Up");
     await completeLiftWithFeedback(page, "Cable Lat Pulldown");
     await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
@@ -826,6 +826,7 @@ test.describe("start program flow", () => {
   });
 
   test("Programs list pins active programs and filters history", async ({ page }, testInfo) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
     await createTwoDayTemplate(page, "List Check");
     await startSelectedProgram(page, 4);
     await completeVisibleWorkout(page);
@@ -1334,7 +1335,7 @@ test.describe("start program flow", () => {
     const deadliftSetTwo = weights.nth(3);
 
     await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Barbell Conventional Deadlift" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Barbell Deadlift" })).toBeVisible();
     await expect(weights).toHaveCount(4);
 
     await benchSetOne.click();
@@ -1509,7 +1510,7 @@ test.describe("start program flow", () => {
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("deadlift");
-    await page.getByRole("button", { name: /Barbell Conventional Deadlift/ }).click();
+    await page.getByRole("button", { name: /Barbell Deadlift/ }).click();
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
@@ -1526,7 +1527,7 @@ test.describe("start program flow", () => {
     const secondLiftCard = liftCards.nth(1);
 
     await expect(firstLiftCard).toContainText("Barbell Bench Press");
-    await expect(secondLiftCard).toContainText("Barbell Conventional Deadlift");
+    await expect(secondLiftCard).toContainText("Barbell Deadlift");
 
     await reps.nth(0).fill("10");
     await weights.nth(0).fill("100");
@@ -1572,7 +1573,7 @@ test.describe("start program flow", () => {
 
     await secondFeedbackNeeded.click();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(
-      "Barbell Conventional Deadlift",
+      "Barbell Deadlift",
     );
     await page.locator("[data-agent-id='feedback-pain-option-1']").click();
     await page.locator("[data-agent-id='feedback-effort-option-3']").click();
