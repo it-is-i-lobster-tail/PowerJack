@@ -11,7 +11,7 @@ export function TemplatesListPage() {
   const templateList = useTemplateListManagement({ returnPath: "/templates" });
 
   return (
-    <main className="app-screen templates-screen" data-agent-id="templates-page">
+    <main className="app-screen app-screen--scrollable templates-screen" data-agent-id="templates-page">
       <section className="templates-flow app-flow" aria-labelledby="templates-title">
         <div className="templates-header">
           <h1 id="templates-title">Templates</h1>

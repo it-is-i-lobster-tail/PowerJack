@@ -3,7 +3,7 @@ import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from "@cap
 import { defineCustomElements } from "jeep-sqlite/loader";
 import type { DatabaseClient } from "./DatabaseClient";
 
-class CapacitorDatabaseClient implements DatabaseClient {
+export class CapacitorDatabaseClient implements DatabaseClient {
   private hasPendingWebStoreSave = false;
   private webPersistenceSuspendDepth = 0;
   private webTransactionDepth = 0;
@@ -54,14 +54,19 @@ class CapacitorDatabaseClient implements DatabaseClient {
       }
     }
 
-    await this.execute("BEGIN TRANSACTION");
+    await this.db.beginTransaction();
 
     try {
       const result = await operation(this);
-      await this.execute("COMMIT");
+      await this.db.commitTransaction();
       return result;
     } catch (error) {
-      await this.execute("ROLLBACK");
+      try {
+        await this.db.rollbackTransaction();
+      } catch (rollbackError) {
+        console.error("Failed to rollback SQLite transaction", rollbackError);
+      }
+
       throw error;
     }
   }
@@ -127,6 +132,8 @@ export async function openPowerJackDatabase(): Promise<DatabaseClient> {
     : await sqlite.createConnection(databaseName, false, "no-encryption", 1, false);
 
   await db.open();
+  await db.execute("PRAGMA foreign_keys = ON");
+
   return new CapacitorDatabaseClient(db, sqlite, databaseName, usesWebStore);
 }
 

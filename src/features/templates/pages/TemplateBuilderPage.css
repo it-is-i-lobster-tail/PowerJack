@@ -8,6 +8,11 @@
   gap: var(--space-6);
 }
 
+.template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
+  height: 100%;
+  min-height: 0;
+}
+
 .template-builder-header p {
   margin: 0 0 var(--space-2);
   color: var(--color-accent);
@@ -66,6 +71,11 @@
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-structure);
   background: var(--color-surface);
+}
+
+.template-builder-screen:not(.app-screen--scrollable) .builder-panel {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .builder-panel__header {
@@ -222,6 +232,24 @@
 }
 
 @media (max-width: 620px) {
+  .template-builder-screen:not(.app-screen--scrollable) {
+    padding-top: var(--space-3);
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
+    gap: var(--space-3);
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header p,
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header span {
+    font-size: 14px;
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header h1 {
+    font-size: 26px;
+  }
+
   .day-tabs {
     gap: var(--space-2);
   }
@@ -235,6 +263,21 @@
   .builder-panel {
     min-height: 360px;
     padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .builder-panel {
+    min-height: 0;
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .builder-panel__header h2 {
+    font-size: 24px;
+  }
+
+  .template-builder-screen:not(.app-screen--scrollable) .builder-panel__header span,
+  .template-builder-screen:not(.app-screen--scrollable) .builder-panel__empty,
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-hint {
+    font-size: 14px;
   }
 
   .builder-exercise-row {
@@ -277,6 +320,10 @@
 }
 
 @media (max-width: 360px) {
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
+    gap: var(--space-2);
+  }
+
   .day-tabs {
     gap: var(--space-1);
   }
