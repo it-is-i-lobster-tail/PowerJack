@@ -43,6 +43,32 @@ describe("templateDraftStore", () => {
     expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([30, 20]);
   });
 
+  it("keeps stable row ids with exercises through reorder replace and remove", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(1);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(1, 20);
+    store.addExerciseToDay(1, 10);
+
+    const [firstRowId, secondRowId, thirdRowId] = useTemplateDraftStore.getState().exerciseRowIdsByDay[1] ?? [];
+
+    useTemplateDraftStore.getState().reorderExerciseInDay(1, 2, 0);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 10, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, firstRowId, secondRowId]);
+
+    useTemplateDraftStore.getState().replaceExerciseInDay(1, 1, 99);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 99, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, firstRowId, secondRowId]);
+
+    useTemplateDraftStore.getState().removeExerciseFromDay(1, 1);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, secondRowId]);
+  });
+
   it("loads an existing template aggregate for editing", () => {
     useTemplateDraftStore.getState().loadFromAggregate({
       id: 42,
