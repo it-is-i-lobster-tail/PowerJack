@@ -130,6 +130,13 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
     return Promise.resolve(this.catalog.muscles);
   }
 
+  listExerciseSummariesByIds(ids: number[]): Promise<ExerciseSummary[]> {
+    const uniqueIds = [...new Set(ids)];
+    const exercisesById = new Map(this.catalog.exercises.map((exercise) => [exercise.id, exercise]));
+
+    return Promise.resolve(uniqueIds.flatMap((id) => exercisesById.get(id) ?? []));
+  }
+
   searchExercises(query: string): Promise<ExerciseSummary[]> {
     const normalizedQuery = normalizeExerciseSearchText(query);
 
