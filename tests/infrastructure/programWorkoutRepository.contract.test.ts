@@ -596,7 +596,7 @@ describe("Program and Workout repository contracts", () => {
 
   it("averages weighted primary and secondary volume through the current program day", async () => {
     const services = createInMemoryAppServices();
-    const deadliftId = await findExerciseId(services, "Barbell Conventional Deadlift");
+    const deadliftId = await findExerciseId(services, "Barbell Deadlift");
     const pullUpId = await findExerciseId(services, "Pull Up");
     const pulldownId = await findExerciseId(services, "Cable Lat Pulldown");
     const rearDeltFlyId = await findExerciseId(services, "Cable Rear Delt Fly");
