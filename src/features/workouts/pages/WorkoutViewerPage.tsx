@@ -33,6 +33,7 @@ import type { ManualCheckinDecision } from "../../../domain/workouts/WorkoutRepo
 import { maxWorkingSets } from "../../../domain/workouts/progression/generateNextLiftPrescription";
 import { Button } from "../../../shared/ui/Button";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
+import { ExerciseSearchOverlay } from "../../exercises/components/ExerciseSearchOverlay";
 import "./ActiveWorkoutPage.css";
 
 interface SetDraftValue {
@@ -769,6 +770,9 @@ export function WorkoutViewerPage() {
 
     if (hasLiftLoggedWork(exerciseChangeLift)) {
       setPendingExerciseChange({ lift: exerciseChangeLift, exercise });
+      setExerciseChangeLift(null);
+      setExerciseChangeQuery("");
+      setExerciseChangeResults([]);
       return;
     }
 
@@ -1003,10 +1007,12 @@ export function WorkoutViewerPage() {
       ) : null}
 
       {exerciseChangeLift ? (
-        <ExerciseChangeModal
+        <ExerciseSearchOverlay
+          closeAgentId="change-exercise-close"
+          closeLabel="Close exercise change"
+          disabled={isLiftMutationSaving}
           error={liftMutationError}
-          isSaving={isLiftMutationSaving}
-          lift={exerciseChangeLift}
+          inputAgentId="change-exercise-search-input"
           onClose={() => {
             setExerciseChangeLift(null);
             setExerciseChangeQuery("");
@@ -1024,7 +1030,10 @@ export function WorkoutViewerPage() {
           }}
           onSelectExercise={handleSelectReplacementExercise}
           query={exerciseChangeQuery}
+          resultAgentId={(exerciseId) => `change-exercise-result-${exerciseId}`}
           results={exerciseChangeResults}
+          subtitle={exerciseChangeLift.exerciseName}
+          title="Change exercise"
         />
       ) : null}
 
@@ -1387,91 +1396,6 @@ function FeedbackScale({
         ))}
       </div>
     </fieldset>
-  );
-}
-
-function ExerciseChangeModal({
-  error,
-  isSaving,
-  lift,
-  onClose,
-  onQueryChange,
-  onSelectExercise,
-  query,
-  results,
-}: {
-  error: string | null;
-  isSaving: boolean;
-  lift: ActiveWorkoutLiftView;
-  onClose: () => void;
-  onQueryChange: (value: string) => void;
-  onSelectExercise: (exercise: ExerciseSummary) => void;
-  query: string;
-  results: ExerciseSummary[];
-}) {
-  return (
-    <div className="feedback-modal-overlay">
-      <section
-        aria-labelledby="change-exercise-title"
-        aria-modal="true"
-        className="exercise-change-modal"
-        data-agent-id="change-exercise-modal"
-        role="dialog"
-      >
-        <div className="feedback-modal__header feedback-modal__header--with-close">
-          <div>
-            <p>Change exercise</p>
-            <h2 id="change-exercise-title">{lift.exerciseName}</h2>
-          </div>
-          <button
-            aria-label="Close exercise change"
-            className="feedback-modal__close"
-            data-agent-id="change-exercise-close"
-            disabled={isSaving}
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden size={20} strokeWidth={2.4} />
-          </button>
-        </div>
-
-        <label className="exercise-change-search">
-          <span>Exercise search</span>
-          <input
-            autoFocus
-            data-agent-id="change-exercise-search-input"
-            disabled={isSaving}
-            onChange={(event) => onQueryChange(event.currentTarget.value)}
-            placeholder="bench press"
-            value={query}
-          />
-        </label>
-
-        <div className="exercise-change-results">
-          {results.map((exercise) => (
-            <button
-              className="exercise-change-result"
-              data-agent-id={`change-exercise-result-${exercise.id}`}
-              disabled={isSaving}
-              key={exercise.id}
-              onClick={() => onSelectExercise(exercise)}
-              type="button"
-            >
-              <strong>{exercise.name}</strong>
-              <span>
-                {exercise.primaryMuscleName} - {exercise.equipmentName}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {error ? (
-          <p className="feedback-error" data-agent-id="change-exercise-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </section>
-    </div>
   );
 }
 
