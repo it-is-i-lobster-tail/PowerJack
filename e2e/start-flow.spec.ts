@@ -3,6 +3,14 @@ import { expect, test } from "@playwright/test";
 const setAutosaveBeforeDelayMs = 400;
 const setAutosaveStaleTimerProbeMs = 500;
 const setAutosaveSettleMs = 950;
+const interactionFeedbackAttribute = "data-interaction-feedback";
+const interactionFeedbackPeakDelayMs = 75;
+const interactionFeedbackSettleMs = 240;
+
+type InteractionFeedbackWindow = Window & {
+  __POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?: MutationObserver;
+  __POWERJACK_INTERACTION_FEEDBACK_SEEN__?: boolean;
+};
 
 async function openTemplateFocus(page: import("@playwright/test").Page, name = "Back In Action") {
   await page.goto("/start/select-template");
@@ -380,6 +388,115 @@ async function expectFeedbackOptionsOnSingleRow(
   }
 }
 
+async function watchInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+): Promise<void> {
+  await page.evaluate(
+    ({ attribute, targetSelector }) => {
+      const feedbackWindow = window as InteractionFeedbackWindow;
+      const target = document.querySelector(targetSelector);
+
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?.disconnect();
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_SEEN__ = false;
+
+      if (!target) {
+        throw new Error(`Missing interaction feedback target: ${targetSelector}`);
+      }
+
+      const observer = new MutationObserver(() => {
+        if (target.getAttribute(attribute) === "active") {
+          feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_SEEN__ = true;
+          observer.disconnect();
+        }
+      });
+
+      observer.observe(target, { attributeFilter: [attribute], attributes: true });
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_OBSERVER__ = observer;
+    },
+    { attribute: interactionFeedbackAttribute, targetSelector: selector },
+  );
+}
+
+async function expectObservedInteractionFeedback(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          Boolean((window as InteractionFeedbackWindow).__POWERJACK_INTERACTION_FEEDBACK_SEEN__),
+        ),
+      { timeout: 1_000 },
+    )
+    .toBe(true);
+}
+
+async function attachInteractionFeedbackScreenshot(
+  page: import("@playwright/test").Page,
+  testInfo: import("@playwright/test").TestInfo,
+  name: string,
+  selector: string,
+): Promise<void> {
+  if (testInfo.project.name !== "mobile-chrome") {
+    return;
+  }
+
+  await page.locator(selector).first().evaluate((element, attribute) => {
+    element.setAttribute(attribute, "active");
+    window.setTimeout(() => element.removeAttribute(attribute), 210);
+  }, interactionFeedbackAttribute);
+  await page.waitForTimeout(interactionFeedbackPeakDelayMs);
+  await testInfo.attach(name, {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  });
+}
+
+async function expectClickInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+  options: { expectClear?: boolean; screenshotName?: string; testInfo?: import("@playwright/test").TestInfo } = {},
+): Promise<void> {
+  const target = page.locator(selector).first();
+
+  await expect(target).toBeVisible();
+  await expect(target).toBeEnabled();
+  await watchInteractionFeedback(page, selector);
+  await target.click();
+  await expectObservedInteractionFeedback(page);
+
+  if (options.screenshotName && options.testInfo) {
+    await attachInteractionFeedbackScreenshot(page, options.testInfo, options.screenshotName, selector);
+  }
+
+  if (options.expectClear !== false) {
+    await expect(target).not.toHaveAttribute(interactionFeedbackAttribute, "active", {
+      timeout: interactionFeedbackSettleMs,
+    });
+  }
+}
+
+async function expectFocusInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+  options: { screenshotName?: string; testInfo?: import("@playwright/test").TestInfo } = {},
+): Promise<void> {
+  const target = page.locator(selector).first();
+
+  await expect(target).toBeVisible();
+  await expect(target).toBeEditable();
+  await watchInteractionFeedback(page, selector);
+  await target.click();
+  await expectObservedInteractionFeedback(page);
+
+  if (options.screenshotName && options.testInfo) {
+    await attachInteractionFeedbackScreenshot(page, options.testInfo, options.screenshotName, selector);
+  }
+
+  await expect(target).not.toHaveAttribute(interactionFeedbackAttribute, "active", {
+    timeout: interactionFeedbackSettleMs,
+  });
+}
+
 async function expectMobileScreenshot(
   page: import("@playwright/test").Page,
   testInfo: import("@playwright/test").TestInfo,
@@ -450,6 +567,44 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-select-template-empty-mobile.png");
+  });
+
+  test("interaction feedback flashes for buttons, selections, and text inputs", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/");
+    await expectClickInteractionFeedback(page, "[data-agent-id='app-menu-toggle']");
+    await page.keyboard.press("Escape");
+    await page.locator("[data-agent-id='start-new-program']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+
+    await page.locator("[data-agent-id='add-template']").click();
+    await page.locator("[data-agent-id='template-name-back']").focus();
+    await expectFocusInteractionFeedback(page, "[data-agent-id='template-name-input']");
+    await page.locator("[data-agent-id='template-name-input']").fill("Feedback Flash");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await expect(page).toHaveURL(/\/start\/program-length$/);
+
+    await expectClickInteractionFeedback(page, "[data-agent-id='program-length-4']", {
+      screenshotName: "interaction-feedback-program-length-mobile.png",
+      testInfo,
+    });
+    await page.locator("[data-agent-id='program-length-next']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+
+    await expectFocusInteractionFeedback(page, "[data-agent-id^='set-reps-']", {
+      screenshotName: "interaction-feedback-set-input-mobile.png",
+      testInfo,
+    });
   });
 
   test("Add template opens the template naming flow", async ({ page }) => {
@@ -826,6 +981,8 @@ test.describe("start program flow", () => {
   });
 
   test("Programs list pins active programs and filters history", async ({ page }, testInfo) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
+
     await createTwoDayTemplate(page, "List Check");
     await startSelectedProgram(page, 4);
     await completeVisibleWorkout(page);
