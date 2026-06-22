@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { TemplateAggregate, TemplateDraft } from "../../../domain/templates/Template";
 
+export interface WorkoutsPerWeekChangePlan {
+  daysToRemove: number[];
+  requiresConfirmation: boolean;
+  workoutsPerWeek: number;
+}
+
 export const DEFAULT_TEMPLATE_FLOW_RETURN_PATH = "/start/select-template";
 export type TemplateFlowReturnPath = typeof DEFAULT_TEMPLATE_FLOW_RETURN_PATH | "/templates";
 
@@ -16,6 +22,7 @@ interface TemplateDraftState {
   nextExerciseRowId: number;
   setName: (value: string) => void;
   toggleFocusMuscle: (id: number) => void;
+  previewWorkoutsPerWeekChange: (value: number) => WorkoutsPerWeekChangePlan;
   setWorkoutsPerWeek: (value: number) => void;
   setActiveDay: (day: number) => void;
   addExerciseToDay: (day: number, exerciseId: number) => void;
@@ -77,6 +84,101 @@ function buildExerciseRowIdsByDay(
   return { exerciseRowIdsByDay, nextExerciseRowId };
 }
 
+function getExistingDayOrders(workoutsPerWeek: number | null): number[] {
+  if (!workoutsPerWeek) {
+    return [];
+  }
+
+  return Array.from({ length: workoutsPerWeek }, (_, index) => index + 1);
+}
+
+function planWorkoutsPerWeekChange(
+  workoutsPerWeek: number | null,
+  exerciseIdsByDay: Record<number, number[]>,
+  nextWorkoutsPerWeek: number,
+): WorkoutsPerWeekChangePlan {
+  if (!workoutsPerWeek || nextWorkoutsPerWeek >= workoutsPerWeek) {
+    return {
+      daysToRemove: [],
+      requiresConfirmation: false,
+      workoutsPerWeek: nextWorkoutsPerWeek,
+    };
+  }
+
+  const removeCount = workoutsPerWeek - nextWorkoutsPerWeek;
+  const existingDayOrders = getExistingDayOrders(workoutsPerWeek);
+  const emptyDays = existingDayOrders
+    .filter((day) => (exerciseIdsByDay[day] ?? []).length === 0)
+    .sort((left, right) => right - left);
+  const filledDays = existingDayOrders
+    .filter((day) => (exerciseIdsByDay[day] ?? []).length > 0)
+    .sort((left, right) => right - left);
+  const emptyDaysToRemove = emptyDays.slice(0, removeCount);
+  const filledDaysToRemove = filledDays.slice(0, Math.max(0, removeCount - emptyDaysToRemove.length));
+  const daysToRemove = [...emptyDaysToRemove, ...filledDaysToRemove].sort((left, right) => left - right);
+
+  return {
+    daysToRemove,
+    requiresConfirmation: filledDaysToRemove.length > 0,
+    workoutsPerWeek: nextWorkoutsPerWeek,
+  };
+}
+
+function buildExerciseRowsByDayAfterChange({
+  currentWorkoutsPerWeek,
+  exerciseIdsByDay,
+  exerciseRowIdsByDay,
+  nextExerciseRowId,
+  plan,
+}: {
+  currentWorkoutsPerWeek: number | null;
+  exerciseIdsByDay: Record<number, number[]>;
+  exerciseRowIdsByDay: Record<number, string[]>;
+  nextExerciseRowId: number;
+  plan: WorkoutsPerWeekChangePlan;
+}): {
+  exerciseIdsByDay: Record<number, number[]>;
+  exerciseRowIdsByDay: Record<number, string[]>;
+  nextExerciseRowId: number;
+} {
+  let nextRowId = nextExerciseRowId;
+  const nextExerciseIdsByDay: Record<number, number[]> = {};
+  const nextExerciseRowIdsByDay: Record<number, string[]> = {};
+
+  function copyDay(originalDay: number, nextDay: number): void {
+    const exerciseIds = exerciseIdsByDay[originalDay] ?? [];
+    const result = ensureExerciseRowIds(exerciseIds, exerciseRowIdsByDay[originalDay], nextRowId);
+    nextExerciseIdsByDay[nextDay] = exerciseIds;
+    nextExerciseRowIdsByDay[nextDay] = result.rowIds;
+    nextRowId = result.nextExerciseRowId;
+  }
+
+  if (!currentWorkoutsPerWeek || plan.workoutsPerWeek >= currentWorkoutsPerWeek) {
+    for (let day = 1; day <= plan.workoutsPerWeek; day += 1) {
+      copyDay(day, day);
+    }
+
+    return {
+      exerciseIdsByDay: nextExerciseIdsByDay,
+      exerciseRowIdsByDay: nextExerciseRowIdsByDay,
+      nextExerciseRowId: nextRowId,
+    };
+  }
+
+  const removedDays = new Set(plan.daysToRemove);
+  const retainedDays = getExistingDayOrders(currentWorkoutsPerWeek).filter((day) => !removedDays.has(day));
+
+  retainedDays.slice(0, plan.workoutsPerWeek).forEach((originalDay, index) => {
+    copyDay(originalDay, index + 1);
+  });
+
+  return {
+    exerciseIdsByDay: nextExerciseIdsByDay,
+    exerciseRowIdsByDay: nextExerciseRowIdsByDay,
+    nextExerciseRowId: nextRowId,
+  };
+}
+
 export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
   editingTemplateId: null,
   returnPath: DEFAULT_TEMPLATE_FLOW_RETURN_PATH,
@@ -100,26 +202,27 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
 
       return { focusMuscleIds: [...state.focusMuscleIds, id] };
     }),
+  previewWorkoutsPerWeekChange: (workoutsPerWeek) => {
+    const state = get();
+    return planWorkoutsPerWeekChange(state.workoutsPerWeek, state.exerciseIdsByDay, workoutsPerWeek);
+  },
   setWorkoutsPerWeek: (workoutsPerWeek) =>
     set((state) => {
-      const nextExerciseIdsByDay: Record<number, number[]> = {};
-      const nextExerciseRowIdsByDay: Record<number, string[]> = {};
-      let nextExerciseRowId = state.nextExerciseRowId;
-
-      for (let day = 1; day <= workoutsPerWeek; day += 1) {
-        const exerciseIds = state.exerciseIdsByDay[day] ?? [];
-        const result = ensureExerciseRowIds(exerciseIds, state.exerciseRowIdsByDay[day], nextExerciseRowId);
-        nextExerciseIdsByDay[day] = exerciseIds;
-        nextExerciseRowIdsByDay[day] = result.rowIds;
-        nextExerciseRowId = result.nextExerciseRowId;
-      }
+      const plan = planWorkoutsPerWeekChange(state.workoutsPerWeek, state.exerciseIdsByDay, workoutsPerWeek);
+      const nextRows = buildExerciseRowsByDayAfterChange({
+        currentWorkoutsPerWeek: state.workoutsPerWeek,
+        exerciseIdsByDay: state.exerciseIdsByDay,
+        exerciseRowIdsByDay: state.exerciseRowIdsByDay,
+        nextExerciseRowId: state.nextExerciseRowId,
+        plan,
+      });
 
       return {
         workoutsPerWeek,
         activeDay: Math.min(state.activeDay, workoutsPerWeek),
-        exerciseIdsByDay: nextExerciseIdsByDay,
-        exerciseRowIdsByDay: nextExerciseRowIdsByDay,
-        nextExerciseRowId,
+        exerciseIdsByDay: nextRows.exerciseIdsByDay,
+        exerciseRowIdsByDay: nextRows.exerciseRowIdsByDay,
+        nextExerciseRowId: nextRows.nextExerciseRowId,
       };
     }),
   setActiveDay: (activeDay) => set({ activeDay }),
