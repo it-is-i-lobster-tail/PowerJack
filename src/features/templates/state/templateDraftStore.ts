@@ -26,6 +26,7 @@ interface TemplateDraftState {
   setWorkoutsPerWeek: (value: number) => void;
   setActiveDay: (day: number) => void;
   addExerciseToDay: (day: number, exerciseId: number) => void;
+  copyExercisesToDay: (sourceDay: number, targetDay: number) => void;
   reorderExerciseInDay: (day: number, fromIndex: number, toIndex: number) => void;
   replaceExerciseInDay: (day: number, index: number, exerciseId: number) => void;
   removeExerciseFromDay: (day: number, index: number) => void;
@@ -240,6 +241,34 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
           [day]: [...(state.exerciseRowIdsByDay[day] ?? []), rowId],
         },
         nextExerciseRowId: state.nextExerciseRowId + 1,
+      };
+    }),
+  copyExercisesToDay: (sourceDay, targetDay) =>
+    set((state) => {
+      if (
+        !state.workoutsPerWeek ||
+        sourceDay === targetDay ||
+        sourceDay < 1 ||
+        targetDay < 1 ||
+        sourceDay > state.workoutsPerWeek ||
+        targetDay > state.workoutsPerWeek
+      ) {
+        return state;
+      }
+
+      const sourceExerciseIds = [...(state.exerciseIdsByDay[sourceDay] ?? [])];
+      const result = ensureExerciseRowIds(sourceExerciseIds, undefined, state.nextExerciseRowId);
+
+      return {
+        exerciseIdsByDay: {
+          ...state.exerciseIdsByDay,
+          [targetDay]: sourceExerciseIds,
+        },
+        exerciseRowIdsByDay: {
+          ...state.exerciseRowIdsByDay,
+          [targetDay]: result.rowIds,
+        },
+        nextExerciseRowId: result.nextExerciseRowId,
       };
     }),
   reorderExerciseInDay: (day, fromIndex, toIndex) =>
