@@ -25,17 +25,24 @@ export function ConfirmationModal({
   onCancel,
   onConfirm,
 }: ConfirmationModalProps) {
+  const bodyId = body ? `${agentId}-body` : undefined;
+
   return (
     <div className="modal-overlay" role="presentation">
       <section
+        aria-describedby={bodyId}
         aria-labelledby={`${agentId}-title`}
         aria-modal="true"
         className="confirmation-modal"
         data-agent-id={agentId}
-        role="dialog"
+        role="alertdialog"
       >
         <h2 id={`${agentId}-title`}>{title}</h2>
-        {body ? <p>{body}</p> : null}
+        {body ? (
+          <div className="confirmation-modal__body" id={bodyId}>
+            {body}
+          </div>
+        ) : null}
         <div className="confirmation-modal__actions">
           <Button data-agent-id="modal-back" onClick={onCancel} variant="secondary">
             {cancelLabel}

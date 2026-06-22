@@ -17,6 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ArrowLeft, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { listExerciseSummariesByIds } from "../../../application/exercises/listExerciseSummariesByIds";
 import { searchExercises } from "../../../application/exercises/searchExercises";
 import { saveTemplate, updateTemplate } from "../../../application/templates/saveTemplate";
 import { useServices } from "../../../app/useServices";
@@ -150,7 +151,36 @@ export function TemplateBuilderPage() {
     () => new Map(allExercises.map((exercise) => [exercise.id, exercise])),
     [allExercises],
   );
-  const currentExerciseIds = exerciseIdsByDay[activeDay] ?? [];
+  const currentExerciseIds = useMemo(() => exerciseIdsByDay[activeDay] ?? [], [activeDay, exerciseIdsByDay]);
+  const missingCurrentExerciseIds = useMemo(
+    () => currentExerciseIds.filter((exerciseId) => !exercisesById.has(exerciseId)),
+    [currentExerciseIds, exercisesById],
+  );
+
+  useEffect(() => {
+    const uniqueMissingExerciseIds = [...new Set(missingCurrentExerciseIds)];
+
+    if (uniqueMissingExerciseIds.length === 0) {
+      return;
+    }
+
+    let isMounted = true;
+
+    void listExerciseSummariesByIds(uniqueMissingExerciseIds, services.exercises)
+      .then((items) => {
+        if (isMounted && items.length > 0) {
+          setAllExercises((currentExercises) => mergeExercises(currentExercises, items));
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load selected exercises", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [missingCurrentExerciseIds, services.exercises]);
+
   const currentExerciseItems = currentExerciseIds.flatMap<BuilderExerciseItem>((exerciseId, index) => {
     const exercise = exercisesById.get(exerciseId);
 
@@ -167,6 +197,8 @@ export function TemplateBuilderPage() {
     ];
   });
   const sortableIds = currentExerciseItems.map((item) => item.sortableId);
+  const isHydratingCurrentExercises =
+    currentExerciseIds.length > 0 && currentExerciseItems.length < currentExerciseIds.length;
   const validation = validateTemplateDraft(toDraft());
   const canSave = validation.ok && !isSaving;
 
@@ -301,12 +333,16 @@ export function TemplateBuilderPage() {
           <div className="builder-panel__header">
             <h2 id="active-day-title">Day {activeDay}</h2>
             <span>
-              {currentExerciseItems.length} {currentExerciseItems.length === 1 ? "exercise" : "exercises"}
+              {currentExerciseIds.length} {currentExerciseIds.length === 1 ? "exercise" : "exercises"}
             </span>
           </div>
 
-          {currentExerciseItems.length === 0 ? (
+          {currentExerciseIds.length === 0 ? (
             <p className="builder-panel__empty">No exercises yet.</p>
+          ) : isHydratingCurrentExercises ? (
+            <p className="builder-panel__empty" data-agent-id="template-exercises-loading">
+              Loading exercises...
+            </p>
           ) : (
             <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd} sensors={sensors}>
               <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
@@ -343,7 +379,7 @@ export function TemplateBuilderPage() {
             </DndContext>
           )}
 
-          {isSearchOpen ? (
+          {isHydratingCurrentExercises ? null : isSearchOpen ? (
             <div className="exercise-search" data-agent-id="exercise-search-panel">
               <div className="exercise-search__top">
                 <h3>Add Exercise</h3>

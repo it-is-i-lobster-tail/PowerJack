@@ -803,6 +803,61 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull-Up");
   });
 
+  test("template builder confirms filled day removal and keeps retained exercises visible", async ({ page }) => {
+    await openTemplateFocus(page, "Shrink Leg Day");
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-4']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await addExerciseToCurrentTemplateDay(page, "leg press", /^Leg Press Quads - Leg Press$/);
+    await addExerciseToCurrentTemplateDay(page, "leg extension", /^Machine Leg Extension Quads - Machine$/);
+    await addExerciseToCurrentTemplateDay(page, "seated leg curl", /^Machine Seated Leg Curl Hamstrings - Machine$/);
+    await addExerciseToCurrentTemplateDay(page, "lying leg curl", /^Machine Lying Leg Curl Hamstrings - Machine$/);
+    await expect(page.locator("[data-agent-id='template-exercise-4']")).toContainText("Machine Lying Leg Curl");
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press/);
+    await page.locator("[data-agent-id='template-day-3']").click();
+    await addExerciseToCurrentTemplateDay(page, "row", /^Barbell Bent-Over Row/);
+
+    await page.locator("[data-agent-id='template-builder-back']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expect(page.locator("[data-agent-id='template-days-reduction-confirmation']")).toContainText(
+      "The following Days will be removed: Day 3 and Day 4.",
+    );
+
+    await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page.locator("[data-agent-id='template-days-reduction-confirmation']")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
+
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+    await expect(page.locator("[data-agent-id='template-day-3']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='template-day-1']").click();
+    await expect(page.locator("[data-agent-id='template-exercises-loading']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Leg Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Machine Leg Extension");
+    await expect(page.locator("[data-agent-id='template-exercise-3']")).toContainText("Machine Seated Leg Curl");
+    await expect(page.locator("[data-agent-id='template-exercise-4']")).toContainText("Machine Lying Leg Curl");
+
+    await addExerciseToCurrentTemplateDay(page, "squat", /^Barbell Back Squat/);
+    await expect(page.locator("[data-agent-id='template-exercise-5']")).toContainText("Barbell Back Squat");
+
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+    await startSelectedProgram(page, 4);
+
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Leg Press");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Machine Leg Extension");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(2)).toContainText("Machine Seated Leg Curl");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(3)).toContainText("Machine Lying Leg Curl");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(4)).toContainText("Barbell Back Squat");
+  });
+
   test("active workout autosaves set values and advances after Finish Workout", async ({ page }) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);

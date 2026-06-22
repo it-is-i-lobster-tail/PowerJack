@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { TemplateAggregate, TemplateDraft } from "../../../domain/templates/Template";
 
+export interface WorkoutsPerWeekChangePlan {
+  daysToRemove: number[];
+  requiresConfirmation: boolean;
+  workoutsPerWeek: number;
+}
+
 interface TemplateDraftState {
   editingTemplateId: number | null;
   name: string;
@@ -10,6 +16,7 @@ interface TemplateDraftState {
   exerciseIdsByDay: Record<number, number[]>;
   setName: (value: string) => void;
   toggleFocusMuscle: (id: number) => void;
+  previewWorkoutsPerWeekChange: (value: number) => WorkoutsPerWeekChangePlan;
   setWorkoutsPerWeek: (value: number) => void;
   setActiveDay: (day: number) => void;
   addExerciseToDay: (day: number, exerciseId: number) => void;
@@ -35,6 +42,74 @@ function buildDays(workoutsPerWeek: number | null, exerciseIdsByDay: Record<numb
   });
 }
 
+function getExistingDayOrders(workoutsPerWeek: number | null): number[] {
+  if (!workoutsPerWeek) {
+    return [];
+  }
+
+  return Array.from({ length: workoutsPerWeek }, (_, index) => index + 1);
+}
+
+function planWorkoutsPerWeekChange(
+  workoutsPerWeek: number | null,
+  exerciseIdsByDay: Record<number, number[]>,
+  nextWorkoutsPerWeek: number,
+): WorkoutsPerWeekChangePlan {
+  if (!workoutsPerWeek || nextWorkoutsPerWeek >= workoutsPerWeek) {
+    return {
+      daysToRemove: [],
+      requiresConfirmation: false,
+      workoutsPerWeek: nextWorkoutsPerWeek,
+    };
+  }
+
+  const removeCount = workoutsPerWeek - nextWorkoutsPerWeek;
+  const existingDayOrders = getExistingDayOrders(workoutsPerWeek);
+  const emptyDays = existingDayOrders
+    .filter((day) => (exerciseIdsByDay[day] ?? []).length === 0)
+    .sort((left, right) => right - left);
+  const filledDays = existingDayOrders
+    .filter((day) => (exerciseIdsByDay[day] ?? []).length > 0)
+    .sort((left, right) => right - left);
+  const emptyDaysToRemove = emptyDays.slice(0, removeCount);
+  const filledDaysToRemove = filledDays.slice(0, Math.max(0, removeCount - emptyDaysToRemove.length));
+  const daysToRemove = [...emptyDaysToRemove, ...filledDaysToRemove].sort((left, right) => left - right);
+
+  return {
+    daysToRemove,
+    requiresConfirmation: filledDaysToRemove.length > 0,
+    workoutsPerWeek: nextWorkoutsPerWeek,
+  };
+}
+
+function buildExerciseIdsByDayAfterChange({
+  currentWorkoutsPerWeek,
+  exerciseIdsByDay,
+  plan,
+}: {
+  currentWorkoutsPerWeek: number | null;
+  exerciseIdsByDay: Record<number, number[]>;
+  plan: WorkoutsPerWeekChangePlan;
+}): Record<number, number[]> {
+  if (!currentWorkoutsPerWeek || plan.workoutsPerWeek >= currentWorkoutsPerWeek) {
+    const nextExerciseIdsByDay: Record<number, number[]> = {};
+
+    for (let day = 1; day <= plan.workoutsPerWeek; day += 1) {
+      nextExerciseIdsByDay[day] = exerciseIdsByDay[day] ?? [];
+    }
+
+    return nextExerciseIdsByDay;
+  }
+
+  const removedDays = new Set(plan.daysToRemove);
+  const retainedDays = getExistingDayOrders(currentWorkoutsPerWeek).filter((day) => !removedDays.has(day));
+
+  return retainedDays.slice(0, plan.workoutsPerWeek).reduce<Record<number, number[]>>((days, originalDay, index) => {
+    days[index + 1] = exerciseIdsByDay[originalDay] ?? [];
+    return days;
+  }, {});
+}
+
 export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
   editingTemplateId: null,
   name: "",
@@ -55,13 +130,18 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
 
       return { focusMuscleIds: [...state.focusMuscleIds, id] };
     }),
+  previewWorkoutsPerWeekChange: (workoutsPerWeek) => {
+    const state = get();
+    return planWorkoutsPerWeekChange(state.workoutsPerWeek, state.exerciseIdsByDay, workoutsPerWeek);
+  },
   setWorkoutsPerWeek: (workoutsPerWeek) =>
     set((state) => {
-      const nextExerciseIdsByDay: Record<number, number[]> = {};
-
-      for (let day = 1; day <= workoutsPerWeek; day += 1) {
-        nextExerciseIdsByDay[day] = state.exerciseIdsByDay[day] ?? [];
-      }
+      const plan = planWorkoutsPerWeekChange(state.workoutsPerWeek, state.exerciseIdsByDay, workoutsPerWeek);
+      const nextExerciseIdsByDay = buildExerciseIdsByDayAfterChange({
+        currentWorkoutsPerWeek: state.workoutsPerWeek,
+        exerciseIdsByDay: state.exerciseIdsByDay,
+        plan,
+      });
 
       return {
         workoutsPerWeek,
