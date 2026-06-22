@@ -179,7 +179,7 @@ export function DataVisualizationPage() {
   }, [hasCurrentData]);
 
   return (
-    <main className="app-screen visualization-screen" data-agent-id="data-visualization-page">
+    <main className="app-screen app-screen--scrollable visualization-screen" data-agent-id="data-visualization-page">
       <section className="app-flow visualization-flow" aria-labelledby="data-visualization-title">
         <div className="visualization-header">
           <div>
