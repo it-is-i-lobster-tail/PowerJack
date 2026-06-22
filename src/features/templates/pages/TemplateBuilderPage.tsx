@@ -23,6 +23,7 @@ import { saveTemplate, updateTemplate } from "../../../application/templates/sav
 import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
 import { validateTemplateDraft } from "../../../domain/templates/rules/validateTemplateDraft";
+import { ExerciseSearchOverlay } from "../../exercises/components/ExerciseSearchOverlay";
 import { Button } from "../../../shared/ui/Button";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useStartProgramStore } from "../../start-program/state/startProgramStore";
@@ -41,12 +42,6 @@ type DndAnnouncementEvent = {
   active: { id: DndIdentifier };
   over?: { id: DndIdentifier } | null;
 };
-
-interface ExerciseSearchResultsProps {
-  exercises: ExerciseSummary[];
-  resultAgentId: (exerciseId: number) => string;
-  onSelect: (exerciseId: number) => void;
-}
 
 export function TemplateBuilderPage() {
   const navigate = useNavigate();
@@ -391,8 +386,13 @@ export function TemplateBuilderPage() {
     setEditSearchResults([]);
   }
 
+  const isBuilderScrollable = isSearchOpen || currentExerciseIds.length > 0;
+  const builderScreenClassName = isBuilderScrollable
+    ? "app-screen app-screen--scrollable template-builder-screen"
+    : "app-screen template-builder-screen";
+
   return (
-    <main className="app-screen template-builder-screen" data-agent-id="template-builder-page">
+    <main className={builderScreenClassName} data-agent-id="template-builder-page">
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
           <p>{editingTemplateId ? "Edit template" : "New template"}</p>
@@ -465,26 +465,13 @@ export function TemplateBuilderPage() {
                 <div className="builder-exercise-list">
                   {currentExerciseItems.map(({ exercise, index, sortableId }) => (
                     <SortableExerciseRow
-                      editQuery={editQuery}
-                      editResults={editSearchResults}
                       exercise={exercise}
                       exerciseCount={currentExerciseItems.length}
                       index={index}
-                      isEditing={editingIndex === index}
                       key={sortableId}
-                      onCancelEdit={() => {
-                        setEditingIndex(null);
-                        clearEditQuery();
-                      }}
                       onEdit={() => handleOpenEdit(index)}
-                      onEditQueryChange={handleEditQueryChange}
                       onRemove={() => {
                         removeExerciseFromDay(activeDay, index);
-                        setEditingIndex(null);
-                        clearEditQuery();
-                      }}
-                      onReplace={(exerciseId) => {
-                        replaceExerciseInDay(activeDay, index, exerciseId);
                         setEditingIndex(null);
                         clearEditQuery();
                       }}
@@ -496,44 +483,7 @@ export function TemplateBuilderPage() {
             </DndContext>
           )}
 
-          {isHydratingCurrentExercises ? null : isSearchOpen ? (
-            <div className="exercise-search" data-agent-id="exercise-search-panel">
-              <div className="exercise-search__top">
-                <h3>Add exercise</h3>
-                <button
-                  aria-label="Close exercise search"
-                  className="builder-icon-button"
-                  data-agent-id="close-exercise-search"
-                  onClick={() => {
-                    setIsSearchOpen(false);
-                    clearAddQuery();
-                  }}
-                  type="button"
-                >
-                  <X aria-hidden size={24} strokeWidth={2.3} />
-                </button>
-              </div>
-              <label className="exercise-search__field">
-                <span>Exercise search</span>
-                <input
-                  autoFocus
-                  data-agent-id="exercise-search-input"
-                  onChange={(event) => handleAddQueryChange(event.target.value)}
-                  placeholder="bench press"
-                  value={query}
-                />
-              </label>
-              <ExerciseSearchResults
-                exercises={addSearchResults}
-                onSelect={(exerciseId) => {
-                  addExerciseToDay(activeDay, exerciseId);
-                  clearAddQuery();
-                  setIsSearchOpen(false);
-                }}
-                resultAgentId={(exerciseId) => `exercise-result-${exerciseId}`}
-              />
-            </div>
-          ) : (
+          {isHydratingCurrentExercises || isSearchOpen ? null : (
             <Button
               className="builder-panel__add"
               data-agent-id="add-exercise"
@@ -583,6 +533,50 @@ export function TemplateBuilderPage() {
           }}
         />
       </section>
+
+      {isSearchOpen ? (
+        <ExerciseSearchOverlay
+          closeAgentId="close-exercise-search"
+          closeLabel="Close exercise search"
+          inputAgentId="exercise-search-input"
+          onClose={() => {
+            setIsSearchOpen(false);
+            clearAddQuery();
+          }}
+          onQueryChange={handleAddQueryChange}
+          onSelectExercise={(exercise) => {
+            addExerciseToDay(activeDay, exercise.id);
+            clearAddQuery();
+            setIsSearchOpen(false);
+          }}
+          query={query}
+          resultAgentId={(exerciseId) => `exercise-result-${exerciseId}`}
+          results={addSearchResults}
+          title="Add exercise"
+        />
+      ) : null}
+
+      {editingIndex !== null ? (
+        <ExerciseSearchOverlay
+          closeAgentId={`close-edit-exercise-${editingIndex + 1}`}
+          closeLabel="Close exercise edit"
+          inputAgentId={`edit-exercise-search-input-${editingIndex + 1}`}
+          onClose={() => {
+            setEditingIndex(null);
+            clearEditQuery();
+          }}
+          onQueryChange={handleEditQueryChange}
+          onSelectExercise={(exercise) => {
+            replaceExerciseInDay(activeDay, editingIndex, exercise.id);
+            setEditingIndex(null);
+            clearEditQuery();
+          }}
+          query={editQuery}
+          resultAgentId={(exerciseId) => `replace-exercise-result-${exerciseId}`}
+          results={editSearchResults}
+          title="Edit exercise"
+        />
+      ) : null}
     </main>
   );
 }
@@ -642,30 +636,18 @@ function CopyDayModal({
 }
 
 function SortableExerciseRow({
-  editQuery,
-  editResults,
   exercise,
   exerciseCount,
   index,
-  isEditing,
-  onCancelEdit,
   onEdit,
-  onEditQueryChange,
   onRemove,
-  onReplace,
   sortableId,
 }: {
-  editQuery: string;
-  editResults: ExerciseSummary[];
   exercise: ExerciseSummary;
   exerciseCount: number;
   index: number;
-  isEditing: boolean;
-  onCancelEdit: () => void;
   onEdit: () => void;
-  onEditQueryChange: (value: string) => void;
   onRemove: () => void;
-  onReplace: (exerciseId: number) => void;
   sortableId: string;
 }) {
   const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } = useSortable({
@@ -735,62 +717,6 @@ function SortableExerciseRow({
         </span>
       </div>
 
-      {isEditing ? (
-        <div className="exercise-search exercise-search--inline" data-agent-id={`edit-exercise-panel-${index + 1}`}>
-          <div className="exercise-search__top">
-            <h3>Edit exercise</h3>
-            <button
-              aria-label="Close exercise edit"
-              className="builder-icon-button"
-              data-agent-id={`close-edit-exercise-${index + 1}`}
-              onClick={onCancelEdit}
-              type="button"
-            >
-              <X aria-hidden size={24} strokeWidth={2.3} />
-            </button>
-          </div>
-          <label className="exercise-search__field">
-            <span>Exercise search</span>
-            <input
-              autoFocus
-              data-agent-id={`edit-exercise-search-input-${index + 1}`}
-              onChange={(event) => onEditQueryChange(event.target.value)}
-              placeholder="bench press"
-              value={editQuery}
-            />
-          </label>
-          <ExerciseSearchResults
-            exercises={editResults}
-            onSelect={onReplace}
-            resultAgentId={(exerciseId) => `replace-exercise-result-${exerciseId}`}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ExerciseSearchResults({ exercises, onSelect, resultAgentId }: ExerciseSearchResultsProps) {
-  if (exercises.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="exercise-search__results">
-      {exercises.map((exercise) => (
-        <button
-          className="exercise-result"
-          data-agent-id={resultAgentId(exercise.id)}
-          key={exercise.id}
-          onClick={() => onSelect(exercise.id)}
-          type="button"
-        >
-          <strong>{exercise.name}</strong>
-          <span>
-            {exercise.primaryMuscleName} - {exercise.equipmentName}
-          </span>
-        </button>
-      ))}
     </div>
   );
 }

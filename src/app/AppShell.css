@@ -1,11 +1,12 @@
 .app-shell {
-  min-height: 100dvh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--color-bg);
+  overflow: hidden;
 }
 
 .app-top-bar {
-  position: sticky;
-  top: 0;
   z-index: 40;
   min-height: var(--app-top-bar-height);
   display: grid;
@@ -124,7 +125,8 @@
 }
 
 .app-shell__content {
-  min-height: calc(100dvh - var(--app-top-bar-height));
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 520px) {

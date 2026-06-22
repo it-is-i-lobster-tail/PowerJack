@@ -267,6 +267,88 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
   });
 }
 
+async function pageHasVerticalOverflow(page: import("@playwright/test").Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const documentElement = document.documentElement;
+    return (
+      documentElement.scrollHeight > documentElement.clientHeight + 2 ||
+      document.body.scrollHeight > document.body.clientHeight + 2
+    );
+  });
+}
+
+async function expectElementsWithinViewport(
+  page: import("@playwright/test").Page,
+  agentIds: string[],
+): Promise<void> {
+  const viewport = page.viewportSize();
+
+  expect(viewport).not.toBeNull();
+
+  if (!viewport) {
+    return;
+  }
+
+  for (const agentId of agentIds) {
+    const element = page.locator(`[data-agent-id='${agentId}']`);
+    const box = await element.boundingBox();
+
+    expect(box, `${agentId} should have a layout box`).not.toBeNull();
+
+    if (!box) {
+      continue;
+    }
+
+    expect(box.x, `${agentId} should not overflow left`).toBeGreaterThanOrEqual(0);
+    expect(box.y, `${agentId} should not overflow top`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${agentId} should not overflow right`).toBeLessThanOrEqual(viewport.width + 1);
+    expect(box.y + box.height, `${agentId} should not overflow bottom`).toBeLessThanOrEqual(viewport.height + 1);
+  }
+}
+
+async function expectStaticScreenFitsViewport(
+  page: import("@playwright/test").Page,
+  screenAgentId: string,
+  importantAgentIds: string[],
+): Promise<void> {
+  const screen = page.locator(`[data-agent-id='${screenAgentId}']`);
+
+  await expect(screen).toBeVisible();
+  expect(await pageHasVerticalOverflow(page), `${screenAgentId} should not make the document scroll`).toBe(false);
+
+  const screenMetrics = await screen.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+
+    return {
+      clientHeight: element.clientHeight,
+      overflowY: style.overflowY,
+      scrollHeight: element.scrollHeight,
+    };
+  });
+
+  expect(screenMetrics.overflowY, `${screenAgentId} should not opt into scrolling`).toBe("hidden");
+  expect(screenMetrics.scrollHeight, `${screenAgentId} content should fit its own viewport`).toBeLessThanOrEqual(
+    screenMetrics.clientHeight + 2,
+  );
+
+  await expectElementsWithinViewport(page, importantAgentIds);
+}
+
+async function expectScreenAllowsIntentionalScroll(
+  page: import("@playwright/test").Page,
+  screenAgentId: string,
+): Promise<void> {
+  const screen = page.locator(`[data-agent-id='${screenAgentId}']`);
+
+  await expect(screen).toBeVisible();
+  await expect(screen, `${screenAgentId} should explicitly opt into scrolling`).toHaveClass(
+    /app-screen--scrollable/,
+  );
+
+  const overflowY = await screen.evaluate((element) => window.getComputedStyle(element).overflowY);
+  expect(overflowY, `${screenAgentId} should use a scrollable overflow mode`).toBe("auto");
+}
+
 async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
   await page.addInitScript((fixedIso) => {
     const fixedTime = new Date(fixedIso).getTime();
@@ -364,6 +446,60 @@ async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").
   }
 
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
+async function expectExerciseSearchResultsInsideViewport(page: import("@playwright/test").Page): Promise<void> {
+  const results = page.locator("[data-agent-id='exercise-search-results']");
+
+  await expect(results).toBeVisible();
+
+  const viewport = page.viewportSize();
+  const resultsBox = await results.boundingBox();
+  const overflowY = await results.evaluate((element) => window.getComputedStyle(element).overflowY);
+
+  expect(viewport).not.toBeNull();
+  expect(resultsBox).not.toBeNull();
+  expect(overflowY).toBe("auto");
+
+  if (viewport && resultsBox) {
+    expect(resultsBox.y).toBeGreaterThanOrEqual(0);
+    expect(resultsBox.y + resultsBox.height).toBeLessThanOrEqual(viewport.height + 1);
+  }
+}
+
+async function expectExerciseSearchInputStableAfterBackspace(
+  page: import("@playwright/test").Page,
+  inputAgentId: string,
+): Promise<void> {
+  const input = page.locator(`[data-agent-id='${inputAgentId}']`);
+
+  await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await input.fill("bench press");
+  await expect(input).toHaveValue("bench press");
+
+  const beforeBox = await input.boundingBox();
+  const beforeScrollY = await page.evaluate(() => window.scrollY);
+
+  await input.press("Backspace");
+  await expect(input).toHaveValue("bench pres");
+  await expect(page.getByRole("button", { name: /Barbell Bench Press/ })).toBeVisible();
+
+  const afterBox = await input.boundingBox();
+  const afterScrollY = await page.evaluate(() => window.scrollY);
+
+  expect(beforeBox).not.toBeNull();
+  expect(afterBox).not.toBeNull();
+  expect(afterScrollY).toBe(beforeScrollY);
+
+  if (beforeBox && afterBox) {
+    expect(Math.abs(afterBox.y - beforeBox.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterBox.x - beforeBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterBox.width - beforeBox.width)).toBeLessThanOrEqual(1);
+  }
+
+  await expectExerciseSearchResultsInsideViewport(page);
 }
 
 async function expectFeedbackOptionsOnSingleRow(
@@ -506,7 +642,12 @@ async function expectMobileScreenshot(
     return;
   }
 
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    document.querySelectorAll(".app-screen--scrollable").forEach((element) => {
+      element.scrollTo(0, 0);
+    });
+  });
   await expect(page).toHaveScreenshot(name, {
     animations: "disabled",
     fullPage: true,
@@ -639,6 +780,72 @@ test.describe("start program flow", () => {
     await expectActionsOnSingleRow(page, "template-days-per-week-back", "template-days-per-week-next");
   });
 
+  test("static setup screens fit narrow mobile height without vertical scrolling", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.goto("/");
+    await expectStaticScreenFitsViewport(page, "new-program-page", ["start-new-program"]);
+
+    await page.goto("/start/select-template");
+    await expectScreenAllowsIntentionalScroll(page, "select-template-page");
+
+    await page.locator("[data-agent-id='add-template']").click();
+    await expectStaticScreenFitsViewport(page, "template-name-page", [
+      "template-name-input",
+      "template-name-back",
+      "template-name-next",
+    ]);
+
+    await page.locator("[data-agent-id='template-name-input']").fill("No Scroll Template");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await expectStaticScreenFitsViewport(page, "template-muscle-focus-page", [
+      "template-focus-counter",
+      "template-muscle-focus-back",
+      "template-muscle-focus-next",
+    ]);
+
+    const muscleGrid = page.locator(".muscle-focus-grid");
+    await muscleGrid.getByRole("button", { name: "Back" }).click();
+    await muscleGrid.getByRole("button", { name: "Biceps" }).click();
+    await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+    await expectStaticScreenFitsViewport(page, "template-days-per-week-page", [
+      "template-days-per-week-options",
+      "template-days-per-week-back",
+      "template-days-per-week-next",
+    ]);
+
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expectStaticScreenFitsViewport(page, "template-builder-page", [
+      "template-day-1",
+      "template-day-2",
+      "add-exercise",
+      "template-builder-back",
+      "save-template",
+    ]);
+
+    await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+    await expectScreenAllowsIntentionalScroll(page, "template-builder-page");
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+    await expectScreenAllowsIntentionalScroll(page, "select-template-page");
+
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await expect(page).toHaveURL(/\/start\/program-length$/);
+    await expectStaticScreenFitsViewport(page, "program-length-page", [
+      "program-length-4",
+      "program-length-back",
+      "program-length-next",
+    ]);
+
+    await page.locator("[data-agent-id='program-length-4']").click();
+    await page.locator("[data-agent-id='program-length-next']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+    await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
+  });
+
   test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
@@ -721,17 +928,22 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
 
     await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
-    await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+    await expectExerciseSearchInputStableAfterBackspace(page, "exercise-search-input");
     await expectMobileScreenshot(page, testInfo, "warm-stone-builder-search-mobile.png");
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-builder-filled-mobile.png");
 
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await expectExerciseSearchResultsInsideViewport(page);
     await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='save-template']")).toBeEnabled();
     await page.locator("[data-agent-id='save-template']").click();
 
@@ -803,17 +1015,20 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='visualization-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='data-visualization-page']")).not.toContainText(/No change vs/i);
+    await expectScreenAllowsIntentionalScroll(page, "data-visualization-page");
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-templates']").click();
     await expect(page).toHaveURL(/\/templates$/);
     await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
+    await expectScreenAllowsIntentionalScroll(page, "templates-page");
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-programs']").click();
     await expect(page).toHaveURL(/\/programs$/);
     await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+    await expectScreenAllowsIntentionalScroll(page, "program-list-page");
     await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
 
@@ -1298,10 +1513,13 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
     await page.locator("[data-agent-id='edit-template-exercise-1']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='replace-exercise-result-']")).toHaveCount(0);
     await page.locator("[data-agent-id='edit-exercise-search-input-1']").fill("pull-up");
+    await expectExerciseSearchResultsInsideViewport(page);
     await page.getByRole("button", { name: /^Pull Up/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
 
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
@@ -1800,16 +2018,19 @@ test.describe("start program flow", () => {
 
     await page.locator("[data-agent-id^='lift-menu-toggle-']").first().click();
     await page.locator("[data-agent-id^='lift-change-exercise-']").click();
-    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='change-exercise-search-input']")).toBeFocused();
     await page.locator("[data-agent-id='change-exercise-search-input']").fill("pull-up");
+    await expectExerciseSearchResultsInsideViewport(page);
     await expectMobileScreenshot(page, testInfo, "warm-stone-exercise-change-modal-mobile.png");
     await page.getByRole("button", { name: /^Pull Up/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='change-exercise-confirmation']")).toContainText(
       "Change exercise",
     );
     await page.locator("[data-agent-id='modal-confirm']").click();
 
-    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
