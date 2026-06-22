@@ -39,14 +39,14 @@
 
   35.714% {
     box-shadow:
-      0 0 0 2px var(--color-accent),
-      0 0 0 5px var(--color-focus-ring);
+      0 0 0 1px var(--color-accent),
+      0 0 0 4px var(--color-focus-ring);
   }
 
   100% {
     box-shadow:
       0 0 0 1px rgba(114, 167, 123, 0),
-      0 0 0 7px rgba(114, 167, 123, 0);
+      0 0 0 5px rgba(114, 167, 123, 0);
   }
 }
 
@@ -63,7 +63,7 @@
   [data-interaction-feedback="active"] {
     animation: none;
     box-shadow:
-      0 0 0 2px var(--color-accent),
-      0 0 0 5px var(--color-focus-ring);
+      0 0 0 1px var(--color-accent),
+      0 0 0 4px var(--color-focus-ring);
   }
 }
