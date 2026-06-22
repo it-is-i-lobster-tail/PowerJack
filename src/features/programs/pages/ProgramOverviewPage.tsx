@@ -98,7 +98,7 @@ export function ProgramOverviewPage() {
   }, [navigate, programId, services.analytics, services.appState, services.programs]);
 
   return (
-    <main className="app-screen program-overview-screen" data-agent-id="current-program-page">
+    <main className="app-screen app-screen--scrollable program-overview-screen" data-agent-id="current-program-page">
       <section className="app-flow program-overview-flow" aria-labelledby="program-overview-title">
         {loadState.programId !== programId || loadState.status === "loading" ? (
           <p className="program-overview-status" data-agent-id="program-overview-loading">
