@@ -104,19 +104,10 @@
   flex-direction: column;
   gap: var(--space-3);
   touch-action: manipulation;
-  transition:
-    transform var(--motion-normal) ease,
-    opacity var(--motion-normal) ease;
 }
 
 .builder-exercise-row-shell--dragging {
-  opacity: 0.82;
   z-index: 2;
-}
-
-.builder-exercise-row-shell--dragging .builder-exercise-row {
-  border-color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
 }
 
 .builder-exercise-row {
@@ -129,6 +120,12 @@
   border: 1px solid transparent;
   border-radius: var(--radius-structure);
   background: var(--color-input);
+  transition: border-color var(--motion-normal) ease;
+}
+
+.builder-exercise-row-shell--dragging .builder-exercise-row,
+.builder-exercise-row-shell--moving .builder-exercise-row {
+  border-color: var(--color-accent-strong);
 }
 
 .builder-exercise-row__order {
