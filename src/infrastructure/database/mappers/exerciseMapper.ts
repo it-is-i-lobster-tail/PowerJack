@@ -14,6 +14,7 @@ export interface ExerciseSummaryRow extends Record<string, unknown> {
   secondary_muscle_names: string | null;
   equipment_name: string;
   reps_only: number;
+  time_based: number;
   min_reps_hypertrophy: number;
   max_reps_hypertrophy: number;
 }
@@ -37,6 +38,7 @@ export function mapExerciseSummaryRow(row: ExerciseSummaryRow): ExerciseSummary 
       : [],
     equipmentName: row.equipment_name,
     repsOnly: Boolean(row.reps_only),
+    timeBased: Boolean(row.time_based),
     minRepsHypertrophy: row.min_reps_hypertrophy,
     maxRepsHypertrophy: row.max_reps_hypertrophy,
   };

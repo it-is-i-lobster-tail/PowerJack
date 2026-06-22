@@ -1158,6 +1158,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         exerciseId: lift.exerciseId,
         exerciseName: this.exerciseName(lift.exerciseId),
         repsOnly: this.isRepsOnlyExercise(lift.exerciseId),
+        timeBased: this.isTimeBasedExercise(lift.exerciseId),
         order: lift.order,
         status: lift.status,
         locked: lift.locked,
@@ -1191,6 +1192,10 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
   private isRepsOnlyExercise(exerciseId: number): boolean {
     return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.repsOnly ?? false;
+  }
+
+  private isTimeBasedExercise(exerciseId: number): boolean {
+    return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.timeBased ?? false;
   }
 
   private getSetsForWorkout(workoutId: number): WorkoutSet[] {
