@@ -8,6 +8,7 @@ import "./TemplateNamePage.css";
 export function TemplateNamePage() {
   const navigate = useNavigate();
   const name = useTemplateDraftStore((state) => state.name);
+  const returnPath = useTemplateDraftStore((state) => state.returnPath);
   const setName = useTemplateDraftStore((state) => state.setName);
   const nameLength = name.length;
   const isNameTooLong = nameLength > 64;
@@ -16,7 +17,7 @@ export function TemplateNamePage() {
   return (
     <main className="app-screen app-screen--centered" data-agent-id="template-name-page">
       <section className="setup-card app-flow" aria-labelledby="template-name-title">
-        <h1 id="template-name-title">Name Template</h1>
+        <h1 id="template-name-title">Name your template</h1>
 
         <label className="template-name-field">
           <span>Template name</span>
@@ -24,7 +25,7 @@ export function TemplateNamePage() {
             autoFocus
             data-agent-id="template-name-input"
             onChange={(event) => setName(event.target.value)}
-            placeholder="My New Template"
+            placeholder="My new template"
             value={name}
           />
           {isNameTooLong ? (
@@ -40,7 +41,7 @@ export function TemplateNamePage() {
             label: "Back",
             leadingIcon: <ArrowLeft aria-hidden size={28} strokeWidth={2.4} />,
             onClick: () => {
-              void navigate("/start/select-template");
+              void navigate(returnPath);
             },
           }}
           rightAction={{

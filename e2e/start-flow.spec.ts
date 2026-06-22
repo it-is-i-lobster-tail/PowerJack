@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+const setAutosaveBeforeDelayMs = 400;
+const setAutosaveStaleTimerProbeMs = 500;
+const setAutosaveSettleMs = 950;
+
 async function openTemplateFocus(page: import("@playwright/test").Page, name = "Back In Action") {
   await page.goto("/start/select-template");
   await page.locator("[data-agent-id='add-template']").click();
@@ -57,6 +61,28 @@ async function createTwoDayTemplate(page: import("@playwright/test").Page, name 
   await expect(page).toHaveURL(/\/start\/select-template$/);
 }
 
+async function createTwoDayTemplateFromTemplatesPage(
+  page: import("@playwright/test").Page,
+  name = "List Template",
+) {
+  await page.goto("/templates");
+  await page.locator("[data-agent-id='templates-add-template']").click();
+  await page.locator("[data-agent-id='template-name-input']").fill(name);
+  await page.locator("[data-agent-id='template-name-next']").click();
+  await selectFocusAndOpenDays(page);
+  await page.locator("[data-agent-id='template-days-per-week-2']").click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await page.locator("[data-agent-id='add-exercise']").click();
+  await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+  await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+  await page.locator("[data-agent-id='template-day-2']").click();
+  await page.locator("[data-agent-id='add-exercise']").click();
+  await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+  await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+  await page.locator("[data-agent-id='save-template']").click();
+  await expect(page).toHaveURL(/\/templates$/);
+}
+
 async function addExerciseToCurrentTemplateDay(
   page: import("@playwright/test").Page,
   searchTerm: string,
@@ -75,9 +101,9 @@ async function createWeightedVolumeTemplate(page: import("@playwright/test").Pag
   await page.locator("[data-agent-id='template-muscle-focus-next']").click();
   await page.locator("[data-agent-id='template-days-per-week-2']").click();
   await page.locator("[data-agent-id='template-days-per-week-next']").click();
-  await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Conventional Deadlift/);
-  await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull-Up/);
-  await addExerciseToCurrentTemplateDay(page, "one-arm pulldown", /^Cable One-Arm Pulldown/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /^Barbell Deadlift/);
+  await addExerciseToCurrentTemplateDay(page, "pull-up", /^Pull Up/);
+  await addExerciseToCurrentTemplateDay(page, "lat pulldown", /^Cable Lat Pulldown/);
   await addExerciseToCurrentTemplateDay(page, "rear delt fly", /^Cable Rear Delt Fly/);
   await page.locator("[data-agent-id='template-day-2']").click();
   await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
@@ -91,7 +117,7 @@ async function createTwoLiftFirstDayTemplate(page: import("@playwright/test").Pa
   await page.locator("[data-agent-id='template-days-per-week-2']").click();
   await page.locator("[data-agent-id='template-days-per-week-next']").click();
   await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
-  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Conventional Deadlift/);
+  await addExerciseToCurrentTemplateDay(page, "deadlift", /Barbell Deadlift/);
   await page.locator("[data-agent-id='template-day-2']").click();
   await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
   await page.locator("[data-agent-id='save-template']").click();
@@ -121,7 +147,7 @@ async function completeActiveLiftWithFeedback(
   await firstWeight.fill(weight);
   await secondRep.fill(reps[1]);
   await secondWeight.fill(weight);
-  await page.waitForTimeout(650);
+  await page.waitForTimeout(setAutosaveSettleMs);
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
   await page.locator(`[data-agent-id='feedback-pain-option-${options.pain}']`).click();
   await page.locator(`[data-agent-id='feedback-effort-option-${options.effort}']`).click();
@@ -156,7 +182,7 @@ async function completeLiftWithFeedback(
       await weightInput.fill(weight);
     }
 
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
   }
 
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
@@ -233,6 +259,32 @@ async function pageHasHorizontalOverflow(page: import("@playwright/test").Page):
   });
 }
 
+async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
+  await page.addInitScript((fixedIso) => {
+    const fixedTime = new Date(fixedIso).getTime();
+    const RealDate = Date;
+
+    class MockDate extends RealDate {
+      constructor(...args: ConstructorParameters<DateConstructor>) {
+        if (args.length === 0) {
+          super(fixedTime);
+          return;
+        }
+
+        super(...args);
+      }
+
+      static now() {
+        return fixedTime;
+      }
+    }
+
+    MockDate.UTC = RealDate.UTC;
+    MockDate.parse = RealDate.parse;
+    window.Date = MockDate as DateConstructor;
+  }, isoTimestamp);
+}
+
 async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwright/test").Page): Promise<void> {
   const options = page.locator("[data-agent-id='template-days-per-week-options']").getByRole("radio");
 
@@ -265,6 +317,47 @@ async function expectTemplateDaysPerWeekOptionsInSingleRow(page: import("@playwr
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").Page, dayCount: number): Promise<void> {
+  const tabs = page.locator("[data-agent-id^='template-day-']");
+
+  await expect(tabs).toHaveCount(dayCount);
+
+  const viewport = page.viewportSize();
+  const boxes = await tabs.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+
+      return {
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      };
+    }),
+  );
+  const firstTop = boxes[0]?.top ?? 0;
+
+  expect(viewport).not.toBeNull();
+
+  for (const box of boxes) {
+    expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+
+    if (viewport) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(viewport.width);
+    }
+  }
+
+  for (let index = 1; index < boxes.length; index += 1) {
+    expect(boxes[index].left).toBeGreaterThan(boxes[index - 1].left);
+  }
+
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function expectFeedbackOptionsOnSingleRow(
   page: import("@playwright/test").Page,
   dataAgentPrefix: string,
@@ -287,6 +380,22 @@ async function expectFeedbackOptionsOnSingleRow(
   }
 }
 
+async function expectMobileScreenshot(
+  page: import("@playwright/test").Page,
+  testInfo: import("@playwright/test").TestInfo,
+  name: string,
+) {
+  if (testInfo.project.name !== "mobile-chrome") {
+    return;
+  }
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page).toHaveScreenshot(name, {
+    animations: "disabled",
+    fullPage: true,
+  });
+}
+
 test.describe("start program flow", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -304,40 +413,54 @@ test.describe("start program flow", () => {
     await page.goto("/");
   });
 
-  test("renders the New Program screen at /", async ({ page }) => {
+  test("renders the New program screen at /", async ({ page }, testInfo) => {
     await page.goto("/");
 
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
     await expect(page.locator("[data-agent-id='profile-placeholder']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='app-menu-toggle']")).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "New Program" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New program" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start new program" })).toBeVisible();
     await expect(page.locator("[data-agent-id='new-program-page']")).toBeVisible();
+
+    const viewport = page.viewportSize();
+    const homeCardBox = await page.locator("[data-agent-id='new-program-page'] .home-card").boundingBox();
+
+    expect(viewport).not.toBeNull();
+    expect(homeCardBox).not.toBeNull();
+
+    if (viewport && homeCardBox) {
+      const cardCenter = homeCardBox.x + homeCardBox.width / 2;
+      expect(Math.abs(cardCenter - viewport.width / 2)).toBeLessThanOrEqual(4);
+    }
+
+    await expectMobileScreenshot(page, testInfo, "warm-stone-start-mobile.png");
   });
 
-  test("Start navigates to empty Select Template", async ({ page }) => {
+  test("Start navigates to empty Select Template", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start new program" }).click();
 
     await expect(page).toHaveURL(/\/start\/select-template$/);
-    await expect(page.getByRole("heading", { name: "Select Template" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Select template" })).toBeVisible();
     await expect(page.locator("[data-agent-id='template-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='add-template']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-back']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-select-template-empty-mobile.png");
   });
 
-  test("Add Template opens the template naming flow", async ({ page }) => {
+  test("Add template opens the template naming flow", async ({ page }) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
 
     await expect(page).toHaveURL(/\/templates\/new\/name$/);
-    await expect(page.getByRole("heading", { name: "Name Template" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Name your template" })).toBeVisible();
     await expect(page.locator("[data-agent-id='template-name-input']")).toHaveAttribute(
       "placeholder",
-      "My New Template",
+      "My new template",
     );
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
   });
@@ -360,13 +483,14 @@ test.describe("start program flow", () => {
     await expectActionsOnSingleRow(page, "template-days-per-week-back", "template-days-per-week-next");
   });
 
-  test("Name Template enforces the 64 character limit", async ({ page }) => {
+  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
     await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
     await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
 
@@ -374,10 +498,10 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
   });
 
-  test("Muscle Group Focus requires one to four selected muscles", async ({ page }) => {
+  test("Muscle focus requires one to four selected muscles", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
 
-    await expect(page.getByRole("heading", { name: "Muscle Group Focus" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to focus on?" })).toBeVisible();
     await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("0/4");
     await expect(page.locator("[data-agent-id='template-muscle-focus-next']")).toBeDisabled();
 
@@ -396,12 +520,13 @@ test.describe("start program flow", () => {
     }
 
     await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("4/4");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-muscle-focus-selected-mobile.png");
     await muscleGrid.getByRole("button", { name: "Core" }).click();
     await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("4/4");
     await expect(muscleGrid.getByRole("button", { name: "Core" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("Template Days Per Week keeps all options in one row", async ({ page }) => {
+  test("Template days per week keeps all options in one row", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
 
@@ -411,9 +536,24 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-days-per-week-6']").click();
     await expect(page.locator("[data-agent-id='template-days-per-week-6']")).toHaveAttribute("aria-checked", "true");
     await expectTemplateDaysPerWeekOptionsInSingleRow(page);
+    await expectMobileScreenshot(page, testInfo, "warm-stone-days-selected-mobile.png");
   });
 
-  test("new template saves only after every day has an exercise", async ({ page }) => {
+  test("Template builder keeps every day visible without horizontal scrolling", async ({ page }) => {
+    await openTemplateFocus(page);
+    await selectFocusAndOpenDays(page);
+
+    await page.locator("[data-agent-id='template-days-per-week-6']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+    await expectTemplateBuilderDayTabsFit(page, 6);
+    await page.locator("[data-agent-id='template-day-6']").click();
+    await expect(page.locator("[data-agent-id='template-day-6']")).toHaveAttribute("aria-selected", "true");
+    await expectTemplateBuilderDayTabsFit(page, 6);
+  });
+
+  test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
     await page.locator("[data-agent-id='template-days-per-week-2']").click();
@@ -427,8 +567,10 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='add-exercise']").click();
     await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
     await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-builder-search-mobile.png");
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-builder-filled-mobile.png");
 
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
@@ -444,11 +586,12 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-row-1']")).toHaveAttribute("aria-selected", "true");
   });
 
-  test("top chrome menu opens and navigates to new flows", async ({ page }) => {
+  test("top chrome menu opens and navigates to new flows", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.locator("[data-agent-id='app-menu-toggle']").click();
 
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-nav-menu-mobile.png");
     await page.locator("[data-agent-id='menu-data-visualization']").click();
     await expect(page).toHaveURL(/\/visualization$/);
     await expect(page.locator("[data-agent-id='visualization-empty-state']")).toBeVisible();
@@ -456,18 +599,69 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='data-visualization-page']")).not.toContainText(/No change vs/i);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-template']").click();
-    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await page.locator("[data-agent-id='menu-templates']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("[data-agent-id='app-menu']")).toHaveCount(0);
+  });
+
+  test("Templates page lists and manages templates outside new-program selection", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/templates");
+
+    await expect(page.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-add-template']")).toBeVisible();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-templates-empty-mobile.png");
+
+    await createTwoDayTemplateFromTemplatesPage(page, "List Managed");
+
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText("List Managed");
+    await page.locator("[data-agent-id='templates-template-row-1'] .template-row__select--static").click();
+    await expect(page).toHaveURL(/\/templates$/);
+
+    await page.goto("/start/select-template");
+    await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("List Managed");
+    await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
+
+    await page.goto("/templates");
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveValue("List Managed");
+    await page.locator("[data-agent-id='template-name-input']").fill("List Updated");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await expect(page.locator("[data-agent-id='template-focus-counter']")).toContainText("2/4");
+    await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+    await expect(page.locator("[data-agent-id='template-days-per-week-2']")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expect(page.locator("[data-agent-id='save-template']")).toBeEnabled();
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText("List Updated");
+
+    await page.locator("[data-agent-id='templates-delete-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-delete-confirmation']")).toContainText(
+      "Confirm deleting template List Updated",
+    );
+    await page.locator("[data-agent-id='modal-delete']").click();
+    await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toHaveCount(0);
   });
 
   test("Data Visualization shows completed set volume and switches chart types", async ({ page }) => {
@@ -485,32 +679,65 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='visualization-bar-']").filter({ hasText: "Chest" })).toContainText("Chest");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
+    await expect(page.locator("[data-agent-id='visualization-view-menu']").getByRole("menuitemradio")).toHaveCount(2);
+    await expect(page.locator("[data-agent-id='visualization-view-sparklines']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-view-compare']")).toHaveCount(0);
     await page.locator("[data-agent-id='visualization-view-heatmap']").click();
     await expect(page.locator("[data-agent-id='visualization-heatmap']")).toContainText("Chest");
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Heatmap");
+    await expect(page.locator("[data-agent-id='visualization-heatmap-legend']")).toContainText("Growth");
 
     await page.locator("[data-agent-id='visualization-chart-trigger']").click();
-    await page.locator("[data-agent-id='visualization-view-sparklines']").click();
-    await expect(page.locator("[data-agent-id^='visualization-sparkline-']").filter({ hasText: "Chest" })).toContainText("Chest");
-    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Sparklines");
-
-    await page.locator("[data-agent-id='visualization-chart-trigger']").click();
-    await page.locator("[data-agent-id='visualization-view-compare']").click();
-    await expect(page.locator("[data-agent-id^='visualization-compare-']").filter({ hasText: "Chest" })).toContainText("Chest");
-    await expect(page.locator("[data-agent-id='visualization-summary-compare']")).toBeVisible();
+    await page.locator("[data-agent-id='visualization-view-bars']").click();
+    await expect(page.locator("[data-agent-id^='visualization-bar-']").filter({ hasText: "Chest" })).toHaveAttribute(
+      "data-volume-band",
+      "not-ideal",
+    );
+    await expect(page.locator("[data-agent-id='visualization-bar-legend']")).toContainText("Maintenance");
 
     await page.locator("[data-agent-id='visualization-range-year']").click();
     await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText(
       new Date().getFullYear().toString(),
     );
-    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Compare");
+    await expect(page.locator("[data-agent-id='visualization-chart-trigger']")).toContainText("Bars");
+  });
+
+  test("Data Visualization keeps period navigation inside available dates", async ({ page }) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
+
+    await page.goto("/visualization?range=month&start=2026-06-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("June 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toBeVisible();
+
+    await page.locator("[data-agent-id='visualization-previous-period']").click();
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("May 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toBeVisible();
+
+    await page.goto("/visualization?range=month&start=2026-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("January 2026");
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toBeVisible();
+
+    await page.goto("/visualization?range=quarter&start=2026-07-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("Q2 2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+
+    await page.goto("/visualization?range=year&start=2027-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("2026");
+    await expect(page.locator("[data-agent-id='visualization-next-period']")).toHaveCount(0);
+
+    await page.goto("/visualization?range=week&start=2026-01-01&view=bars");
+    await expect(page.locator("[data-agent-id='visualization-period-label']")).toContainText("Jan 1-4, 2026");
+    await expect(page.locator("[data-agent-id='visualization-previous-period']")).toHaveCount(0);
   });
 
   test("completed secondary muscles count as half sets in volume views", async ({ page }) => {
     await createWeightedVolumeTemplate(page);
     await startSelectedProgram(page, 4);
-    await completeLiftWithFeedback(page, "Barbell Conventional Deadlift");
-    await completeLiftWithFeedback(page, "Pull-Up");
-    await completeLiftWithFeedback(page, "Cable One-Arm Pulldown");
+    await completeLiftWithFeedback(page, "Barbell Deadlift");
+    await completeLiftWithFeedback(page, "Pull Up");
+    await completeLiftWithFeedback(page, "Cable Lat Pulldown");
     await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await page.locator("[data-agent-id='finish-workout']").click();
@@ -521,10 +748,24 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+$/);
 
     const programVolumeRows = page.locator("[data-agent-id^='program-volume-row-']");
-    await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("7.0");
+    const volumeLegend = page.locator("[data-agent-id='program-volume-legend']");
+
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "growth");
+    await expect(programVolumeRows.filter({ hasText: "Back" })).toHaveAttribute("aria-label", /Growth/);
+    await expect(programVolumeRows.filter({ hasText: "Glutes" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Glutes" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Shoulders" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Biceps" })).toContainText("2.0");
+    await expect(programVolumeRows.filter({ hasText: "Biceps" })).toHaveAttribute("data-volume-band", "not-ideal");
     await expect(programVolumeRows.filter({ hasText: "Forearms" })).toContainText("3.0");
+    await expect(programVolumeRows.filter({ hasText: "Forearms" })).toHaveAttribute("data-volume-band", "not-ideal");
+    await expect(volumeLegend).toContainText("Not Ideal");
+    await expect(volumeLegend).toContainText("Maintenance");
+    await expect(volumeLegend).toContainText("Growth");
+    await expect(volumeLegend).toContainText("Max Growth");
+    await expect(volumeLegend).toContainText("Overtraining");
     expect(await pageHasHorizontalOverflow(page)).toBe(false);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
@@ -533,7 +774,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='visualization-total']")).toContainText("8.0");
 
     const visualizationRows = page.locator("[data-agent-id^='visualization-bar-']");
-    await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("7.0");
+    await expect(visualizationRows.filter({ hasText: "Back" })).toContainText("6.0");
+    await expect(visualizationRows.filter({ hasText: "Back" })).toHaveAttribute("data-volume-band", "growth");
+    await expect(visualizationRows.filter({ hasText: "Glutes" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Shoulders" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Biceps" })).toContainText("2.0");
     await expect(visualizationRows.filter({ hasText: "Forearms" })).toContainText("3.0");
@@ -582,6 +825,62 @@ test.describe("start program flow", () => {
     }
   });
 
+  test("Programs list pins active programs and filters history", async ({ page }, testInfo) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
+    await createTwoDayTemplate(page, "List Check");
+    await startSelectedProgram(page, 4);
+    await completeVisibleWorkout(page);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("List Check x1");
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Current program");
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Active");
+
+    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+
+    await page.locator("[data-agent-id='program-filter-all']").click();
+    await page.locator("[data-agent-id='program-list-new-program']").click();
+    await page.locator("[data-agent-id='template-row-1'] .template-row__select").click();
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await page.locator("[data-agent-id='program-length-4']").click();
+    await page.locator("[data-agent-id='program-length-next']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+
+    const cards = page.locator("[data-agent-id='program-card-list'] > [data-agent-id^='program-card-']");
+    await expect(cards.nth(0)).toContainText("List Check x2");
+    await expect(cards.nth(0)).toContainText("Current program");
+    await expect(cards.nth(1)).toContainText("List Check x1");
+    await expect(cards.nth(1)).toContainText("Halted");
+    expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+    if (testInfo.project.name === "mobile-chrome") {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(page).toHaveScreenshot("program-list-mobile.png", {
+        animations: "disabled",
+        fullPage: true,
+      });
+    }
+
+    await page.locator("[data-agent-id='program-filter-halted']").click();
+    await expect(page.locator("[data-agent-id='program-card-1']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='program-card-list']")).not.toContainText("List Check x2");
+
+    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
+
+    await page.locator("[data-agent-id='program-filter-halted']").click();
+    await page.locator("[data-agent-id='program-card-details-1']").click();
+    await expect(page).toHaveURL(/\/programs\/1$/);
+    await expect(page.locator("[data-agent-id='current-program-page']")).toBeVisible();
+  });
+
   test("template edit pre-populates the flow and delete soft-removes unused templates", async ({ page }) => {
     await createTwoDayTemplate(page, "Manage Me");
 
@@ -603,14 +902,14 @@ test.describe("start program flow", () => {
 
     await page.locator("[data-agent-id='delete-template-1']").click();
     await expect(page.locator("[data-agent-id='template-delete-confirmation']")).toContainText(
-      "Confirm Deleting Template Managed Template",
+      "Confirm deleting template Managed Template",
     );
     await page.locator("[data-agent-id='modal-delete']").click();
     await expect(page.locator("[data-agent-id='template-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='template-row-1']")).toHaveCount(0);
   });
 
-  test("saved template starts a program and opens the active workout", async ({ page }) => {
+  test("saved template starts a program and opens the active workout", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
     await page.locator("[data-agent-id='template-days-per-week-2']").click();
@@ -628,7 +927,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='select-template-next']").click();
 
     await expect(page).toHaveURL(/\/start\/program-length$/);
-    await expect(page.getByRole("heading", { name: "Program Length in Weeks" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How many weeks do you want to train?" })).toBeVisible();
     await page.locator("[data-agent-id='program-length-8']").click();
 
     await expect(page.locator("[data-agent-id='program-length-next']")).toBeEnabled();
@@ -644,6 +943,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id^='set-weight-']")).toHaveCount(2);
+    await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-empty-mobile.png");
 
     const canonicalDayOneUrl = page.url();
     await page.evaluate(() => {
@@ -665,7 +965,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
   });
 
-  test("active program shows resume and replacement confirmation blocks accidental starts", async ({ page }) => {
+  test("active program shows resume and replacement confirmation blocks accidental starts", async ({ page }, testInfo) => {
     await createTwoDayTemplate(page, "Replace Me");
     await startSelectedProgram(page, 8);
 
@@ -673,21 +973,55 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-templates']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.locator("[data-agent-id='templates-template-row-1']")).toContainText(
+      "Active program template",
+    );
+    await expect(page.locator("[data-agent-id='templates-delete-template-1']")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await page.locator("[data-agent-id='templates-delete-template-1']").click({ force: true });
+    await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
+      "Cannot delete templates in use by active program",
+    );
+    await page.locator("[data-agent-id='modal-back']").click();
+
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await expect(page.locator("[data-agent-id='template-active-edit-confirmation']")).toContainText(
+      "Editing an active template will adjust progression of all remaining weeks of program.",
+    );
+    await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+
+    await page.locator("[data-agent-id='templates-edit-template-1']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/name$/);
+    await page.locator("[data-agent-id='template-name-back']").click();
+    await expect(page).toHaveURL(/\/templates$/);
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Replace Me x1");
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expectResumeCenteredBeforeIcons(page);
 
-    await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active Program Template");
+    await expect(page.locator("[data-agent-id='template-row-1']")).toContainText("Active program template");
     await expect(page.locator("[data-agent-id='template-row-1']")).not.toContainText("Locked");
     await expect(page.locator("[data-agent-id='edit-template-1']")).not.toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='delete-template-1']")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
+    await expectMobileScreenshot(page, testInfo, "warm-stone-select-template-active-mobile.png");
 
     await page.locator("[data-agent-id='delete-template-1']").click({ force: true });
     await expect(page.locator("[data-agent-id='template-in-use-dialog']")).toContainText(
-      "Cannot Delete Templates In Use By Active Program",
+      "Cannot delete templates in use by active program",
     );
     await page.locator("[data-agent-id='modal-back']").click();
 
@@ -711,10 +1045,12 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-row-1'] .template-row__select").click();
     await page.locator("[data-agent-id='select-template-next']").click();
     await page.locator("[data-agent-id='program-length-4']").click();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-program-length-selected-mobile.png");
     await page.locator("[data-agent-id='program-length-next']").click();
     await expect(page.locator("[data-agent-id='program-replace-confirmation']")).toContainText(
-      "Halt Current Program and Start New One",
+      "Halt current program and start new one",
     );
+    await expectMobileScreenshot(page, testInfo, "warm-stone-replace-program-dialog-mobile.png");
     await page.locator("[data-agent-id='modal-back']").click();
     await expect(page).toHaveURL(/\/start\/program-length$/);
 
@@ -725,7 +1061,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
-    await page.locator("[data-agent-id='menu-new-program']").click();
+    await page.locator("[data-agent-id='menu-programs']").click();
+    await expect(page).toHaveURL(/\/programs$/);
+    await page.locator("[data-agent-id='program-list-new-program']").click();
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
@@ -756,9 +1094,9 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='replace-exercise-result-']")).toHaveCount(0);
     await page.locator("[data-agent-id='edit-exercise-search-input-1']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
 
-    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
     const firstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
@@ -780,15 +1118,15 @@ test.describe("start program flow", () => {
     }
 
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Back Squat");
-    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Pull Up");
 
     await page.waitForTimeout(200);
     await page.locator("[data-agent-id='template-day-2']").click();
     await expect(page.locator("[data-agent-id='template-day-2']")).toHaveAttribute("aria-selected", "true");
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("row");
-    await page.getByRole("button", { name: /Barbell Bent-Over Row/ }).click();
-    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bent-Over Row");
+    await page.getByRole("button", { name: /Barbell Bent Over Row/ }).click();
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bent Over Row");
     await page.locator("[data-agent-id='template-day-1']").click();
     await expect(page.locator("[data-agent-id='template-day-1']")).toHaveAttribute("aria-selected", "true");
 
@@ -800,7 +1138,7 @@ test.describe("start program flow", () => {
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Barbell Back Squat");
-    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull-Up");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull Up");
   });
 
   test("template builder confirms filled day removal and keeps retained exercises visible", async ({ page }) => {
@@ -818,7 +1156,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-day-2']").click();
     await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press/);
     await page.locator("[data-agent-id='template-day-3']").click();
-    await addExerciseToCurrentTemplateDay(page, "row", /^Barbell Bent-Over Row/);
+    await addExerciseToCurrentTemplateDay(page, "row", /^Barbell Bent Over Row/);
 
     await page.locator("[data-agent-id='template-builder-back']").click();
     await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
@@ -858,7 +1196,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(4)).toContainText("Barbell Back Squat");
   });
 
-  test("active workout autosaves set values and advances after Finish Workout", async ({ page }) => {
+  test("active workout autosaves set values and advances after Finish workout", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
     await page.locator("[data-agent-id='template-days-per-week-2']").click();
@@ -903,13 +1241,27 @@ test.describe("start program flow", () => {
     await firstWeight.fill("200");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
     await expect(firstSetRow.locator("[data-agent-id^='set-logged-']")).toBeVisible();
+    const unloggedSetRowStyle = await page
+      .locator("[data-agent-id^='set-row-']")
+      .nth(1)
+      .evaluate((element) => {
+        const style = window.getComputedStyle(element);
+
+        return {
+          backgroundColor: style.backgroundColor,
+          borderTopColor: style.borderTopColor,
+        };
+      });
+    await expect(firstSetRow).toHaveCSS("background-color", unloggedSetRowStyle.backgroundColor);
+    await expect(firstSetRow).toHaveCSS("border-top-color", unloggedSetRowStyle.borderTopColor);
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
+    await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-logged-mobile.png");
 
     await firstRep.fill("");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged", {
       timeout: 100,
     });
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
 
     await firstRep.fill("12");
@@ -917,12 +1269,13 @@ test.describe("start program flow", () => {
     await secondRep.fill("10");
     await secondWeight.fill("220");
     await expect(secondWeight).toBeFocused();
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
 
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-lift-feedback-modal-mobile.png");
     await expect(secondWeight).not.toBeFocused();
     await expect(secondWeight).toBeDisabled();
     await page.keyboard.press("Backspace");
@@ -935,10 +1288,11 @@ test.describe("start program flow", () => {
     const firstLiftCard = page.locator("[data-agent-id^='lift-card-']").nth(0);
     const firstLiftFeedbackNeeded = firstLiftCard.locator("[data-agent-id^='feedback-needed-lift-']");
     await expect(firstLiftFeedbackNeeded).toBeVisible();
-    await expect(firstLiftCard).toContainText("Feedback Needed");
+    await expect(firstLiftCard).toContainText("Feedback needed");
     await expect(page.locator("[data-agent-id='feedback-needed']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-finish-workout-feedback-blocked-mobile.png");
     await page.locator("[data-agent-id='finish-workout']").click({ force: true });
     const finishPanel = page.locator(".finish-workout-panel");
     await expect(finishPanel.locator("[data-agent-id='finish-feedback-hint']")).toContainText(
@@ -961,14 +1315,15 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-complete-mobile.png");
 
     await firstRep.fill("");
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
 
     await firstRep.fill("12");
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
@@ -979,6 +1334,49 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+
+    await page.locator("[data-agent-id='workout-day-prev']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("Read-only");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
+  });
+
+  test("active workout restarts set autosave debounce when reps or weight receive another character", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Autosave Reset");
+    await startSelectedProgram(page, 4);
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOneWeight = weights.nth(0);
+    const benchSetTwoReps = reps.nth(1);
+    const benchSetTwoWeight = weights.nth(1);
+
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(weights).toHaveCount(4);
+
+    await benchSetOneWeight.click();
+    await page.keyboard.type("10", { delay: 40 });
+    await page.waitForTimeout(setAutosaveBeforeDelayMs);
+    await page.keyboard.type("0", { delay: 40 });
+    await expect(benchSetOneWeight).toHaveValue("100");
+    await page.waitForTimeout(setAutosaveStaleTimerProbeMs);
+    await expect(benchSetTwoWeight).toHaveValue("", { timeout: 100 });
+
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(benchSetTwoWeight).toHaveValue("100");
+
+    await benchSetTwoReps.click();
+    await page.keyboard.type("1", { delay: 40 });
+    await page.waitForTimeout(setAutosaveBeforeDelayMs);
+    await page.keyboard.type("0", { delay: 40 });
+    await expect(benchSetTwoReps).toHaveValue("10");
+    await page.waitForTimeout(setAutosaveStaleTimerProbeMs);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 4 sets logged", {
+      timeout: 100,
+    });
+
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
   });
 
   test("active workout propagates final debounced weights and persists them", async ({ page }) => {
@@ -992,23 +1390,25 @@ test.describe("start program flow", () => {
     const deadliftSetTwo = weights.nth(3);
 
     await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Barbell Conventional Deadlift" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Barbell Deadlift" })).toBeVisible();
     await expect(weights).toHaveCount(4);
 
     await benchSetOne.click();
-    await page.keyboard.type("100", { delay: 40 });
+    await page.keyboard.type("10", { delay: 40 });
+    await page.waitForTimeout(setAutosaveBeforeDelayMs);
+    await page.keyboard.type("0", { delay: 40 });
     await expect(benchSetOne).toHaveValue("100");
     await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
     await expect(deadliftSetOne).toHaveValue("");
     await expect(deadliftSetTwo).toHaveValue("");
 
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(benchSetTwo).toHaveValue("100");
     await expect(deadliftSetOne).toHaveValue("");
     await expect(deadliftSetTwo).toHaveValue("");
 
     await benchSetTwo.fill("200");
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(benchSetOne).toHaveValue("100");
     await expect(benchSetTwo).toHaveValue("200");
     await expect(deadliftSetOne).toHaveValue("");
@@ -1018,7 +1418,7 @@ test.describe("start program flow", () => {
     await expect(benchSetOne).toHaveValue("185");
     await expect(benchSetTwo).toHaveValue("200", { timeout: 100 });
 
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(benchSetTwo).toHaveValue("185");
     await expect(deadliftSetOne).toHaveValue("");
     await expect(deadliftSetTwo).toHaveValue("");
@@ -1047,7 +1447,7 @@ test.describe("start program flow", () => {
     await page.keyboard.type("135", { delay: 40 });
     await expect(benchSetOne).toHaveValue("135");
     await expect(benchSetTwo).toHaveValue("", { timeout: 100 });
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(setAutosaveSettleMs);
     await expect(benchSetTwo).toHaveValue("135");
     await expect(deadliftSetOne).toHaveValue("");
   });
@@ -1063,6 +1463,11 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id^='set-weight-']").nth(1).fill("100");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await expect(page.locator("[data-agent-id='feedback-pain-option-1']")).toContainText("None");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-2']")).toContainText("Some");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-3']")).toContainText("Pinch");
+    await expect(page.locator("[data-agent-id='feedback-pain-option-4']")).toContainText("High");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-2']")).toContainText("Tough");
+    await expect(page.locator("[data-agent-id='feedback-effort-option-3']")).toContainText("Challenge");
 
     await expectFeedbackOptionsOnSingleRow(page, "feedback-pain-option");
     await expectFeedbackOptionsOnSingleRow(page, "feedback-effort-option");
@@ -1098,7 +1503,7 @@ test.describe("start program flow", () => {
 
     await menuToggle.click();
     await page.locator("[data-agent-id^='lift-remove-last-set-']").click();
-    await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toContainText("Remove Last Set");
+    await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toContainText("Remove last set");
     await page.locator("[data-agent-id='modal-delete']").click();
 
     await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toHaveCount(0);
@@ -1106,7 +1511,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
   });
 
-  test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }) => {
+  test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }, testInfo) => {
     await createTwoDayTemplate(page, "Exercise Swap");
     await startSelectedProgram(page, 4);
 
@@ -1118,14 +1523,15 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id^='lift-change-exercise-']").click();
     await expect(page.locator("[data-agent-id='change-exercise-modal']")).toBeVisible();
     await page.locator("[data-agent-id='change-exercise-search-input']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await expectMobileScreenshot(page, testInfo, "warm-stone-exercise-change-modal-mobile.png");
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
     await expect(page.locator("[data-agent-id='change-exercise-confirmation']")).toContainText(
-      "Change Exercise",
+      "Change exercise",
     );
     await page.locator("[data-agent-id='modal-confirm']").click();
 
     await expect(page.locator("[data-agent-id='change-exercise-modal']")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toBeDisabled();
@@ -1146,7 +1552,7 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
   });
 
   test("multiple completed lifts keep their own feedback-needed warnings", async ({ page }) => {
@@ -1159,7 +1565,7 @@ test.describe("start program flow", () => {
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("deadlift");
-    await page.getByRole("button", { name: /Barbell Conventional Deadlift/ }).click();
+    await page.getByRole("button", { name: /Barbell Deadlift/ }).click();
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
@@ -1176,7 +1582,7 @@ test.describe("start program flow", () => {
     const secondLiftCard = liftCards.nth(1);
 
     await expect(firstLiftCard).toContainText("Barbell Bench Press");
-    await expect(secondLiftCard).toContainText("Barbell Conventional Deadlift");
+    await expect(secondLiftCard).toContainText("Barbell Deadlift");
 
     await reps.nth(0).fill("10");
     await weights.nth(0).fill("100");
@@ -1222,7 +1628,7 @@ test.describe("start program flow", () => {
 
     await secondFeedbackNeeded.click();
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(
-      "Barbell Conventional Deadlift",
+      "Barbell Deadlift",
     );
     await page.locator("[data-agent-id='feedback-pain-option-1']").click();
     await page.locator("[data-agent-id='feedback-effort-option-3']").click();
@@ -1234,12 +1640,13 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  test("high-pain manual check-in can skip and carries forward", async ({ page }) => {
+  test("high-pain manual check-in can skip and carries forward", async ({ page }, testInfo) => {
     await openWeekTwoBenchManualCheckIn(page, { templateName: "Bench Check", pain: 4 });
 
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
       "Last week Barbell Bench Press caused a pain of 4/5",
     );
+    await expectMobileScreenshot(page, testInfo, "warm-stone-manual-checkin-modal-mobile.png");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeDisabled();
     await page.locator("[data-agent-id='manual-checkin-skip-yes']").click();
 
@@ -1301,7 +1708,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-days-per-week-next']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("pull-up");
-    await page.getByRole("button", { name: /^Pull-Up/ }).click();
+    await page.getByRole("button", { name: /^Pull Up/ }).click();
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
@@ -1312,7 +1719,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='program-length-next']").click();
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
-    await expect(page.getByRole("heading", { name: "Pull-Up" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
 
     const firstRep = page.locator("[data-agent-id^='set-reps-']").nth(0);
     const firstWeight = page.locator("[data-agent-id^='set-weight-']").nth(0);

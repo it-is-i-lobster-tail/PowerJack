@@ -8,6 +8,12 @@ import {
 } from "../../../application/programs/loadProgramOverview";
 import { useServices } from "../../../app/useServices";
 import {
+  classifyWeeklySetVolume,
+  setVolumeBandLabels,
+  setVolumeBandOrder,
+  type SetVolumeBand,
+} from "../../../domain/analytics/TrainingAnalytics";
+import {
   buildProgramOverviewSegments,
   type ActiveProgramOverviewScheduleCell,
   type ProgramOverviewSegment,
@@ -24,6 +30,14 @@ const segmentClassNames: Record<ProgramOverviewSegment["status"], string> = {
   complete: "program-schedule-cell__segment--complete",
   skipped: "program-schedule-cell__segment--skipped",
   halted: "program-schedule-cell__segment--halted",
+};
+
+const volumeBandClassNames: Record<SetVolumeBand, string> = {
+  "not-ideal": "program-volume-band--not-ideal",
+  maintaining: "program-volume-band--maintaining",
+  growth: "program-volume-band--growth",
+  "max-growth": "program-volume-band--max-growth",
+  overtraining: "program-volume-band--overtraining",
 };
 
 export function ProgramOverviewPage() {
@@ -134,7 +148,7 @@ function ProgramSummary({ view }: { view: ProgramOverviewView }) {
       <SummaryMetric
         icon={<Clock3 aria-hidden size={28} strokeWidth={2.2} />}
         label="Length"
-        value={`${view.program.programLengthWeeks} Weeks`}
+        value={`${view.program.programLengthWeeks} weeks`}
       />
       <div className="program-summary__metric">
         <Activity aria-hidden size={28} strokeWidth={2.2} />
@@ -194,7 +208,7 @@ function ProgramSchedule({ view }: { view: ProgramOverviewView }) {
     <section className="program-panel program-schedule" data-agent-id="program-schedule" aria-labelledby="program-schedule-title">
       <div className="program-panel__header">
         <CalendarDays aria-hidden size={22} strokeWidth={2.2} />
-        <h2 id="program-schedule-title">Program Schedule</h2>
+        <h2 id="program-schedule-title">Program schedule</h2>
       </div>
 
       <div className="program-schedule-grid" style={scheduleStyle}>
@@ -286,38 +300,66 @@ function ProgramVolume({ view }: { view: ProgramOverviewView }) {
       <div className="program-panel__header program-volume__header">
         <BarChart3 aria-hidden size={22} strokeWidth={2.2} />
         <div>
-          <h2 id="program-volume-title">Volume Tracking</h2>
+          <h2 id="program-volume-title">Volume tracking</h2>
           <p>Avg weekly sets by muscle group</p>
         </div>
       </div>
 
       {view.volumeRows.length > 0 ? (
-        <div className="program-volume-list">
-          {view.volumeRows.map((row) => (
-            <div className="program-volume-row" data-agent-id={`program-volume-row-${row.muscleId}`} key={row.muscleId}>
-              <div className="program-volume-row__label">
-                <strong>{row.muscleName}</strong>
-                {row.isFocusMuscle ? <span>Focus</span> : null}
-              </div>
-              <div className="program-volume-row__track" aria-hidden>
-                <span
-                  className={row.isFocusMuscle ? "program-volume-row__bar program-volume-row__bar--focus" : "program-volume-row__bar"}
-                  style={{ width: `${(row.averageSetsPerWeek / maxVolume) * 100}%` }}
-                />
-              </div>
-              <div className="program-volume-row__value">
-                <strong>{formatAverageSets(row.averageSetsPerWeek)}</strong>
-                <span>sets/wk</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="program-volume-list">
+            {view.volumeRows.map((row) => {
+              const band = classifyWeeklySetVolume(row.averageSetsPerWeek);
+              const bandLabel = setVolumeBandLabels[band];
+
+              return (
+                <div
+                  aria-label={programVolumeRowLabel(row.muscleName, row.averageSetsPerWeek, bandLabel, row.isFocusMuscle)}
+                  className="program-volume-row"
+                  data-agent-id={`program-volume-row-${row.muscleId}`}
+                  data-volume-band={band}
+                  key={row.muscleId}
+                  role="group"
+                >
+                  <div className="program-volume-row__label">
+                    <strong>{row.muscleName}</strong>
+                    {row.isFocusMuscle ? <span>Focus</span> : null}
+                  </div>
+                  <div className="program-volume-row__track" aria-hidden>
+                    <span
+                      className={`program-volume-row__bar ${volumeBandClassNames[band]}`}
+                      style={{ width: `${(row.averageSetsPerWeek / maxVolume) * 100}%` }}
+                    />
+                  </div>
+                  <div className="program-volume-row__value">
+                    <strong>{formatAverageSets(row.averageSetsPerWeek)}</strong>
+                    <span>sets/wk</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <ProgramVolumeLegend />
+        </>
       ) : (
         <p className="program-volume-empty" data-agent-id="program-volume-empty">
           No completed sets yet.
         </p>
       )}
     </section>
+  );
+}
+
+function ProgramVolumeLegend() {
+  return (
+    <div className="program-volume-legend" data-agent-id="program-volume-legend" aria-label="Volume guidance legend">
+      {setVolumeBandOrder.map((band) => (
+        <span data-agent-id={`program-volume-legend-${band}`} key={band}>
+          <i className={`program-volume-legend__swatch ${volumeBandClassNames[band]}`} aria-hidden />
+          {setVolumeBandLabels[band]}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -346,6 +388,16 @@ function scheduleCellLabel(cell: ActiveProgramOverviewScheduleCell): string {
 
 function formatStatus(status: PowerJackStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function programVolumeRowLabel(
+  muscleName: string,
+  averageSetsPerWeek: number,
+  bandLabel: string,
+  isFocusMuscle: boolean,
+): string {
+  const focusLabel = isFocusMuscle ? ", focus muscle" : "";
+  return `${muscleName}, ${formatAverageSets(averageSetsPerWeek)} sets per week, ${bandLabel}${focusLabel}`;
 }
 
 function formatAverageSets(value: number): string {

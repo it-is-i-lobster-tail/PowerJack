@@ -47,55 +47,69 @@ describe("reference seed data", () => {
       "Leg Press",
       "Machine",
       "Smith Machine",
-      "Landmine",
       "EZ Bar",
       "Trap Bar",
-      "Sled",
-      "Kettlebell",
     ]);
   });
 
-  it("uses the no-duplicate 208-exercise catalog", () => {
+  it("uses the focused no-duplicate 114-exercise catalog", () => {
     const names = referenceExercises.map((exercise) => exercise.name);
 
-    expect(names).toHaveLength(208);
+    expect(names).toHaveLength(114);
     expect(names).toEqual(
       expect.arrayContaining([
         "Barbell Bench Press",
         "Barbell Back Squat",
-        "Barbell Conventional Deadlift",
-        "Pull-Up",
-        "Barbell Bent-Over Row",
+        "Barbell Deadlift",
+        "Barbell Walking Lunge",
+        "Pull Up",
+        "Barbell Bent Over Row",
         "Barbell Overhead Press",
         "Cable Triceps Pushdown",
+        "Dumbbell Wrist Curl",
+        "Dumbbell Reverse Wrist Curl",
         "Dumbbell Walking Lunge",
         "Machine Seated Leg Curl",
         "Machine Calf Raise",
         "Weighted Dip",
-        "Incline Push-Up",
-        "Deficit Push-Up",
-        "Modified Candlestick",
-        "Negative Pull-Up",
-        "Archer Push-Up",
-        "Weighted Push-Up",
-        "Weighted Inverted Row",
+        "Weighted Pull Up",
+        "Machine Assisted Pull Up",
         "Smith Machine Bench Press",
-        "Landmine Row",
+        "Smith Machine Front Squat",
         "EZ Bar Curl",
         "Trap Bar Deadlift",
-        "Sled Push",
-        "Kettlebell Swing",
       ]),
     );
   });
 
-  it("skips noisy imports, exact duplicates, and movement-intent aliases", () => {
+  it("keeps exercise display names free of hyphens", () => {
+    const names = referenceExercises.map((exercise) => exercise.name);
+
+    expect(names.find((name) => name.includes("-"))).toBeUndefined();
+  });
+
+  it("skips noisy imports, niche movements, and movement-intent aliases", () => {
     const names = referenceExercises.map((exercise) => exercise.name);
 
     expect(names).not.toEqual(
       expect.arrayContaining([
+        "Barbell Jefferson Squat",
+        "Barbell Behind the Neck Press",
+        "Dumbbell Cuban Press",
+        "Dumbbell Tate Press",
+        "Cable Bayesian Curl",
+        "Cable Y Raise",
+        "Cable External Rotation",
+        "Cable Internal Rotation",
+        "Machine Tibialis Raise",
+        "Modified Candlestick",
+        "Deficit Push Up",
+        "Negative Pull Up",
+        "Archer Push Up",
+        "Sled Push",
+        "Kettlebell Swing",
+        "Landmine Row",
         "Pec Deck",
-        "Pendlay Row",
         "Cable Seated Row",
         "Machine Lat Pulldown",
         "Reverse Pec Deck",
@@ -112,11 +126,14 @@ describe("reference seed data", () => {
         "Weighted Plank",
         "Machine Neck Extension",
         "Machine Neck Flexion",
+        "Barbell Conventional Deadlift",
+        "Barbell Floor Press",
+        "Barbell Pause Squat",
       ]),
     );
   });
 
-  it("keeps conflict rows on existing canonical movement intent", () => {
+  it("keeps representative movement intent rows", () => {
     expect(referenceExercises.find((exercise) => exercise.name === "Barbell Shrug")).toMatchObject({
       primaryMuscle: "Back",
       equipment: "Barbell",
@@ -124,10 +141,6 @@ describe("reference seed data", () => {
     expect(referenceExercises.find((exercise) => exercise.name === "Dumbbell Shrug")).toMatchObject({
       primaryMuscle: "Back",
       equipment: "Dumbbell",
-    });
-    expect(referenceExercises.find((exercise) => exercise.name === "Cable Kickback")).toMatchObject({
-      primaryMuscle: "Triceps",
-      equipment: "Cable",
     });
     expect(referenceExercises.find((exercise) => exercise.name === "Cable Glute Kickback")).toMatchObject({
       primaryMuscle: "Glutes",
@@ -149,7 +162,46 @@ describe("reference seed data", () => {
     }
   });
 
-  it("keeps representative rep ranges from the provided CSV", () => {
+  it("keeps representative muscle mappings and rep ranges from the focused CSV", () => {
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Deadlift")).toMatchObject({
+      primaryMuscle: "Glutes",
+      secondaryMuscles: ["Hamstrings", "Quads", "Back", "Forearms", "Core"],
+      minRepsHypertrophy: 4,
+      maxRepsHypertrophy: 8,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Trap Bar Deadlift")).toMatchObject({
+      primaryMuscle: "Glutes",
+      equipment: "Trap Bar",
+      minRepsHypertrophy: 4,
+      maxRepsHypertrophy: 8,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Romanian Deadlift")).toMatchObject({
+      primaryMuscle: "Hamstrings",
+      secondaryMuscles: ["Glutes", "Back", "Forearms"],
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Back Squat")).toMatchObject({
+      primaryMuscle: "Quads",
+      secondaryMuscles: ["Glutes", "Hamstrings", "Core"],
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Bench Press")).toMatchObject({
+      primaryMuscle: "Chest",
+      secondaryMuscles: ["Triceps", "Shoulders"],
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Pull Up")).toMatchObject({
+      primaryMuscle: "Back",
+      equipment: "Bodyweight",
+      repsOnly: true,
+      minRepsHypertrophy: 5,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Hip Thrust")).toMatchObject({
+      primaryMuscle: "Glutes",
+      secondaryMuscles: ["Hamstrings", "Core"],
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Machine Back Extension")).toMatchObject({
+      primaryMuscle: "Back",
+      secondaryMuscles: ["Glutes", "Hamstrings"],
+    });
     expect(referenceExercises.find((exercise) => exercise.name === "Barbell Push Press")).toMatchObject({
       minRepsHypertrophy: 4,
       maxRepsHypertrophy: 8,
@@ -162,7 +214,7 @@ describe("reference seed data", () => {
       minRepsHypertrophy: 12,
       maxRepsHypertrophy: 25,
     });
-    expect(referenceExercises.find((exercise) => exercise.name === "Weighted Pull-Up")).toMatchObject({
+    expect(referenceExercises.find((exercise) => exercise.name === "Weighted Pull Up")).toMatchObject({
       repsOnly: false,
       minRepsHypertrophy: 4,
       maxRepsHypertrophy: 10,
@@ -173,36 +225,39 @@ describe("reference seed data", () => {
       minRepsHypertrophy: 6,
       maxRepsHypertrophy: 12,
     });
-    expect(referenceExercises.find((exercise) => exercise.name === "Trap Bar Deadlift")).toMatchObject({
+    expect(referenceExercises.find((exercise) => exercise.name === "Barbell Walking Lunge")).toMatchObject({
       primaryMuscle: "Quads",
-      equipment: "Trap Bar",
-      minRepsHypertrophy: 4,
-      maxRepsHypertrophy: 8,
+      secondaryMuscles: ["Glutes", "Hamstrings"],
+      minRepsHypertrophy: 8,
+      maxRepsHypertrophy: 15,
     });
-    expect(referenceExercises.find((exercise) => exercise.name === "Nordic Hamstring Curl")).toMatchObject({
-      primaryMuscle: "Hamstrings",
-      equipment: "Bodyweight",
-      repsOnly: true,
+    expect(referenceExercises.find((exercise) => exercise.name === "Dumbbell Reverse Lunge")).toMatchObject({
+      primaryMuscle: "Glutes",
+      secondaryMuscles: ["Quads", "Hamstrings"],
+      minRepsHypertrophy: 8,
+      maxRepsHypertrophy: 15,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Smith Machine Front Squat")).toMatchObject({
+      primaryMuscle: "Quads",
+      secondaryMuscles: ["Glutes", "Hamstrings"],
       minRepsHypertrophy: 6,
       maxRepsHypertrophy: 12,
     });
-    expect(referenceExercises.find((exercise) => exercise.name === "Pull-Up")).toMatchObject({
-      equipment: "Bodyweight",
-      repsOnly: true,
-      minRepsHypertrophy: 5,
-      maxRepsHypertrophy: 12,
-    });
-    expect(referenceExercises.find((exercise) => exercise.name === "Weighted Push-Up")).toMatchObject({
-      equipment: "Bodyweight",
+    expect(referenceExercises.find((exercise) => exercise.name === "Dumbbell Wrist Curl")).toMatchObject({
+      primaryMuscle: "Forearms",
+      secondaryMuscles: [],
+      equipment: "Dumbbell",
       repsOnly: false,
-      minRepsHypertrophy: 6,
-      maxRepsHypertrophy: 12,
+      minRepsHypertrophy: 8,
+      maxRepsHypertrophy: 20,
     });
-    expect(referenceExercises.find((exercise) => exercise.name === "Incline Push-Up")).toMatchObject({
-      equipment: "Bodyweight",
-      repsOnly: true,
-      minRepsHypertrophy: 12,
-      maxRepsHypertrophy: 30,
+    expect(referenceExercises.find((exercise) => exercise.name === "Dumbbell Reverse Wrist Curl")).toMatchObject({
+      primaryMuscle: "Forearms",
+      secondaryMuscles: [],
+      equipment: "Dumbbell",
+      repsOnly: false,
+      minRepsHypertrophy: 8,
+      maxRepsHypertrophy: 20,
     });
   });
 });

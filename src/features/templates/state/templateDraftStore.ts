@@ -7,8 +7,12 @@ export interface WorkoutsPerWeekChangePlan {
   workoutsPerWeek: number;
 }
 
+export const DEFAULT_TEMPLATE_FLOW_RETURN_PATH = "/start/select-template";
+export type TemplateFlowReturnPath = typeof DEFAULT_TEMPLATE_FLOW_RETURN_PATH | "/templates";
+
 interface TemplateDraftState {
   editingTemplateId: number | null;
+  returnPath: TemplateFlowReturnPath;
   name: string;
   focusMuscleIds: number[];
   workoutsPerWeek: number | null;
@@ -23,9 +27,9 @@ interface TemplateDraftState {
   reorderExerciseInDay: (day: number, fromIndex: number, toIndex: number) => void;
   replaceExerciseInDay: (day: number, index: number, exerciseId: number) => void;
   removeExerciseFromDay: (day: number, index: number) => void;
-  loadFromAggregate: (template: TemplateAggregate) => void;
+  loadFromAggregate: (template: TemplateAggregate, returnPath?: TemplateFlowReturnPath) => void;
   toDraft: () => TemplateDraft;
-  reset: () => void;
+  reset: (returnPath?: TemplateFlowReturnPath) => void;
 }
 
 function buildDays(workoutsPerWeek: number | null, exerciseIdsByDay: Record<number, number[]>): TemplateDraft["days"] {
@@ -112,6 +116,7 @@ function buildExerciseIdsByDayAfterChange({
 
 export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
   editingTemplateId: null,
+  returnPath: DEFAULT_TEMPLATE_FLOW_RETURN_PATH,
   name: "",
   focusMuscleIds: [],
   workoutsPerWeek: null,
@@ -207,7 +212,7 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
         [day]: (state.exerciseIdsByDay[day] ?? []).filter((_, itemIndex) => itemIndex !== index),
       },
     })),
-  loadFromAggregate: (template) => {
+  loadFromAggregate: (template, returnPath = DEFAULT_TEMPLATE_FLOW_RETURN_PATH) => {
     const exerciseIdsByDay = template.days.reduce<Record<number, number[]>>((days, day) => {
       days[day.order] = [...day.exerciseIds];
       return days;
@@ -215,6 +220,7 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
 
     set({
       editingTemplateId: template.id,
+      returnPath,
       name: template.name,
       focusMuscleIds: [...template.focusMuscleIds],
       workoutsPerWeek: template.workoutsPerWeek,
@@ -231,9 +237,10 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
       days: buildDays(state.workoutsPerWeek, state.exerciseIdsByDay),
     };
   },
-  reset: () =>
+  reset: (returnPath = DEFAULT_TEMPLATE_FLOW_RETURN_PATH) =>
     set({
       editingTemplateId: null,
+      returnPath,
       name: "",
       focusMuscleIds: [],
       workoutsPerWeek: null,

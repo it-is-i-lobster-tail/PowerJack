@@ -55,7 +55,7 @@ export function TemplateDaysPerWeekPage() {
   return (
     <main className="app-screen app-screen--centered" data-agent-id="template-days-per-week-page">
       <section className="setup-card app-flow" aria-labelledby="template-days-per-week-title">
-        <h1 id="template-days-per-week-title">Days Per Week</h1>
+        <h1 id="template-days-per-week-title">How many days do you want to train?</h1>
 
         <div
           className="choice-grid choice-grid--days-per-week"

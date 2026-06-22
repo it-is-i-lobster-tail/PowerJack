@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { AppState } from "../domain/app-state/AppState";
 import { Button } from "../shared/ui/Button";
-import { useStartProgramStore } from "../features/start-program/state/startProgramStore";
-import { useTemplateDraftStore } from "../features/templates/state/templateDraftStore";
 import { useServices } from "./useServices";
 import "./AppShell.css";
 
@@ -13,8 +11,6 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const resetProgramDraft = useStartProgramStore((state) => state.reset);
-  const resetTemplateDraft = useTemplateDraftStore((state) => state.reset);
   const [appState, setAppState] = useState<AppState | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const activeWorkoutPath =
@@ -83,9 +79,9 @@ export function AppShell() {
                   void navigate(activeWorkoutPath);
                 }
               }}
-              variant="outline"
+              variant="primary"
             >
-              Resume Workout
+              Resume workout
             </Button>
           ) : null}
         </div>
@@ -112,34 +108,28 @@ export function AppShell() {
                 }
                 type="button"
               >
-                Current Program
+                Current program
               </button>
               <button
-                data-agent-id="menu-new-program"
-                onClick={() => {
-                  resetProgramDraft();
-                  closeMenuAndNavigate("/start/select-template");
-                }}
+                data-agent-id="menu-programs"
+                onClick={() => closeMenuAndNavigate("/programs")}
                 type="button"
               >
-                New Program
+                Programs
               </button>
               <button
                 data-agent-id="menu-data-visualization"
                 onClick={() => closeMenuAndNavigate("/visualization")}
                 type="button"
               >
-                Data Visualization
+                Data visualization
               </button>
               <button
-                data-agent-id="menu-new-template"
-                onClick={() => {
-                  resetTemplateDraft();
-                  closeMenuAndNavigate("/templates/new/name");
-                }}
+                data-agent-id="menu-templates"
+                onClick={() => closeMenuAndNavigate("/templates")}
                 type="button"
               >
-                New Template
+                Templates
               </button>
             </nav>
           ) : null}

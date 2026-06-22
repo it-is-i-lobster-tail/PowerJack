@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildProgramSetVolumeReport,
+  classifyWeeklySetVolume,
   type CompletedSetEvent,
+  type SetVolumeBand,
 } from "../../src/domain/analytics/TrainingAnalytics";
 
 describe("program set volume report", () => {
@@ -54,6 +56,19 @@ describe("program set volume report", () => {
     });
 
     expect(report.rows.map((row) => row.muscleName)).toEqual(["Back", "Biceps"]);
+  });
+
+  it.each([
+    [3.9, "not-ideal"],
+    [4, "maintaining"],
+    [5.9, "maintaining"],
+    [6, "growth"],
+    [11.9, "growth"],
+    [12, "max-growth"],
+    [25, "max-growth"],
+    [25.1, "overtraining"],
+  ] satisfies Array<[number, SetVolumeBand]>)("classifies %s sets per week as %s", (value, band) => {
+    expect(classifyWeeklySetVolume(value)).toBe(band);
   });
 });
 

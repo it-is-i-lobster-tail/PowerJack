@@ -8,7 +8,12 @@ import {
 import type { TrainingAnalyticsRepository } from "../../../domain/analytics/TrainingAnalyticsRepository";
 import type { ExerciseSummary, Muscle } from "../../../domain/exercises/Exercise";
 import type { ExerciseCatalogRepository } from "../../../domain/exercises/ExerciseCatalogRepository";
+import { normalizeExerciseSearchText } from "../../../domain/exercises/searchNormalization";
 import type { Program } from "../../../domain/programs/Program";
+import {
+  sortProgramListSummaries,
+  type ProgramListSummary,
+} from "../../../domain/programs/ProgramList";
 import type {
   PersistedProgramScheduleCell,
   ProgramOverviewSnapshot,
@@ -133,7 +138,7 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
   }
 
   searchExercises(query: string): Promise<ExerciseSummary[]> {
-    const normalizedQuery = query.toLowerCase();
+    const normalizedQuery = normalizeExerciseSearchText(query);
 
     const results = this.catalog.exercises
       .filter((exercise) => {
@@ -142,10 +147,12 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
         }
 
         return (
-          exercise.name.toLowerCase().includes(normalizedQuery) ||
-          exercise.primaryMuscleName.toLowerCase().includes(normalizedQuery) ||
-          exercise.equipmentName.toLowerCase().includes(normalizedQuery) ||
-          exercise.secondaryMuscleNames.some((muscle) => muscle.toLowerCase().includes(normalizedQuery))
+          normalizeExerciseSearchText(exercise.name).includes(normalizedQuery) ||
+          normalizeExerciseSearchText(exercise.primaryMuscleName).includes(normalizedQuery) ||
+          normalizeExerciseSearchText(exercise.equipmentName).includes(normalizedQuery) ||
+          exercise.secondaryMuscleNames.some((muscle) =>
+            normalizeExerciseSearchText(muscle).includes(normalizedQuery),
+          )
         );
       })
       .slice(0, 40);
@@ -355,6 +362,33 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     private readonly appState: InMemoryAppStateRepository,
     private readonly templates: InMemoryTemplateRepository,
   ) {}
+
+  async listSummaries(): Promise<ProgramListSummary[]> {
+    const summaries = await Promise.all(
+      this.programs.map(async (program) => {
+        const overview = await this.loadOverview(program.id);
+
+        if (!overview) {
+          return null;
+        }
+
+        return {
+          id: overview.program.id,
+          name: overview.program.name,
+          status: overview.program.status,
+          templateName: overview.program.templateName,
+          focusMuscles: overview.program.focusMuscles,
+          progressPercent: overview.program.progressPercent,
+          createdAt: program.createdAt,
+          updatedAt: program.updatedAt,
+        };
+      }),
+    );
+
+    return sortProgramListSummaries(
+      summaries.filter((summary): summary is ProgramListSummary => Boolean(summary)),
+    );
+  }
 
   async loadOverview(programId: number): Promise<ProgramOverviewSnapshot | null> {
     const program = this.programs.find((item) => item.id === programId);
