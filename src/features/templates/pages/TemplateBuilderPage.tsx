@@ -35,6 +35,13 @@ interface BuilderExerciseItem {
   sortableId: string;
 }
 
+type ReorderState = "idle" | "moving";
+type DndIdentifier = string | number;
+type DndAnnouncementEvent = {
+  active: { id: DndIdentifier };
+  over?: { id: DndIdentifier } | null;
+};
+
 interface ExerciseSearchResultsProps {
   exercises: ExerciseSummary[];
   resultAgentId: (exerciseId: number) => string;
@@ -51,6 +58,7 @@ export function TemplateBuilderPage() {
   const workoutsPerWeek = useTemplateDraftStore((state) => state.workoutsPerWeek);
   const activeDay = useTemplateDraftStore((state) => state.activeDay);
   const exerciseIdsByDay = useTemplateDraftStore((state) => state.exerciseIdsByDay);
+  const exerciseRowIdsByDay = useTemplateDraftStore((state) => state.exerciseRowIdsByDay);
   const setActiveDay = useTemplateDraftStore((state) => state.setActiveDay);
   const addExerciseToDay = useTemplateDraftStore((state) => state.addExerciseToDay);
   const reorderExerciseInDay = useTemplateDraftStore((state) => state.reorderExerciseInDay);
@@ -156,6 +164,10 @@ export function TemplateBuilderPage() {
     [allExercises],
   );
   const currentExerciseIds = useMemo(() => exerciseIdsByDay[activeDay] ?? [], [activeDay, exerciseIdsByDay]);
+  const currentExerciseRowIds = useMemo(
+    () => exerciseRowIdsByDay[activeDay] ?? [],
+    [activeDay, exerciseRowIdsByDay],
+  );
   const missingCurrentExerciseIds = useMemo(
     () => currentExerciseIds.filter((exerciseId) => !exercisesById.has(exerciseId)),
     [currentExerciseIds, exercisesById],
@@ -187,8 +199,9 @@ export function TemplateBuilderPage() {
 
   const currentExerciseItems = currentExerciseIds.flatMap<BuilderExerciseItem>((exerciseId, index) => {
     const exercise = exercisesById.get(exerciseId);
+    const sortableId = currentExerciseRowIds[index];
 
-    if (!exercise) {
+    if (!exercise || !sortableId) {
       return [];
     }
 
@@ -196,15 +209,59 @@ export function TemplateBuilderPage() {
       {
         exercise,
         index,
-        sortableId: buildSortableId(activeDay, index),
+        sortableId,
       },
     ];
   });
   const sortableIds = currentExerciseItems.map((item) => item.sortableId);
+  const sortableItemsById = useMemo(
+    () => new Map(currentExerciseItems.map((item) => [item.sortableId, item])),
+    [currentExerciseItems],
+  );
   const isHydratingCurrentExercises =
     currentExerciseIds.length > 0 && currentExerciseItems.length < currentExerciseIds.length;
   const validation = validateTemplateDraft(toDraft());
   const canSave = validation.ok && !isSaving;
+  const dragAnnouncements = useMemo(
+    () => ({
+      onDragStart({ active }: DndAnnouncementEvent) {
+        const activeId = String(active.id);
+        return `${getExerciseAnnouncementName(activeId, sortableItemsById)} picked up at position ${getSortablePosition(
+          activeId,
+          sortableIds,
+        )} of ${sortableIds.length}.`;
+      },
+      onDragOver({ active, over }: DndAnnouncementEvent) {
+        if (!over || active.id === over.id) {
+          return undefined;
+        }
+
+        const activeId = String(active.id);
+        const overId = String(over.id);
+        return `${getExerciseAnnouncementName(activeId, sortableItemsById)} moving to position ${getSortablePosition(
+          overId,
+          sortableIds,
+        )} of ${sortableIds.length}.`;
+      },
+      onDragEnd({ active, over }: DndAnnouncementEvent) {
+        const activeId = String(active.id);
+
+        if (!over) {
+          return `${getExerciseAnnouncementName(activeId, sortableItemsById)} dropped.`;
+        }
+
+        const overId = String(over.id);
+        return `${getExerciseAnnouncementName(activeId, sortableItemsById)} moved to position ${getSortablePosition(
+          overId,
+          sortableIds,
+        )} of ${sortableIds.length}.`;
+      },
+      onDragCancel({ active }: DndAnnouncementEvent) {
+        return `${getExerciseAnnouncementName(String(active.id), sortableItemsById)} reorder cancelled.`;
+      },
+    }),
+    [sortableIds, sortableItemsById],
+  );
 
   if (!name.trim() || name.length > 64) {
     return <Navigate replace to="/templates/new/name" />;
@@ -244,13 +301,15 @@ export function TemplateBuilderPage() {
 
   function handleDragEnd(event: DragEndEvent): void {
     const { active, over } = event;
+    const activeId = String(active.id);
+    const overId = over ? String(over.id) : null;
 
-    if (!over || active.id === over.id) {
+    if (!overId || activeId === overId) {
       return;
     }
 
-    const fromIndex = sortableIds.indexOf(String(active.id));
-    const toIndex = sortableIds.indexOf(String(over.id));
+    const fromIndex = sortableIds.indexOf(activeId);
+    const toIndex = sortableIds.indexOf(overId);
 
     if (fromIndex >= 0 && toIndex >= 0) {
       reorderExerciseInDay(activeDay, fromIndex, toIndex);
@@ -350,7 +409,18 @@ export function TemplateBuilderPage() {
               Loading exercises...
             </p>
           ) : (
-            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd} sensors={sensors}>
+            <DndContext
+              accessibility={{
+                announcements: dragAnnouncements,
+                screenReaderInstructions: {
+                  draggable:
+                    "To reorder an exercise, press space or enter. Use the arrow keys to move it, then press space or enter again to drop it.",
+                },
+              }}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+              sensors={sensors}
+            >
               <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
                 <div className="builder-exercise-list">
                   {currentExerciseItems.map(({ exercise, index, sortableId }) => (
@@ -358,6 +428,7 @@ export function TemplateBuilderPage() {
                       editQuery={editQuery}
                       editResults={editSearchResults}
                       exercise={exercise}
+                      exerciseCount={currentExerciseItems.length}
                       index={index}
                       isEditing={editingIndex === index}
                       key={sortableId}
@@ -471,6 +542,7 @@ function SortableExerciseRow({
   editQuery,
   editResults,
   exercise,
+  exerciseCount,
   index,
   isEditing,
   onCancelEdit,
@@ -483,6 +555,7 @@ function SortableExerciseRow({
   editQuery: string;
   editResults: ExerciseSummary[];
   exercise: ExerciseSummary;
+  exerciseCount: number;
   index: number;
   isEditing: boolean;
   onCancelEdit: () => void;
@@ -492,22 +565,38 @@ function SortableExerciseRow({
   onReplace: (exerciseId: number) => void;
   sortableId: string;
 }) {
-  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({ id: sortableId });
+  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } = useSortable({
+    id: sortableId,
+    transition: {
+      duration: 160,
+      easing: "cubic-bezier(0.2, 0, 0, 1)",
+    },
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  const rowClassName = isDragging
-    ? "builder-exercise-row-shell builder-exercise-row-shell--dragging"
-    : "builder-exercise-row-shell";
+  const reorderState: ReorderState = isDragging ? "moving" : "idle";
+  const rowClassName = [
+    "builder-exercise-row-shell",
+    isDragging ? "builder-exercise-row-shell--dragging" : null,
+    reorderState === "moving" ? "builder-exercise-row-shell--moving" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className={rowClassName} ref={setNodeRef} style={style}>
-      <div className="builder-exercise-row" data-agent-id={`template-exercise-${index + 1}`}>
+      <div
+        className="builder-exercise-row"
+        data-agent-id={`template-exercise-${index + 1}`}
+        data-reorder-state={reorderState}
+      >
         <button
-          aria-label={`Drag ${exercise.name}`}
+          aria-label={`Reorder ${exercise.name}, position ${index + 1} of ${exerciseCount}`}
           className="builder-exercise-row__order"
           data-agent-id={`template-exercise-drag-${index + 1}`}
+          ref={setActivatorNodeRef}
           type="button"
           {...attributes}
           {...listeners}
@@ -603,10 +692,6 @@ function ExerciseSearchResults({ exercises, onSelect, resultAgentId }: ExerciseS
   );
 }
 
-function buildSortableId(day: number, index: number): string {
-  return `day-${day}-exercise-${index}`;
-}
-
 function mergeExercises(currentExercises: ExerciseSummary[], nextExercises: ExerciseSummary[]): ExerciseSummary[] {
   const exercisesById = new Map(currentExercises.map((exercise) => [exercise.id, exercise]));
 
@@ -615,4 +700,16 @@ function mergeExercises(currentExercises: ExerciseSummary[], nextExercises: Exer
   }
 
   return [...exercisesById.values()];
+}
+
+function getSortablePosition(sortableId: string, sortableIds: string[]): number {
+  const index = sortableIds.indexOf(sortableId);
+  return index >= 0 ? index + 1 : 1;
+}
+
+function getExerciseAnnouncementName(
+  sortableId: string,
+  sortableItemsById: Map<string, BuilderExerciseItem>,
+): string {
+  return sortableItemsById.get(sortableId)?.exercise.name ?? "Exercise";
 }

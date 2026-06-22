@@ -1228,7 +1228,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
   });
 
-  test("template builder reorders and replaces exercises before saving", async ({ page }) => {
+  test("template builder reorders and replaces exercises before saving", async ({ page }, testInfo) => {
     await openTemplateFocus(page, "Builder Control");
     await selectFocusAndOpenDays(page);
     await page.locator("[data-agent-id='template-days-per-week-2']").click();
@@ -1271,11 +1271,83 @@ test.describe("start program flow", () => {
       await page.mouse.move(firstDragBox.x + firstDragBox.width / 2, firstDragBox.y + firstDragBox.height / 2, {
         steps: 12,
       });
+      await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
+        "data-reorder-state",
+        "moving",
+      );
+      await expect(page.locator("[data-agent-id='template-exercise-1']")).toHaveAttribute(
+        "data-reorder-state",
+        "idle",
+      );
+
+      if (testInfo.project.name === "mobile-chrome") {
+        await expect(page).toHaveScreenshot("warm-stone-builder-reorder-feedback-mobile.png", {
+          animations: "disabled",
+          fullPage: true,
+        });
+      }
+
       await page.mouse.up();
     }
 
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Back Squat");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Pull Up");
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toHaveAttribute(
+      "data-reorder-state",
+      "idle",
+      { timeout: 500 },
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
+      "data-reorder-state",
+      "idle",
+      { timeout: 500 },
+    );
+
+    await page.waitForTimeout(200);
+
+    const refreshedFirstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const refreshedSecondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const refreshedFirstDragBox = await refreshedFirstDragHandle.boundingBox();
+    const refreshedSecondDragBox = await refreshedSecondDragHandle.boundingBox();
+
+    expect(refreshedFirstDragBox).not.toBeNull();
+    expect(refreshedSecondDragBox).not.toBeNull();
+
+    if (refreshedFirstDragBox && refreshedSecondDragBox) {
+      const refreshedFirstCenterX = refreshedFirstDragBox.x + refreshedFirstDragBox.width / 2;
+      const refreshedFirstCenterY = refreshedFirstDragBox.y + refreshedFirstDragBox.height / 2;
+      const refreshedSecondCenterX = refreshedSecondDragBox.x + refreshedSecondDragBox.width / 2;
+      const refreshedSecondCenterY = refreshedSecondDragBox.y + refreshedSecondDragBox.height / 2;
+
+      await page.mouse.move(refreshedFirstCenterX, refreshedFirstCenterY);
+      await page.mouse.down();
+      await page.mouse.move(refreshedFirstCenterX, refreshedFirstCenterY + 18, { steps: 4 });
+      await expect(page.locator("[data-agent-id='template-exercise-1']")).toHaveAttribute(
+        "data-reorder-state",
+        "moving",
+      );
+      await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
+        "data-reorder-state",
+        "idle",
+      );
+      await page.mouse.move(refreshedSecondCenterX, refreshedSecondCenterY, {
+        steps: 12,
+      });
+      await page.mouse.up();
+    }
+
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toHaveAttribute(
+      "data-reorder-state",
+      "idle",
+      { timeout: 500 },
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
+      "data-reorder-state",
+      "idle",
+      { timeout: 500 },
+    );
 
     await page.waitForTimeout(200);
     await page.locator("[data-agent-id='template-day-2']").click();
@@ -1294,8 +1366,8 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='program-length-next']").click();
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
-    await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Barbell Back Squat");
-    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Pull Up");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Pull Up");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Barbell Back Squat");
   });
 
   test("template builder confirms filled day removal and keeps retained exercises visible", async ({ page }) => {
