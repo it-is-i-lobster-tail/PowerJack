@@ -64,6 +64,7 @@ export class SqliteExerciseCatalogRepository implements ExerciseCatalogRepositor
           GROUP_CONCAT(secondary_muscles.name, ',') AS secondary_muscle_names,
           equipment.name AS equipment_name,
           exercises.reps_only,
+          exercises.time_based,
           exercises.min_reps_hypertrophy,
           exercises.max_reps_hypertrophy
         FROM exercises

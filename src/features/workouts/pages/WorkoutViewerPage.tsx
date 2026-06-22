@@ -51,6 +51,7 @@ interface PendingSetPersist {
 }
 
 const setAutosaveDelayMs = 850;
+const secondsPerTimeBasedRep = 15;
 const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
   { value: 1, label: "None" },
@@ -128,15 +129,14 @@ export function WorkoutViewerPage() {
       const nextDraftValues = buildDraftValues(nextView);
 
       if (preservePendingDrafts) {
-        const preservingSetIds = new Set([
-          ...Object.keys(persistTimersRef.current).map(Number),
-          ...persistingSetIdsRef.current,
-        ]);
+        const timerSetIds = new Set(Object.keys(persistTimersRef.current).map(Number));
+        const preservingSetIds = new Set([...timerSetIds, ...persistingSetIdsRef.current]);
 
         for (const setId of preservingSetIds) {
           const pendingDraft = draftValuesRef.current[setId];
+          const liftAndSet = findLiftAndSet(nextView, setId);
 
-          if (pendingDraft) {
+          if (pendingDraft && (timerSetIds.has(setId) || !liftAndSet?.lift.timeBased)) {
             nextDraftValues[setId] = pendingDraft;
           }
         }
@@ -414,7 +414,10 @@ export function WorkoutViewerPage() {
       nextView = await updateWorkoutSet(
         {
           setId: pendingPersist.setId,
-          actualReps: toNullableInteger(pendingPersist.draft.reps),
+          actualReps:
+            previousView && isTimeBasedSet(previousView, pendingPersist.setId)
+              ? toNullableTimeBasedReps(pendingPersist.draft.reps)
+              : toNullableInteger(pendingPersist.draft.reps),
           actualWeight:
             previousView && isRepsOnlySet(previousView, pendingPersist.setId)
               ? null
@@ -475,13 +478,15 @@ export function WorkoutViewerPage() {
     const nextDraftValues = { ...draftValuesRef.current };
 
     for (const propagationSetId of propagationSetIds) {
-      const propagatedSet = findLiftAndSet(previousView, propagationSetId)?.set;
+      const propagatedLiftAndSet = findLiftAndSet(previousView, propagationSetId);
 
-      if (!propagatedSet) {
+      if (!propagatedLiftAndSet) {
         continue;
       }
 
-      const propagatedDraft = nextDraftValues[propagationSetId] ?? valueFromSet(propagatedSet);
+      const propagatedDraft =
+        nextDraftValues[propagationSetId] ??
+        valueFromSet(propagatedLiftAndSet.set, { timeBased: propagatedLiftAndSet.lift.timeBased });
       nextDraftValues[propagationSetId] = { ...propagatedDraft, weight: nextWeight };
     }
 
@@ -598,6 +603,7 @@ export function WorkoutViewerPage() {
       draftValuesRef.current[setId] ??
       valueFromSet(liftAndSet.set, {
         prefillPlannedWeight: canUsePlannedWeightAsDraft(currentView, liftAndSet.lift, liftAndSet.set),
+        timeBased: liftAndSet.lift.timeBased,
       });
     const nextDraft = { ...currentDraft, [field]: value };
     const nextDraftValues = {
@@ -1595,12 +1601,13 @@ function LiftCard({
       <div className="set-list">
         {lift.sets.map((set) => (
           <SetRow
-            draftValue={draftValues[set.id] ?? valueFromSet(set)}
+            draftValue={draftValues[set.id] ?? valueFromSet(set, { timeBased: lift.timeBased })}
             isReadOnly={isReadOnly || isSkipped || lift.locked || set.locked || set.status === "skipped"}
             key={set.id}
             onSetFieldChange={onSetFieldChange}
             repsOnly={lift.repsOnly}
             set={set}
+            timeBased={lift.timeBased}
           />
         ))}
       </div>
@@ -1614,15 +1621,19 @@ function SetRow({
   onSetFieldChange,
   repsOnly,
   set,
+  timeBased,
 }: {
   draftValue: SetDraftValue;
   isReadOnly: boolean;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
   repsOnly: boolean;
   set: ActiveWorkoutSetView;
+  timeBased: boolean;
 }) {
   const isComplete = set.status === "complete";
   const isSkipped = set.status === "skipped";
+  const amountLabel = timeBased ? "Seconds" : "Reps";
+  const amountAriaLabel = `Set ${set.order} ${timeBased ? "seconds" : "reps"}`;
 
   return (
     <div
@@ -1650,15 +1661,15 @@ function SetRow({
       </div>
 
       <label className="set-row__field">
-        <span>Reps</span>
+        <span>{amountLabel}</span>
         <input
-          aria-label={`Set ${set.order} reps`}
+          aria-label={amountAriaLabel}
           data-agent-id={`set-reps-${set.id}`}
           disabled={isReadOnly}
           inputMode="numeric"
           onChange={(event) => onSetFieldChange(set.id, "reps", event.currentTarget.value)}
           pattern="[0-9]*"
-          placeholder={set.plannedReps?.toString() ?? ""}
+          placeholder={formatRepsForInput(set.plannedReps, timeBased)}
           type="text"
           value={draftValue.reps}
         />
@@ -1689,7 +1700,10 @@ function buildDraftValues(view: ActiveWorkoutView): SetDraftValues {
     view.lifts.flatMap((lift) =>
       lift.sets.map((set) => [
         set.id,
-        valueFromSet(set, { prefillPlannedWeight: canUsePlannedWeightAsDraft(view, lift, set) }),
+        valueFromSet(set, {
+          prefillPlannedWeight: canUsePlannedWeightAsDraft(view, lift, set),
+          timeBased: lift.timeBased,
+        }),
       ]),
     ),
   );
@@ -1720,12 +1734,12 @@ function isSetEditable(
 
 function valueFromSet(
   set: ActiveWorkoutSetView,
-  options: { prefillPlannedWeight?: boolean } = {},
+  options: { prefillPlannedWeight?: boolean; timeBased?: boolean } = {},
 ): SetDraftValue {
   const weight = set.actualWeight ?? (options.prefillPlannedWeight ? set.plannedWeight : null);
 
   return {
-    reps: set.actualReps?.toString() ?? "",
+    reps: formatRepsForInput(set.actualReps, Boolean(options.timeBased)),
     weight: weight?.toString() ?? "",
   };
 }
@@ -1746,6 +1760,27 @@ function toNullableInteger(value: string): number | null {
   return value === "" ? null : Number(value);
 }
 
+function toNullableTimeBasedReps(value: string): number | null {
+  if (value === "") {
+    return null;
+  }
+
+  const storedReps = Math.floor(Number(value) / secondsPerTimeBasedRep);
+  return storedReps > 0 ? storedReps : null;
+}
+
+function formatRepsForInput(value: number | null, timeBased: boolean): string {
+  if (value === null) {
+    return "";
+  }
+
+  return (timeBased ? value * secondsPerTimeBasedRep : value).toString();
+}
+
 function isRepsOnlySet(view: ActiveWorkoutView, setId: number): boolean {
   return view.lifts.some((lift) => lift.repsOnly && lift.sets.some((set) => set.id === setId));
+}
+
+function isTimeBasedSet(view: ActiveWorkoutView, setId: number): boolean {
+  return view.lifts.some((lift) => lift.timeBased && lift.sets.some((set) => set.id === setId));
 }
