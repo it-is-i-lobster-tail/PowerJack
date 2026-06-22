@@ -31,6 +31,7 @@ export function buildReferenceCatalog(): ReferenceCatalogSnapshot {
     secondaryMuscleNames: exercise.secondaryMuscles,
     equipmentName: exercise.equipment,
     repsOnly: exercise.repsOnly,
+    timeBased: exercise.timeBased,
     minRepsHypertrophy: exercise.minRepsHypertrophy,
     maxRepsHypertrophy: exercise.maxRepsHypertrophy,
   }));
