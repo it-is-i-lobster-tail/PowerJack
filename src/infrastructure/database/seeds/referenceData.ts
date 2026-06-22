@@ -11,6 +11,7 @@ export interface ReferenceExerciseSeed {
   secondaryMuscles: string[];
   equipment: string;
   repsOnly: boolean;
+  timeBased: boolean;
   minRepsHypertrophy: number;
   maxRepsHypertrophy: number;
 }
@@ -41,7 +42,7 @@ export const referenceEquipment: ReferenceEquipmentSeed[] = [
   { name: "Trap Bar", weightOverloadable: true, repOverloadable: true, timeOverloadable: false },
 ];
 
-const referenceExerciseCsv = `exercise-name,equipment,primary_muscle,secondary_muscle,reps_only,min_reps_hypertrophy,max_reps_hypertrophy
+const referenceExerciseCsv = `exercise-name,equipment,primary_muscle,secondary_muscle,reps_only,min_reps_hypertrophy,max_reps_hypertrophy,time_based
 Barbell Bench Press,Barbell,Chest,Triceps;Shoulders,FALSE,5,12
 Barbell Incline Bench Press,Barbell,Chest,Triceps;Shoulders,FALSE,6,12
 Barbell Close Grip Bench Press,Barbell,Triceps,Chest;Shoulders,FALSE,6,12
@@ -143,6 +144,9 @@ Bodyweight Bulgarian Split Squat,Bodyweight,Quads,Glutes;Hamstrings;Core,TRUE,10
 Single Leg Calf Raise,Bodyweight,Calves,Core,TRUE,10,25
 Hanging Knee Raise,Bodyweight,Core,Forearms,TRUE,8,20
 Hanging Leg Raise,Bodyweight,Core,Forearms,TRUE,8,20
+Plank,Bodyweight,Core,,TRUE,2,12,TRUE
+Weighted Plank,Bodyweight,Core,,FALSE,2,12,TRUE
+Side Plank,Bodyweight,Core,,TRUE,2,12,TRUE
 Weighted Pull Up,Bodyweight,Back,Biceps;Forearms;Core,FALSE,4,10
 Weighted Dip,Bodyweight,Triceps,Chest;Shoulders,FALSE,5,12
 Leg Press,Leg Press,Quads,Glutes;Hamstrings,FALSE,8,15
@@ -173,6 +177,7 @@ function parseReferenceExerciseCsv(csv: string): ReferenceExerciseSeed[] {
         repsOnly,
         minRepsHypertrophy,
         maxRepsHypertrophy,
+        timeBased = "FALSE",
       ] = row.split(",");
 
       return {
@@ -181,6 +186,7 @@ function parseReferenceExerciseCsv(csv: string): ReferenceExerciseSeed[] {
         primaryMuscle,
         secondaryMuscles: secondaryMuscleList ? secondaryMuscleList.split(";").filter(Boolean) : [],
         repsOnly: repsOnly.toLowerCase() === "true",
+        timeBased: timeBased.toLowerCase() === "true",
         minRepsHypertrophy: Number(minRepsHypertrophy),
         maxRepsHypertrophy: Number(maxRepsHypertrophy),
       };

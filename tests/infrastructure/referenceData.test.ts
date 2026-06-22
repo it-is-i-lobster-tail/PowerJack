@@ -52,10 +52,10 @@ describe("reference seed data", () => {
     ]);
   });
 
-  it("uses the focused no-duplicate 114-exercise catalog", () => {
+  it("uses the focused no-duplicate 117-exercise catalog", () => {
     const names = referenceExercises.map((exercise) => exercise.name);
 
-    expect(names).toHaveLength(114);
+    expect(names).toHaveLength(117);
     expect(names).toEqual(
       expect.arrayContaining([
         "Barbell Bench Press",
@@ -72,6 +72,9 @@ describe("reference seed data", () => {
         "Machine Seated Leg Curl",
         "Machine Calf Raise",
         "Weighted Dip",
+        "Plank",
+        "Weighted Plank",
+        "Side Plank",
         "Weighted Pull Up",
         "Machine Assisted Pull Up",
         "Smith Machine Bench Press",
@@ -123,7 +126,6 @@ describe("reference seed data", () => {
         "45-Degree Leg Press",
         "Horizontal Leg Press",
         "Cable Pallof Press",
-        "Weighted Plank",
         "Machine Neck Extension",
         "Machine Neck Flexion",
         "Barbell Conventional Deadlift",
@@ -191,7 +193,32 @@ describe("reference seed data", () => {
       primaryMuscle: "Back",
       equipment: "Bodyweight",
       repsOnly: true,
+      timeBased: false,
       minRepsHypertrophy: 5,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Plank")).toMatchObject({
+      primaryMuscle: "Core",
+      equipment: "Bodyweight",
+      repsOnly: true,
+      timeBased: true,
+      minRepsHypertrophy: 2,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Weighted Plank")).toMatchObject({
+      primaryMuscle: "Core",
+      equipment: "Bodyweight",
+      repsOnly: false,
+      timeBased: true,
+      minRepsHypertrophy: 2,
+      maxRepsHypertrophy: 12,
+    });
+    expect(referenceExercises.find((exercise) => exercise.name === "Side Plank")).toMatchObject({
+      primaryMuscle: "Core",
+      equipment: "Bodyweight",
+      repsOnly: true,
+      timeBased: true,
+      minRepsHypertrophy: 2,
       maxRepsHypertrophy: 12,
     });
     expect(referenceExercises.find((exercise) => exercise.name === "Barbell Hip Thrust")).toMatchObject({
