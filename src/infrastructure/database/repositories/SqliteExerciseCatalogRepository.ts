@@ -16,6 +16,42 @@ export class SqliteExerciseCatalogRepository implements ExerciseCatalogRepositor
     return rows.map(mapMuscleRow);
   }
 
+  async listExerciseSummariesByIds(ids: number[]): Promise<ExerciseSummary[]> {
+    const uniqueIds = [...new Set(ids)];
+
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = await this.db.query<ExerciseSummaryRow>(
+      `
+        SELECT
+          exercises.id,
+          exercises.name,
+          primary_muscles.name AS primary_muscle_name,
+          GROUP_CONCAT(secondary_muscles.name, ',') AS secondary_muscle_names,
+          equipment.name AS equipment_name,
+          exercises.reps_only,
+          exercises.min_reps_hypertrophy,
+          exercises.max_reps_hypertrophy
+        FROM exercises
+        INNER JOIN muscles AS primary_muscles ON primary_muscles.id = exercises.primary_muscle_id
+        INNER JOIN equipment ON equipment.id = exercises.equipment_id
+        LEFT JOIN exercise_secondary_muscles
+          ON exercise_secondary_muscles.exercise_id = exercises.id
+        LEFT JOIN muscles AS secondary_muscles
+          ON secondary_muscles.id = exercise_secondary_muscles.muscle_id
+        WHERE exercises.id IN (${placeholders})
+        GROUP BY exercises.id
+      `,
+      uniqueIds,
+    );
+    const exercisesById = new Map(rows.map((row) => [row.id, mapExerciseSummaryRow(row)]));
+
+    return uniqueIds.flatMap((id) => exercisesById.get(id) ?? []);
+  }
+
   async searchExercises(query: string): Promise<ExerciseSummary[]> {
     const normalizedQuery = `%${query.toLowerCase()}%`;
     const rows = await this.db.query<ExerciseSummaryRow>(

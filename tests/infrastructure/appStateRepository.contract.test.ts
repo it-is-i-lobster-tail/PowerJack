@@ -53,5 +53,22 @@ describe("AppStateRepository contract", () => {
     await expect(services.exercises.searchExercises("tibialis")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Machine Tibialis Raise" })]),
     );
+
+    const legPress = (await services.exercises.searchExercises("leg press")).find((exercise) => exercise.name === "Leg Press");
+    const tibialisRaise = (await services.exercises.searchExercises("tibialis")).find(
+      (exercise) => exercise.name === "Machine Tibialis Raise",
+    );
+
+    expect(legPress).toBeDefined();
+    expect(tibialisRaise).toBeDefined();
+
+    if (!legPress || !tibialisRaise) {
+      throw new Error("Expected reference exercises to exist.");
+    }
+
+    await expect(services.exercises.listExerciseSummariesByIds([tibialisRaise.id, legPress.id])).resolves.toEqual([
+      expect.objectContaining({ name: "Machine Tibialis Raise" }),
+      expect.objectContaining({ name: "Leg Press" }),
+    ]);
   });
 });
