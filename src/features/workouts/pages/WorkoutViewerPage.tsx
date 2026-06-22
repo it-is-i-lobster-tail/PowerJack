@@ -840,7 +840,7 @@ export function WorkoutViewerPage() {
 
   if (isLoading && !view) {
     return (
-      <main className="app-screen active-workout-screen" data-agent-id="active-workout-page">
+      <main className="app-screen app-screen--scrollable active-workout-screen" data-agent-id="active-workout-page">
         <section className="active-workout-flow">
           <p className="active-workout-loading">Loading workout</p>
         </section>
@@ -860,7 +860,7 @@ export function WorkoutViewerPage() {
   const finishFeedbackHintId = "finish-feedback-hint";
 
   return (
-    <main className="app-screen active-workout-screen" data-agent-id="active-workout-page">
+    <main className="app-screen app-screen--scrollable active-workout-screen" data-agent-id="active-workout-page">
       <section className="active-workout-flow" aria-labelledby="active-workout-day">
         <header className="workout-header">
           <button

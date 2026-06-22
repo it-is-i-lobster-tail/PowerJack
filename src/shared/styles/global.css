@@ -1,12 +1,21 @@
 .app-screen {
-  min-height: calc(100dvh - var(--app-top-bar-height));
+  height: 100%;
+  min-height: 0;
   padding: var(--space-4) var(--space-4)
     max(var(--space-6), env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+.app-screen--scrollable {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-screen--centered {
   display: grid;
   place-items: center;
+  min-height: 0;
 }
 
 .app-flow {
