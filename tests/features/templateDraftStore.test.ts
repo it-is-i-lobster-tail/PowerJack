@@ -69,6 +69,47 @@ describe("templateDraftStore", () => {
     expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, secondRowId]);
   });
 
+  it("copies exercises to another day by replacing the target with fresh row ids", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(3);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(1, 20);
+    store.addExerciseToDay(2, 30);
+    store.setActiveDay(1);
+
+    const sourceRowIds = useTemplateDraftStore.getState().exerciseRowIdsByDay[1] ?? [];
+    const previousTargetRowIds = useTemplateDraftStore.getState().exerciseRowIdsByDay[2] ?? [];
+
+    useTemplateDraftStore.getState().copyExercisesToDay(1, 2);
+
+    const state = useTemplateDraftStore.getState();
+
+    expect(state.activeDay).toBe(1);
+    expect(state.exerciseIdsByDay[1]).toEqual([10, 20]);
+    expect(state.exerciseIdsByDay[2]).toEqual([10, 20]);
+    expect(state.exerciseRowIdsByDay[2]).toHaveLength(2);
+    expect(state.exerciseRowIdsByDay[2]).not.toEqual(sourceRowIds);
+    expect(state.exerciseRowIdsByDay[2]).not.toEqual(previousTargetRowIds);
+  });
+
+  it("ignores same-day and invalid day copy requests", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(2);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(2, 20);
+
+    useTemplateDraftStore.getState().copyExercisesToDay(1, 1);
+    useTemplateDraftStore.getState().copyExercisesToDay(1, 3);
+    useTemplateDraftStore.getState().copyExercisesToDay(0, 2);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay).toEqual({
+      1: [10],
+      2: [20],
+    });
+  });
+
   it("reduces workouts per week by removing empty days before filled days", () => {
     const store = useTemplateDraftStore.getState();
 
