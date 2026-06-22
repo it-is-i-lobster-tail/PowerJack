@@ -365,8 +365,13 @@ export function TemplateBuilderPage() {
     setEditSearchResults([]);
   }
 
+  const isBuilderScrollable = isSearchOpen || currentExerciseIds.length > 0;
+  const builderScreenClassName = isBuilderScrollable
+    ? "app-screen app-screen--scrollable template-builder-screen"
+    : "app-screen template-builder-screen";
+
   return (
-    <main className="app-screen template-builder-screen" data-agent-id="template-builder-page">
+    <main className={builderScreenClassName} data-agent-id="template-builder-page">
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
           <p>{editingTemplateId ? "Edit template" : "New template"}</p>
