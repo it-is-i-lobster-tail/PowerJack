@@ -43,6 +43,81 @@ describe("templateDraftStore", () => {
     expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([30, 20]);
   });
 
+  it("reduces workouts per week by removing empty days before filled days", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(4);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(1, 20);
+    store.addExerciseToDay(1, 30);
+    store.addExerciseToDay(1, 40);
+
+    expect(useTemplateDraftStore.getState().previewWorkoutsPerWeekChange(2)).toEqual({
+      daysToRemove: [3, 4],
+      requiresConfirmation: false,
+      workoutsPerWeek: 2,
+    });
+
+    useTemplateDraftStore.getState().setWorkoutsPerWeek(2);
+
+    expect(useTemplateDraftStore.getState()).toMatchObject({
+      workoutsPerWeek: 2,
+      activeDay: 1,
+      exerciseIdsByDay: {
+        1: [10, 20, 30, 40],
+        2: [],
+      },
+    });
+  });
+
+  it("plans a confirmation when reducing workouts per week would remove a filled day", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(4);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(2, 20);
+    store.addExerciseToDay(3, 30);
+
+    expect(useTemplateDraftStore.getState().previewWorkoutsPerWeekChange(2)).toEqual({
+      daysToRemove: [3, 4],
+      requiresConfirmation: true,
+      workoutsPerWeek: 2,
+    });
+
+    useTemplateDraftStore.getState().setActiveDay(3);
+    useTemplateDraftStore.getState().setWorkoutsPerWeek(2);
+
+    expect(useTemplateDraftStore.getState()).toMatchObject({
+      workoutsPerWeek: 2,
+      activeDay: 2,
+      exerciseIdsByDay: {
+        1: [10],
+        2: [20],
+      },
+    });
+  });
+
+  it("compacts retained filled days when empty days are removed from the middle", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(4);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(3, 30);
+
+    expect(useTemplateDraftStore.getState().previewWorkoutsPerWeekChange(2)).toEqual({
+      daysToRemove: [2, 4],
+      requiresConfirmation: false,
+      workoutsPerWeek: 2,
+    });
+
+    useTemplateDraftStore.getState().setWorkoutsPerWeek(2);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay).toEqual({
+      1: [10],
+      2: [30],
+    });
+  });
+
   it("loads an existing template aggregate for editing", () => {
     useTemplateDraftStore.getState().loadFromAggregate({
       id: 42,
