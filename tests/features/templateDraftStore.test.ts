@@ -43,6 +43,32 @@ describe("templateDraftStore", () => {
     expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([30, 20]);
   });
 
+  it("keeps stable row ids with exercises through reorder replace and remove", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(1);
+    store.addExerciseToDay(1, 10);
+    store.addExerciseToDay(1, 20);
+    store.addExerciseToDay(1, 10);
+
+    const [firstRowId, secondRowId, thirdRowId] = useTemplateDraftStore.getState().exerciseRowIdsByDay[1] ?? [];
+
+    useTemplateDraftStore.getState().reorderExerciseInDay(1, 2, 0);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 10, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, firstRowId, secondRowId]);
+
+    useTemplateDraftStore.getState().replaceExerciseInDay(1, 1, 99);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 99, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, firstRowId, secondRowId]);
+
+    useTemplateDraftStore.getState().removeExerciseFromDay(1, 1);
+
+    expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 20]);
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, secondRowId]);
+  });
+
   it("reduces workouts per week by removing empty days before filled days", () => {
     const store = useTemplateDraftStore.getState();
 
@@ -103,6 +129,7 @@ describe("templateDraftStore", () => {
     store.setWorkoutsPerWeek(4);
     store.addExerciseToDay(1, 10);
     store.addExerciseToDay(3, 30);
+    const retainedDayThreeRowId = useTemplateDraftStore.getState().exerciseRowIdsByDay[3]?.[0];
 
     expect(useTemplateDraftStore.getState().previewWorkoutsPerWeekChange(2)).toEqual({
       daysToRemove: [2, 4],
@@ -116,6 +143,7 @@ describe("templateDraftStore", () => {
       1: [10],
       2: [30],
     });
+    expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[2]).toEqual([retainedDayThreeRowId]);
   });
 
   it("loads an existing template aggregate for editing", () => {
