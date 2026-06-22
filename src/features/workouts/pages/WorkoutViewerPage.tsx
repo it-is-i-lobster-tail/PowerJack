@@ -50,19 +50,19 @@ interface PendingSetPersist {
   draft: SetDraftValue;
 }
 
-const setAutosaveDelayMs = 500;
+const setAutosaveDelayMs = 850;
 const bodyWeightDisplay = "BW";
 const painFeedbackOptions = [
   { value: 1, label: "None" },
-  { value: 2, label: "Noticeable" },
-  { value: 3, label: "High" },
-  { value: 4, label: "Sharp" },
-  { value: 5, label: "Pure Evil" },
+  { value: 2, label: "Some" },
+  { value: 3, label: "Pinch" },
+  { value: 4, label: "High" },
+  { value: 5, label: "Pure evil" },
 ] as const;
 const effortFeedbackOptions = [
   { value: 1, label: "Easy" },
-  { value: 2, label: "Manageable" },
-  { value: 3, label: "Challenging" },
+  { value: 2, label: "Tough" },
+  { value: 3, label: "Challenge" },
   { value: 4, label: "Very hard" },
   { value: 5, label: "Too much" },
 ] as const;
@@ -958,9 +958,9 @@ export function WorkoutViewerPage() {
               fullWidth
               leadingIcon={<Check aria-hidden size={24} strokeWidth={2.6} />}
               onClick={handleFinishWorkout}
-              variant="outline"
+              variant="primary"
             >
-              Finish Workout
+              Finish workout
             </Button>
           </div>
         ) : null}
@@ -1036,7 +1036,7 @@ export function WorkoutViewerPage() {
             }
           }}
           onConfirm={() => executeRemoveLastSet(removeSetLift)}
-          title="Remove Last Set"
+          title="Remove last set"
         />
       ) : null}
 
@@ -1052,7 +1052,7 @@ export function WorkoutViewerPage() {
             }
           }}
           onConfirm={() => executeChangeExercise(pendingExerciseChange.lift, pendingExerciseChange.exercise)}
-          title="Change Exercise"
+          title="Change exercise"
         />
       ) : null}
     </main>
@@ -1194,7 +1194,7 @@ function ManualCheckInModal({
         role="dialog"
       >
         <div className="feedback-modal__header">
-          <p>Manual Check-in</p>
+          <p>Manual check-in</p>
           <h2 id="manual-checkin-title">{lift.exerciseName}</h2>
         </div>
 
@@ -1241,7 +1241,7 @@ function ManualCheckInModal({
                 data-agent-id="manual-checkin-reset-yes"
                 disabled={isSaving}
                 onClick={onReset}
-                variant="outline"
+                variant="primary"
               >
                 {isSaving ? "Saving" : "Yes"}
               </Button>
@@ -1293,7 +1293,7 @@ function LiftFeedbackModal({
       >
         <div className="feedback-modal__header feedback-modal__header--with-close">
           <div>
-            <p>Lift Feedback</p>
+            <p>Quick check-in</p>
             <h2 id="lift-feedback-title">{lift.exerciseName}</h2>
           </div>
           <button
@@ -1336,9 +1336,9 @@ function LiftFeedbackModal({
           fullWidth
           leadingIcon={<Check aria-hidden size={22} strokeWidth={2.6} />}
           onClick={onSave}
-          variant="outline"
+          variant="primary"
         >
-          {isSaving ? "Saving Feedback" : "Save Feedback"}
+          {isSaving ? "Saving feedback" : "Save feedback"}
         </Button>
       </section>
     </div>
@@ -1414,7 +1414,7 @@ function ExerciseChangeModal({
       >
         <div className="feedback-modal__header feedback-modal__header--with-close">
           <div>
-            <p>Change Exercise</p>
+            <p>Change exercise</p>
             <h2 id="change-exercise-title">{lift.exerciseName}</h2>
           </div>
           <button
@@ -1588,7 +1588,7 @@ function LiftCard({
           type="button"
         >
           <AlertTriangle aria-hidden size={18} strokeWidth={2.4} />
-          Feedback Needed
+          Feedback needed
         </button>
       ) : null}
 

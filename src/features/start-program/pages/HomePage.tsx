@@ -46,7 +46,7 @@ export function HomePage() {
   return (
     <main className="app-screen app-screen--centered home-screen" data-agent-id="new-program-page">
       <section className="home-card" aria-labelledby="new-program-title">
-        <h1 id="new-program-title">New Program</h1>
+        <h1 id="new-program-title">New program</h1>
         <Button
           aria-label="Start new program"
           className="home-card__start"
@@ -56,7 +56,7 @@ export function HomePage() {
           onClick={() => {
             void navigate("/start/select-template");
           }}
-          variant="outline"
+          variant="primary"
         >
           Start
         </Button>

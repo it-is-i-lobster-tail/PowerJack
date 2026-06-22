@@ -8,9 +8,11 @@ import { TemplateNamePage } from "../features/templates/pages/TemplateNamePage";
 import { TemplateMuscleFocusPage } from "../features/templates/pages/TemplateMuscleFocusPage";
 import { TemplateDaysPerWeekPage } from "../features/templates/pages/TemplateDaysPerWeekPage";
 import { TemplateBuilderPage } from "../features/templates/pages/TemplateBuilderPage";
+import { TemplatesListPage } from "../features/templates/pages/TemplatesListPage";
 import { ActiveWorkoutRedirectPage } from "../features/workouts/pages/ActiveWorkoutRedirectPage";
 import { WorkoutViewerPage } from "../features/workouts/pages/WorkoutViewerPage";
 import { DataVisualizationPage } from "../features/data-visualization/pages/DataVisualizationPage";
+import { ProgramListPage } from "../features/programs/pages/ProgramListPage";
 import { ProgramOverviewPage } from "../features/programs/pages/ProgramOverviewPage";
 
 export function createAppRouter() {
@@ -36,6 +38,10 @@ export function createAppRouter() {
           element: <DaysPerWeekPage />,
         },
         {
+          path: "templates",
+          element: <TemplatesListPage />,
+        },
+        {
           path: "templates/new/name",
           element: <TemplateNamePage />,
         },
@@ -58,6 +64,10 @@ export function createAppRouter() {
         {
           path: "visualization",
           element: <DataVisualizationPage />,
+        },
+        {
+          path: "programs",
+          element: <ProgramListPage />,
         },
         {
           path: "programs/:programId",

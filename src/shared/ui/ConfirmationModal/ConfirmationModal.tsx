@@ -51,7 +51,7 @@ export function ConfirmationModal({
             <Button
               data-agent-id={confirmAgentId}
               onClick={onConfirm}
-              variant={destructive ? "danger" : "outline"}
+              variant={destructive ? "danger" : "primary"}
             >
               {confirmLabel}
             </Button>
