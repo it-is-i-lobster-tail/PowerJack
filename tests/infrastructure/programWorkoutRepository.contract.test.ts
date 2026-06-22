@@ -594,9 +594,99 @@ describe("Program and Workout repository contracts", () => {
     ]);
   });
 
+  it("logs reps-only time-based plank without weight", async () => {
+    const services = createInMemoryAppServices();
+    const plankId = await findExerciseId(services, "Plank");
+    const template = await createTemplate(services, [[plankId]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Plank",
+      repsOnly: true,
+      timeBased: true,
+    });
+
+    const firstSet = view.lifts[0]?.sets[0];
+
+    if (!firstSet) {
+      throw new Error("Expected first plank set.");
+    }
+
+    view = await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 6, actualWeight: 180 },
+      services.workouts,
+    );
+
+    expect(view.completedSets).toBe(1);
+    expect(view.lifts[0]?.sets[0]).toMatchObject({
+      actualReps: 6,
+      actualWeight: null,
+      status: "complete",
+    });
+  });
+
+  it("keeps weighted time-based plank weight-capable and progresses stored reps", async () => {
+    const services = createInMemoryAppServices();
+    const weightedPlankId = await findExerciseId(services, "Weighted Plank");
+    const template = await createTemplate(services, [[weightedPlankId]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    expect(view.lifts[0]).toMatchObject({
+      exerciseName: "Weighted Plank",
+      repsOnly: false,
+      timeBased: true,
+    });
+
+    const firstSet = view.lifts[0]?.sets[0];
+    const secondSet = view.lifts[0]?.sets[1];
+
+    if (!firstSet || !secondSet) {
+      throw new Error("Expected two weighted plank sets.");
+    }
+
+    await updateWorkoutSet(
+      { setId: firstSet.id, actualReps: 6, actualWeight: 25 },
+      services.workouts,
+    );
+    view = await updateWorkoutSet(
+      { setId: secondSet.id, actualReps: 5, actualWeight: 25 },
+      services.workouts,
+    );
+
+    expect(view.completedSets).toBe(2);
+    expect(view.lifts[0]).toMatchObject({
+      status: "complete",
+      repsOnly: false,
+      timeBased: true,
+    });
+    expect(view.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ actualReps: 6, actualWeight: 25, status: "complete" }),
+      expect.objectContaining({ actualReps: 5, actualWeight: 25, status: "complete" }),
+    ]);
+
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwoDayOne = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwoDayOne) {
+      throw new Error("Expected week 2 day 1.");
+    }
+
+    expect(weekTwoDayOne.lifts[0]).toMatchObject({
+      exerciseName: "Weighted Plank",
+      repsOnly: false,
+      timeBased: true,
+    });
+    expect(weekTwoDayOne.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ plannedReps: 7, plannedWeight: 25, actualReps: null }),
+      expect.objectContaining({ plannedReps: 6, plannedWeight: 25, actualReps: null }),
+    ]);
+  });
+
   it("averages weighted primary and secondary volume through the current program day", async () => {
     const services = createInMemoryAppServices();
-    const deadliftId = await findExerciseId(services, "Barbell Conventional Deadlift");
+    const deadliftId = await findExerciseId(services, "Barbell Deadlift");
     const pullUpId = await findExerciseId(services, "Pull Up");
     const pulldownId = await findExerciseId(services, "Cable Lat Pulldown");
     const rearDeltFlyId = await findExerciseId(services, "Cable Rear Delt Fly");

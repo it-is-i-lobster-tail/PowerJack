@@ -75,6 +75,7 @@ export interface ActiveWorkoutLiftView {
   exerciseId: EntityId;
   exerciseName: string;
   repsOnly: boolean;
+  timeBased: boolean;
   order: number;
   status: PowerJackStatus;
   locked: boolean;
