@@ -59,6 +59,7 @@ interface LiftSetRow extends Record<string, unknown> {
   exercise_id: number;
   exercise_name: string;
   reps_only: number;
+  time_based: number;
   lift_order: number;
   lift_status: string;
   lift_locked: number;
@@ -258,6 +259,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
             lifts.exercise_id,
             exercises.name AS exercise_name,
             exercises.reps_only,
+            exercises.time_based,
             lifts."order" AS lift_order,
             lifts.status AS lift_status,
             lifts.locked AS lift_locked,
@@ -1006,6 +1008,7 @@ function mapLiftSetRows(rows: LiftSetRow[]): ActiveWorkoutLiftView[] {
         exerciseId: row.exercise_id,
         exerciseName: row.exercise_name,
         repsOnly: Boolean(row.reps_only),
+        timeBased: Boolean(row.time_based),
         order: row.lift_order,
         status: mapStatus(row.lift_status),
         locked: Boolean(row.lift_locked),

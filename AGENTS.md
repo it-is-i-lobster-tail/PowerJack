@@ -9,6 +9,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - `npm run dev`: start Vite at `http://127.0.0.1:5173/` with `--host 0.0.0.0`.
 - `npm run build`: type-check and create the static Vite bundle.
 - `npm run check`: run TypeScript, ESLint, and unit tests.
+- `npm run ux:check`: run the agent UX Design Standards Check before committing UI-affecting work.
 - `npm run test`: run Vitest.
 - `npm run test:e2e`: run Playwright smoke tests.
 - `npm run test:e2e:headed`: run Playwright headed.
@@ -54,6 +55,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 
 ## Design Rules
 
+- Read `docs/ui-design-standards.md` before changing React views, CSS, design tokens, layout, copy, motion, routes, screenshots, or reference images.
 - Use the Steel Focus palette from `src/shared/styles/tokens.css`.
 - Build mobile-first, then browser-wide.
 - Match the supplied references in `docs/reference_images/`; `/` must match `Start_new_program_example.png`.
@@ -71,4 +73,6 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Preserve `window.__POWERJACK_AGENT__.reset()` for deterministic browser tests.
 - Every UI story needs browser E2E coverage and screenshot/visual QA when layout changes.
 - Mobile-affecting stories need mobile viewport Playwright coverage.
+- Before committing UI-affecting work, run `npm run ux:check` and record the UX Design Standards Check result in the handoff.
+- UI handoffs must note which standards/reference images were checked, what browser or mobile visual QA was run, and any intentional design-standard deviation.
 - Before handoff, run `npm run check`; run `npm run test:e2e` when routes or UI flows change.

@@ -130,6 +130,13 @@ class InMemoryExerciseCatalogRepository implements ExerciseCatalogRepository {
     return Promise.resolve(this.catalog.muscles);
   }
 
+  listExerciseSummariesByIds(ids: number[]): Promise<ExerciseSummary[]> {
+    const uniqueIds = [...new Set(ids)];
+    const exercisesById = new Map(this.catalog.exercises.map((exercise) => [exercise.id, exercise]));
+
+    return Promise.resolve(uniqueIds.flatMap((id) => exercisesById.get(id) ?? []));
+  }
+
   searchExercises(query: string): Promise<ExerciseSummary[]> {
     const normalizedQuery = normalizeExerciseSearchText(query);
 
@@ -1158,6 +1165,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         exerciseId: lift.exerciseId,
         exerciseName: this.exerciseName(lift.exerciseId),
         repsOnly: this.isRepsOnlyExercise(lift.exerciseId),
+        timeBased: this.isTimeBasedExercise(lift.exerciseId),
         order: lift.order,
         status: lift.status,
         locked: lift.locked,
@@ -1191,6 +1199,10 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
   private isRepsOnlyExercise(exerciseId: number): boolean {
     return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.repsOnly ?? false;
+  }
+
+  private isTimeBasedExercise(exerciseId: number): boolean {
+    return this.catalog.exercises.find((exercise) => exercise.id === exerciseId)?.timeBased ?? false;
   }
 
   private getSetsForWorkout(workoutId: number): WorkoutSet[] {

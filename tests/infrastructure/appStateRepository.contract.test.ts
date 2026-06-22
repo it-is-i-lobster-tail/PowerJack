@@ -50,5 +50,22 @@ describe("AppStateRepository contract", () => {
     await expect(services.exercises.searchExercises("ez bar")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "EZ Bar Curl" })]),
     );
+
+    const legPress = (await services.exercises.searchExercises("leg press")).find((exercise) => exercise.name === "Leg Press");
+    const trapBarDeadlift = (await services.exercises.searchExercises("trap bar")).find(
+      (exercise) => exercise.name === "Trap Bar Deadlift",
+    );
+
+    expect(legPress).toBeDefined();
+    expect(trapBarDeadlift).toBeDefined();
+
+    if (!legPress || !trapBarDeadlift) {
+      throw new Error("Expected reference exercises to exist.");
+    }
+
+    await expect(services.exercises.listExerciseSummariesByIds([trapBarDeadlift.id, legPress.id])).resolves.toEqual([
+      expect.objectContaining({ name: "Trap Bar Deadlift" }),
+      expect.objectContaining({ name: "Leg Press" }),
+    ]);
   });
 });

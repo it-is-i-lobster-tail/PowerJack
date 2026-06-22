@@ -3,6 +3,14 @@ import { expect, test } from "@playwright/test";
 const setAutosaveBeforeDelayMs = 400;
 const setAutosaveStaleTimerProbeMs = 500;
 const setAutosaveSettleMs = 950;
+const interactionFeedbackAttribute = "data-interaction-feedback";
+const interactionFeedbackPeakDelayMs = 75;
+const interactionFeedbackSettleMs = 240;
+
+type InteractionFeedbackWindow = Window & {
+  __POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?: MutationObserver;
+  __POWERJACK_INTERACTION_FEEDBACK_SEEN__?: boolean;
+};
 
 async function openTemplateFocus(page: import("@playwright/test").Page, name = "Back In Action") {
   await page.goto("/start/select-template");
@@ -380,6 +388,115 @@ async function expectFeedbackOptionsOnSingleRow(
   }
 }
 
+async function watchInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+): Promise<void> {
+  await page.evaluate(
+    ({ attribute, targetSelector }) => {
+      const feedbackWindow = window as InteractionFeedbackWindow;
+      const target = document.querySelector(targetSelector);
+
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?.disconnect();
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_SEEN__ = false;
+
+      if (!target) {
+        throw new Error(`Missing interaction feedback target: ${targetSelector}`);
+      }
+
+      const observer = new MutationObserver(() => {
+        if (target.getAttribute(attribute) === "active") {
+          feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_SEEN__ = true;
+          observer.disconnect();
+        }
+      });
+
+      observer.observe(target, { attributeFilter: [attribute], attributes: true });
+      feedbackWindow.__POWERJACK_INTERACTION_FEEDBACK_OBSERVER__ = observer;
+    },
+    { attribute: interactionFeedbackAttribute, targetSelector: selector },
+  );
+}
+
+async function expectObservedInteractionFeedback(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          Boolean((window as InteractionFeedbackWindow).__POWERJACK_INTERACTION_FEEDBACK_SEEN__),
+        ),
+      { timeout: 1_000 },
+    )
+    .toBe(true);
+}
+
+async function attachInteractionFeedbackScreenshot(
+  page: import("@playwright/test").Page,
+  testInfo: import("@playwright/test").TestInfo,
+  name: string,
+  selector: string,
+): Promise<void> {
+  if (testInfo.project.name !== "mobile-chrome") {
+    return;
+  }
+
+  await page.locator(selector).first().evaluate((element, attribute) => {
+    element.setAttribute(attribute, "active");
+    window.setTimeout(() => element.removeAttribute(attribute), 210);
+  }, interactionFeedbackAttribute);
+  await page.waitForTimeout(interactionFeedbackPeakDelayMs);
+  await testInfo.attach(name, {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  });
+}
+
+async function expectClickInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+  options: { expectClear?: boolean; screenshotName?: string; testInfo?: import("@playwright/test").TestInfo } = {},
+): Promise<void> {
+  const target = page.locator(selector).first();
+
+  await expect(target).toBeVisible();
+  await expect(target).toBeEnabled();
+  await watchInteractionFeedback(page, selector);
+  await target.click();
+  await expectObservedInteractionFeedback(page);
+
+  if (options.screenshotName && options.testInfo) {
+    await attachInteractionFeedbackScreenshot(page, options.testInfo, options.screenshotName, selector);
+  }
+
+  if (options.expectClear !== false) {
+    await expect(target).not.toHaveAttribute(interactionFeedbackAttribute, "active", {
+      timeout: interactionFeedbackSettleMs,
+    });
+  }
+}
+
+async function expectFocusInteractionFeedback(
+  page: import("@playwright/test").Page,
+  selector: string,
+  options: { screenshotName?: string; testInfo?: import("@playwright/test").TestInfo } = {},
+): Promise<void> {
+  const target = page.locator(selector).first();
+
+  await expect(target).toBeVisible();
+  await expect(target).toBeEditable();
+  await watchInteractionFeedback(page, selector);
+  await target.click();
+  await expectObservedInteractionFeedback(page);
+
+  if (options.screenshotName && options.testInfo) {
+    await attachInteractionFeedbackScreenshot(page, options.testInfo, options.screenshotName, selector);
+  }
+
+  await expect(target).not.toHaveAttribute(interactionFeedbackAttribute, "active", {
+    timeout: interactionFeedbackSettleMs,
+  });
+}
+
 async function expectMobileScreenshot(
   page: import("@playwright/test").Page,
   testInfo: import("@playwright/test").TestInfo,
@@ -400,6 +517,7 @@ test.describe("start program flow", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ page }) => {
+    await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
     await page.goto("/");
     await page.waitForFunction(() => Boolean(window.__POWERJACK_AGENT__));
     await page.evaluate(async () => {
@@ -450,6 +568,44 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-select-template-empty-mobile.png");
+  });
+
+  test("interaction feedback flashes for buttons, selections, and text inputs", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/");
+    await expectClickInteractionFeedback(page, "[data-agent-id='app-menu-toggle']");
+    await page.keyboard.press("Escape");
+    await page.locator("[data-agent-id='start-new-program']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+
+    await page.locator("[data-agent-id='add-template']").click();
+    await page.locator("[data-agent-id='template-name-back']").focus();
+    await expectFocusInteractionFeedback(page, "[data-agent-id='template-name-input']");
+    await page.locator("[data-agent-id='template-name-input']").fill("Feedback Flash");
+    await page.locator("[data-agent-id='template-name-next']").click();
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "squat", /Barbell Back Squat/);
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+    await page.locator("[data-agent-id='select-template-next']").click();
+    await expect(page).toHaveURL(/\/start\/program-length$/);
+
+    await expectClickInteractionFeedback(page, "[data-agent-id='program-length-4']", {
+      screenshotName: "interaction-feedback-program-length-mobile.png",
+      testInfo,
+    });
+    await page.locator("[data-agent-id='program-length-next']").click();
+    await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
+
+    await expectFocusInteractionFeedback(page, "[data-agent-id^='set-reps-']", {
+      screenshotName: "interaction-feedback-set-input-mobile.png",
+      testInfo,
+    });
   });
 
   test("Add template opens the template naming flow", async ({ page }) => {
@@ -827,6 +983,7 @@ test.describe("start program flow", () => {
 
   test("Programs list pins active programs and filters history", async ({ page }, testInfo) => {
     await freezeBrowserDate(page, "2026-06-21T12:00:00-07:00");
+
     await createTwoDayTemplate(page, "List Check");
     await startSelectedProgram(page, 4);
     await completeVisibleWorkout(page);
@@ -1211,6 +1368,61 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Barbell Back Squat");
+  });
+
+  test("template builder confirms filled day removal and keeps retained exercises visible", async ({ page }) => {
+    await openTemplateFocus(page, "Shrink Leg Day");
+    await selectFocusAndOpenDays(page);
+    await page.locator("[data-agent-id='template-days-per-week-4']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+
+    await addExerciseToCurrentTemplateDay(page, "leg press", /^Leg Press Quads - Leg Press$/);
+    await addExerciseToCurrentTemplateDay(page, "leg extension", /^Machine Leg Extension Quads - Machine$/);
+    await addExerciseToCurrentTemplateDay(page, "seated leg curl", /^Machine Seated Leg Curl Hamstrings - Machine$/);
+    await addExerciseToCurrentTemplateDay(page, "lying leg curl", /^Machine Lying Leg Curl Hamstrings - Machine$/);
+    await expect(page.locator("[data-agent-id='template-exercise-4']")).toContainText("Machine Lying Leg Curl");
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press/);
+    await page.locator("[data-agent-id='template-day-3']").click();
+    await addExerciseToCurrentTemplateDay(page, "row", /^Barbell Bent Over Row/);
+
+    await page.locator("[data-agent-id='template-builder-back']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expect(page.locator("[data-agent-id='template-days-reduction-confirmation']")).toContainText(
+      "The following Days will be removed: Day 3 and Day 4.",
+    );
+
+    await page.locator("[data-agent-id='modal-back']").click();
+    await expect(page.locator("[data-agent-id='template-days-reduction-confirmation']")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/templates\/new\/days-per-week$/);
+
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await page.locator("[data-agent-id='modal-confirm']").click();
+    await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+    await expect(page.locator("[data-agent-id='template-day-3']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='template-day-1']").click();
+    await expect(page.locator("[data-agent-id='template-exercises-loading']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Leg Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Machine Leg Extension");
+    await expect(page.locator("[data-agent-id='template-exercise-3']")).toContainText("Machine Seated Leg Curl");
+    await expect(page.locator("[data-agent-id='template-exercise-4']")).toContainText("Machine Lying Leg Curl");
+
+    await addExerciseToCurrentTemplateDay(page, "squat", /^Barbell Back Squat/);
+    await expect(page.locator("[data-agent-id='template-exercise-5']")).toContainText("Barbell Back Squat");
+
+    await page.locator("[data-agent-id='save-template']").click();
+    await expect(page).toHaveURL(/\/start\/select-template$/);
+    await startSelectedProgram(page, 4);
+
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(0)).toContainText("Leg Press");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(1)).toContainText("Machine Leg Extension");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(2)).toContainText("Machine Seated Leg Curl");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(3)).toContainText("Machine Lying Leg Curl");
+    await expect(page.locator("[data-agent-id^='lift-card-']").nth(4)).toContainText("Barbell Back Squat");
   });
 
   test("active workout autosaves set values and advances after Finish workout", async ({ page }, testInfo) => {
@@ -1716,6 +1928,67 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("100");
     await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("95");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("95");
+  });
+
+  test("time-based workout rows show seconds and normalize partial blocks on mobile", async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openTemplateFocus(page, "Timed Planks");
+    await page.locator(".muscle-focus-grid").getByRole("button", { name: "Core" }).click();
+    await page.locator("[data-agent-id='template-muscle-focus-next']").click();
+    await page.locator("[data-agent-id='template-days-per-week-2']").click();
+    await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await addExerciseToCurrentTemplateDay(page, "plank", /^Plank/);
+    await addExerciseToCurrentTemplateDay(page, "weighted plank", /^Weighted Plank/);
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await addExerciseToCurrentTemplateDay(page, "bench", /Barbell Bench Press/);
+    await page.locator("[data-agent-id='save-template']").click();
+    await startSelectedProgram(page, 4);
+
+    const liftCards = page.locator("[data-agent-id^='lift-card-']");
+    const plankCard = liftCards.filter({
+      has: page.getByRole("heading", { exact: true, name: "Plank" }),
+    });
+    const weightedPlankCard = liftCards.filter({
+      has: page.getByRole("heading", { exact: true, name: "Weighted Plank" }),
+    });
+    const plankSecondsInputs = plankCard.locator("[data-agent-id^='set-reps-']");
+    const plankWeightInputs = plankCard.locator("[data-agent-id^='set-weight-']");
+    const weightedSecondsInputs = weightedPlankCard.locator("[data-agent-id^='set-reps-']");
+    const weightedWeightInputs = weightedPlankCard.locator("[data-agent-id^='set-weight-']");
+
+    await expect(page.getByRole("heading", { exact: true, name: "Plank" })).toBeVisible();
+    await expect(page.getByRole("heading", { exact: true, name: "Weighted Plank" })).toBeVisible();
+    await expect(plankCard.getByText("Seconds")).toHaveCount(2);
+    await expect(weightedPlankCard.getByText("Seconds")).toHaveCount(2);
+    await expect(plankWeightInputs.first()).toBeDisabled();
+    await expect(plankWeightInputs.first()).toHaveValue("BW");
+    await expect(weightedWeightInputs.first()).toBeEnabled();
+
+    await plankSecondsInputs.nth(0).fill("97");
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(plankSecondsInputs.nth(0)).toHaveValue("90");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
+
+    await plankSecondsInputs.nth(1).fill("14");
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(plankSecondsInputs.nth(1)).toHaveValue("");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
+
+    await weightedSecondsInputs.nth(0).fill("97");
+    await weightedWeightInputs.nth(0).fill("25");
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(weightedSecondsInputs.nth(0)).toHaveValue("90");
+    await expect(weightedWeightInputs.nth(0)).toHaveValue("25");
+    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 4 sets logged");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-time-based-workout-mobile.png");
+
+    await page.locator("[data-agent-id='workout-day-next']").click();
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(page.locator("[data-agent-id^='lift-card-']").filter({ hasText: "Barbell Bench Press" })).toContainText(
+      "Reps",
+    );
   });
 
   test("reps-only workout disables weight input and logs reps only", async ({ page }) => {
