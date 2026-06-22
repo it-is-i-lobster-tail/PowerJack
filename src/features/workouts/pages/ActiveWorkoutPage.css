@@ -486,91 +486,6 @@
   box-shadow: var(--shadow-overlay);
 }
 
-.exercise-change-modal {
-  width: min(100%, 620px);
-  max-height: min(760px, calc(100vh - 32px));
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-modal);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-overlay);
-}
-
-.exercise-change-search {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.exercise-change-search span {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.exercise-change-search input {
-  width: 100%;
-  min-height: 52px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-input);
-  background: var(--color-input);
-  color: var(--color-text-primary);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.exercise-change-search input:focus {
-  border-color: var(--color-accent-strong);
-  outline: 0;
-  box-shadow: 0 0 0 3px var(--color-focus-ring);
-}
-
-.exercise-change-results {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  overflow-y: auto;
-}
-
-.exercise-change-result {
-  min-height: 68px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius-structure);
-  background: var(--color-input);
-  color: var(--color-text-primary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.exercise-change-result:hover,
-.exercise-change-result:focus-visible {
-  border-color: var(--color-accent-strong);
-  outline: 0;
-}
-
-.exercise-change-result strong {
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.exercise-change-result span {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-weight: 650;
-}
-
 .manual-checkin-modal__body {
   margin: 0;
   color: var(--color-text-muted);
@@ -815,18 +730,6 @@
   .manual-checkin-modal {
     gap: var(--space-4);
     padding: var(--space-4);
-  }
-
-  .exercise-change-modal {
-    align-self: end;
-    max-height: calc(100vh - 24px);
-    gap: var(--space-3);
-    padding: var(--space-4);
-  }
-
-  .exercise-change-search input {
-    min-height: 48px;
-    font-size: 18px;
   }
 
   .feedback-scale__options {

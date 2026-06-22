@@ -448,6 +448,60 @@ async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectExerciseSearchResultsInsideViewport(page: import("@playwright/test").Page): Promise<void> {
+  const results = page.locator("[data-agent-id='exercise-search-results']");
+
+  await expect(results).toBeVisible();
+
+  const viewport = page.viewportSize();
+  const resultsBox = await results.boundingBox();
+  const overflowY = await results.evaluate((element) => window.getComputedStyle(element).overflowY);
+
+  expect(viewport).not.toBeNull();
+  expect(resultsBox).not.toBeNull();
+  expect(overflowY).toBe("auto");
+
+  if (viewport && resultsBox) {
+    expect(resultsBox.y).toBeGreaterThanOrEqual(0);
+    expect(resultsBox.y + resultsBox.height).toBeLessThanOrEqual(viewport.height + 1);
+  }
+}
+
+async function expectExerciseSearchInputStableAfterBackspace(
+  page: import("@playwright/test").Page,
+  inputAgentId: string,
+): Promise<void> {
+  const input = page.locator(`[data-agent-id='${inputAgentId}']`);
+
+  await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await input.fill("bench press");
+  await expect(input).toHaveValue("bench press");
+
+  const beforeBox = await input.boundingBox();
+  const beforeScrollY = await page.evaluate(() => window.scrollY);
+
+  await input.press("Backspace");
+  await expect(input).toHaveValue("bench pres");
+  await expect(page.getByRole("button", { name: /Barbell Bench Press/ })).toBeVisible();
+
+  const afterBox = await input.boundingBox();
+  const afterScrollY = await page.evaluate(() => window.scrollY);
+
+  expect(beforeBox).not.toBeNull();
+  expect(afterBox).not.toBeNull();
+  expect(afterScrollY).toBe(beforeScrollY);
+
+  if (beforeBox && afterBox) {
+    expect(Math.abs(afterBox.y - beforeBox.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterBox.x - beforeBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterBox.width - beforeBox.width)).toBeLessThanOrEqual(1);
+  }
+
+  await expectExerciseSearchResultsInsideViewport(page);
+}
+
 async function expectFeedbackOptionsOnSingleRow(
   page: import("@playwright/test").Page,
   dataAgentPrefix: string,
@@ -874,17 +928,22 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
 
     await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
-    await page.locator("[data-agent-id='exercise-search-input']").fill("bench");
+    await expectExerciseSearchInputStableAfterBackspace(page, "exercise-search-input");
     await expectMobileScreenshot(page, testInfo, "warm-stone-builder-search-mobile.png");
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-builder-filled-mobile.png");
 
     await page.locator("[data-agent-id='template-day-2']").click();
     await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await expectExerciseSearchResultsInsideViewport(page);
     await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='save-template']")).toBeEnabled();
     await page.locator("[data-agent-id='save-template']").click();
 
@@ -1404,10 +1463,13 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
     await page.locator("[data-agent-id='edit-template-exercise-1']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='replace-exercise-result-']")).toHaveCount(0);
     await page.locator("[data-agent-id='edit-exercise-search-input-1']").fill("pull-up");
+    await expectExerciseSearchResultsInsideViewport(page);
     await page.getByRole("button", { name: /^Pull Up/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
 
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
@@ -1906,16 +1968,19 @@ test.describe("start program flow", () => {
 
     await page.locator("[data-agent-id^='lift-menu-toggle-']").first().click();
     await page.locator("[data-agent-id^='lift-change-exercise-']").click();
-    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='change-exercise-search-input']")).toBeFocused();
     await page.locator("[data-agent-id='change-exercise-search-input']").fill("pull-up");
+    await expectExerciseSearchResultsInsideViewport(page);
     await expectMobileScreenshot(page, testInfo, "warm-stone-exercise-change-modal-mobile.png");
     await page.getByRole("button", { name: /^Pull Up/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='change-exercise-confirmation']")).toContainText(
       "Change exercise",
     );
     await page.locator("[data-agent-id='modal-confirm']").click();
 
-    await expect(page.locator("[data-agent-id='change-exercise-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
