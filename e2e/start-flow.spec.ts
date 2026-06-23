@@ -1174,7 +1174,7 @@ test.describe("start program flow", () => {
       testInfo,
     });
 
-    const longTitle = "Back In Action ".repeat(5).slice(0, 64);
+    const longTitle = "Back In Action Build Day";
     await openTemplateBuilder(page, { dayCount: 4, name: longTitle });
     const safeVisibleTitleCharsMobile = await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
       screenshotName: "warm-stone-builder-add-header-long-name-mobile.png",
@@ -1182,7 +1182,7 @@ test.describe("start program flow", () => {
     });
 
     expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
-    expect(safeVisibleTitleCharsMobile).toBeLessThan(64);
+    expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
