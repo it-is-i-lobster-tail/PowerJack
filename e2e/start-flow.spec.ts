@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const setAutosaveBeforeDelayMs = 400;
 const setAutosaveStaleTimerProbeMs = 500;
@@ -6,6 +6,7 @@ const setAutosaveSettleMs = 950;
 const interactionFeedbackAttribute = "data-interaction-feedback";
 const interactionFeedbackPeakDelayMs = 75;
 const interactionFeedbackSettleMs = 240;
+const standardTypographyFontSizes = ["13px", "16px", "22px", "34px"];
 
 type InteractionFeedbackWindow = Window & {
   __POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?: MutationObserver;
@@ -329,6 +330,62 @@ async function pageHasVerticalOverflow(page: import("@playwright/test").Page): P
       document.body.scrollHeight > document.body.clientHeight + 2
     );
   });
+}
+
+async function expectVisibleTextUsesStandardTypography(page: Page, contextLabel: string): Promise<void> {
+  const findings = await page.evaluate((allowedFontSizes) => {
+    const allowed = new Set(allowedFontSizes);
+    const rejectedSelectors = "script, style, noscript, svg, .sr-only, [hidden], [aria-hidden='true']";
+    const findings: Array<{ fontSize: string; target: string; text: string }> = [];
+
+    function describeElement(element: Element): string {
+      const agentTarget = element.closest("[data-agent-id]");
+      const agentId = agentTarget?.getAttribute("data-agent-id");
+      const id = element.id ? `#${element.id}` : "";
+      const className =
+        typeof element.className === "string" && element.className.trim()
+          ? `.${element.className.trim().split(/\s+/).slice(0, 3).join(".")}`
+          : "";
+      const agent = agentId ? `[data-agent-id="${agentId}"]` : "";
+
+      return `${element.tagName.toLowerCase()}${id}${className}${agent}`;
+    }
+
+    function textRangeHasVisibleArea(node: Text): boolean {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const hasArea = Array.from(range.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+      range.detach();
+      return hasArea;
+    }
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+
+    while (node) {
+      const textNode = node as Text;
+      const text = textNode.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      const parent = textNode.parentElement;
+
+      if (text && parent && !parent.closest(rejectedSelectors) && textRangeHasVisibleArea(textNode)) {
+        const style = window.getComputedStyle(parent);
+
+        if (style.display !== "none" && style.visibility !== "hidden" && !allowed.has(style.fontSize)) {
+          findings.push({
+            fontSize: style.fontSize,
+            target: describeElement(parent),
+            text: text.slice(0, 80),
+          });
+        }
+      }
+
+      node = walker.nextNode();
+    }
+
+    return findings;
+  }, standardTypographyFontSizes);
+
+  expect(findings, `${contextLabel} visible text should use standard typography sizes`).toEqual([]);
 }
 
 async function expectElementsWithinViewport(
@@ -1064,6 +1121,8 @@ async function expectMobileScreenshot(
   testInfo: import("@playwright/test").TestInfo,
   name: string,
 ) {
+  await expectVisibleTextUsesStandardTypography(page, name);
+
   if (testInfo.project.name !== "mobile-chrome") {
     return;
   }
@@ -1122,6 +1181,22 @@ test.describe("start program flow", () => {
     }
 
     await expectMobileScreenshot(page, testInfo, "warm-stone-start-mobile.png");
+  });
+
+  test("primary routes use only standard typography sizes", async ({ page }) => {
+    const routes = [
+      { path: "/", screenAgentId: "new-program-page" },
+      { path: "/start/select-template", screenAgentId: "select-template-page" },
+      { path: "/templates", screenAgentId: "templates-page" },
+      { path: "/visualization", screenAgentId: "data-visualization-page" },
+      { path: "/programs", screenAgentId: "program-list-page" },
+    ];
+
+    for (const route of routes) {
+      await page.goto(route.path);
+      await expect(page.locator(`[data-agent-id='${route.screenAgentId}']`)).toBeVisible();
+      await expectVisibleTextUsesStandardTypography(page, route.path);
+    }
   });
 
   test("serves PowerJack favicon and install icons", async ({ request }) => {

@@ -29,13 +29,13 @@
 .template-grid__empty h2 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 28px;
+  font-size: var(--font-size-header-2);
   line-height: 1.1;
 }
 
 .template-grid__empty p {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
 }
 
 .template-row {
@@ -118,13 +118,13 @@
 }
 
 .template-row__name {
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
 }
 
 .template-row__status {
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
@@ -132,7 +132,7 @@
 
 .template-row__meta {
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 500;
 }
 
@@ -203,7 +203,7 @@
   border-radius: 999px;
   background: var(--color-accent-muted);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   white-space: nowrap;
 }
