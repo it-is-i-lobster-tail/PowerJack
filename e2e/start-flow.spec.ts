@@ -428,6 +428,34 @@ async function expectScreenAllowsIntentionalScroll(
   expect(overflowY, `${screenAgentId} should use a scrollable overflow mode`).toBe("auto");
 }
 
+async function scrollActiveWorkoutPageToBottom(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+
+  const scrollTop = await screen.evaluate((element) => {
+    element.scrollTo({ top: element.scrollHeight, left: 0, behavior: "auto" });
+    return element.scrollTop;
+  });
+
+  expect(scrollTop, "active workout page should be scrolled before finishing").toBeGreaterThan(0);
+}
+
+async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        screen.evaluate((element) => {
+          return element.scrollTop;
+        }),
+      { message: "active workout page should reset to the top after Finish workout" },
+    )
+    .toBe(0);
+}
+
 async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
   await page.addInitScript((fixedIso) => {
     const fixedTime = new Date(fixedIso).getTime();
@@ -1051,12 +1079,17 @@ test.describe("start program flow", () => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
 
+    const templateNameInput = page.locator("[data-agent-id='template-name-input']");
+
     await expect(page).toHaveURL(/\/templates\/new\/name$/);
     await expect(page.getByRole("heading", { name: "Name your template" })).toBeVisible();
-    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveAttribute(
-      "placeholder",
-      "My new template",
-    );
+    await expect(templateNameInput).toHaveAttribute("placeholder", "My new template");
+    await expect(templateNameInput).toHaveJSProperty("type", "text");
+    await expect(templateNameInput).toHaveJSProperty("autocomplete", "off");
+    await expect(templateNameInput).toHaveAttribute("autocorrect", "off");
+    await expect(templateNameInput).toHaveAttribute("autocapitalize", "words");
+    await expect(templateNameInput).toHaveJSProperty("enterKeyHint", "next");
+    await expect(templateNameInput).toHaveJSProperty("spellcheck", false);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
   });
 
@@ -1144,16 +1177,16 @@ test.describe("start program flow", () => {
     await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
   });
 
-  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
+  test("Name your template enforces the 24 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(25));
 
-    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
+    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("25/24");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(24));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
@@ -1237,7 +1270,7 @@ test.describe("start program flow", () => {
       testInfo,
     });
 
-    const longTitle = "Back In Action ".repeat(5).slice(0, 64);
+    const longTitle = "Back In Action Build Day";
     await openTemplateBuilder(page, { dayCount: 4, name: longTitle });
     const safeVisibleTitleCharsMobile = await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
       screenshotName: "warm-stone-builder-add-header-long-name-mobile.png",
@@ -1245,7 +1278,7 @@ test.describe("start program flow", () => {
     });
 
     expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
-    expect(safeVisibleTitleCharsMobile).toBeLessThan(64);
+    expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
@@ -1857,6 +1890,27 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] .builder-exercise-row__order")).toHaveText(
+      "1",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] svg")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='remove-template-exercise-2']").click();
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
+    await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] .builder-exercise-row__order")).toHaveText(
+      "2",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] svg")).toHaveCount(0);
+
     await page.locator("[data-agent-id='edit-template-exercise-1']").click();
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
@@ -1869,19 +1923,19 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
-    const firstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const secondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const firstDragBox = await firstDragHandle.boundingBox();
-    const secondDragBox = await secondDragHandle.boundingBox();
+    const firstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const secondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const firstDragBox = await firstDragZone.boundingBox();
+    const secondDragBox = await secondDragZone.boundingBox();
 
     expect(firstDragBox).not.toBeNull();
     expect(secondDragBox).not.toBeNull();
 
     if (firstDragBox && secondDragBox) {
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y + secondDragBox.height / 2);
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y + secondDragBox.height / 2);
       await page.mouse.down();
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y - 12);
-      await page.mouse.move(firstDragBox.x + firstDragBox.width / 2, firstDragBox.y + firstDragBox.height / 2, {
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y - 12);
+      await page.mouse.move(firstDragBox.x + firstDragBox.width * 0.6, firstDragBox.y + firstDragBox.height / 2, {
         steps: 12,
       });
       await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
@@ -1918,10 +1972,10 @@ test.describe("start program flow", () => {
 
     await page.waitForTimeout(200);
 
-    const refreshedFirstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const refreshedSecondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const refreshedFirstDragBox = await refreshedFirstDragHandle.boundingBox();
-    const refreshedSecondDragBox = await refreshedSecondDragHandle.boundingBox();
+    const refreshedFirstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const refreshedSecondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const refreshedFirstDragBox = await refreshedFirstDragZone.boundingBox();
+    const refreshedSecondDragBox = await refreshedSecondDragZone.boundingBox();
 
     expect(refreshedFirstDragBox).not.toBeNull();
     expect(refreshedSecondDragBox).not.toBeNull();
@@ -2181,6 +2235,24 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("Read-only");
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
+  });
+
+  test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+
+    await completeLiftWithFeedback(page, "Barbell Deadlift");
+    await completeLiftWithFeedback(page, "Pull Up");
+    await completeLiftWithFeedback(page, "Cable Lat Pulldown");
+    await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+
+    await scrollActiveWorkoutPageToBottom(page);
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+    await expectActiveWorkoutPageScrolledToTop(page);
   });
 
   test("active workout restarts set autosave debounce when reps or weight receive another character", async ({ page }) => {
