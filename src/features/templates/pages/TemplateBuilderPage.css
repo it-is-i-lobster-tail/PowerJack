@@ -13,8 +13,21 @@
   min-height: 0;
 }
 
+.template-builder-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "eyebrow ."
+    "title add"
+    "meta .";
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  align-items: center;
+}
+
 .template-builder-header p {
-  margin: 0 0 var(--space-2);
+  grid-area: eyebrow;
+  margin: 0;
   color: var(--color-accent);
   font-size: 17px;
   font-weight: 700;
@@ -22,18 +35,33 @@
 }
 
 .template-builder-header h1 {
+  grid-area: title;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: clamp(30px, 6vw, 42px);
   font-weight: 700;
   line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .template-builder-header span {
-  display: block;
-  margin-top: var(--space-2);
+  grid-area: meta;
+  min-width: 0;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 18px;
   font-weight: 500;
+}
+
+.template-builder-header__add {
+  grid-area: add;
+  justify-self: end;
+  flex-shrink: 0;
+  min-width: 124px;
+  padding: 0 var(--space-4);
+  white-space: nowrap;
 }
 
 .day-tabs {
@@ -255,11 +283,6 @@
   outline-offset: 2px;
 }
 
-.builder-panel__add {
-  align-self: center;
-  margin-top: auto;
-}
-
 .template-builder-hint {
   min-height: 24px;
   margin: 0;
@@ -397,6 +420,16 @@
     font-size: 26px;
   }
 
+  .template-builder-header {
+    column-gap: var(--space-2);
+  }
+
+  .template-builder-header__add {
+    min-width: 112px;
+    padding: 0 var(--space-3);
+    font-size: 15px;
+  }
+
   .day-tabs {
     gap: var(--space-2);
   }
@@ -472,10 +505,6 @@
 
   .template-builder-actions {
     align-items: center;
-  }
-
-  .builder-panel__add {
-    align-self: stretch;
   }
 
   .copy-day-modal-overlay {
