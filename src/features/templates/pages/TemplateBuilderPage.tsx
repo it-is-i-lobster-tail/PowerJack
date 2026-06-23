@@ -407,7 +407,6 @@ export function TemplateBuilderPage() {
           <h1 data-agent-id="template-builder-title-text" id="template-builder-title">
             {name.trim()}
           </h1>
-          <span>{workoutsPerWeek} days per week</span>
           {isHydratingCurrentExercises || isSearchOpen ? null : (
             <Button
               aria-label="Add exercise"
