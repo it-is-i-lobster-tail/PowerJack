@@ -5,7 +5,7 @@
 .template-builder-flow {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: 18px;
 }
 
 .template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
@@ -18,8 +18,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "eyebrow ."
-    "title add"
-    "meta .";
+    "title add";
   column-gap: var(--space-3);
   row-gap: var(--space-2);
   align-items: center;
@@ -46,15 +45,6 @@
   white-space: nowrap;
 }
 
-.template-builder-header span {
-  grid-area: meta;
-  min-width: 0;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 18px;
-  font-weight: 500;
-}
-
 .template-builder-header__add {
   grid-area: add;
   justify-self: end;
@@ -72,7 +62,7 @@
 }
 
 .day-tab {
-  min-height: 64px;
+  min-height: 48px;
   min-width: 0;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-border-soft);
@@ -431,11 +421,10 @@
   }
 
   .template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
-    gap: var(--space-3);
+    gap: 9px;
   }
 
-  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header p,
-  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header span {
+  .template-builder-screen:not(.app-screen--scrollable) .template-builder-header p {
     font-size: 14px;
   }
 
@@ -458,7 +447,7 @@
   }
 
   .day-tab {
-    min-height: 56px;
+    min-height: 44px;
     padding: 0 var(--space-1);
     font-size: 15px;
   }
@@ -552,7 +541,7 @@
 
 @media (max-width: 360px) {
   .template-builder-screen:not(.app-screen--scrollable) .template-builder-flow {
-    gap: var(--space-2);
+    gap: 6px;
   }
 
   .day-tabs {
@@ -560,7 +549,7 @@
   }
 
   .day-tab {
-    min-height: 52px;
+    min-height: 44px;
     font-size: 13px;
   }
 
