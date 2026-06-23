@@ -22,10 +22,16 @@ export function TemplateNamePage() {
         <label className="template-name-field">
           <span>Template name</span>
           <input
+            autoCapitalize="words"
+            autoComplete="off"
+            autoCorrect="off"
             autoFocus
             data-agent-id="template-name-input"
+            enterKeyHint="next"
             onChange={(event) => setName(event.target.value)}
             placeholder="My new template"
+            spellCheck={false}
+            type="text"
             value={name}
           />
           {isNameTooLong ? (
