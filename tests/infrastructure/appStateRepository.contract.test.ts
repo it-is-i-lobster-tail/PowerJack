@@ -75,6 +75,9 @@ describe("AppStateRepository contract", () => {
     await expect(services.exercises.searchExercises("pull up")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Weighted Pull Up" })]),
     );
+    await expect(services.exercises.searchExercises("PUSH UP")).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Push Up" })]),
+    );
     await expect(services.exercises.searchExercises("triceps")).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Cable Triceps Pushdown" })]),
     );

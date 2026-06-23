@@ -962,6 +962,13 @@ export function WorkoutViewerPage() {
   const finishFeedbackHintId = "finish-feedback-hint";
   const workoutCompletionPercent =
     view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
+  const shouldReserveFinishWorkoutSpace = !shouldShowFinishWorkout;
+  const activeWorkoutFlowClassName = [
+    "active-workout-flow",
+    shouldReserveFinishWorkoutSpace ? "active-workout-flow--finish-reserved" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <main
@@ -969,7 +976,7 @@ export function WorkoutViewerPage() {
       data-agent-id="active-workout-page"
       ref={activeWorkoutScreenRef}
     >
-      <section className="active-workout-flow" aria-labelledby="active-workout-day">
+      <section className={activeWorkoutFlowClassName} aria-labelledby="active-workout-day">
         <header className="workout-header">
           <button
             aria-label="Previous workout"
