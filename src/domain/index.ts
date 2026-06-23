@@ -1,4 +1,4 @@
-export type { AppState } from "./app-state/AppState";
+export type { AppState, RestTimer, RestTimerState } from "./app-state/AppState";
 export type { AppStateRepository } from "./app-state/AppStateRepository";
 export type { Equipment, Exercise, ExerciseSummary, Muscle } from "./exercises/Exercise";
 export type { ExerciseCatalogRepository } from "./exercises/ExerciseCatalogRepository";

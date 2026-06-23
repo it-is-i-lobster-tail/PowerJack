@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { ExerciseSummary } from "../../../../domain/exercises/Exercise";
 import "./ExerciseSearchOverlay.css";
 
@@ -22,7 +22,10 @@ interface ExerciseSearchOverlayProps {
 interface VisualViewportBox {
   height: number;
   offsetTop: number;
+  topBarBottom: number | null;
 }
+
+const panelGapBelowTopBarPx = 8;
 
 export function ExerciseSearchOverlay({
   closeAgentId,
@@ -39,11 +42,12 @@ export function ExerciseSearchOverlay({
   subtitle,
   title,
 }: ExerciseSearchOverlayProps) {
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const viewport = useVisualViewportBox();
   const titleId = `${inputAgentId}-title`;
   const subtitleId = subtitle ? `${inputAgentId}-context` : undefined;
-  const panelTop = getPanelTop(viewport.height);
+  const panelTop = getPanelTop(viewport);
   const panelClassName = [
     "exercise-search-overlay__panel",
     viewport.height < 560 ? "exercise-search-overlay__panel--tight" : null,
@@ -56,7 +60,7 @@ export function ExerciseSearchOverlay({
     top: `${viewport.offsetTop}px`,
   } as CSSProperties & Record<"--exercise-search-overlay-height" | "--exercise-search-panel-top", string>;
 
-  usePageScrollLock();
+  usePageScrollLock(overlayRef);
 
   useEffect(() => {
     const focusTimer = window.setTimeout(() => {
@@ -79,7 +83,12 @@ export function ExerciseSearchOverlay({
   }, [disabled, onClose]);
 
   return (
-    <div className="exercise-search-overlay" data-agent-id="exercise-search-overlay" style={overlayStyle}>
+    <div
+      className="exercise-search-overlay"
+      data-agent-id="exercise-search-overlay"
+      ref={overlayRef}
+      style={overlayStyle}
+    >
       <section
         aria-describedby={subtitleId}
         aria-labelledby={titleId}
@@ -117,7 +126,7 @@ export function ExerciseSearchOverlay({
             data-agent-id={inputAgentId}
             disabled={disabled}
             onChange={(event) => onQueryChange(event.currentTarget.value)}
-            placeholder="bench press"
+            placeholder="Push Up"
             ref={inputRef}
             spellCheck={false}
             type="search"
@@ -156,7 +165,18 @@ export function ExerciseSearchOverlay({
   );
 }
 
-function getPanelTop(viewportHeight: number): number {
+function getPanelTop(viewport: VisualViewportBox): number {
+  if (viewport.topBarBottom !== null) {
+    return Math.max(
+      panelGapBelowTopBarPx,
+      Math.round(viewport.topBarBottom - viewport.offsetTop + panelGapBelowTopBarPx),
+    );
+  }
+
+  return getFallbackPanelTop(viewport.height);
+}
+
+function getFallbackPanelTop(viewportHeight: number): number {
   if (viewportHeight < 480) {
     return 8;
   }
@@ -195,29 +215,40 @@ function useVisualViewportBox(): VisualViewportBox {
 
 function readVisualViewportBox(): VisualViewportBox {
   const visualViewport = window.visualViewport;
+  const topBar = document.querySelector<HTMLElement>("[data-agent-id='app-top-bar']");
 
   return {
     height: visualViewport?.height ?? window.innerHeight,
     offsetTop: visualViewport?.offsetTop ?? 0,
+    topBarBottom: topBar?.getBoundingClientRect().bottom ?? null,
   };
 }
 
-function usePageScrollLock(): void {
+function usePageScrollLock(overlayRef: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const scrollY = window.scrollY;
+    const scrollContainer = overlayRef.current?.closest<HTMLElement>(".app-screen--scrollable") ?? null;
+    const scrollContainerTop = scrollContainer?.scrollTop ?? 0;
     const bodyStyle = document.body.style;
     const documentStyle = document.documentElement.style;
+    const scrollContainerStyle = scrollContainer?.style;
     const previousBodyOverflow = bodyStyle.overflow;
     const previousBodyPosition = bodyStyle.position;
     const previousBodyTop = bodyStyle.top;
     const previousBodyWidth = bodyStyle.width;
     const previousDocumentOverflow = documentStyle.overflow;
+    const previousScrollContainerOverflow = scrollContainerStyle?.overflow;
+    const previousScrollContainerOverflowY = scrollContainerStyle?.overflowY;
 
     bodyStyle.overflow = "hidden";
     bodyStyle.position = "fixed";
     bodyStyle.top = `-${scrollY}px`;
     bodyStyle.width = "100%";
     documentStyle.overflow = "hidden";
+    if (scrollContainerStyle) {
+      scrollContainerStyle.overflow = "hidden";
+      scrollContainerStyle.overflowY = "hidden";
+    }
 
     return () => {
       bodyStyle.overflow = previousBodyOverflow;
@@ -225,7 +256,12 @@ function usePageScrollLock(): void {
       bodyStyle.top = previousBodyTop;
       bodyStyle.width = previousBodyWidth;
       documentStyle.overflow = previousDocumentOverflow;
+      if (scrollContainer && scrollContainerStyle) {
+        scrollContainerStyle.overflow = previousScrollContainerOverflow ?? "";
+        scrollContainerStyle.overflowY = previousScrollContainerOverflowY ?? "";
+        scrollContainer.scrollTo({ top: scrollContainerTop, left: 0, behavior: "auto" });
+      }
       window.scrollTo(0, scrollY);
     };
-  }, []);
+  }, [overlayRef]);
 }
