@@ -1,4 +1,6 @@
+import { Plus } from "lucide-react";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
+import { Button } from "../../../shared/ui/Button";
 import { TemplateListPanel } from "../components/TemplateListPanel/TemplateListPanel";
 import {
   EDIT_ACTIVE_TEMPLATE_BODY,
@@ -14,18 +16,28 @@ export function TemplatesListPage() {
     <main className="app-screen app-screen--scrollable templates-screen" data-agent-id="templates-page">
       <section className="templates-flow app-flow" aria-labelledby="templates-title">
         <div className="templates-header">
-          <h1 id="templates-title">Templates</h1>
+          <h1 data-agent-id="templates-title-text" id="templates-title">
+            Templates
+          </h1>
+          <Button
+            aria-label="Add template"
+            className="templates-header__add"
+            data-agent-id="templates-add-template"
+            leadingIcon={<Plus aria-hidden size={24} strokeWidth={2.8} />}
+            onClick={templateList.handleAddTemplate}
+            variant="outline"
+          >
+            template
+          </Button>
         </div>
 
         <TemplateListPanel
-          addAgentId="templates-add-template"
           deleteAgentId={(template) => `templates-delete-template-${template.id}`}
           editAgentId={(template) => `templates-edit-template-${template.id}`}
           emptyAgentId="templates-empty-state"
           errorMessage={templateList.loadErrorMessage}
           gridAgentId="templates-grid"
           isLoading={templateList.isLoading}
-          onAddTemplate={templateList.handleAddTemplate}
           onDeleteTemplate={(template) => {
             void templateList.handleDeleteTemplate(template);
           }}

@@ -396,8 +396,22 @@ export function TemplateBuilderPage() {
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
           <p>{editingTemplateId ? "Edit template" : "New template"}</p>
-          <h1 id="template-builder-title">{name.trim()}</h1>
+          <h1 data-agent-id="template-builder-title-text" id="template-builder-title">
+            {name.trim()}
+          </h1>
           <span>{workoutsPerWeek} days per week</span>
+          {isHydratingCurrentExercises || isSearchOpen ? null : (
+            <Button
+              aria-label="Add exercise"
+              className="template-builder-header__add"
+              data-agent-id="add-exercise"
+              leadingIcon={<Plus aria-hidden size={24} strokeWidth={2.8} />}
+              onClick={handleOpenAddSearch}
+              variant="outline"
+            >
+              exercise
+            </Button>
+          )}
         </header>
 
         <div className="day-tabs" role="tablist" aria-label="Template days" style={dayTabsStyle}>
@@ -483,17 +497,6 @@ export function TemplateBuilderPage() {
             </DndContext>
           )}
 
-          {isHydratingCurrentExercises || isSearchOpen ? null : (
-            <Button
-              className="builder-panel__add"
-              data-agent-id="add-exercise"
-              leadingIcon={<Plus aria-hidden size={30} strokeWidth={2.6} />}
-              onClick={handleOpenAddSearch}
-              variant="outline"
-            >
-              Add exercise
-            </Button>
-          )}
         </section>
 
         {copySourceDay !== null ? (
