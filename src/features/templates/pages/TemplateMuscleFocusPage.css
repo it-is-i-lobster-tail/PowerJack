@@ -10,7 +10,7 @@
 
 .muscle-focus-header span {
   color: var(--color-text-muted);
-  font-size: 17px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
 }
 
@@ -30,7 +30,7 @@
   align-self: center;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 600;
   text-align: center;
 }
@@ -43,7 +43,7 @@
   border-radius: var(--radius-button);
   background: transparent;
   color: var(--color-text-primary);
-  font-size: 17px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1.1;
   cursor: pointer;
@@ -82,7 +82,7 @@
   }
 
   .muscle-focus-header span {
-    font-size: 15px;
+    font-size: var(--font-size-sub-header);
     line-height: 1;
   }
 
@@ -95,13 +95,13 @@
   .muscle-focus-option {
     min-height: 52px;
     padding: 0 var(--space-2);
-    font-size: 16px;
+    font-size: var(--font-size-sub-header);
   }
 }
 
 @media (max-width: 360px) {
   .muscle-focus-option {
     min-height: 48px;
-    font-size: 15px;
+    font-size: var(--font-size-sub-header);
   }
 }
