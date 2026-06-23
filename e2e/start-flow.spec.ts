@@ -268,6 +268,43 @@ async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").
   }
 }
 
+async function expectAppLogoOppositeMenu(page: import("@playwright/test").Page): Promise<void> {
+  const logo = page.locator("[data-agent-id='app-logo']");
+  const menu = page.locator("[data-agent-id='app-menu-toggle']");
+
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute("src", "/assets/power-jack-logo-favicon.png");
+  await expect(menu).toBeVisible();
+
+  const didLogoLoad = await logo.evaluate((element) => {
+    const image = element as HTMLImageElement;
+    return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+  });
+  const viewport = page.viewportSize();
+  const logoBox = await logo.boundingBox();
+  const menuBox = await menu.boundingBox();
+
+  expect(didLogoLoad, "app logo image should load successfully").toBe(true);
+  expect(viewport).not.toBeNull();
+  expect(logoBox, "app logo should have a layout box").not.toBeNull();
+  expect(menuBox, "app menu toggle should have a layout box").not.toBeNull();
+
+  if (!viewport || !logoBox || !menuBox) {
+    return;
+  }
+
+  const logoCenterY = logoBox.y + logoBox.height / 2;
+  const menuCenterY = menuBox.y + menuBox.height / 2;
+
+  expect(logoBox.x, "app logo should stay inside the left viewport edge").toBeGreaterThanOrEqual(0);
+  expect(menuBox.x + menuBox.width, "menu should stay inside the right viewport edge").toBeLessThanOrEqual(
+    viewport.width + 1,
+  );
+  expect(logoBox.x + logoBox.width, "app logo should sit left of the hamburger menu").toBeLessThan(menuBox.x);
+  expect(Math.abs(logoCenterY - menuCenterY), "app logo should align vertically with the menu").toBeLessThanOrEqual(4);
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function pageHasHorizontalOverflow(page: import("@playwright/test").Page): Promise<boolean> {
   return page.evaluate(() => {
     const documentElement = document.documentElement;
@@ -907,6 +944,7 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
     await expect(page.locator("[data-agent-id='profile-placeholder']")).toHaveCount(0);
+    await expectAppLogoOppositeMenu(page);
     await expect(page.locator("[data-agent-id='app-menu-toggle']")).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "New program" })).toBeVisible();
@@ -925,6 +963,31 @@ test.describe("start program flow", () => {
     }
 
     await expectMobileScreenshot(page, testInfo, "warm-stone-start-mobile.png");
+  });
+
+  test("serves PowerJack favicon and install icons", async ({ request }) => {
+    const favicon = await request.get("/favicon-32x32.png");
+    const appleTouchIcon = await request.get("/apple-touch-icon.png");
+    const manifest = await request.get("/site.webmanifest");
+
+    expect(favicon.ok(), "favicon should be served").toBe(true);
+    expect(appleTouchIcon.ok(), "Apple touch icon should be served").toBe(true);
+    expect(manifest.ok(), "web app manifest should be served").toBe(true);
+
+    const manifestJson = (await manifest.json()) as {
+      icons?: Array<{ sizes?: string; src?: string; type?: string }>;
+      name?: string;
+      short_name?: string;
+    };
+
+    expect(manifestJson.name).toBe("PowerJack");
+    expect(manifestJson.short_name).toBe("PowerJack");
+    expect(manifestJson.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sizes: "192x192", src: "/icon-192.png", type: "image/png" }),
+        expect.objectContaining({ sizes: "512x512", src: "/icon-512.png", type: "image/png" }),
+      ]),
+    );
   });
 
   test("Start navigates to empty Select Template", async ({ page }, testInfo) => {
