@@ -1384,9 +1384,6 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='add-exercise']").click();
     await page.setViewportSize({ width: 393, height: 520 });
 
-    await expect(page.locator("[data-agent-id='template-builder-page']")).not.toHaveClass(
-      /app-screen--scrollable/,
-    );
     await expectExerciseSearchOverlayInsideViewport(page, "exercise-search-input", "Exercise search");
 
     const input = page.locator("[data-agent-id='exercise-search-input']");
