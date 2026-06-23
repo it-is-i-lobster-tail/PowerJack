@@ -237,7 +237,7 @@ async function completeVisibleWorkout(page: import("@playwright/test").Page) {
   await firstWeight.fill("220");
   await secondRep.fill("10");
   await secondWeight.fill("220");
-  await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+  await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
   await page.locator("[data-agent-id='feedback-pain-option-1']").click();
   await page.locator("[data-agent-id='feedback-effort-option-3']").click();
@@ -1738,7 +1738,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='active-workout-page']")).toBeVisible();
     await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 1/8");
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
@@ -1756,7 +1756,7 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     expect(page.url()).not.toBe(canonicalDayOneUrl);
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("Read-only");
+    await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
     await expect(page).toHaveURL(canonicalDayOneUrl);
@@ -2131,11 +2131,11 @@ test.describe("start program flow", () => {
 
     await firstRep.fill("12");
     await firstWeight.fill("2");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged", {
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done", {
       timeout: 500,
     });
     await firstWeight.fill("200");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
     await expect(firstSetRow.locator("[data-agent-id^='set-logged-']")).toBeVisible();
     const unloggedSetRowStyle = await page
       .locator("[data-agent-id^='set-row-']")
@@ -2154,11 +2154,11 @@ test.describe("start program flow", () => {
     await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-logged-mobile.png");
 
     await firstRep.fill("");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged", {
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done", {
       timeout: 100,
     });
     await page.waitForTimeout(setAutosaveSettleMs);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
 
     await firstRep.fill("12");
     await firstWeight.fill("220");
@@ -2167,7 +2167,7 @@ test.describe("start program flow", () => {
     await expect(secondWeight).toBeFocused();
     await page.waitForTimeout(setAutosaveSettleMs);
 
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
@@ -2176,7 +2176,7 @@ test.describe("start program flow", () => {
     await expect(secondWeight).toBeDisabled();
     await page.keyboard.press("Backspace");
     await expect(secondWeight).toHaveValue("220");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='feedback-save']")).toBeDisabled();
     await page.locator("[data-agent-id='feedback-close']").click();
 
@@ -2215,12 +2215,12 @@ test.describe("start program flow", () => {
 
     await firstRep.fill("");
     await page.waitForTimeout(setAutosaveSettleMs);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
     await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
 
     await firstRep.fill("12");
     await page.waitForTimeout(setAutosaveSettleMs);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
 
@@ -2228,12 +2228,12 @@ test.describe("start program flow", () => {
 
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
 
     await page.locator("[data-agent-id='workout-day-prev']").click();
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("Read-only");
+    await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
   });
 
@@ -2285,12 +2285,12 @@ test.describe("start program flow", () => {
     await page.keyboard.type("0", { delay: 40 });
     await expect(benchSetTwoReps).toHaveValue("10");
     await page.waitForTimeout(setAutosaveStaleTimerProbeMs);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 4 sets logged", {
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done", {
       timeout: 100,
     });
 
     await page.waitForTimeout(setAutosaveSettleMs);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
   });
 
   test("active workout propagates final debounced weights and persists them", async ({ page }) => {
@@ -2409,11 +2409,11 @@ test.describe("start program flow", () => {
     await menuToggle.click();
     await page.locator("[data-agent-id^='lift-add-set-']").click();
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(3);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 3 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
 
     await page.locator("[data-agent-id^='set-reps-']").nth(2).fill("7");
     await page.locator("[data-agent-id^='set-weight-']").nth(2).fill("100");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 3 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("33% done");
 
     await menuToggle.click();
     await page.locator("[data-agent-id^='lift-remove-last-set-']").click();
@@ -2422,7 +2422,7 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
   });
 
   test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }, testInfo) => {
@@ -2431,7 +2431,7 @@ test.describe("start program flow", () => {
 
     await page.locator("[data-agent-id^='set-reps-']").nth(0).fill("12");
     await page.locator("[data-agent-id^='set-weight-']").nth(0).fill("100");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
 
     await page.locator("[data-agent-id^='lift-menu-toggle-']").first().click();
     await page.locator("[data-agent-id^='lift-change-exercise-']").click();
@@ -2449,13 +2449,13 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Pull Up" })).toBeVisible();
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveValue("");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toBeDisabled();
 
     await page.locator("[data-agent-id^='set-reps-']").nth(0).fill("8");
     await page.locator("[data-agent-id^='set-reps-']").nth(1).fill("7");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await page.locator("[data-agent-id='feedback-pain-option-1']").click();
     await page.locator("[data-agent-id='feedback-effort-option-3']").click();
@@ -2505,7 +2505,7 @@ test.describe("start program flow", () => {
     await weights.nth(0).fill("100");
     await reps.nth(1).fill("8");
     await weights.nth(1).fill("100");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await page.locator("[data-agent-id='feedback-close']").click();
 
@@ -2513,7 +2513,7 @@ test.describe("start program flow", () => {
     await weights.nth(2).fill("225");
     await reps.nth(3).fill("5");
     await weights.nth(3).fill("225");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("4 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
     await page.locator("[data-agent-id='feedback-close']").click();
 
@@ -2568,7 +2568,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='manual-checkin-skip-yes']").click();
 
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 0 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.locator("[data-agent-id^='set-skipped-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
 
@@ -2595,7 +2595,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='manual-checkin-reset-yes']").click();
 
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id^='set-weight-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
@@ -2610,7 +2610,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='manual-checkin-reset-no']").click();
 
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("0 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toBeEnabled();
     await expect(page.locator("[data-agent-id^='set-reps-']").nth(0)).toHaveAttribute("placeholder", "10");
     await expect(page.locator("[data-agent-id^='set-weight-']").nth(0)).toHaveValue("100");
@@ -2657,19 +2657,19 @@ test.describe("start program flow", () => {
     await plankSecondsInputs.nth(0).fill("97");
     await page.waitForTimeout(setAutosaveSettleMs);
     await expect(plankSecondsInputs.nth(0)).toHaveValue("90");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
 
     await plankSecondsInputs.nth(1).fill("14");
     await page.waitForTimeout(setAutosaveSettleMs);
     await expect(plankSecondsInputs.nth(1)).toHaveValue("");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
 
     await weightedSecondsInputs.nth(0).fill("97");
     await weightedWeightInputs.nth(0).fill("25");
     await page.waitForTimeout(setAutosaveSettleMs);
     await expect(weightedSecondsInputs.nth(0)).toHaveValue("90");
     await expect(weightedWeightInputs.nth(0)).toHaveValue("25");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 4 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
     await expectMobileScreenshot(page, testInfo, "warm-stone-time-based-workout-mobile.png");
 
     await page.locator("[data-agent-id='workout-day-next']").click();
@@ -2710,11 +2710,11 @@ test.describe("start program flow", () => {
     await expect(secondWeight).toHaveValue("BW");
 
     await firstRep.fill("8");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("1 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
 
     await secondRep.fill("7");
-    await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("2 of 2 sets logged");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("100% done");
     await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toBeVisible();
   });
 });
