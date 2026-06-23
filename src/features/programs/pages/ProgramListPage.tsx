@@ -19,14 +19,14 @@ type LoadState =
 
 const filterLabels: Record<ProgramListFilter, string> = {
   all: "All",
-  complete: "Complete",
+  completed: "Completed",
   halted: "Halted",
 };
 
 const statusLabels: Record<PowerJackStatus, string> = {
   planned: "Planned",
   active: "Active",
-  complete: "Complete",
+  completed: "Completed",
   halted: "Halted",
   skipped: "Skipped",
 };
@@ -226,7 +226,7 @@ function formatProgramDateLine(program: ProgramListItem): string {
     return `Started ${formatProgramDate(program.createdAt)}`;
   }
 
-  if (program.status === "complete" || program.status === "halted") {
+  if (program.status === "completed" || program.status === "halted") {
     return formatProgramDateRange(program.createdAt, program.updatedAt);
   }
 
