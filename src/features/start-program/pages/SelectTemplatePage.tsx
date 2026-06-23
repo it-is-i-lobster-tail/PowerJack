@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "../../../shared/ui/Button";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { TemplateListPanel } from "../../templates/components/TemplateListPanel/TemplateListPanel";
@@ -30,18 +31,28 @@ export function SelectTemplatePage() {
       <section className="app-flow select-template-flow" aria-labelledby="select-template-title">
         <div className="flow-header">
           <p>New program</p>
-          <h1 id="select-template-title">Select template</h1>
+          <h1 data-agent-id="select-template-title-text" id="select-template-title">
+            Select template
+          </h1>
+          <Button
+            aria-label="Add template"
+            className="flow-header__add"
+            data-agent-id="add-template"
+            leadingIcon={<Plus aria-hidden size={24} strokeWidth={2.8} />}
+            onClick={templateList.handleAddTemplate}
+            variant="outline"
+          >
+            template
+          </Button>
         </div>
 
         <TemplateListPanel
-          addAgentId="add-template"
           deleteAgentId={(template) => `delete-template-${template.id}`}
           editAgentId={(template) => `edit-template-${template.id}`}
           emptyAgentId="template-empty-state"
           errorMessage={templateList.loadErrorMessage}
           gridAgentId="template-grid"
           isLoading={templateList.isLoading}
-          onAddTemplate={templateList.handleAddTemplate}
           onDeleteTemplate={(template) => {
             void templateList.handleDeleteTemplate(template);
           }}
