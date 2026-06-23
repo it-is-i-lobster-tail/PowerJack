@@ -12,3 +12,6 @@ Summary: Added agent guidance to scan recent closed GitHub pull requests before 
 
 ## codex/refactor/completed-status-enum - 2026-06-23
 Summary: Renamed the shared PowerJack completion status enum value from complete to completed across domain logic, repositories, SQL queries, and status-driven UI. Added an immutable SQLite migration with coverage for existing local data and refreshed E2E selectors and mobile visual baselines.
+
+## codex/enhancement/completed-set-stats - 2026-06-23
+Summary: Added a materialized completed_sets_stats table for one live muscle-credit row per completed workout set. The SQLite workout flow now creates, preserves, clears, and cascades stats rows while analytics reads from the optimized table.
