@@ -1,7 +1,6 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { TemplateSummary } from "../../../../domain/templates/Template";
-import { Button } from "../../../../shared/ui/Button";
 import "./TemplateListPanel.css";
 
 interface TemplateListPanelProps {
@@ -10,14 +9,12 @@ interface TemplateListPanelProps {
   errorMessage?: string | null;
   gridAgentId: string;
   emptyAgentId: string;
-  addAgentId: string;
   rowAgentId: (template: TemplateSummary) => string;
   editAgentId: (template: TemplateSummary) => string;
   deleteAgentId: (template: TemplateSummary) => string;
   focusChipAgentId?: (muscleId: number) => string;
   selectedTemplateId?: number | null;
   onSelectTemplate?: (template: TemplateSummary) => void;
-  onAddTemplate: () => void;
   onEditTemplate: (template: TemplateSummary) => void;
   onDeleteTemplate: (template: TemplateSummary) => void;
 }
@@ -28,14 +25,12 @@ export function TemplateListPanel({
   errorMessage,
   gridAgentId,
   emptyAgentId,
-  addAgentId,
   rowAgentId,
   editAgentId,
   deleteAgentId,
   focusChipAgentId = (muscleId) => `template-focus-chip-${muscleId}`,
   selectedTemplateId,
   onSelectTemplate,
-  onAddTemplate,
   onEditTemplate,
   onDeleteTemplate,
 }: TemplateListPanelProps) {
@@ -122,16 +117,6 @@ export function TemplateListPanel({
           })
         )}
       </div>
-
-      <Button
-        className="template-grid__add"
-        data-agent-id={addAgentId}
-        leadingIcon={<Plus aria-hidden size={26} strokeWidth={2.6} />}
-        onClick={onAddTemplate}
-        variant="outline"
-      >
-        Add template
-      </Button>
     </div>
   );
 }
