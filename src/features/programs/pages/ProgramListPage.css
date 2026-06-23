@@ -244,7 +244,7 @@
 }
 
 .program-card-status--active,
-.program-card-status--complete {
+.program-card-status--completed {
   border-color: var(--color-accent-strong);
   background: var(--color-accent-soft);
   color: var(--color-text-primary);

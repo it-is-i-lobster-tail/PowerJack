@@ -1,4 +1,4 @@
-export const powerJackStatuses = ["planned", "active", "complete", "halted", "skipped"] as const;
+export const powerJackStatuses = ["planned", "active", "completed", "halted", "skipped"] as const;
 
 export type PowerJackStatus = (typeof powerJackStatuses)[number];
 

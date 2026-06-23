@@ -30,7 +30,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           INNER JOIN lifts ON lifts.id = workout_sets.lift_id
           INNER JOIN exercises ON exercises.id = lifts.exercise_id
           WHERE
-            workout_sets.status = 'complete'
+            workout_sets.status = 'completed'
             AND workout_sets.actual_reps IS NOT NULL
             AND datetime(workout_sets.updated_at) >= datetime(?)
             AND datetime(workout_sets.updated_at) < datetime(?)
@@ -84,7 +84,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           INNER JOIN exercises ON exercises.id = lifts.exercise_id
           WHERE
             workouts.program_id = ?
-            AND workout_sets.status = 'complete'
+            AND workout_sets.status = 'completed'
             AND workout_sets.actual_reps IS NOT NULL
         )
         SELECT
