@@ -22,8 +22,16 @@ import { resolveManualCheckIn } from "../../../application/workouts/resolveManua
 import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../../application/workouts/updateWorkoutSet";
 import { useServices } from "../../../app/useServices";
+import { useRestTimer } from "../../../app/useRestTimer";
+import { shouldDisplayRestTimer } from "../../../domain/app-state/restTimer";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
 import { findFollowingWeightSetIds } from "../../../domain/workouts/rules/propagateFollowingSetWeights";
+import {
+  didAnySetBecomeComplete,
+  didAnySetBecomeIncomplete,
+  findNextIncompleteRestTimerTarget,
+  findRestTimerTargetBySetId,
+} from "../../../domain/workouts/restTimerTarget";
 import type {
   ActiveWorkoutLiftView,
   ActiveWorkoutSetView,
@@ -80,6 +88,7 @@ interface FinishWorkoutNavigationState {
 
 export function WorkoutViewerPage() {
   const services = useServices();
+  const { clearRestTimer, startRestTimer, timer } = useRestTimer();
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
@@ -118,6 +127,12 @@ export function WorkoutViewerPage() {
   const [liftMutationError, setLiftMutationError] = useState<string | null>(null);
   const finishWorkoutScrollTargetId = getScrollToTopAfterFinishWorkoutId(location.state);
   const activeWorkoutId = view?.workout.id ?? null;
+  const visibleRestTimer =
+    view && shouldDisplayRestTimer(timer) && timer.workoutId === view.workout.id ? timer : null;
+  const restTimerTarget =
+    view && visibleRestTimer ? findRestTimerTargetBySetId(view, visibleRestTimer.nextSetId) : null;
+  const activeRestTimerSetId =
+    visibleRestTimer?.state === "expired" && restTimerTarget ? restTimerTarget.setId : null;
 
   const clearPendingSetPersists = useCallback(() => {
     for (const timer of Object.values(persistTimersRef.current)) {
@@ -188,6 +203,48 @@ export function WorkoutViewerPage() {
     setIsLiftMutationSaving(false);
     setLiftMutationError(null);
   }, []);
+
+  const reconcileRestTimerAfterViewChange = useCallback(
+    (previousView: ActiveWorkoutView | null, nextView: ActiveWorkoutView): void => {
+      const hasVisibleTimerForWorkout = shouldDisplayRestTimer(timer) && timer.workoutId === nextView.workout.id;
+      const nextTarget = findNextIncompleteRestTimerTarget(nextView);
+
+      if (nextView.isReadOnly || nextView.workout.status !== "active") {
+        if (hasVisibleTimerForWorkout) {
+          clearRestTimer();
+        }
+        return;
+      }
+
+      if (!nextTarget) {
+        if (hasVisibleTimerForWorkout || didAnySetBecomeComplete(previousView, nextView)) {
+          clearRestTimer();
+        }
+        return;
+      }
+
+      if (didAnySetBecomeIncomplete(previousView, nextView)) {
+        if (hasVisibleTimerForWorkout) {
+          clearRestTimer();
+        }
+        return;
+      }
+
+      if (didAnySetBecomeComplete(previousView, nextView)) {
+        startRestTimer({
+          workoutId: nextView.workout.id,
+          liftId: nextTarget.liftId,
+          nextSetId: nextTarget.setId,
+        });
+        return;
+      }
+
+      if (hasVisibleTimerForWorkout && !findRestTimerTargetBySetId(nextView, timer.nextSetId)) {
+        clearRestTimer();
+      }
+    },
+    [clearRestTimer, startRestTimer, timer],
+  );
 
   const openFeedbackIfNeeded = useCallback(
     (nextView: ActiveWorkoutView, previousView?: ActiveWorkoutView | null): void => {
@@ -325,6 +382,12 @@ export function WorkoutViewerPage() {
   }, [activeWorkoutId, finishWorkoutScrollTargetId]);
 
   useEffect(() => {
+    if (visibleRestTimer && !restTimerTarget) {
+      clearRestTimer();
+    }
+  }, [clearRestTimer, restTimerTarget, visibleRestTimer]);
+
+  useEffect(() => {
     let isMounted = true;
     const normalizedQuery = exerciseChangeQuery.trim();
 
@@ -405,6 +468,7 @@ export function WorkoutViewerPage() {
       .then((nextView) => {
         if (saveVersionRef.current === saveVersion) {
           commitView(nextView, { clearPendingPersists: false, preservePendingDrafts: true });
+          reconcileRestTimerAfterViewChange(previousView, nextView);
           openFeedbackIfNeeded(nextView, previousView);
         }
       })
@@ -529,8 +593,10 @@ export function WorkoutViewerPage() {
       services.workouts,
     )
       .then((nextView) => {
+        const previousView = viewRef.current;
         markFeedbackLiftAvailable(feedbackLift.id);
         commitView(nextView, { clearPendingPersists: false, preservePendingDrafts: true });
+        reconcileRestTimerAfterViewChange(previousView, nextView);
         resetFeedbackModal();
         if (!findFirstLiftNeedingFeedback(nextView)) {
           setFinishFeedbackHint(null);
@@ -664,7 +730,9 @@ export function WorkoutViewerPage() {
 
     void resolveManualCheckIn({ liftId: pendingLift.id, decision }, services.workouts)
       .then((nextView) => {
+        const previousView = viewRef.current;
         commitView(nextView);
+        reconcileRestTimerAfterViewChange(previousView, nextView);
         resetManualCheckInModal();
         openFeedbackIfNeeded(nextView);
       })
@@ -714,7 +782,9 @@ export function WorkoutViewerPage() {
 
     void addSetToLift({ liftId: lift.id }, services.workouts)
       .then((nextView) => {
+        const previousView = viewRef.current;
         commitView(nextView);
+        reconcileRestTimerAfterViewChange(previousView, nextView);
         openFeedbackIfNeeded(nextView);
       })
       .catch((error: unknown) => {
@@ -759,7 +829,9 @@ export function WorkoutViewerPage() {
 
     void removeLastSetFromLift({ liftId: lift.id }, services.workouts)
       .then((nextView) => {
+        const previousView = viewRef.current;
         commitView(nextView);
+        reconcileRestTimerAfterViewChange(previousView, nextView);
         openFeedbackIfNeeded(nextView);
       })
       .catch((error: unknown) => {
@@ -808,7 +880,9 @@ export function WorkoutViewerPage() {
 
     void changeLiftExercise({ liftId: lift.id, exerciseId: exercise.id }, services.workouts)
       .then((nextView) => {
+        const previousView = viewRef.current;
         commitView(nextView);
+        reconcileRestTimerAfterViewChange(previousView, nextView);
         setExerciseChangeLift(null);
         setExerciseChangeQuery("");
         setExerciseChangeResults([]);
@@ -844,6 +918,7 @@ export function WorkoutViewerPage() {
 
     void finishWorkout(view.workout.id, services.workouts)
       .then((nextView) => {
+        clearRestTimer();
         if (!nextView) {
           void navigate("/", { replace: true });
           return;
@@ -887,6 +962,13 @@ export function WorkoutViewerPage() {
   const finishFeedbackHintId = "finish-feedback-hint";
   const workoutCompletionPercent =
     view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
+  const shouldReserveFinishWorkoutSpace = !shouldShowFinishWorkout;
+  const activeWorkoutFlowClassName = [
+    "active-workout-flow",
+    shouldReserveFinishWorkoutSpace ? "active-workout-flow--finish-reserved" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <main
@@ -894,7 +976,7 @@ export function WorkoutViewerPage() {
       data-agent-id="active-workout-page"
       ref={activeWorkoutScreenRef}
     >
-      <section className="active-workout-flow" aria-labelledby="active-workout-day">
+      <section className={activeWorkoutFlowClassName} aria-labelledby="active-workout-day">
         <header className="workout-header">
           <button
             aria-label="Previous workout"
@@ -967,6 +1049,7 @@ export function WorkoutViewerPage() {
               isReadOnly={view.isReadOnly || Boolean(feedbackLift)}
               key={lift.id}
               lift={lift}
+              activeSetId={activeRestTimerSetId}
               onAddSet={handleAddSet}
               onChangeExercise={handleOpenExerciseChange}
               onFeedbackNeeded={handleOpenFeedbackNeeded}
@@ -1445,6 +1528,7 @@ function FeedbackScale({
 }
 
 function LiftCard({
+  activeSetId,
   draftValues,
   isLiftMutationSaving,
   isMenuOpen,
@@ -1458,6 +1542,7 @@ function LiftCard({
   onToggleMenu,
   showFeedbackNeeded,
 }: {
+  activeSetId: number | null;
   draftValues: SetDraftValues;
   isLiftMutationSaving: boolean;
   isMenuOpen: boolean;
@@ -1572,6 +1657,7 @@ function LiftCard({
           <SetRow
             draftValue={draftValues[set.id] ?? valueFromSet(set, { timeBased: lift.timeBased })}
             isReadOnly={isReadOnly || isSkipped || lift.locked || set.locked || set.status === "skipped"}
+            isRestTimerNext={activeSetId === set.id}
             key={set.id}
             onSetFieldChange={onSetFieldChange}
             repsOnly={lift.repsOnly}
@@ -1587,6 +1673,7 @@ function LiftCard({
 function SetRow({
   draftValue,
   isReadOnly,
+  isRestTimerNext,
   onSetFieldChange,
   repsOnly,
   set,
@@ -1594,6 +1681,7 @@ function SetRow({
 }: {
   draftValue: SetDraftValue;
   isReadOnly: boolean;
+  isRestTimerNext: boolean;
   onSetFieldChange: (setId: number, field: keyof SetDraftValue, value: string) => void;
   repsOnly: boolean;
   set: ActiveWorkoutSetView;
@@ -1609,15 +1697,21 @@ function SetRow({
       className={[
         "set-row",
         isComplete ? "set-row--complete" : "",
+        isRestTimerNext ? "set-row--rest-next" : "",
         isSkipped ? "set-row--skipped" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       data-agent-id={`set-row-${set.id}`}
+      aria-current={isRestTimerNext ? "step" : undefined}
     >
       <div className="set-row__set">
         <strong>Set {set.order}</strong>
-        {isComplete ? (
+        {isRestTimerNext ? (
+          <span className="set-row__next" data-agent-id={`set-next-${set.id}`}>
+            Go
+          </span>
+        ) : isComplete ? (
           <span className="set-row__logged" data-agent-id={`set-logged-${set.id}`}>
             <Check aria-hidden size={16} strokeWidth={2.5} />
             Logged

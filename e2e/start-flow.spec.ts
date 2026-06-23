@@ -13,6 +13,12 @@ type InteractionFeedbackWindow = Window & {
   __POWERJACK_INTERACTION_FEEDBACK_SEEN__?: boolean;
 };
 
+type TestClockWindow = Window & {
+  __POWERJACK_TEST_CLOCK__?: {
+    advance(milliseconds: number): void;
+  };
+};
+
 async function openTemplateFocus(page: import("@playwright/test").Page, name = "Back In Action") {
   await page.goto("/start/select-template");
   await page.locator("[data-agent-id='add-template']").click();
@@ -498,6 +504,37 @@ async function scrollActiveWorkoutPageToBottom(page: import("@playwright/test").
   expect(scrollTop, "active workout page should be scrolled before finishing").toBeGreaterThan(0);
 }
 
+async function expectElementWithinActiveWorkoutViewport(
+  page: import("@playwright/test").Page,
+  locator: Locator,
+  name: string,
+): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+  const [screenBox, elementBox] = await Promise.all([screen.boundingBox(), locator.boundingBox()]);
+
+  expect(screenBox, "active workout page should have a layout box").not.toBeNull();
+  expect(elementBox, `${name} should have a layout box`).not.toBeNull();
+
+  if (!screenBox || !elementBox) {
+    return;
+  }
+
+  expect(elementBox.x, `${name} should not overflow the active workout left edge`).toBeGreaterThanOrEqual(
+    screenBox.x,
+  );
+  expect(
+    elementBox.x + elementBox.width,
+    `${name} should not overflow the active workout right edge`,
+  ).toBeLessThanOrEqual(screenBox.x + screenBox.width + 1);
+  expect(elementBox.y, `${name} should not overflow the active workout top edge`).toBeGreaterThanOrEqual(
+    screenBox.y,
+  );
+  expect(
+    elementBox.y + elementBox.height,
+    `${name} should not be clipped by the active workout bottom edge`,
+  ).toBeLessThanOrEqual(screenBox.y + screenBox.height + 1);
+}
+
 async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
   const screen = page.locator("[data-agent-id='active-workout-page']");
 
@@ -517,11 +554,12 @@ async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimes
   await page.addInitScript((fixedIso) => {
     const fixedTime = new Date(fixedIso).getTime();
     const RealDate = Date;
+    let offsetMs = 0;
 
     class MockDate extends RealDate {
       constructor(...args: ConstructorParameters<DateConstructor>) {
         if (args.length === 0) {
-          super(fixedTime);
+          super(fixedTime + offsetMs);
           return;
         }
 
@@ -529,13 +567,18 @@ async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimes
       }
 
       static now() {
-        return fixedTime;
+        return fixedTime + offsetMs;
       }
     }
 
     MockDate.UTC = RealDate.UTC;
     MockDate.parse = RealDate.parse;
     window.Date = MockDate as DateConstructor;
+    (window as TestClockWindow).__POWERJACK_TEST_CLOCK__ = {
+      advance(milliseconds: number) {
+        offsetMs += milliseconds;
+      },
+    };
   }, isoTimestamp);
 }
 
@@ -598,6 +641,7 @@ async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").
     expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
     expect(box.width).toBeGreaterThan(0);
     expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(49);
 
     if (viewport) {
       expect(box.left).toBeGreaterThanOrEqual(0);
@@ -629,6 +673,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   await expect(addExercise).toHaveAccessibleName("Add exercise");
   await expect(addExercise).toHaveText("exercise");
   await expect(lastDayTab).toBeVisible();
+  await expect(page.locator("[data-agent-id='template-builder-page']")).not.toContainText(/\d+ days per week/);
 
   const metrics = await page.evaluate(
     ({ dayCount: expectedDayCount }) => {
@@ -773,19 +818,34 @@ async function expectExerciseSearchOverlayInsideViewport(
   headingName: string,
 ): Promise<void> {
   const viewport = page.viewportSize();
+  const topBar = page.locator("[data-agent-id='app-top-bar']");
   const panel = page.locator("[data-agent-id='exercise-search-overlay'] .exercise-search-overlay__panel");
   const heading = panel.getByRole("heading", { name: headingName });
   const input = page.locator(`[data-agent-id='${inputAgentId}']`);
   const results = page.locator("[data-agent-id='exercise-search-results']");
 
   expect(viewport).not.toBeNull();
+  await expect(topBar).toBeVisible();
   await expect(panel).toBeVisible();
   await expect(heading).toBeVisible();
   await expect(input).toBeVisible();
+  await expect(input).toHaveAttribute("placeholder", "Push Up");
   await expect(results).toBeVisible();
 
   if (!viewport) {
     return;
+  }
+
+  const [topBarBox, panelBox] = await Promise.all([topBar.boundingBox(), panel.boundingBox()]);
+
+  expect(topBarBox, "app top bar should have a layout box").not.toBeNull();
+  expect(panelBox, "exercise search panel should have a layout box").not.toBeNull();
+
+  if (topBarBox && panelBox) {
+    const panelGapBelowTopBar = panelBox.y - (topBarBox.y + topBarBox.height);
+
+    expect(panelGapBelowTopBar, "exercise search panel should sit below the top bar").toBeGreaterThanOrEqual(7);
+    expect(panelGapBelowTopBar, "exercise search panel gap should stay compact").toBeLessThanOrEqual(16);
   }
 
   const elements: Array<[string, Locator]> = [
@@ -815,6 +875,77 @@ async function expectExerciseSearchOverlayInsideViewport(
 
   expect(panelOverflowY, "exercise search panel should not become the scroll container").toBe("hidden");
   expect(resultsOverflowY, "exercise search results should be the scroll container").toBe("auto");
+}
+
+async function expectExerciseSearchScrollContained(page: import("@playwright/test").Page): Promise<void> {
+  const panel = page.locator("[data-agent-id='exercise-search-overlay'] .exercise-search-overlay__panel");
+  const results = page.locator("[data-agent-id='exercise-search-results']");
+
+  await expect(panel).toBeVisible();
+  await expect(results).toBeVisible();
+
+  const beforePageScroll = await getExerciseSearchPageScrollMetrics(page);
+  const panelBox = await panel.boundingBox();
+
+  expect(panelBox, "exercise search panel should have a layout box").not.toBeNull();
+
+  if (panelBox) {
+    await page.mouse.move(panelBox.x + panelBox.width / 2, panelBox.y + 8);
+    await page.mouse.wheel(0, 600);
+  }
+
+  const afterPageScroll = await getExerciseSearchPageScrollMetrics(page);
+
+  expect(afterPageScroll.windowScrollY, "window should stay fixed while exercise search is open").toBe(
+    beforePageScroll.windowScrollY,
+  );
+  expect(afterPageScroll.screenScrollTop, "app screen should stay fixed while exercise search is open").toBe(
+    beforePageScroll.screenScrollTop,
+  );
+
+  if (afterPageScroll.screenClassName.includes("app-screen--scrollable")) {
+    expect(afterPageScroll.screenOverflowY, "search should hide the app screen scrollbar").toBe("hidden");
+  }
+
+  const resultsScrollMetrics = await results.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollTop: element.scrollTop,
+  }));
+  const beforeResultsScrollTop = resultsScrollMetrics.scrollTop;
+
+  expect(
+    resultsScrollMetrics.scrollHeight,
+    "exercise search results should have enough content to scroll",
+  ).toBeGreaterThan(resultsScrollMetrics.clientHeight + 1);
+  const resultsBox = await results.boundingBox();
+
+  expect(resultsBox, "exercise search results should have a layout box").not.toBeNull();
+
+  if (resultsBox) {
+    await page.mouse.move(resultsBox.x + resultsBox.width / 2, resultsBox.y + resultsBox.height / 2);
+    await page.mouse.wheel(0, 600);
+  }
+
+  await expect
+    .poll(() => results.evaluate((element) => element.scrollTop), {
+      message: "exercise search results should be the only scroll area",
+    })
+    .toBeGreaterThan(beforeResultsScrollTop);
+}
+
+async function getExerciseSearchPageScrollMetrics(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const overlay = document.querySelector("[data-agent-id='exercise-search-overlay']");
+    const screen = overlay?.closest<HTMLElement>(".app-screen");
+
+    return {
+      screenClassName: screen?.className ?? "",
+      screenOverflowY: screen ? window.getComputedStyle(screen).overflowY : "",
+      screenScrollTop: screen?.scrollTop ?? 0,
+      windowScrollY: window.scrollY,
+    };
+  });
 }
 
 async function expectExerciseSearchInputStableAfterBackspace(
@@ -1354,6 +1485,30 @@ test.describe("start program flow", () => {
 
     expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
     expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
+  });
+
+  test("Exercise search stays below the top bar and keeps page scroll locked", async ({ page }) => {
+    await openTemplateBuilder(page, { dayCount: 2 });
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await page.setViewportSize({ width: 393, height: 520 });
+
+    await expectExerciseSearchOverlayInsideViewport(page, "exercise-search-input", "Exercise search");
+
+    const input = page.locator("[data-agent-id='exercise-search-input']");
+
+    await input.fill("PUSH UP");
+    await expect(page.getByRole("button", { name: /^Push Up\b/ })).toBeVisible();
+    await page.getByRole("button", { name: /^Push Up\b/ }).click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='template-builder-page']")).toHaveClass(
+      /app-screen--scrollable/,
+    );
+    await expectExerciseSearchOverlayInsideViewport(page, "exercise-search-input", "Exercise search");
+    await page.locator("[data-agent-id='exercise-search-input']").fill("press");
+    await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(8);
+    await expectExerciseSearchScrollContained(page);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
@@ -2312,6 +2467,76 @@ test.describe("start program flow", () => {
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
   });
 
+  test("active workout shows a persisted rest timer only after a completed set", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Rest Timer");
+    await startSelectedProgram(page, 4);
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const restPill = page.locator("[data-agent-id='app-top-bar'] [data-agent-id='rest-timer-pill']");
+    const workoutFlowRestPill = page.locator(".active-workout-flow [data-agent-id='rest-timer-pill']");
+
+    await expect(restPill).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
+    await reps.nth(0).fill("12");
+    await weights.nth(0).fill("200");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
+    await expect(restPill).toBeVisible();
+    await expect(workoutFlowRestPill).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(restPill).toBeVisible();
+
+    await page.evaluate(() => {
+      (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
+    });
+    await page.waitForTimeout(1100);
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Go");
+    await expect(page.locator("[aria-current='step']")).toContainText("Set 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Set 2");
+
+    await page.reload();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
+
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
+
+    await page.locator("[data-agent-id='rest-timer-dismiss']").click();
+    await expect(restPill).toHaveCount(0);
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
+    await page.locator("[data-agent-id='resume-workout']").click();
+
+    await reps.nth(1).fill("10");
+    await weights.nth(1).fill("200");
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(restPill).toBeVisible();
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 1");
+  });
+
   test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
     await createWeightedVolumeTemplate(page);
     await startSelectedProgram(page, 4);
@@ -2498,6 +2723,30 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
+  });
+
+  test("last lift menu stays fully visible above reserved finish space on mobile", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
+
+    await scrollActiveWorkoutPageToBottom(page);
+
+    const lastMenuToggle = page.locator("[data-agent-id^='lift-menu-toggle-']").last();
+    await expect(lastMenuToggle).toBeVisible();
+    await lastMenuToggle.click();
+
+    const actionsMenu = page.locator("[data-agent-id^='lift-actions-menu-']");
+    await expect(actionsMenu).toBeVisible();
+    await expect(actionsMenu.locator("[data-agent-id^='lift-remove-last-set-']")).toBeVisible();
+    await expectElementWithinActiveWorkoutViewport(page, actionsMenu, "last lift actions menu");
+
+    await testInfo.attach("last-lift-menu-reserved-finish-space-mobile", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
   });
 
   test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }, testInfo) => {
