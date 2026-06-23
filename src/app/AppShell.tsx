@@ -68,7 +68,14 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <header className="app-top-bar" data-agent-id="app-top-bar">
-        <div className="app-top-bar__left" aria-hidden />
+        <div className="app-top-bar__left">
+          <img
+            alt="PowerJack"
+            className="app-top-bar__logo"
+            data-agent-id="app-logo"
+            src="/assets/power-jack-logo-favicon.png"
+          />
+        </div>
         <div className="app-top-bar__center">
           {canResume ? (
             <Button
