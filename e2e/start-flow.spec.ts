@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const setAutosaveBeforeDelayMs = 400;
 const setAutosaveStaleTimerProbeMs = 500;
@@ -6,6 +6,7 @@ const setAutosaveSettleMs = 950;
 const interactionFeedbackAttribute = "data-interaction-feedback";
 const interactionFeedbackPeakDelayMs = 75;
 const interactionFeedbackSettleMs = 240;
+const standardTypographyFontSizes = ["13px", "16px", "22px", "34px"];
 
 type InteractionFeedbackWindow = Window & {
   __POWERJACK_INTERACTION_FEEDBACK_OBSERVER__?: MutationObserver;
@@ -329,6 +330,62 @@ async function pageHasVerticalOverflow(page: import("@playwright/test").Page): P
       document.body.scrollHeight > document.body.clientHeight + 2
     );
   });
+}
+
+async function expectVisibleTextUsesStandardTypography(page: Page, contextLabel: string): Promise<void> {
+  const findings = await page.evaluate((allowedFontSizes) => {
+    const allowed = new Set(allowedFontSizes);
+    const rejectedSelectors = "script, style, noscript, svg, .sr-only, [hidden], [aria-hidden='true']";
+    const findings: Array<{ fontSize: string; target: string; text: string }> = [];
+
+    function describeElement(element: Element): string {
+      const agentTarget = element.closest("[data-agent-id]");
+      const agentId = agentTarget?.getAttribute("data-agent-id");
+      const id = element.id ? `#${element.id}` : "";
+      const className =
+        typeof element.className === "string" && element.className.trim()
+          ? `.${element.className.trim().split(/\s+/).slice(0, 3).join(".")}`
+          : "";
+      const agent = agentId ? `[data-agent-id="${agentId}"]` : "";
+
+      return `${element.tagName.toLowerCase()}${id}${className}${agent}`;
+    }
+
+    function textRangeHasVisibleArea(node: Text): boolean {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const hasArea = Array.from(range.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+      range.detach();
+      return hasArea;
+    }
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+
+    while (node) {
+      const textNode = node as Text;
+      const text = textNode.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      const parent = textNode.parentElement;
+
+      if (text && parent && !parent.closest(rejectedSelectors) && textRangeHasVisibleArea(textNode)) {
+        const style = window.getComputedStyle(parent);
+
+        if (style.display !== "none" && style.visibility !== "hidden" && !allowed.has(style.fontSize)) {
+          findings.push({
+            fontSize: style.fontSize,
+            target: describeElement(parent),
+            text: text.slice(0, 80),
+          });
+        }
+      }
+
+      node = walker.nextNode();
+    }
+
+    return findings;
+  }, standardTypographyFontSizes);
+
+  expect(findings, `${contextLabel} visible text should use standard typography sizes`).toEqual([]);
 }
 
 async function expectElementsWithinViewport(
@@ -1064,6 +1121,8 @@ async function expectMobileScreenshot(
   testInfo: import("@playwright/test").TestInfo,
   name: string,
 ) {
+  await expectVisibleTextUsesStandardTypography(page, name);
+
   if (testInfo.project.name !== "mobile-chrome") {
     return;
   }
@@ -1122,6 +1181,22 @@ test.describe("start program flow", () => {
     }
 
     await expectMobileScreenshot(page, testInfo, "warm-stone-start-mobile.png");
+  });
+
+  test("primary routes use only standard typography sizes", async ({ page }) => {
+    const routes = [
+      { path: "/", screenAgentId: "new-program-page" },
+      { path: "/start/select-template", screenAgentId: "select-template-page" },
+      { path: "/templates", screenAgentId: "templates-page" },
+      { path: "/visualization", screenAgentId: "data-visualization-page" },
+      { path: "/programs", screenAgentId: "program-list-page" },
+    ];
+
+    for (const route of routes) {
+      await page.goto(route.path);
+      await expect(page.locator(`[data-agent-id='${route.screenAgentId}']`)).toBeVisible();
+      await expectVisibleTextUsesStandardTypography(page, route.path);
+    }
   });
 
   test("serves PowerJack favicon and install icons", async ({ request }) => {
@@ -2404,29 +2479,44 @@ test.describe("start program flow", () => {
 
     const reps = page.locator("[data-agent-id^='set-reps-']");
     const weights = page.locator("[data-agent-id^='set-weight-']");
-    const restPill = page.locator("[data-agent-id='rest-timer-pill']");
+    const restPill = page.locator("[data-agent-id='app-top-bar'] [data-agent-id='rest-timer-pill']");
+    const workoutFlowRestPill = page.locator(".active-workout-flow [data-agent-id='rest-timer-pill']");
 
     await expect(restPill).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
     await reps.nth(0).fill("12");
     await weights.nth(0).fill("200");
     await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
     await expect(restPill).toBeVisible();
+    await expect(workoutFlowRestPill).toHaveCount(0);
     await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
     await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(restPill).toBeVisible();
 
     await page.evaluate(() => {
       (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
     });
     await page.waitForTimeout(1100);
     await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
-    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Next");
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Go");
     await expect(page.locator("[aria-current='step']")).toContainText("Set 2");
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-current-program']").click();
     await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
     await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
-    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
     await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Set 2");
 
     await page.reload();
@@ -2442,7 +2532,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-current-program']").click();
     await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume workout");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
     await page.locator("[data-agent-id='resume-workout']").click();
 
     await reps.nth(1).fill("10");

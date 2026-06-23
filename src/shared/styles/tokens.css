@@ -34,6 +34,11 @@
   --color-overlay-soft: rgba(10, 12, 9, 0.62);
   --shadow-overlay: 0 24px 72px rgba(0, 0, 0, 0.42);
 
+  --font-size-header-1: 34px;
+  --font-size-header-2: 22px;
+  --font-size-sub-header: 16px;
+  --font-size-info: 13px;
+
   --radius-structure: 12px;
   --radius-input: 12px;
   --radius-button: 14px;

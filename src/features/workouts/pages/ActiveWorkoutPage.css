@@ -25,7 +25,7 @@
 .active-workout-error {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 18px;
+  font-size: var(--font-size-sub-header);
   font-weight: 600;
 }
 
@@ -40,92 +40,10 @@
   gap: var(--space-2);
   margin: 0;
   color: var(--color-warning);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
-}
-
-.rest-timer-pill {
-  align-self: center;
-  max-width: min(100%, 440px);
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2);
-  border: 1px solid var(--color-accent-strong);
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(40, 58, 44, 0.96), rgba(32, 35, 31, 0.96));
-  color: var(--color-text-primary);
-}
-
-.rest-timer-pill--ready {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-
-.rest-timer-pill__icon {
-  width: 48px;
-  height: 48px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--color-accent-strong);
-  border-radius: 999px;
-  background: rgba(18, 20, 17, 0.72);
-  color: var(--color-accent);
-}
-
-.rest-timer-pill__copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.rest-timer-pill__copy strong {
-  overflow: hidden;
-  color: var(--color-text-primary);
-  font-size: 22px;
-  font-weight: 750;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.rest-timer-pill__copy span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rest-timer-pill__dismiss {
-  width: 36px;
-  height: 36px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.rest-timer-pill__dismiss:hover {
-  border-color: var(--color-border-soft);
-  color: var(--color-text-primary);
-}
-
-.rest-timer-pill__dismiss:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
 
 .workout-header {
@@ -149,7 +67,7 @@
 .workout-header__week {
   display: block;
   color: var(--color-text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 600;
 }
 
@@ -161,7 +79,7 @@
   gap: var(--space-2);
   margin: var(--space-1) 0 0;
   color: var(--color-text-primary);
-  font-size: clamp(26px, 5vw, 32px);
+  font-size: var(--font-size-header-1);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -174,7 +92,7 @@
 .workout-header__progress-separator,
 .workout-header__progress {
   color: var(--color-text-muted);
-  font-size: 0.62em;
+  font-size: var(--font-size-info);
   font-weight: 650;
 }
 
@@ -191,7 +109,7 @@
   border: 1px solid var(--color-border-soft);
   border-radius: 999px;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -234,7 +152,7 @@
   border-radius: var(--radius-structure);
   background: var(--color-warning-soft);
   color: var(--color-warning);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -284,7 +202,7 @@
 .lift-card__header h2 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: clamp(21px, 4vw, 28px);
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1.1;
 }
@@ -292,7 +210,7 @@
 .lift-card__set-count {
   flex: 0 0 auto;
   color: var(--color-text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -394,14 +312,14 @@
 }
 
 .lift-card__menu-popover strong {
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1.1;
 }
 
 .lift-card__menu-popover small {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   font-weight: 650;
   line-height: 1.2;
 }
@@ -444,7 +362,7 @@
   gap: var(--space-2);
   min-width: 0;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
 }
 
@@ -463,7 +381,7 @@
   border-radius: 999px;
   background: var(--color-accent-muted);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -479,7 +397,7 @@
   border-radius: 999px;
   background: var(--color-warning-soft);
   color: var(--color-warning);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -495,7 +413,7 @@
   border-radius: 999px;
   background: rgba(114, 167, 123, 0.16);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -509,7 +427,7 @@
 
 .set-row__field span {
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -524,7 +442,7 @@
   background: var(--color-input);
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
-  font-size: clamp(18px, 4vw, 24px);
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   text-align: center;
   transition:
@@ -551,7 +469,7 @@
   align-self: center;
   justify-self: center;
   color: var(--color-text-muted);
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
 }
 
@@ -610,7 +528,7 @@
 .manual-checkin-modal__body {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 500;
   line-height: 1.45;
 }
@@ -661,7 +579,7 @@
 .feedback-modal__header p {
   margin: 0;
   color: var(--color-accent);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -669,7 +587,7 @@
 .feedback-modal__header h2 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: clamp(24px, 5vw, 32px);
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1.05;
 }
@@ -684,7 +602,7 @@
 .feedback-scale legend {
   margin-bottom: var(--space-3);
   color: var(--color-text-primary);
-  font-size: 17px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1.25;
 }
@@ -708,7 +626,7 @@
   border-radius: var(--radius-input);
   background: var(--color-input);
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   line-height: 1.05;
   text-align: center;
@@ -722,7 +640,7 @@
 
 .feedback-option span {
   color: var(--color-text-primary);
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1;
 }
@@ -750,7 +668,7 @@
 .feedback-error {
   margin: calc(var(--space-2) * -1) 0 0;
   color: var(--color-error);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
 }
 
@@ -769,11 +687,11 @@
   }
 
   .lift-card__header h2 {
-    font-size: 21px;
+    font-size: var(--font-size-header-2);
   }
 
   .lift-card__set-count {
-    font-size: 14px;
+    font-size: var(--font-size-info);
   }
 
   .lift-card__menu,
@@ -795,7 +713,7 @@
 
   .set-row__set {
     gap: 6px;
-    font-size: 14px;
+    font-size: var(--font-size-info);
   }
 
   .set-row__field {
@@ -803,13 +721,13 @@
   }
 
   .set-row__field span {
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .set-row__field input {
     min-height: 40px;
     padding: 0 var(--space-2);
-    font-size: 18px;
+    font-size: var(--font-size-sub-header);
   }
 
   .set-row__logged {
@@ -817,7 +735,7 @@
     min-height: 28px;
     justify-content: center;
     padding: 0;
-    font-size: 0;
+    font-size: 0; /* Typography exception: hides duplicate mobile badge text while retaining the check icon. */
     gap: 0;
   }
 
@@ -826,7 +744,7 @@
     min-height: 28px;
     justify-content: center;
     padding: 0;
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .set-row__next {
@@ -834,7 +752,7 @@
     min-height: 28px;
     justify-content: center;
     padding: 0;
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .set-row__logged svg {
@@ -843,33 +761,7 @@
   }
 
   .set-row__multiplier {
-    font-size: 17px;
-  }
-
-  .rest-timer-pill {
-    width: min(100%, 330px);
-    min-height: 64px;
-    grid-template-columns: 42px minmax(0, 1fr) 32px;
-    gap: var(--space-2);
-    padding: 6px;
-  }
-
-  .rest-timer-pill__icon {
-    width: 42px;
-    height: 42px;
-  }
-
-  .rest-timer-pill__copy strong {
-    font-size: 19px;
-  }
-
-  .rest-timer-pill__copy span {
-    font-size: 12px;
-  }
-
-  .rest-timer-pill__dismiss {
-    width: 32px;
-    height: 32px;
+    font-size: var(--font-size-sub-header);
   }
 
   .feedback-modal-overlay {
@@ -895,10 +787,10 @@
   .feedback-option {
     min-height: 58px;
     padding: 6px 2px;
-    font-size: 10px;
+    font-size: var(--font-size-info);
   }
 
   .feedback-option span {
-    font-size: 18px;
+    font-size: var(--font-size-sub-header);
   }
 }

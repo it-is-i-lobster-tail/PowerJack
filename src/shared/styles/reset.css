@@ -17,11 +17,27 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text-primary);
+  font-size: var(--font-size-sub-header);
   overflow: hidden;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+small,
+legend {
+  font-size: inherit;
+}
+
 button,
-input {
+input,
+textarea,
+select,
+option {
   font: inherit;
 }
 

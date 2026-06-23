@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import type { RestTimer } from "../domain/app-state/AppState";
+import type { AppStateRepository } from "../domain/app-state/AppStateRepository";
 import {
   createCancelledRestTimer,
   createIdleRestTimer,
@@ -10,14 +11,23 @@ import { RestTimerContext, type StartRestTimerInput } from "./restTimerContext";
 import { agentRestTimerResetEventName } from "./restTimerEvents";
 import { useServices } from "./useServices";
 
+const restTimerPersistRetryDelaysMs = [80, 180, 360];
+
 export function RestTimerProvider({ children }: PropsWithChildren) {
   const services = useServices();
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [timer, setTimer] = useState<RestTimer>(() => createIdleRestTimer());
   const [isLoaded, setIsLoaded] = useState(false);
 
   const persistRestTimer = useCallback(
     (nextTimer: RestTimer): void => {
-      void services.appState.saveRestTimer(nextTimer).catch((error: unknown) => {
+      const persistPromise = persistQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveRestTimerWithRetry(services.appState, nextTimer));
+
+      persistQueueRef.current = persistPromise;
+
+      void persistPromise.catch((error: unknown) => {
         console.error("Failed to save rest timer", error);
       });
     },
@@ -141,4 +151,32 @@ function areRestTimersEquivalent(left: RestTimer, right: RestTimer): boolean {
     left.durationSeconds === right.durationSeconds &&
     left.remainingSeconds === right.remainingSeconds
   );
+}
+
+async function saveRestTimerWithRetry(
+  repository: AppStateRepository,
+  timer: RestTimer,
+): Promise<void> {
+  for (let attempt = 0; attempt <= restTimerPersistRetryDelaysMs.length; attempt += 1) {
+    try {
+      await repository.saveRestTimer(timer);
+      return;
+    } catch (error) {
+      const delayMs = restTimerPersistRetryDelaysMs[attempt];
+
+      if (!isWebTransactionBusyError(error) || delayMs === undefined) {
+        throw error;
+      }
+
+      await wait(delayMs);
+    }
+  }
+}
+
+function isWebTransactionBusyError(error: unknown): boolean {
+  return error instanceof Error && /begintransaction|cannot start a transaction/i.test(error.message);
+}
+
+function wait(delayMs: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs));
 }
