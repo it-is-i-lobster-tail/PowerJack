@@ -10,6 +10,7 @@ import { resolveManualCheckIn } from "../../src/application/workouts/resolveManu
 import { submitLiftFeedback } from "../../src/application/workouts/submitLiftFeedback";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
 import type { AppServices } from "../../src/app/AppServices";
+import { createRunningRestTimer } from "../../src/domain/app-state/restTimer";
 import type { CompletedSetEvent } from "../../src/domain/analytics/TrainingAnalytics";
 import type { ActiveWorkoutView } from "../../src/domain/workouts/Workout";
 import { createInMemoryAppServices } from "../../src/infrastructure/database/repositories/InMemoryRepositories";
@@ -57,6 +58,31 @@ describe("Program and Workout repository contracts", () => {
       activeProgramId: view.program.id,
       activeWorkoutId: view.workout.id,
       activeLiftId: view.lifts[0]?.id,
+      restTimer: { state: "idle" },
+    });
+  });
+
+  it("clears persisted rest timer state when replacing the active program", async () => {
+    const services = createInMemoryAppServices();
+    const template = await createTemplate(services, [[1], [2]]);
+    await services.appState.saveRestTimer(
+      createRunningRestTimer({
+        workoutId: 10,
+        liftId: 20,
+        nextSetId: 30,
+        startedAt: "2026-06-21T19:00:00.000Z",
+      }),
+    );
+
+    await startTemplateProgram(services, template.id);
+
+    await expect(services.appState.load()).resolves.toMatchObject({
+      restTimer: {
+        state: "idle",
+        workoutId: null,
+        liftId: null,
+        nextSetId: null,
+      },
     });
   });
 
@@ -877,7 +903,24 @@ describe("Program and Workout repository contracts", () => {
         services,
         await completeWorkout(services, view, [10, 8], 100),
       );
+      const firstLift = completedView.lifts[0];
+      const firstSet = firstLift?.sets[0];
+
+      if (week === 1 && firstLift && firstSet) {
+        await services.appState.saveRestTimer(
+          createRunningRestTimer({
+            workoutId: completedView.workout.id,
+            liftId: firstLift.id,
+            nextSetId: firstSet.id,
+            startedAt: "2026-06-21T19:00:00.000Z",
+          }),
+        );
+      }
+
       const nextView = await finishWorkout(completedView.workout.id, services.workouts);
+      await expect(services.appState.load()).resolves.toMatchObject({
+        restTimer: { state: "idle" },
+      });
 
       if (week < 4) {
         if (!nextView) {
@@ -894,6 +937,7 @@ describe("Program and Workout repository contracts", () => {
       activeProgramId: null,
       activeWorkoutId: null,
       activeLiftId: null,
+      restTimer: { state: "idle" },
     });
 
     await startTemplateProgram(services, template.id);
