@@ -943,6 +943,13 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
               active_program_id = NULL,
               active_workout_id = NULL,
               active_lift_id = NULL,
+              rest_timer_state = 'idle',
+              rest_timer_workout_id = NULL,
+              rest_timer_lift_id = NULL,
+              rest_timer_next_set_id = NULL,
+              rest_timer_started_at = NULL,
+              rest_timer_duration_seconds = 120,
+              rest_timer_remaining_seconds = 0,
               updated_at = CURRENT_TIMESTAMP
             WHERE id = 1
           `,
@@ -1272,6 +1279,13 @@ async function activateWorkout(client: DatabaseClient, workoutId: EntityId): Pro
         active_program_id = ?,
         active_workout_id = ?,
         active_lift_id = ?,
+        rest_timer_state = 'idle',
+        rest_timer_workout_id = NULL,
+        rest_timer_lift_id = NULL,
+        rest_timer_next_set_id = NULL,
+        rest_timer_started_at = NULL,
+        rest_timer_duration_seconds = 120,
+        rest_timer_remaining_seconds = 0,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
     `,
