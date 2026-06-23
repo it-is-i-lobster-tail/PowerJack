@@ -26,6 +26,17 @@ async function selectFocusAndOpenDays(page: import("@playwright/test").Page) {
   await page.locator("[data-agent-id='template-muscle-focus-next']").click();
 }
 
+async function openTemplateBuilder(
+  page: import("@playwright/test").Page,
+  options: { dayCount: number; name?: string },
+) {
+  await openTemplateFocus(page, options.name ?? "Back In Action");
+  await selectFocusAndOpenDays(page);
+  await page.locator(`[data-agent-id='template-days-per-week-${options.dayCount}']`).click();
+  await page.locator("[data-agent-id='template-days-per-week-next']").click();
+  await expect(page).toHaveURL(/\/templates\/new\/builder$/);
+}
+
 async function expectActionsOnSingleRow(
   page: import("@playwright/test").Page,
   leftAgentId: string,
@@ -507,6 +518,142 @@ async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").
   expect(await pageHasHorizontalOverflow(page)).toBe(false);
 }
 
+async function expectTemplateBuilderHeaderAddExercisePlacement(
+  page: import("@playwright/test").Page,
+  dayCount: number,
+  options: {
+    screenshotName?: string;
+    testInfo?: import("@playwright/test").TestInfo;
+  } = {},
+): Promise<number> {
+  const title = page.locator("[data-agent-id='template-builder-title-text']");
+  const addExercise = page.locator("[data-agent-id='add-exercise']");
+  const lastDayTab = page.locator(`[data-agent-id='template-day-${dayCount}']`);
+
+  await expect(title).toBeVisible();
+  await expect(addExercise).toBeVisible();
+  await expect(addExercise).toHaveAccessibleName("Add exercise");
+  await expect(addExercise).toHaveText("exercise");
+  await expect(lastDayTab).toBeVisible();
+
+  const metrics = await page.evaluate(
+    ({ dayCount: expectedDayCount }) => {
+      const titleElement = document.querySelector<HTMLElement>("[data-agent-id='template-builder-title-text']");
+      const addElement = document.querySelector<HTMLElement>("[data-agent-id='add-exercise']");
+      const lastDayElement = document.querySelector<HTMLElement>(`[data-agent-id='template-day-${expectedDayCount}']`);
+
+      if (!titleElement || !addElement || !lastDayElement) {
+        throw new Error("Template builder header geometry targets are missing.");
+      }
+
+      const titleRect = titleElement.getBoundingClientRect();
+      const addRect = addElement.getBoundingClientRect();
+      const lastDayRect = lastDayElement.getBoundingClientRect();
+      const titleStyle = window.getComputedStyle(titleElement);
+      const context = document.createElement("canvas").getContext("2d");
+      const titleText = titleElement.textContent?.trim() ?? "";
+      let safeVisibleTitleCharsMobile = 0;
+
+      if (context) {
+        context.font = titleStyle.font;
+
+        for (let index = 1; index <= titleText.length; index += 1) {
+          if (context.measureText(titleText.slice(0, index)).width <= titleRect.width) {
+            safeVisibleTitleCharsMobile = index;
+          }
+        }
+      }
+
+      return {
+        addCenterY: addRect.top + addRect.height / 2,
+        addLeft: addRect.left,
+        addRight: addRect.right,
+        addWidth: addRect.width,
+        lastDayRight: lastDayRect.right,
+        safeVisibleTitleCharsMobile,
+        titleCenterY: titleRect.top + titleRect.height / 2,
+        titleRight: titleRect.right,
+        titleText,
+        titleWidth: titleRect.width,
+        viewportWidth: window.innerWidth,
+      };
+    },
+    { dayCount },
+  );
+
+  expect(Math.abs(metrics.addCenterY - metrics.titleCenterY), "add exercise should align with the title row").toBeLessThanOrEqual(3);
+  expect(Math.abs(metrics.addRight - metrics.lastDayRight), "add exercise right edge should align with the last day tab").toBeLessThanOrEqual(2);
+  expect(metrics.titleRight, "title column should end before the add exercise control").toBeLessThanOrEqual(
+    metrics.addLeft - 1,
+  );
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+
+  if (options.testInfo) {
+    await options.testInfo.attach(`template-builder-header-${dayCount}-day-metrics.json`, {
+      body: JSON.stringify(metrics, null, 2),
+      contentType: "application/json",
+    });
+  }
+
+  if (options.screenshotName && options.testInfo) {
+    await expectMobileScreenshot(page, options.testInfo, options.screenshotName);
+  }
+
+  return metrics.safeVisibleTitleCharsMobile;
+}
+
+async function expectTemplateListHeaderAddPlacement(
+  page: import("@playwright/test").Page,
+  options: {
+    addAgentId: string;
+    gridAgentId: string;
+    titleAgentId: string;
+  },
+): Promise<void> {
+  const title = page.locator(`[data-agent-id='${options.titleAgentId}']`);
+  const addTemplate = page.locator(`[data-agent-id='${options.addAgentId}']`);
+  const grid = page.locator(`[data-agent-id='${options.gridAgentId}']`);
+
+  await expect(title).toBeVisible();
+  await expect(addTemplate).toBeVisible();
+  await expect(addTemplate).toHaveAccessibleName("Add template");
+  await expect(addTemplate).toHaveText("template");
+  await expect(grid).toBeVisible();
+
+  const metrics = await page.evaluate(
+    ({ addAgentId, gridAgentId, titleAgentId }) => {
+      const titleElement = document.querySelector<HTMLElement>(`[data-agent-id='${titleAgentId}']`);
+      const addElement = document.querySelector<HTMLElement>(`[data-agent-id='${addAgentId}']`);
+      const gridElement = document.querySelector<HTMLElement>(`[data-agent-id='${gridAgentId}']`);
+
+      if (!titleElement || !addElement || !gridElement) {
+        throw new Error("Template list header geometry targets are missing.");
+      }
+
+      const titleRect = titleElement.getBoundingClientRect();
+      const addRect = addElement.getBoundingClientRect();
+      const gridRect = gridElement.getBoundingClientRect();
+
+      return {
+        addCenterY: addRect.top + addRect.height / 2,
+        addLeft: addRect.left,
+        addRight: addRect.right,
+        gridRight: gridRect.right,
+        titleCenterY: titleRect.top + titleRect.height / 2,
+        titleRight: titleRect.right,
+      };
+    },
+    options,
+  );
+
+  expect(Math.abs(metrics.addCenterY - metrics.titleCenterY), "add template should align with the title row").toBeLessThanOrEqual(3);
+  expect(Math.abs(metrics.addRight - metrics.gridRight), "add template right edge should align with the panel").toBeLessThanOrEqual(2);
+  expect(metrics.titleRight, "title column should end before the add template control").toBeLessThanOrEqual(
+    metrics.addLeft - 1,
+  );
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function expectExerciseSearchResultsInsideViewport(page: import("@playwright/test").Page): Promise<void> {
   const results = page.locator("[data-agent-id='exercise-search-results']");
 
@@ -816,6 +963,11 @@ test.describe("start program flow", () => {
     await expect(page.getByRole("heading", { name: "Select template" })).toBeVisible();
     await expect(page.locator("[data-agent-id='template-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='add-template']")).toBeVisible();
+    await expectTemplateListHeaderAddPlacement(page, {
+      addAgentId: "add-template",
+      gridAgentId: "template-grid",
+      titleAgentId: "select-template-title-text",
+    });
     await expect(page.locator("[data-agent-id='select-template-back']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeVisible();
     await expect(page.locator("[data-agent-id='select-template-next']")).toBeDisabled();
@@ -957,16 +1109,16 @@ test.describe("start program flow", () => {
     await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
   });
 
-  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
+  test("Name your template enforces the 24 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(25));
 
-    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
+    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("25/24");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(24));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
@@ -1025,6 +1177,40 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-day-6']").click();
     await expect(page.locator("[data-agent-id='template-day-6']")).toHaveAttribute("aria-selected", "true");
     await expectTemplateBuilderDayTabsFit(page, 6);
+  });
+
+  test("Template builder keeps add exercise beside the title and aligned with day tabs", async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 393, height: 852 });
+    await openTemplateBuilder(page, { dayCount: 4 });
+
+    await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
+      screenshotName: "warm-stone-builder-add-header-4-day-mobile.png",
+      testInfo,
+    });
+
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='add-exercise']")).toHaveCount(0);
+    await page.locator("[data-agent-id='close-exercise-search']").click();
+    await expect(page.locator("[data-agent-id='add-exercise']")).toBeVisible();
+
+    await openTemplateBuilder(page, { dayCount: 2 });
+    await expectTemplateBuilderHeaderAddExercisePlacement(page, 2, {
+      screenshotName: "warm-stone-builder-add-header-2-day-mobile.png",
+      testInfo,
+    });
+
+    const longTitle = "Back In Action Build Day";
+    await openTemplateBuilder(page, { dayCount: 4, name: longTitle });
+    const safeVisibleTitleCharsMobile = await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
+      screenshotName: "warm-stone-builder-add-header-long-name-mobile.png",
+      testInfo,
+    });
+
+    expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
+    expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
@@ -1165,6 +1351,11 @@ test.describe("start program flow", () => {
     await expect(page.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
     await expect(page.locator("[data-agent-id='templates-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='templates-add-template']")).toBeVisible();
+    await expectTemplateListHeaderAddPlacement(page, {
+      addAgentId: "templates-add-template",
+      gridAgentId: "templates-grid",
+      titleAgentId: "templates-title-text",
+    });
     await expectMobileScreenshot(page, testInfo, "warm-stone-templates-empty-mobile.png");
 
     await createTwoDayTemplateFromTemplatesPage(page, "List Managed");
@@ -1631,6 +1822,27 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] .builder-exercise-row__order")).toHaveText(
+      "1",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] svg")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='remove-template-exercise-2']").click();
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
+    await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] .builder-exercise-row__order")).toHaveText(
+      "2",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] svg")).toHaveCount(0);
+
     await page.locator("[data-agent-id='edit-template-exercise-1']").click();
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
@@ -1643,19 +1855,19 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
-    const firstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const secondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const firstDragBox = await firstDragHandle.boundingBox();
-    const secondDragBox = await secondDragHandle.boundingBox();
+    const firstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const secondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const firstDragBox = await firstDragZone.boundingBox();
+    const secondDragBox = await secondDragZone.boundingBox();
 
     expect(firstDragBox).not.toBeNull();
     expect(secondDragBox).not.toBeNull();
 
     if (firstDragBox && secondDragBox) {
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y + secondDragBox.height / 2);
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y + secondDragBox.height / 2);
       await page.mouse.down();
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y - 12);
-      await page.mouse.move(firstDragBox.x + firstDragBox.width / 2, firstDragBox.y + firstDragBox.height / 2, {
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y - 12);
+      await page.mouse.move(firstDragBox.x + firstDragBox.width * 0.6, firstDragBox.y + firstDragBox.height / 2, {
         steps: 12,
       });
       await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
@@ -1692,10 +1904,10 @@ test.describe("start program flow", () => {
 
     await page.waitForTimeout(200);
 
-    const refreshedFirstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const refreshedSecondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const refreshedFirstDragBox = await refreshedFirstDragHandle.boundingBox();
-    const refreshedSecondDragBox = await refreshedSecondDragHandle.boundingBox();
+    const refreshedFirstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const refreshedSecondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const refreshedFirstDragBox = await refreshedFirstDragZone.boundingBox();
+    const refreshedSecondDragBox = await refreshedSecondDragZone.boundingBox();
 
     expect(refreshedFirstDragBox).not.toBeNull();
     expect(refreshedSecondDragBox).not.toBeNull();
