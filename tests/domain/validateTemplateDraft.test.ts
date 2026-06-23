@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../src/domain/templates/rules/templateDraftLimits";
 import { validateTemplateDraft } from "../../src/domain/templates/rules/validateTemplateDraft";
 
 describe("validateTemplateDraft", () => {
@@ -9,17 +10,17 @@ describe("validateTemplateDraft", () => {
     });
   });
 
-  it("requires a name no longer than 64 characters", () => {
+  it("requires a name no longer than 24 characters", () => {
     expect(
       validateTemplateDraft({
-        name: "A".repeat(65),
+        name: "A".repeat(TEMPLATE_NAME_MAX_LENGTH + 1),
         focusMuscleIds: [1],
         workoutsPerWeek: 2,
         days: [],
       }),
     ).toMatchObject({
       ok: false,
-      message: "Template name must be 64 characters or fewer.",
+      message: "Template name must be 24 characters or fewer.",
     });
   });
 

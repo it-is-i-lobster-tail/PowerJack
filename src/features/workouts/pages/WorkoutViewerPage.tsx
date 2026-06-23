@@ -10,8 +10,8 @@ import {
   LockKeyhole,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { searchExercises } from "../../../application/exercises/searchExercises";
 import { addSetToLift } from "../../../application/workouts/addSetToLift";
 import { changeLiftExercise } from "../../../application/workouts/changeLiftExercise";
@@ -74,11 +74,17 @@ interface CommitViewOptions {
   preservePendingDrafts?: boolean;
 }
 
+interface FinishWorkoutNavigationState {
+  scrollToTopAfterFinishWorkoutId?: unknown;
+}
+
 export function WorkoutViewerPage() {
   const services = useServices();
+  const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
   const saveVersionRef = useRef(0);
+  const activeWorkoutScreenRef = useRef<HTMLElement | null>(null);
   const persistTimersRef = useRef<SetPersistTimers>({});
   const persistingSetIdsRef = useRef<Set<number>>(new Set());
   const draftValuesRef = useRef<SetDraftValues>({});
@@ -110,6 +116,8 @@ export function WorkoutViewerPage() {
   const [removeSetLift, setRemoveSetLift] = useState<ActiveWorkoutLiftView | null>(null);
   const [isLiftMutationSaving, setIsLiftMutationSaving] = useState(false);
   const [liftMutationError, setLiftMutationError] = useState<string | null>(null);
+  const finishWorkoutScrollTargetId = getScrollToTopAfterFinishWorkoutId(location.state);
+  const activeWorkoutId = view?.workout.id ?? null;
 
   const clearPendingSetPersists = useCallback(() => {
     for (const timer of Object.values(persistTimersRef.current)) {
@@ -306,6 +314,15 @@ export function WorkoutViewerPage() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [openLiftMenuId]);
+
+  useLayoutEffect(() => {
+    if (activeWorkoutId === null || finishWorkoutScrollTargetId !== activeWorkoutId) {
+      return;
+    }
+
+    activeWorkoutScreenRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [activeWorkoutId, finishWorkoutScrollTargetId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -832,7 +849,9 @@ export function WorkoutViewerPage() {
           return;
         }
 
-        void navigate(canonicalWorkoutPath(nextView));
+        void navigate(canonicalWorkoutPath(nextView), {
+          state: { scrollToTopAfterFinishWorkoutId: nextView.workout.id },
+        });
       })
       .catch((error: unknown) => {
         setError(error instanceof Error ? error.message : "Could not finish workout.");
@@ -844,7 +863,11 @@ export function WorkoutViewerPage() {
 
   if (isLoading && !view) {
     return (
-      <main className="app-screen app-screen--scrollable active-workout-screen" data-agent-id="active-workout-page">
+      <main
+        className="app-screen app-screen--scrollable active-workout-screen"
+        data-agent-id="active-workout-page"
+        ref={activeWorkoutScreenRef}
+      >
         <section className="active-workout-flow">
           <p className="active-workout-loading">Loading workout</p>
         </section>
@@ -866,7 +889,11 @@ export function WorkoutViewerPage() {
     view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
 
   return (
-    <main className="app-screen app-screen--scrollable active-workout-screen" data-agent-id="active-workout-page">
+    <main
+      className="app-screen app-screen--scrollable active-workout-screen"
+      data-agent-id="active-workout-page"
+      ref={activeWorkoutScreenRef}
+    >
       <section className="active-workout-flow" aria-labelledby="active-workout-day">
         <header className="workout-header">
           <button
@@ -1083,6 +1110,17 @@ export function WorkoutViewerPage() {
 
 function canonicalWorkoutPath(view: ActiveWorkoutView): string {
   return `/programs/${view.program.id}/workouts/${view.workout.id}`;
+}
+
+function getScrollToTopAfterFinishWorkoutId(state: unknown): number | null {
+  if (!state || typeof state !== "object") {
+    return null;
+  }
+
+  const navigationState = state as FinishWorkoutNavigationState;
+  const workoutId = navigationState.scrollToTopAfterFinishWorkoutId;
+
+  return typeof workoutId === "number" && Number.isInteger(workoutId) ? workoutId : null;
 }
 
 function findPendingFeedbackLift(

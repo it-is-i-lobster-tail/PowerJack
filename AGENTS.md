@@ -35,7 +35,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - A template is the reusable plan: template name, focus muscles, days per week, ordered workout days, and ordered exercise ids per day.
 - A program is an instance of a selected template with a defined timeline such as program length in weeks.
 - New template creation routes through `/templates/new/name`, `/templates/new/muscle-focus`, `/templates/new/days-per-week`, and `/templates/new/builder`.
-- Template names must be 1-64 characters. Show the red `x/64` counter only when the user exceeds 64 characters.
+- Template names must be 1-24 characters. Show the red `x/24` counter only when the user exceeds 24 characters.
 - Muscle Group Focus must require at least one selected muscle, allow at most four, and use a visible `x/4` counter.
 - Save Template must stay disabled until the name is valid, at least one focus muscle is selected, days per week is selected, and every day has at least one exercise.
 - Select Template rows must show focused muscles as compact chips on the right side of the row when present.
@@ -52,6 +52,15 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Seed reference muscles, equipment, and exercises idempotently.
 - Repository boundaries follow workflows, not one CRUD class per table.
 - Web SQLite may not support explicit nested `BEGIN TRANSACTION` calls; keep aggregate repository saves behind `DatabaseClient.transaction` so platform behavior stays isolated in the adapter.
+
+## iOS Development Rules
+
+- Read `docs/ios-development-standards.md` before changing Capacitor config, platform adapters, database plugins, generated iOS project files, or mobile text inputs.
+- Treat physical iPhone console output as evidence to triage, not proof of an app bug; distinguish app-owned failures from Apple, WebKit, UIKit, and iOS keyboard service noise.
+- Release and TestFlight builds must not emit SQL rows, SQLite payloads, template names, workout data, or other local user data through Capacitor bridge or database logs.
+- Mobile text inputs must declare intent with semantic attributes such as `type`, `inputMode`, `autoComplete`, `autoCorrect`, `spellCheck`, `autoCapitalize`, and `enterKeyHint` when applicable.
+- For Capacitor config, database adapter, platform API, generated iOS project, or mobile keyboard changes, record iPhone QA notes with device model, iOS version, build configuration, route, interaction, and relevant log findings.
+- If the `ios/` project or native dependencies are unavailable in the worktree, note which native logging or physical-device checks remain pending.
 
 ## Design Rules
 
@@ -75,4 +84,5 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Mobile-affecting stories need mobile viewport Playwright coverage.
 - Before committing UI-affecting work, run `npm run ux:check` and record the UX Design Standards Check result in the handoff.
 - UI handoffs must note which standards/reference images were checked, what browser or mobile visual QA was run, and any intentional design-standard deviation.
+- iOS-affecting handoffs must note whether production-like device logs were checked for data-bearing Capacitor or SQLite bridge output.
 - Before handoff, run `npm run check`; run `npm run test:e2e` when routes or UI flows change.

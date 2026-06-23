@@ -1,4 +1,5 @@
 import type { CompletedTemplateDraft, TemplateDraft } from "../Template";
+import { TEMPLATE_NAME_MAX_LENGTH } from "./templateDraftLimits";
 
 export interface TemplateDraftValidationResult {
   ok: boolean;
@@ -14,8 +15,8 @@ export function validateTemplateDraft(draft: TemplateDraft): TemplateDraftValida
     return { ok: false, message: "Name the template." };
   }
 
-  if (nameLength > 64) {
-    return { ok: false, message: "Template name must be 64 characters or fewer." };
+  if (nameLength > TEMPLATE_NAME_MAX_LENGTH) {
+    return { ok: false, message: `Template name must be ${TEMPLATE_NAME_MAX_LENGTH} characters or fewer.` };
   }
 
   if (draft.focusMuscleIds.length === 0) {

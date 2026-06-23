@@ -17,6 +17,7 @@ export type {
   WorkoutTemplate,
 } from "./templates/Template";
 export type { TemplateRepository } from "./templates/TemplateRepository";
+export { TEMPLATE_NAME_MAX_LENGTH } from "./templates/rules/templateDraftLimits";
 export { validateTemplateDraft } from "./templates/rules/validateTemplateDraft";
 export type {
   ActiveWorkoutLiftView,
