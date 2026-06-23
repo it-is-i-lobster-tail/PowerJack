@@ -77,6 +77,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 
 ## Agent And Test Readiness
 
+- Before substantial work, scan recent closed GitHub PRs with `gh pr list --state closed --limit 20` and inspect relevant changes with `gh pr view <number>` or `gh pr diff <number>`.
 - Add stable `data-agent-id` selectors to navigable controls and important workflow surfaces.
 - Keep controls accessible by role and name.
 - Preserve `window.__POWERJACK_AGENT__.reset()` for deterministic browser tests.
