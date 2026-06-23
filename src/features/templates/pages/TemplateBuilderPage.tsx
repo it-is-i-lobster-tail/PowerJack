@@ -1,7 +1,8 @@
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   type DragEndEvent,
   useSensor,
@@ -14,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, Copy as CopyIcon, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy as CopyIcon, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { listExerciseSummariesByIds } from "../../../application/exercises/listExerciseSummariesByIds";
@@ -22,6 +23,7 @@ import { searchExercises } from "../../../application/exercises/searchExercises"
 import { saveTemplate, updateTemplate } from "../../../application/templates/saveTemplate";
 import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
 import { validateTemplateDraft } from "../../../domain/templates/rules/validateTemplateDraft";
 import { ExerciseSearchOverlay } from "../../exercises/components/ExerciseSearchOverlay";
 import { Button } from "../../../shared/ui/Button";
@@ -73,9 +75,15 @@ export function TemplateBuilderPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 180,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -260,7 +268,7 @@ export function TemplateBuilderPage() {
     [sortableIds, sortableItemsById],
   );
 
-  if (!name.trim() || name.length > 64) {
+  if (!name.trim() || name.length > TEMPLATE_NAME_MAX_LENGTH) {
     return <Navigate replace to="/templates/new/name" />;
   }
 
@@ -396,8 +404,22 @@ export function TemplateBuilderPage() {
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
           <p>{editingTemplateId ? "Edit template" : "New template"}</p>
-          <h1 id="template-builder-title">{name.trim()}</h1>
+          <h1 data-agent-id="template-builder-title-text" id="template-builder-title">
+            {name.trim()}
+          </h1>
           <span>{workoutsPerWeek} days per week</span>
+          {isHydratingCurrentExercises || isSearchOpen ? null : (
+            <Button
+              aria-label="Add exercise"
+              className="template-builder-header__add"
+              data-agent-id="add-exercise"
+              leadingIcon={<Plus aria-hidden size={24} strokeWidth={2.8} />}
+              onClick={handleOpenAddSearch}
+              variant="outline"
+            >
+              exercise
+            </Button>
+          )}
         </header>
 
         <div className="day-tabs" role="tablist" aria-label="Template days" style={dayTabsStyle}>
@@ -483,17 +505,6 @@ export function TemplateBuilderPage() {
             </DndContext>
           )}
 
-          {isHydratingCurrentExercises || isSearchOpen ? null : (
-            <Button
-              className="builder-panel__add"
-              data-agent-id="add-exercise"
-              leadingIcon={<Plus aria-hidden size={30} strokeWidth={2.6} />}
-              onClick={handleOpenAddSearch}
-              variant="outline"
-            >
-              Add exercise
-            </Button>
-          )}
         </section>
 
         {copySourceDay !== null ? (
@@ -552,7 +563,7 @@ export function TemplateBuilderPage() {
           query={query}
           resultAgentId={(exerciseId) => `exercise-result-${exerciseId}`}
           results={addSearchResults}
-          title="Add exercise"
+          title="Exercise search"
         />
       ) : null}
 
@@ -574,7 +585,7 @@ export function TemplateBuilderPage() {
           query={editQuery}
           resultAgentId={(exerciseId) => `replace-exercise-result-${exerciseId}`}
           results={editSearchResults}
-          title="Edit exercise"
+          title="Exercise search"
         />
       ) : null}
     </main>
@@ -679,22 +690,23 @@ function SortableExerciseRow({
       >
         <button
           aria-label={`Reorder ${exercise.name}, position ${index + 1} of ${exerciseCount}`}
-          className="builder-exercise-row__order"
+          className="builder-exercise-row__drag-zone"
           data-agent-id={`template-exercise-drag-${index + 1}`}
           ref={setActivatorNodeRef}
           type="button"
           {...attributes}
           {...listeners}
         >
-          <GripVertical aria-hidden size={18} strokeWidth={2.4} />
-          <span>{index + 1}</span>
+          <span className="builder-exercise-row__order" aria-hidden="true">
+            {index + 1}
+          </span>
+          <span className="builder-exercise-row__text">
+            <strong>{exercise.name}</strong>
+            <small>
+              {exercise.primaryMuscleName} - {exercise.equipmentName}
+            </small>
+          </span>
         </button>
-        <span className="builder-exercise-row__text">
-          <strong>{exercise.name}</strong>
-          <small>
-            {exercise.primaryMuscleName} - {exercise.equipmentName}
-          </small>
-        </span>
         <span className="builder-exercise-row__actions">
           <button
             aria-label={`Edit ${exercise.name}`}

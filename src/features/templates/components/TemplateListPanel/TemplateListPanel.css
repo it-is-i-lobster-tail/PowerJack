@@ -208,11 +208,6 @@
   white-space: nowrap;
 }
 
-.template-grid__add {
-  align-self: center;
-  margin-top: auto;
-}
-
 @media (max-width: 620px) {
   .template-row {
     grid-template-columns: 1fr;
@@ -233,9 +228,5 @@
 
   .template-row__action-buttons {
     grid-column: 1 / -1;
-  }
-
-  .template-grid__add {
-    align-self: stretch;
   }
 }
