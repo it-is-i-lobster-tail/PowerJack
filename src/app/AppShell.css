@@ -40,6 +40,7 @@
 
 .app-top-bar__center {
   grid-column: 2;
+  max-width: min(68vw, 460px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,74 +97,108 @@
   box-shadow: 0 0 0 4px var(--color-focus-ring);
 }
 
-.resume-workout-button {
+.top-nav-pill {
+  width: fit-content;
+  max-width: 100%;
   min-height: 44px;
-  padding: 0 var(--space-6);
-  font-size: 18px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.resume-workout-banner {
-  max-width: min(62vw, 430px);
-  min-width: min(58vw, 320px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, auto) 32px;
+  align-items: center;
   overflow: hidden;
   border: 1px solid var(--color-accent-strong);
-  border-radius: var(--radius-button);
+  border-radius: 999px;
   background: var(--color-accent-soft);
+  color: var(--color-text-primary);
 }
 
-.resume-workout-banner__body {
+.top-nav-pill--ready {
+  border-color: var(--color-accent);
+}
+
+.top-nav-pill--resume-only {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-5);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.top-nav-pill__body,
+.top-nav-pill__copy {
   min-width: 0;
-  min-height: 52px;
+  max-width: min(52vw, 360px);
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  padding: 6px var(--space-3);
+  gap: 2px;
+  padding: 5px var(--space-3) 5px var(--space-4);
   border: 0;
   border-right: 1px solid rgba(114, 167, 123, 0.24);
   background: transparent;
   color: var(--color-text-primary);
-  cursor: pointer;
   text-align: left;
 }
 
-.resume-workout-banner__line {
+.top-nav-pill__body {
+  cursor: pointer;
+}
+
+.top-nav-pill__copy {
+  cursor: default;
+}
+
+.top-nav-pill__line {
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  font-size: 14px;
+  gap: var(--space-2);
+  font-size: 12px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
-.resume-workout-banner__line > * {
+.top-nav-pill__line > *,
+.top-nav-pill__status,
+.top-nav-pill__detail {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.resume-workout-banner__line--secondary {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.resume-workout-banner__timer {
-  color: var(--color-accent);
+.top-nav-pill__status {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 
-.resume-workout-banner__dismiss {
-  width: 36px;
-  min-height: 52px;
+.top-nav-pill__line .top-nav-pill__status {
+  font-size: 12px;
+}
+
+.top-nav-pill__detail {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.top-nav-pill__dismiss {
+  width: 32px;
+  min-height: 44px;
   display: inline-grid;
   place-items: center;
   border: 0;
@@ -172,13 +207,15 @@
   cursor: pointer;
 }
 
-.resume-workout-banner__body:active,
-.resume-workout-banner__dismiss:active {
+.top-nav-pill__body:active,
+.top-nav-pill__dismiss:active,
+.top-nav-pill--resume-only:active {
   background: rgba(114, 167, 123, 0.1);
 }
 
-.resume-workout-banner__body:focus-visible,
-.resume-workout-banner__dismiss:focus-visible {
+.top-nav-pill__body:focus-visible,
+.top-nav-pill__dismiss:focus-visible,
+.top-nav-pill--resume-only:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
   box-shadow: inset 0 0 0 3px var(--color-focus-ring);
@@ -226,43 +263,43 @@
     gap: var(--space-2);
   }
 
+  .app-top-bar__center {
+    max-width: calc(100vw - 128px);
+  }
+
   .app-top-bar__actions {
     gap: var(--space-2);
   }
 
-  .resume-workout-button {
-    max-width: min(48vw, 210px);
-    padding: 0 var(--space-3);
+  .top-nav-pill {
+    grid-template-columns: minmax(0, auto) 30px;
+  }
+
+  .top-nav-pill--resume-only {
+    padding: 0 var(--space-4);
     font-size: 14px;
   }
 
-  .resume-workout-banner {
-    max-width: min(54vw, 230px);
-    min-width: min(54vw, 210px);
-    grid-template-columns: minmax(0, 1fr) 32px;
+  .top-nav-pill__body,
+  .top-nav-pill__copy {
+    max-width: min(52vw, 210px);
+    padding: 5px var(--space-2) 5px var(--space-3);
   }
 
-  .resume-workout-banner__body {
-    min-height: 50px;
-    padding: 6px var(--space-2);
+  .top-nav-pill__status {
+    font-size: 14px;
   }
 
-  .resume-workout-banner__line {
-    gap: var(--space-2);
-    font-size: 12px;
-  }
-
-  .resume-workout-banner__line--secondary {
+  .top-nav-pill__line .top-nav-pill__status,
+  .top-nav-pill__line {
     font-size: 11px;
   }
 
-  .resume-workout-banner__dismiss {
-    width: 32px;
-    min-height: 50px;
+  .top-nav-pill__detail {
+    font-size: 10px;
   }
 
-  .resume-workout-button > span:not(.button__icon) {
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .top-nav-pill__dismiss {
+    width: 30px;
   }
 }

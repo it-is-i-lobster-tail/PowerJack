@@ -35,88 +35,6 @@
   text-align: center;
 }
 
-.rest-timer-pill {
-  align-self: center;
-  max-width: min(100%, 440px);
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2);
-  border: 1px solid var(--color-accent-strong);
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(40, 58, 44, 0.96), rgba(32, 35, 31, 0.96));
-  color: var(--color-text-primary);
-}
-
-.rest-timer-pill--ready {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-
-.rest-timer-pill__icon {
-  width: 48px;
-  height: 48px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--color-accent-strong);
-  border-radius: 999px;
-  background: rgba(18, 20, 17, 0.72);
-  color: var(--color-accent);
-}
-
-.rest-timer-pill__copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.rest-timer-pill__copy strong {
-  overflow: hidden;
-  color: var(--color-text-primary);
-  font-size: 22px;
-  font-weight: 750;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.rest-timer-pill__copy span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rest-timer-pill__dismiss {
-  width: 36px;
-  height: 36px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.rest-timer-pill__dismiss:hover {
-  border-color: var(--color-border-soft);
-  color: var(--color-text-primary);
-}
-
-.rest-timer-pill__dismiss:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--color-focus-ring);
-}
-
 .workout-header {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -833,32 +751,6 @@
 
   .set-row__multiplier {
     font-size: 17px;
-  }
-
-  .rest-timer-pill {
-    width: min(100%, 330px);
-    min-height: 64px;
-    grid-template-columns: 42px minmax(0, 1fr) 32px;
-    gap: var(--space-2);
-    padding: 6px;
-  }
-
-  .rest-timer-pill__icon {
-    width: 42px;
-    height: 42px;
-  }
-
-  .rest-timer-pill__copy strong {
-    font-size: 19px;
-  }
-
-  .rest-timer-pill__copy span {
-    font-size: 12px;
-  }
-
-  .rest-timer-pill__dismiss {
-    width: 32px;
-    height: 32px;
   }
 
   .feedback-modal-overlay {

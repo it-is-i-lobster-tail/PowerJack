@@ -2255,29 +2255,44 @@ test.describe("start program flow", () => {
 
     const reps = page.locator("[data-agent-id^='set-reps-']");
     const weights = page.locator("[data-agent-id^='set-weight-']");
-    const restPill = page.locator("[data-agent-id='rest-timer-pill']");
+    const restPill = page.locator("[data-agent-id='app-top-bar'] [data-agent-id='rest-timer-pill']");
+    const workoutFlowRestPill = page.locator(".active-workout-flow [data-agent-id='rest-timer-pill']");
 
     await expect(restPill).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
     await reps.nth(0).fill("12");
     await weights.nth(0).fill("200");
     await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
     await expect(restPill).toBeVisible();
+    await expect(workoutFlowRestPill).toHaveCount(0);
     await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
     await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(restPill).toBeVisible();
 
     await page.evaluate(() => {
       (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
     });
     await page.waitForTimeout(1100);
     await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
-    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Next");
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Go");
     await expect(page.locator("[aria-current='step']")).toContainText("Set 2");
 
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-current-program']").click();
     await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
     await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
-    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='resume-workout']")).not.toContainText("Day");
     await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Set 2");
 
     await page.reload();
@@ -2293,7 +2308,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='app-menu-toggle']").click();
     await page.locator("[data-agent-id='menu-current-program']").click();
     await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume workout");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume");
     await page.locator("[data-agent-id='resume-workout']").click();
 
     await reps.nth(1).fill("10");
