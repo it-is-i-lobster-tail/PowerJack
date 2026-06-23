@@ -4,6 +4,7 @@ import type { ActiveWorkoutView } from "./Workout";
 export type ManualCheckinDecision = "skip" | "continue" | "reset";
 
 export interface WorkoutRepository {
+  listWorkoutIdsForProgram(programId: EntityId): Promise<EntityId[]>;
   loadActive(): Promise<ActiveWorkoutView | null>;
   loadWorkoutView(workoutId: EntityId): Promise<ActiveWorkoutView | null>;
   updateSetActuals(input: {

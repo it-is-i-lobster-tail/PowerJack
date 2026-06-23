@@ -9,6 +9,7 @@ export default tseslint.config(
       "dist",
       "node_modules",
       "coverage",
+      "ios/App/App/public",
       "playwright-report",
       "test-results",
       ".old_version/**/target",

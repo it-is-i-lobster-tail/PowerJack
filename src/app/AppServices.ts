@@ -4,9 +4,11 @@ import type { ExerciseCatalogRepository } from "../domain/exercises/ExerciseCata
 import type { ProgramRepository } from "../domain/programs/ProgramRepository";
 import type { TemplateRepository } from "../domain/templates/TemplateRepository";
 import type { WorkoutRepository } from "../domain/workouts/WorkoutRepository";
+import type { AppRuntimeCache } from "./AppRuntimeCache";
 
 export interface AppServices {
   mode: "sqlite" | "memory";
+  cache: AppRuntimeCache;
   appState: AppStateRepository;
   exercises: ExerciseCatalogRepository;
   templates: TemplateRepository;

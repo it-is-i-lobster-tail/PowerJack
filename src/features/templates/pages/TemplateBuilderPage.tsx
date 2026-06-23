@@ -292,6 +292,8 @@ export function TemplateBuilderPage() {
       const savedTemplate = editingTemplateId
         ? await updateTemplate(editingTemplateId, toDraft(), services.templates)
         : await saveTemplate(toDraft(), services.templates);
+      services.cache.invalidateTemplates();
+      await services.cache.refreshTemplates();
       if (returnPath === "/start/select-template") {
         setSelectedTemplateId(savedTemplate.id);
       }

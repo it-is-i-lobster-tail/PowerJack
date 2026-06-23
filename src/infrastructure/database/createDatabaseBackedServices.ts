@@ -1,4 +1,5 @@
 import type { AppServices } from "../../app/AppServices";
+import { AppRuntimeCache } from "../../app/AppRuntimeCache";
 import type { DatabaseClient } from "./DatabaseClient";
 import { openPowerJackDatabase } from "./openDatabase";
 import { runMigrations } from "./runMigrations";
@@ -21,9 +22,11 @@ export async function createDatabaseBackedServices(): Promise<AppServices> {
   const templates = new SqliteTemplateRepository(db);
   const programs = new SqliteProgramRepository(db);
   const workouts = new SqliteWorkoutRepository(db);
+  const cache = new AppRuntimeCache({ appState, templates, workouts });
 
   return {
     mode: "sqlite",
+    cache,
     appState,
     exercises: new SqliteExerciseCatalogRepository(db),
     templates,
@@ -38,6 +41,7 @@ export async function createDatabaseBackedServices(): Promise<AppServices> {
         await seedReferenceData(db);
       });
       await flushPendingWrites(db);
+      cache.clear();
     },
   };
 }
