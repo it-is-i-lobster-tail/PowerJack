@@ -4,6 +4,7 @@ import { App } from "./App";
 import { createAppServices } from "./createAppServices";
 import { PersistenceUnavailableScreen } from "./PersistenceUnavailableScreen";
 import { AppProviders } from "./providers";
+import { dispatchRestTimerAgentReset } from "./restTimerEvents";
 import { createAppRouter } from "./router";
 
 export async function bootstrap(): Promise<void> {
@@ -29,7 +30,10 @@ export async function bootstrap(): Promise<void> {
   }
 
   window.__POWERJACK_AGENT__ = {
-    reset: () => services.resetForAgent(),
+    reset: async () => {
+      await services.resetForAgent();
+      dispatchRestTimerAgentReset();
+    },
     servicesMode: () => services.mode,
   };
 

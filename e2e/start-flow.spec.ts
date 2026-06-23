@@ -12,6 +12,12 @@ type InteractionFeedbackWindow = Window & {
   __POWERJACK_INTERACTION_FEEDBACK_SEEN__?: boolean;
 };
 
+type TestClockWindow = Window & {
+  __POWERJACK_TEST_CLOCK__?: {
+    advance(milliseconds: number): void;
+  };
+};
+
 async function openTemplateFocus(page: import("@playwright/test").Page, name = "Back In Action") {
   await page.goto("/start/select-template");
   await page.locator("[data-agent-id='add-template']").click();
@@ -460,11 +466,12 @@ async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimes
   await page.addInitScript((fixedIso) => {
     const fixedTime = new Date(fixedIso).getTime();
     const RealDate = Date;
+    let offsetMs = 0;
 
     class MockDate extends RealDate {
       constructor(...args: ConstructorParameters<DateConstructor>) {
         if (args.length === 0) {
-          super(fixedTime);
+          super(fixedTime + offsetMs);
           return;
         }
 
@@ -472,13 +479,18 @@ async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimes
       }
 
       static now() {
-        return fixedTime;
+        return fixedTime + offsetMs;
       }
     }
 
     MockDate.UTC = RealDate.UTC;
     MockDate.parse = RealDate.parse;
     window.Date = MockDate as DateConstructor;
+    (window as TestClockWindow).__POWERJACK_TEST_CLOCK__ = {
+      advance(milliseconds: number) {
+        offsetMs += milliseconds;
+      },
+    };
   }, isoTimestamp);
 }
 
@@ -2235,6 +2247,61 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
     await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
+  });
+
+  test("active workout shows a persisted rest timer only after a completed set", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Rest Timer");
+    await startSelectedProgram(page, 4);
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const restPill = page.locator("[data-agent-id='rest-timer-pill']");
+
+    await expect(restPill).toHaveCount(0);
+    await reps.nth(0).fill("12");
+    await weights.nth(0).fill("200");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
+    await expect(restPill).toBeVisible();
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 2");
+
+    await page.evaluate(() => {
+      (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
+    });
+    await page.waitForTimeout(1100);
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Next");
+    await expect(page.locator("[aria-current='step']")).toContainText("Set 2");
+
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Set 2");
+
+    await page.reload();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Ready");
+
+    await page.locator("[data-agent-id='resume-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Ready");
+
+    await page.locator("[data-agent-id='rest-timer-dismiss']").click();
+    await expect(restPill).toHaveCount(0);
+    await page.locator("[data-agent-id='app-menu-toggle']").click();
+    await page.locator("[data-agent-id='menu-current-program']").click();
+    await expect(page.locator("[data-agent-id='resume-workout-banner']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='resume-workout']")).toContainText("Resume workout");
+    await page.locator("[data-agent-id='resume-workout']").click();
+
+    await reps.nth(1).fill("10");
+    await weights.nth(1).fill("200");
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(restPill).toBeVisible();
+    await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
+    await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 1");
   });
 
   test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {

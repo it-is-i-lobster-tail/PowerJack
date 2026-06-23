@@ -1,17 +1,23 @@
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { AppState } from "../domain/app-state/AppState";
+import { formatRestTimerRemaining, shouldDisplayRestTimer } from "../domain/app-state/restTimer";
+import type { ActiveWorkoutView } from "../domain/workouts/Workout";
+import { findRestTimerTargetBySetId } from "../domain/workouts/restTimerTarget";
 import { Button } from "../shared/ui/Button";
+import { useRestTimer } from "./useRestTimer";
 import { useServices } from "./useServices";
 import "./AppShell.css";
 
 export function AppShell() {
   const services = useServices();
+  const { cancelRestTimer, clearRestTimer, timer } = useRestTimer();
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [appState, setAppState] = useState<AppState | null>(null);
+  const [activeWorkoutView, setActiveWorkoutView] = useState<ActiveWorkoutView | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const activeWorkoutPath =
     appState?.activeProgramId && appState.activeWorkoutId
@@ -19,6 +25,11 @@ export function AppShell() {
       : null;
   const isViewingActiveWorkout = activeWorkoutPath === location.pathname || location.pathname === "/workouts/active";
   const canResume = Boolean(activeWorkoutPath && !isViewingActiveWorkout);
+  const visibleRestTimer = shouldDisplayRestTimer(timer) ? timer : null;
+  const resumeTimerTarget =
+    visibleRestTimer && activeWorkoutView?.workout.id === visibleRestTimer.workoutId
+      ? findRestTimerTargetBySetId(activeWorkoutView, visibleRestTimer.nextSetId)
+      : null;
 
   useEffect(() => {
     let isMounted = true;
@@ -33,6 +44,43 @@ export function AppShell() {
       isMounted = false;
     };
   }, [location.key, services.appState]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!visibleRestTimer?.workoutId) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    void services.workouts
+      .loadWorkoutView(visibleRestTimer.workoutId)
+      .then((view) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setActiveWorkoutView(view);
+
+        if (view && !findRestTimerTargetBySetId(view, visibleRestTimer.nextSetId)) {
+          clearRestTimer();
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load active workout for rest timer", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    clearRestTimer,
+    services.workouts,
+    visibleRestTimer?.nextSetId,
+    visibleRestTimer?.state,
+    visibleRestTimer?.workoutId,
+  ]);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -77,7 +125,46 @@ export function AppShell() {
           />
         </div>
         <div className="app-top-bar__center">
-          {canResume ? (
+          {canResume && visibleRestTimer && resumeTimerTarget && activeWorkoutView ? (
+            <div className="resume-workout-banner" data-agent-id="resume-workout-banner">
+              <button
+                className="resume-workout-banner__body"
+                data-agent-id="resume-workout"
+                onClick={() => {
+                  if (activeWorkoutPath) {
+                    void navigate(activeWorkoutPath);
+                  }
+                }}
+                type="button"
+              >
+                <span className="resume-workout-banner__line">
+                  <strong>Resume workout</strong>
+                  <strong className="resume-workout-banner__timer">
+                    {visibleRestTimer.state === "expired"
+                      ? "Ready"
+                      : `Rest ${formatRestTimerRemaining(visibleRestTimer.remainingSeconds)}`}
+                  </strong>
+                </span>
+                <span className="resume-workout-banner__line resume-workout-banner__line--secondary">
+                  <span>Day {activeWorkoutView.workout.workoutDay}</span>
+                  <span>
+                    {visibleRestTimer.state === "expired"
+                      ? resumeTimerTarget.label
+                      : `Next: ${resumeTimerTarget.shortLabel}`}
+                  </span>
+                </span>
+              </button>
+              <button
+                aria-label="Dismiss rest timer"
+                className="resume-workout-banner__dismiss"
+                data-agent-id="resume-rest-timer-dismiss"
+                onClick={cancelRestTimer}
+                type="button"
+              >
+                <X aria-hidden size={16} strokeWidth={2.5} />
+              </button>
+            </div>
+          ) : canResume ? (
             <Button
               className="resume-workout-button"
               data-agent-id="resume-workout"
