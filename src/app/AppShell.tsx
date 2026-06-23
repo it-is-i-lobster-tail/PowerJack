@@ -202,7 +202,14 @@ export function AppShell() {
                 }
                 type="button"
               >
-                Current program
+                Current Program
+              </button>
+              <button
+                data-agent-id="menu-data-visualization"
+                onClick={() => closeMenuAndNavigate("/visualization")}
+                type="button"
+              >
+                Data Visualization
               </button>
               <button
                 data-agent-id="menu-programs"
@@ -210,13 +217,6 @@ export function AppShell() {
                 type="button"
               >
                 Programs
-              </button>
-              <button
-                data-agent-id="menu-data-visualization"
-                onClick={() => closeMenuAndNavigate("/visualization")}
-                type="button"
-              >
-                Data visualization
               </button>
               <button
                 data-agent-id="menu-templates"

@@ -1,0 +1,2 @@
+## codex/enhancement/alphabetize-app-menu - 2026-06-23
+Summary: Alphabetized the top app menu options by visible label and title-cased each word. Added E2E coverage for the menu order and refreshed the affected mobile menu screenshot baseline.
