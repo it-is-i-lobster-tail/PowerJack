@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { listMuscles } from "../../../application/exercises/listMuscles";
 import { useServices } from "../../../app/useServices";
 import type { Muscle } from "../../../domain/exercises/Exercise";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "../../start-program/pages/SetupChoicePage.css";
@@ -41,7 +42,7 @@ export function TemplateMuscleFocusPage() {
     };
   }, [services.exercises]);
 
-  if (!name.trim() || name.length > 64) {
+  if (!name.trim() || name.length > TEMPLATE_NAME_MAX_LENGTH) {
     return <Navigate replace to="/templates/new/name" />;
   }
 

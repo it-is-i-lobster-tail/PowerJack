@@ -846,16 +846,16 @@ test.describe("start program flow", () => {
     await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
   });
 
-  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
+  test("Name your template enforces the 24 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(25));
 
-    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
+    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("25/24");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(24));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
