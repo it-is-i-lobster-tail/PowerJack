@@ -17,7 +17,7 @@ describe("program overview", () => {
         week: 1,
         day: 1,
         totalSets: 4,
-        statusCounts: createProgramOverviewStatusCounts({ complete: 4 }),
+        statusCounts: createProgramOverviewStatusCounts({ completed: 4 }),
       },
       {
         workoutId: 11,
@@ -62,7 +62,7 @@ describe("program overview", () => {
           week: 1,
           day: 1,
           totalSets: 4,
-          statusCounts: createProgramOverviewStatusCounts({ complete: 3, halted: 1 }),
+          statusCounts: createProgramOverviewStatusCounts({ completed: 3, halted: 1 }),
         },
       ],
       plannedSetCountsByDay: new Map([
@@ -194,7 +194,7 @@ describe("program overview", () => {
     ).toBe(2.5);
   });
 
-  it("builds proportional complete skipped and halted segments", () => {
+  it("builds proportional completed skipped and halted segments", () => {
     const segments = buildProgramOverviewSegments({
       workoutId: 10,
       week: 1,
@@ -202,14 +202,14 @@ describe("program overview", () => {
       source: "persisted",
       totalSets: 10,
       statusCounts: createProgramOverviewStatusCounts({
-        complete: 7,
+        completed: 7,
         skipped: 2,
         halted: 1,
       }),
     });
 
     expect(segments).toEqual([
-      { status: "complete", count: 7, widthPercent: 70 },
+      { status: "completed", count: 7, widthPercent: 70 },
       { status: "skipped", count: 2, widthPercent: 20 },
       { status: "halted", count: 1, widthPercent: 10 },
     ]);

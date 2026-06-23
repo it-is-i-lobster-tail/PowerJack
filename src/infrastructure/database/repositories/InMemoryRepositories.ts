@@ -1,7 +1,8 @@
 import type { AppServices } from "../../../app/AppServices";
 import { AppRuntimeCache } from "../../../app/AppRuntimeCache";
-import type { AppState } from "../../../domain/app-state/AppState";
+import type { AppState, RestTimer } from "../../../domain/app-state/AppState";
 import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
+import { createIdleRestTimer } from "../../../domain/app-state/restTimer";
 import {
   buildCompletedSetEventsForMuscles,
   type CompletedSetEvent,
@@ -65,6 +66,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
     activeProgramId: null,
     activeWorkoutId: null,
     activeLiftId: null,
+    restTimer: createIdleRestTimer(),
     userBodyWeightLb: null,
     userBodyWeightUpdatedLast: null,
     createdAt: deterministicTimestamp,
@@ -79,12 +81,22 @@ class InMemoryAppStateRepository implements AppStateRepository {
     return this.state;
   }
 
+  saveRestTimer(timer: RestTimer): Promise<AppState | null> {
+    this.state = {
+      ...this.state,
+      restTimer: { ...timer },
+      updatedAt: deterministicTimestamp,
+    };
+    return Promise.resolve(this.state);
+  }
+
   resetForAgent(): Promise<void> {
     this.state = {
       ...this.state,
       activeProgramId: null,
       activeWorkoutId: null,
       activeLiftId: null,
+      restTimer: createIdleRestTimer(),
       userBodyWeightLb: null,
       userBodyWeightUpdatedLast: null,
       updatedAt: deterministicTimestamp,
@@ -98,6 +110,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
       activeProgramId: programId,
       activeWorkoutId: workoutId,
       activeLiftId: liftId,
+      restTimer: createIdleRestTimer(),
       updatedAt: deterministicTimestamp,
     };
     return this.state;
@@ -118,6 +131,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
       activeProgramId: null,
       activeWorkoutId: null,
       activeLiftId: null,
+      restTimer: createIdleRestTimer(),
       updatedAt: deterministicTimestamp,
     };
     return this.state;
@@ -586,7 +600,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
     const lifts = this.buildLiftViews(workout.id);
     const countableSets = lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
-    const completedCountableSets = countableSets.filter((set) => set.status === "complete");
+    const completedCountableSets = countableSets.filter((set) => set.status === "completed");
 
     return Promise.resolve({
       program,
@@ -605,7 +619,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
         !workout.locked &&
         lifts.length > 0 &&
         completedCountableSets.length === countableSets.length &&
-        lifts.every((lift) => lift.status === "skipped" || (lift.status === "complete" && lift.feedbackSubmitted)),
+        lifts.every((lift) => lift.status === "skipped" || (lift.status === "completed" && lift.feedbackSubmitted)),
       isReadOnly: workout.locked || workout.status !== "active",
       lifts,
     });
@@ -636,12 +650,12 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     const repsOnly = this.isRepsOnlyExercise(lift.exerciseId);
     set.actualReps = input.actualReps;
     set.actualWeight = repsOnly ? null : input.actualWeight;
-    set.status = input.actualReps !== null && (repsOnly || set.actualWeight !== null) ? "complete" : "active";
+    set.status = input.actualReps !== null && (repsOnly || set.actualWeight !== null) ? "completed" : "active";
     set.updatedAt = deterministicTimestamp;
 
     const liftSets = this.sets.filter((item) => item.liftId === lift.id);
-    lift.status = liftSets.every((item) => item.status === "complete" || item.status === "skipped")
-      ? "complete"
+    lift.status = liftSets.every((item) => item.status === "completed" || item.status === "skipped")
+      ? "completed"
       : "active";
     lift.updatedAt = deterministicTimestamp;
     this.appState.setActiveLift(lift.id);
@@ -789,7 +803,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       throw new Error("This lift is locked.");
     }
 
-    if (lift.status !== "complete") {
+    if (lift.status !== "completed") {
       throw new Error("Complete this lift before saving feedback.");
     }
 
@@ -915,12 +929,12 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
     const workoutSets = this.getSetsForWorkout(workout.id);
 
-    if (workoutSets.some((set) => set.status !== "complete" && set.status !== "skipped")) {
+    if (workoutSets.some((set) => set.status !== "completed" && set.status !== "skipped")) {
       throw new Error("Complete every set before finishing the workout.");
     }
 
     const completedLifts = this.lifts.filter(
-      (lift) => lift.workoutId === workout.id && lift.status === "complete",
+      (lift) => lift.workoutId === workout.id && lift.status === "completed",
     );
     const hasMissingFeedback = completedLifts.some(
       (lift) => !this.feedback.some((feedback) => feedback.liftId === lift.id),
@@ -957,7 +971,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     }
 
     if (!nextWorkout) {
-      program.status = "complete";
+      program.status = "completed";
       program.locked = true;
       program.updatedAt = deterministicTimestamp;
       this.appState.clearActive();
@@ -983,7 +997,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       .filter((set) => {
         const completedAt = new Date(set.updatedAt);
         return (
-          set.status === "complete" &&
+          set.status === "completed" &&
           set.actualReps !== null &&
           completedAt >= from &&
           completedAt < to
@@ -1019,7 +1033,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
 
         return (
           workout?.programId === programId &&
-          set.status === "complete" &&
+          set.status === "completed" &&
           set.actualReps !== null
         );
       })
@@ -1068,21 +1082,21 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     }
 
     for (const workout of this.workouts.filter((item) => item.programId === programId)) {
-      if (workout.status !== "complete") {
+      if (workout.status !== "completed") {
         workout.status = "halted";
       }
       workout.locked = true;
       workout.updatedAt = deterministicTimestamp;
 
       for (const lift of this.lifts.filter((item) => item.workoutId === workout.id)) {
-        if (lift.status !== "complete") {
+        if (lift.status !== "completed") {
           lift.status = "halted";
         }
         lift.locked = true;
         lift.updatedAt = deterministicTimestamp;
 
         for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
-          if (set.status !== "complete") {
+          if (set.status !== "completed") {
             set.status = "halted";
           }
           set.locked = true;
@@ -1262,8 +1276,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     }
 
     const liftSets = this.sets.filter((set) => set.liftId === liftId);
-    lift.status = liftSets.every((set) => set.status === "complete" || set.status === "skipped")
-      ? "complete"
+    lift.status = liftSets.every((set) => set.status === "completed" || set.status === "skipped")
+      ? "completed"
       : "active";
     lift.updatedAt = deterministicTimestamp;
   }
@@ -1272,18 +1286,18 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     const workout = this.workouts.find((item) => item.id === workoutId);
 
     if (workout) {
-      workout.status = "complete";
+      workout.status = "completed";
       workout.locked = true;
       workout.updatedAt = deterministicTimestamp;
     }
 
     for (const lift of this.lifts.filter((item) => item.workoutId === workoutId)) {
-      lift.status = lift.status === "skipped" ? "skipped" : "complete";
+      lift.status = lift.status === "skipped" ? "skipped" : "completed";
       lift.locked = true;
       lift.updatedAt = deterministicTimestamp;
 
       for (const set of this.sets.filter((item) => item.liftId === lift.id)) {
-        set.status = set.status === "skipped" ? "skipped" : "complete";
+        set.status = set.status === "skipped" ? "skipped" : "completed";
         set.locked = true;
         set.updatedAt = deterministicTimestamp;
       }

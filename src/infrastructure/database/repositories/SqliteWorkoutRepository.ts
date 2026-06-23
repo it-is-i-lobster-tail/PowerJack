@@ -304,7 +304,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
     const weekWorkouts = weekRows.map(mapWeekWorkout);
     const lifts = mapLiftSetRows(liftSetRows);
     const countableSets = lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
-    const completedCountableSets = countableSets.filter((set) => set.status === "complete");
+    const completedCountableSets = countableSets.filter((set) => set.status === "completed");
     const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
 
     return {
@@ -324,7 +324,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         !workout.locked &&
         lifts.length > 0 &&
         completedCountableSets.length === countableSets.length &&
-        lifts.every((lift) => lift.status === "skipped" || (lift.status === "complete" && lift.feedbackSubmitted)),
+        lifts.every((lift) => lift.status === "skipped" || (lift.status === "completed" && lift.feedbackSubmitted)),
       isReadOnly: workout.locked || workout.status !== "active",
       lifts,
     };
@@ -366,7 +366,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
       const repsOnly = Boolean(row.reps_only);
       const nextActualWeight = repsOnly ? null : input.actualWeight;
       const nextStatus: PowerJackStatus =
-        input.actualReps !== null && (repsOnly || nextActualWeight !== null) ? "complete" : "active";
+        input.actualReps !== null && (repsOnly || nextActualWeight !== null) ? "completed" : "active";
 
       await client.run(
         `
@@ -385,11 +385,11 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         `
           SELECT COUNT(*) AS count
           FROM workout_sets
-          WHERE lift_id = ? AND status NOT IN ('complete', 'skipped')
+          WHERE lift_id = ? AND status NOT IN ('completed', 'skipped')
         `,
         [row.lift_id],
       );
-      const liftStatus: PowerJackStatus = (incompleteRows[0]?.count ?? 0) === 0 ? "complete" : "active";
+      const liftStatus: PowerJackStatus = (incompleteRows[0]?.count ?? 0) === 0 ? "completed" : "active";
 
       await client.run(
         `
@@ -691,7 +691,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         throw new Error("This lift is locked.");
       }
 
-      if (row.lift_status !== "complete") {
+      if (row.lift_status !== "completed") {
         throw new Error("Complete this lift before saving feedback.");
       }
 
@@ -882,7 +882,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           SELECT COUNT(*) AS count
           FROM workout_sets
           INNER JOIN lifts ON lifts.id = workout_sets.lift_id
-          WHERE lifts.workout_id = ? AND workout_sets.status NOT IN ('complete', 'skipped')
+          WHERE lifts.workout_id = ? AND workout_sets.status NOT IN ('completed', 'skipped')
         `,
         [workoutId],
       );
@@ -898,7 +898,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           LEFT JOIN feedback ON feedback.lift_id = lifts.id
           WHERE
             lifts.workout_id = ?
-            AND lifts.status = 'complete'
+            AND lifts.status = 'completed'
             AND feedback.id IS NULL
         `,
         [workoutId],
@@ -945,7 +945,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         await client.run(
           `
             UPDATE programs
-            SET status = 'complete', locked = 1, updated_at = CURRENT_TIMESTAMP
+            SET status = 'completed', locked = 1, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `,
           [workout.program_id],
@@ -957,6 +957,13 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
               active_program_id = NULL,
               active_workout_id = NULL,
               active_lift_id = NULL,
+              rest_timer_state = 'idle',
+              rest_timer_workout_id = NULL,
+              rest_timer_lift_id = NULL,
+              rest_timer_next_set_id = NULL,
+              rest_timer_started_at = NULL,
+              rest_timer_duration_seconds = 120,
+              rest_timer_remaining_seconds = 0,
               updated_at = CURRENT_TIMESTAMP
             WHERE id = 1
           `,
@@ -1139,11 +1146,11 @@ async function refreshLiftStatusFromSets(client: DatabaseClient, liftId: EntityI
     `
       SELECT COUNT(*) AS count
       FROM workout_sets
-      WHERE lift_id = ? AND status NOT IN ('complete', 'skipped')
+      WHERE lift_id = ? AND status NOT IN ('completed', 'skipped')
     `,
     [liftId],
   );
-  const liftStatus: PowerJackStatus = (incompleteRows[0]?.count ?? 0) === 0 ? "complete" : "active";
+  const liftStatus: PowerJackStatus = (incompleteRows[0]?.count ?? 0) === 0 ? "completed" : "active";
 
   await client.run(
     `
@@ -1172,7 +1179,7 @@ async function lockCompletedWorkout(client: DatabaseClient, workoutId: EntityId)
     `
       UPDATE workout_sets
       SET
-        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'complete' END,
+        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'completed' END,
         locked = 1,
         updated_at = CURRENT_TIMESTAMP
       WHERE lift_id IN (SELECT id FROM lifts WHERE workout_id = ?)
@@ -1183,7 +1190,7 @@ async function lockCompletedWorkout(client: DatabaseClient, workoutId: EntityId)
     `
       UPDATE lifts
       SET
-        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'complete' END,
+        status = CASE WHEN status = 'skipped' THEN 'skipped' ELSE 'completed' END,
         locked = 1,
         updated_at = CURRENT_TIMESTAMP
       WHERE workout_id = ?
@@ -1193,7 +1200,7 @@ async function lockCompletedWorkout(client: DatabaseClient, workoutId: EntityId)
   await client.run(
     `
       UPDATE workouts
-      SET status = 'complete', locked = 1, updated_at = CURRENT_TIMESTAMP
+      SET status = 'completed', locked = 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `,
     [workoutId],
@@ -1286,6 +1293,13 @@ async function activateWorkout(client: DatabaseClient, workoutId: EntityId): Pro
         active_program_id = ?,
         active_workout_id = ?,
         active_lift_id = ?,
+        rest_timer_state = 'idle',
+        rest_timer_workout_id = NULL,
+        rest_timer_lift_id = NULL,
+        rest_timer_next_set_id = NULL,
+        rest_timer_started_at = NULL,
+        rest_timer_duration_seconds = 120,
+        rest_timer_remaining_seconds = 0,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
     `,
