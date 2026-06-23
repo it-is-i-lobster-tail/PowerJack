@@ -56,14 +56,7 @@ Use harder edges for structure and softer edges for actions.
 - Buttons: 10-12px radius.
 - Modals: 8-10px radius.
 
-Use system fonts. Prefer tabular numbers for reps, weight, and workout metrics.
-
-- Screen title: 22-24px, 700.
-- Week/day heading: 18-20px, 700.
-- Exercise name: 16-17px, 650-700.
-- Set row values: 15-16px, 500-600.
-- Labels: 12-13px, 500.
-- Helper text: 12px, 400-500.
+Use system fonts. Follow `docs/typography-standards.md` for the only approved font-size roles and CSS variables. Prefer tabular numbers for reps, weight, and workout metrics.
 
 Keep labels short. Avoid decorative fonts, broad all-caps text, and marketing-style copy.
 

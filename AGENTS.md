@@ -65,7 +65,9 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 ## Design Rules
 
 - Read `docs/ui-design-standards.md` before changing React views, CSS, design tokens, layout, copy, motion, routes, screenshots, or reference images.
+- Read `docs/typography-standards.md` and use the `powerjack-typography` skill before changing text sizes, heading hierarchy, or typography-related CSS.
 - Use the Steel Focus palette from `src/shared/styles/tokens.css`.
+- Use only the shared typography tokens from `src/shared/styles/tokens.css`: `--font-size-header-1`, `--font-size-header-2`, `--font-size-sub-header`, and `--font-size-info`.
 - Build mobile-first, then browser-wide.
 - Match the supplied references in `docs/reference_images/`; `/` must match `Start_new_program_example.png`.
 - Keep workout logging compact: shared labels, horizontal set rows, and no large card per set.
