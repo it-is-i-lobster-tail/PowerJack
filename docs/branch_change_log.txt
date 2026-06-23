@@ -1,0 +1,2 @@
+## codex/enhancement/rest-timer-top-nav-pill - 2026-06-23
+Summary: Moved the active rest timer and resume affordance into compact top-nav pills. Updated expired next-set copy to Go, refreshed mobile visual baselines, and queued rest-timer persistence to avoid web SQLite transaction collisions.
