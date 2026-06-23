@@ -15,7 +15,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [appState, setAppState] = useState<AppState | null>(null);
+  const [appState, setAppState] = useState<AppState | null>(
+    services.cache.getAppStateSnapshot() ?? null,
+  );
   const [activeWorkoutView, setActiveWorkoutView] = useState<ActiveWorkoutView | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const activeWorkoutPath =
@@ -33,16 +35,21 @@ export function AppShell() {
   useEffect(() => {
     let isMounted = true;
 
-    void services.appState.load().then((state) => {
-      if (isMounted) {
-        setAppState(state);
-      }
-    });
+    void services.cache
+      .refreshAppState()
+      .then((state) => {
+        if (isMounted) {
+          setAppState(state);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load app state", error);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [location.key, services.appState]);
+  }, [location.key, services.cache]);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,7 +60,7 @@ export function AppShell() {
       };
     }
 
-    void services.workouts
+    void services.cache
       .loadWorkoutView(visibleRestTimer.workoutId)
       .then((view) => {
         if (!isMounted) {
@@ -75,7 +82,7 @@ export function AppShell() {
     };
   }, [
     clearRestTimer,
-    services.workouts,
+    services.cache,
     visibleRestTimer?.nextSetId,
     visibleRestTimer?.state,
     visibleRestTimer?.workoutId,

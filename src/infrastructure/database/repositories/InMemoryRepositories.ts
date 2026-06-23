@@ -1,4 +1,5 @@
 import type { AppServices } from "../../../app/AppServices";
+import { AppRuntimeCache } from "../../../app/AppRuntimeCache";
 import type { AppState, RestTimer } from "../../../domain/app-state/AppState";
 import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
 import { createIdleRestTimer } from "../../../domain/app-state/restTimer";
@@ -555,6 +556,21 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
   async loadActive(): Promise<ActiveWorkoutView | null> {
     const state = await this.appState.load();
     return state?.activeWorkoutId ? this.loadWorkoutView(state.activeWorkoutId) : null;
+  }
+
+  listWorkoutIdsForProgram(programId: number): Promise<number[]> {
+    return Promise.resolve(
+      this.workouts
+        .filter((workout) => workout.programId === programId)
+        .sort((left, right) => {
+          if (left.programWeek !== right.programWeek) {
+            return left.programWeek - right.programWeek;
+          }
+
+          return left.workoutDay - right.workoutDay;
+        })
+        .map((workout) => workout.id),
+    );
   }
 
   loadWorkoutView(workoutId: number): Promise<ActiveWorkoutView | null> {
@@ -1537,9 +1553,11 @@ export function createInMemoryAppServices(): AppServices {
   const templates = new InMemoryTemplateRepository();
   const training = new InMemoryTrainingRepository(appState, templates);
   templates.setActiveTemplateChecker((templateId) => training.isTemplateUsedByActiveProgram(templateId));
+  const cache = new AppRuntimeCache({ appState, templates, workouts: training });
 
   return {
     mode: "memory",
+    cache,
     appState,
     exercises: new InMemoryExerciseCatalogRepository(),
     templates,
@@ -1550,6 +1568,7 @@ export function createInMemoryAppServices(): AppServices {
       await appState.resetForAgent();
       training.reset();
       templates.reset();
+      cache.clear();
     },
   };
 }

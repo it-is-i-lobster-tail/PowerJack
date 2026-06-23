@@ -208,6 +208,20 @@ interface LastInsertIdRow extends Record<string, unknown> {
 export class SqliteWorkoutRepository implements WorkoutRepository {
   constructor(private readonly db: DatabaseClient) {}
 
+  async listWorkoutIdsForProgram(programId: EntityId): Promise<EntityId[]> {
+    const rows = await this.db.query<WorkoutIdRow>(
+      `
+        SELECT id
+        FROM workouts
+        WHERE program_id = ?
+        ORDER BY program_week ASC, workout_day ASC
+      `,
+      [programId],
+    );
+
+    return rows.map((row) => row.id);
+  }
+
   async loadActive(): Promise<ActiveWorkoutView | null> {
     const rows = await this.db.query<AppStateActiveWorkoutRow>(
       "SELECT active_workout_id FROM app_state WHERE id = 1",
