@@ -46,6 +46,8 @@ describe("bootstrap", () => {
         cache: {
           hydrateLaunch: () => new Promise<never>(() => undefined),
         },
+        mode: "memory",
+        resetForAgent: vi.fn(() => Promise.resolve()),
       }),
     );
 
@@ -55,5 +57,6 @@ describe("bootstrap", () => {
 
     expect(document.querySelector('[data-agent-id="app-launch-splash"]')).toBeInTheDocument();
     expect(document.getElementById("root")).toBeEmptyDOMElement();
+    expect(window.__POWERJACK_AGENT__?.servicesMode()).toBe("memory");
   });
 });

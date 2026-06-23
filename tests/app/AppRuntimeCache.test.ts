@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AppRuntimeCache } from "../../src/app/AppRuntimeCache";
 import type { AppState } from "../../src/domain/app-state/AppState";
 import type { AppStateRepository } from "../../src/domain/app-state/AppStateRepository";
+import { createIdleRestTimer } from "../../src/domain/app-state/restTimer";
 import type { TemplateSummary } from "../../src/domain/templates/Template";
 import type { TemplateRepository } from "../../src/domain/templates/TemplateRepository";
 import type { ActiveWorkoutView } from "../../src/domain/workouts/Workout";
@@ -24,6 +25,7 @@ function createAppState(overrides: Partial<AppState> = {}): AppState {
     activeProgramId: null,
     activeWorkoutId: null,
     activeLiftId: null,
+    restTimer: createIdleRestTimer(),
     userBodyWeightLb: null,
     userBodyWeightUpdatedLast: null,
     createdAt: "2026-06-18T00:00:00.000Z",
