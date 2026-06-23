@@ -1612,6 +1612,12 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='app-menu-toggle']").click();
 
     await expect(page.locator("[data-agent-id='app-menu']")).toBeVisible();
+    await expect(page.locator("[data-agent-id='app-menu'] button")).toHaveText([
+      "Current Program",
+      "Data Visualization",
+      "Programs",
+      "Templates",
+    ]);
     await expectMobileScreenshot(page, testInfo, "warm-stone-nav-menu-mobile.png");
     await page.locator("[data-agent-id='menu-data-visualization']").click();
     await expect(page).toHaveURL(/\/visualization$/);
