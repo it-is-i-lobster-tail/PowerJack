@@ -13,18 +13,21 @@ export async function bootstrap(): Promise<void> {
     throw new Error("Missing #root element");
   }
 
-  const root = createRoot(rootElement);
   let services: Awaited<ReturnType<typeof createAppServices>>;
 
   try {
     services = await createAppServices();
+    await services.cache.hydrateLaunch();
   } catch (error) {
     console.error("PowerJack local storage is unavailable", error);
+    const root = createRoot(rootElement);
+
     root.render(
       <StrictMode>
         <PersistenceUnavailableScreen />
       </StrictMode>,
     );
+    dismissLaunchSplashAfterPaint();
     return;
   }
 
@@ -33,6 +36,8 @@ export async function bootstrap(): Promise<void> {
     servicesMode: () => services.mode,
   };
 
+  const root = createRoot(rootElement);
+
   root.render(
     <StrictMode>
       <AppProviders services={services}>
@@ -40,4 +45,38 @@ export async function bootstrap(): Promise<void> {
       </AppProviders>
     </StrictMode>,
   );
+  dismissLaunchSplashAfterPaint();
+}
+
+function dismissLaunchSplashAfterPaint(): void {
+  waitForNextPaint(() => {
+    const launchSplash = document.getElementById("powerjack-launch");
+
+    if (!launchSplash) {
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) {
+      launchSplash.remove();
+      return;
+    }
+
+    launchSplash.dataset.state = "hidden";
+    window.setTimeout(() => launchSplash.remove(), 220);
+  });
+}
+
+function waitForNextPaint(callback: () => void): void {
+  if (typeof window.requestAnimationFrame !== "function") {
+    window.setTimeout(callback, 0);
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(callback);
+  });
 }
