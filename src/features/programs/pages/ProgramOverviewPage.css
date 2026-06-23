@@ -12,7 +12,7 @@
 .program-overview-status {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 18px;
+  font-size: var(--font-size-sub-header);
   font-weight: 600;
 }
 
@@ -34,7 +34,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
-  font-size: 34px;
+  font-size: var(--font-size-header-1);
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.05;
@@ -43,7 +43,7 @@
 .program-status {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 22px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1;
 }
@@ -70,7 +70,7 @@
 
 .program-panel__header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1.1;
 }
@@ -108,7 +108,7 @@
   display: block;
   margin-bottom: var(--space-1);
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -117,7 +117,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-primary);
-  font-size: 18px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -156,7 +156,7 @@
   border: 1px solid var(--color-accent-strong);
   border-radius: 999px;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   line-height: 1;
 }
@@ -177,7 +177,7 @@
   display: inline-flex;
   align-items: center;
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -203,7 +203,7 @@
   background: var(--color-input);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   line-height: 1;
 }
@@ -249,7 +249,7 @@
   gap: var(--space-4);
   margin-top: var(--space-4);
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -289,7 +289,7 @@
 .program-volume__header p {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 650;
 }
 
@@ -318,7 +318,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -332,7 +332,7 @@
   border: 1px solid var(--color-accent-strong);
   border-radius: 999px;
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -378,14 +378,14 @@
   justify-content: flex-end;
   gap: var(--space-1);
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
 .program-volume-row__value strong {
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
-  font-size: 18px;
+  font-size: var(--font-size-sub-header);
   font-weight: 900;
 }
 
@@ -397,7 +397,7 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border-soft);
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   font-weight: 750;
 }
 
@@ -418,17 +418,17 @@
 .program-volume-empty {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
 }
 
 @media (max-width: 620px) {
   .program-overview-hero h1 {
-    font-size: 30px;
+    font-size: var(--font-size-header-1);
   }
 
   .program-status {
-    font-size: 20px;
+    font-size: var(--font-size-header-2);
   }
 
   .program-panel {
@@ -461,12 +461,12 @@
 
   .program-schedule-grid__heading,
   .program-schedule-grid__week {
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .program-schedule-cell {
     min-height: 40px;
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .program-schedule-cell__label {
@@ -475,7 +475,7 @@
 
   .program-schedule-legend {
     gap: var(--space-3);
-    font-size: 13px;
+    font-size: var(--font-size-info);
   }
 
   .program-volume-row {
@@ -490,7 +490,7 @@
   }
 
   .program-volume-row__label strong {
-    font-size: 14px;
+    font-size: var(--font-size-info);
   }
 
   .program-volume-row__value {

@@ -1,0 +1,11 @@
+Branch: codex/enhancement/alphabetize-app-menu
+Date: 2026-06-23
+
+Why was the branch needed:
+The top hamburger menu had options that were not alphabetized by their visible labels, and multi-word entries used sentence case. The requested app behavior is for menu options to appear alphabetically and for the first letter of each word to be capitalized.
+
+Outcomes of code changes:
+The app menu now renders Current Program, Data Visualization, Programs, and Templates in alphabetical order while preserving the existing routes and data-agent-id selectors. Playwright coverage now asserts the exact menu order and title case, and the mobile menu screenshot baseline reflects the updated rendered menu.
+
+Implementation decisions that were made:
+The change stayed scoped to the hardcoded AppShell menu because no route, styling, or data model changes were needed. The existing navigation handlers and stable selectors were preserved to avoid disrupting workflow tests. The existing mobile Playwright screenshot baseline was refreshed because the visible menu text and order changed intentionally.

@@ -1,5 +1,11 @@
 ## codex/enhancement/rest-timer-top-nav-pill - 2026-06-23
 Summary: Moved the active rest timer and resume affordance into compact top-nav pills. Updated expired next-set copy to Go, refreshed mobile visual baselines, and queued rest-timer persistence to avoid web SQLite transaction collisions.
 
+## codex/enhancement/typography-full-audit - 2026-06-23
+Summary: Standardized PowerJack text sizing around the shared typography tokens, documented the standards, and added a repo-local typography skill. Strengthened static and rendered checks so visible app text must resolve to one of the approved standard sizes.
+
+## codex/enhancement/alphabetize-app-menu - 2026-06-23
+Summary: Alphabetized the top app menu options by visible label and title-cased each word. Added E2E coverage for the menu order and refreshed the affected mobile menu screenshot baseline.
+
 ## codex/enhancement/agent-pr-awareness - 2026-06-23
 Summary: Added agent guidance to scan recent closed GitHub pull requests before substantial work. This keeps future agents aware of relevant merged changes before editing, testing, and handing off.
