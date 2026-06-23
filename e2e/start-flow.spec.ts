@@ -541,6 +541,7 @@ async function expectTemplateBuilderDayTabsFit(page: import("@playwright/test").
     expect(Math.abs(box.top - firstTop)).toBeLessThanOrEqual(1);
     expect(box.width).toBeGreaterThan(0);
     expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(49);
 
     if (viewport) {
       expect(box.left).toBeGreaterThanOrEqual(0);
@@ -572,6 +573,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   await expect(addExercise).toHaveAccessibleName("Add exercise");
   await expect(addExercise).toHaveText("exercise");
   await expect(lastDayTab).toBeVisible();
+  await expect(page.locator("[data-agent-id='template-builder-page']")).not.toContainText(/\d+ days per week/);
 
   const metrics = await page.evaluate(
     ({ dayCount: expectedDayCount }) => {
