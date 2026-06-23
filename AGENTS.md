@@ -53,6 +53,15 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Repository boundaries follow workflows, not one CRUD class per table.
 - Web SQLite may not support explicit nested `BEGIN TRANSACTION` calls; keep aggregate repository saves behind `DatabaseClient.transaction` so platform behavior stays isolated in the adapter.
 
+## iOS Development Rules
+
+- Read `docs/ios-development-standards.md` before changing Capacitor config, platform adapters, database plugins, generated iOS project files, or mobile text inputs.
+- Treat physical iPhone console output as evidence to triage, not proof of an app bug; distinguish app-owned failures from Apple, WebKit, UIKit, and iOS keyboard service noise.
+- Release and TestFlight builds must not emit SQL rows, SQLite payloads, template names, workout data, or other local user data through Capacitor bridge or database logs.
+- Mobile text inputs must declare intent with semantic attributes such as `type`, `inputMode`, `autoComplete`, `autoCorrect`, `spellCheck`, `autoCapitalize`, and `enterKeyHint` when applicable.
+- For Capacitor config, database adapter, platform API, generated iOS project, or mobile keyboard changes, record iPhone QA notes with device model, iOS version, build configuration, route, interaction, and relevant log findings.
+- If the `ios/` project or native dependencies are unavailable in the worktree, note which native logging or physical-device checks remain pending.
+
 ## Design Rules
 
 - Read `docs/ui-design-standards.md` before changing React views, CSS, design tokens, layout, copy, motion, routes, screenshots, or reference images.
@@ -75,4 +84,5 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Mobile-affecting stories need mobile viewport Playwright coverage.
 - Before committing UI-affecting work, run `npm run ux:check` and record the UX Design Standards Check result in the handoff.
 - UI handoffs must note which standards/reference images were checked, what browser or mobile visual QA was run, and any intentional design-standard deviation.
+- iOS-affecting handoffs must note whether production-like device logs were checked for data-bearing Capacitor or SQLite bridge output.
 - Before handoff, run `npm run check`; run `npm run test:e2e` when routes or UI flows change.
