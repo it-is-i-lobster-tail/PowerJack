@@ -1,6 +1,7 @@
 import type { AppServices } from "../../../app/AppServices";
-import type { AppState } from "../../../domain/app-state/AppState";
+import type { AppState, RestTimer } from "../../../domain/app-state/AppState";
 import type { AppStateRepository } from "../../../domain/app-state/AppStateRepository";
+import { createIdleRestTimer } from "../../../domain/app-state/restTimer";
 import {
   buildCompletedSetEventsForMuscles,
   type CompletedSetEvent,
@@ -64,6 +65,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
     activeProgramId: null,
     activeWorkoutId: null,
     activeLiftId: null,
+    restTimer: createIdleRestTimer(),
     userBodyWeightLb: null,
     userBodyWeightUpdatedLast: null,
     createdAt: deterministicTimestamp,
@@ -78,12 +80,22 @@ class InMemoryAppStateRepository implements AppStateRepository {
     return this.state;
   }
 
+  saveRestTimer(timer: RestTimer): Promise<AppState | null> {
+    this.state = {
+      ...this.state,
+      restTimer: { ...timer },
+      updatedAt: deterministicTimestamp,
+    };
+    return Promise.resolve(this.state);
+  }
+
   resetForAgent(): Promise<void> {
     this.state = {
       ...this.state,
       activeProgramId: null,
       activeWorkoutId: null,
       activeLiftId: null,
+      restTimer: createIdleRestTimer(),
       userBodyWeightLb: null,
       userBodyWeightUpdatedLast: null,
       updatedAt: deterministicTimestamp,
@@ -97,6 +109,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
       activeProgramId: programId,
       activeWorkoutId: workoutId,
       activeLiftId: liftId,
+      restTimer: createIdleRestTimer(),
       updatedAt: deterministicTimestamp,
     };
     return this.state;
@@ -117,6 +130,7 @@ class InMemoryAppStateRepository implements AppStateRepository {
       activeProgramId: null,
       activeWorkoutId: null,
       activeLiftId: null,
+      restTimer: createIdleRestTimer(),
       updatedAt: deterministicTimestamp,
     };
     return this.state;
