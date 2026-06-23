@@ -7,5 +7,8 @@ Summary: Standardized PowerJack text sizing around the shared typography tokens,
 ## codex/enhancement/alphabetize-app-menu - 2026-06-23
 Summary: Alphabetized the top app menu options by visible label and title-cased each word. Added E2E coverage for the menu order and refreshed the affected mobile menu screenshot baseline.
 
+## codex/enhancement/agent-pr-awareness - 2026-06-23
+Summary: Added agent guidance to scan recent closed GitHub pull requests before substantial work. This keeps future agents aware of relevant merged changes before editing, testing, and handing off.
+
 ## codex/refactor/completed-status-enum - 2026-06-23
 Summary: Renamed the shared PowerJack completion status enum value from complete to completed across domain logic, repositories, SQL queries, and status-driven UI. Added an immutable SQLite migration with coverage for existing local data and refreshed E2E selectors and mobile visual baselines.
