@@ -1024,6 +1024,7 @@ test.describe("start program flow", () => {
 
     await expect(page).toHaveURL(/\/start\/select-template$/);
     await expect(page.getByRole("heading", { name: "Select template" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Loading templates" })).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-empty-state']")).toBeVisible();
     await expect(page.locator("[data-agent-id='add-template']")).toBeVisible();
     await expectTemplateListHeaderAddPlacement(page, {

@@ -1,0 +1,2 @@
+## codex/enhancement/startup-hydration-template-cache - 2026-06-23
+Summary: Added launch-time app hydration and in-memory runtime caching so the iOS app can keep the splash visible until active workout data is ready. Warmed template summaries before the Select Template route renders so empty template lists show directly without a loading flash.
