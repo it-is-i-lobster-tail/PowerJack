@@ -306,6 +306,37 @@ async function expectElementsWithinViewport(
   }
 }
 
+async function expectCopyDayModalCenteredInViewport(page: import("@playwright/test").Page): Promise<void> {
+  const modal = page.locator("[data-agent-id='copy-day-modal']");
+  const viewport = page.viewportSize();
+  const modalBox = await modal.boundingBox();
+
+  await expect(modal).toBeVisible();
+  expect(viewport).not.toBeNull();
+  expect(modalBox, "copy-day modal should have a layout box").not.toBeNull();
+
+  if (!viewport || !modalBox) {
+    return;
+  }
+
+  const modalCenterY = modalBox.y + modalBox.height / 2;
+
+  expect(modalBox.y, "copy-day modal should not overflow top").toBeGreaterThanOrEqual(0);
+  expect(modalBox.y + modalBox.height, "copy-day modal should not overflow bottom").toBeLessThanOrEqual(
+    viewport.height + 1,
+  );
+  expect(
+    Math.abs(modalCenterY - viewport.height / 2),
+    "copy-day modal should be vertically centered",
+  ).toBeLessThanOrEqual(16);
+
+  await expectElementsWithinViewport(page, [
+    "copy-day-target-2",
+    "copy-day-target-3",
+    "copy-day-target-4",
+  ]);
+}
+
 async function expectStaticScreenFitsViewport(
   page: import("@playwright/test").Page,
   screenAgentId: string,
@@ -977,6 +1008,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='copy-day-target-2']")).toBeVisible();
     await expect(page.locator("[data-agent-id='copy-day-target-3']")).toBeVisible();
     await expect(page.locator("[data-agent-id='copy-day-target-4']")).toBeVisible();
+    await expectCopyDayModalCenteredInViewport(page);
     await expectMobileScreenshot(page, testInfo, "warm-stone-copy-day-modal-mobile.png");
 
     await page.locator("[data-agent-id='copy-day-cancel']").click();
