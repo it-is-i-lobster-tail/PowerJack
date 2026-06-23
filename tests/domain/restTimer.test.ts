@@ -61,7 +61,7 @@ describe("rest timer", () => {
   it("finds the next incomplete set and formats labels from prior completed work", () => {
     const activeView = view([
       lift(20, 1, [
-        set(30, 1, "complete", { actualReps: 12, actualWeight: 240 }),
+        set(30, 1, "completed", { actualReps: 12, actualWeight: 240 }),
         set(31, 2, "active", { plannedWeight: 240 }),
       ]),
       lift(21, 2, [set(32, 1, "active")]),
@@ -81,7 +81,7 @@ describe("rest timer", () => {
 
   it("detects completed and undone set transitions", () => {
     const before = view([lift(20, 1, [set(30, 1, "active")])]);
-    const afterComplete = view([lift(20, 1, [set(30, 1, "complete", { actualReps: 10, actualWeight: 100 })])]);
+    const afterComplete = view([lift(20, 1, [set(30, 1, "completed", { actualReps: 10, actualWeight: 100 })])]);
     const afterUndo = view([lift(20, 1, [set(30, 1, "active", { actualWeight: 100 })])]);
 
     expect(didAnySetBecomeComplete(before, afterComplete)).toBe(true);
@@ -91,7 +91,7 @@ describe("rest timer", () => {
 
 function view(lifts: ActiveWorkoutLiftView[]): ActiveWorkoutView {
   const countableSets = lifts.flatMap((lift) => lift.sets).filter((item) => item.status !== "skipped");
-  const completedSets = countableSets.filter((item) => item.status === "complete").length;
+  const completedSets = countableSets.filter((item) => item.status === "completed").length;
 
   return {
     program: program(),
@@ -143,7 +143,7 @@ function lift(id: number, order: number, sets: ActiveWorkoutSetView[]): ActiveWo
     repsOnly: false,
     timeBased: false,
     order,
-    status: sets.every((item) => item.status === "complete") ? "complete" : "active",
+    status: sets.every((item) => item.status === "completed") ? "completed" : "active",
     locked: false,
     feedbackSubmitted: false,
     manualCheckinStatus: "none",

@@ -1,7 +1,7 @@
 import type { EntityId } from "../ids";
 import type { PowerJackStatus } from "../status";
 
-export const programListFilters = ["all", "complete", "halted"] as const;
+export const programListFilters = ["all", "completed", "halted"] as const;
 
 export type ProgramListFilter = (typeof programListFilters)[number];
 
