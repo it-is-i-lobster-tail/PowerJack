@@ -8,7 +8,6 @@ import {
   Plus,
   RefreshCw,
   LockKeyhole,
-  Timer,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -24,8 +23,7 @@ import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeed
 import { updateWorkoutSet } from "../../../application/workouts/updateWorkoutSet";
 import { useServices } from "../../../app/useServices";
 import { useRestTimer } from "../../../app/useRestTimer";
-import type { RestTimerState } from "../../../domain/app-state/AppState";
-import { formatRestTimerRemaining, shouldDisplayRestTimer } from "../../../domain/app-state/restTimer";
+import { shouldDisplayRestTimer } from "../../../domain/app-state/restTimer";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
 import { findFollowingWeightSetIds } from "../../../domain/workouts/rules/propagateFollowingSetWeights";
 import {
@@ -90,7 +88,7 @@ interface FinishWorkoutNavigationState {
 
 export function WorkoutViewerPage() {
   const services = useServices();
-  const { cancelRestTimer, clearRestTimer, startRestTimer, timer } = useRestTimer();
+  const { clearRestTimer, startRestTimer, timer } = useRestTimer();
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
@@ -979,15 +977,6 @@ export function WorkoutViewerPage() {
       ref={activeWorkoutScreenRef}
     >
       <section className={activeWorkoutFlowClassName} aria-labelledby="active-workout-day">
-        {visibleRestTimer && restTimerTarget ? (
-          <RestTimerPill
-            onDismiss={cancelRestTimer}
-            state={visibleRestTimer.state}
-            targetLabel={restTimerTarget.label}
-            remainingSeconds={visibleRestTimer.remainingSeconds}
-          />
-        ) : null}
-
         <header className="workout-header">
           <button
             aria-label="Previous workout"
@@ -1215,45 +1204,6 @@ function getScrollToTopAfterFinishWorkoutId(state: unknown): number | null {
   const workoutId = navigationState.scrollToTopAfterFinishWorkoutId;
 
   return typeof workoutId === "number" && Number.isInteger(workoutId) ? workoutId : null;
-}
-
-function RestTimerPill({
-  onDismiss,
-  remainingSeconds,
-  state,
-  targetLabel,
-}: {
-  onDismiss: () => void;
-  remainingSeconds: number;
-  state: RestTimerState;
-  targetLabel: string;
-}) {
-  const statusLabel = state === "expired" ? "Ready" : `Rest ${formatRestTimerRemaining(remainingSeconds)}`;
-
-  return (
-    <div
-      aria-live={state === "expired" ? "polite" : "off"}
-      className={state === "expired" ? "rest-timer-pill rest-timer-pill--ready" : "rest-timer-pill"}
-      data-agent-id="rest-timer-pill"
-    >
-      <span className="rest-timer-pill__icon" aria-hidden="true">
-        <Timer size={24} strokeWidth={2.5} />
-      </span>
-      <span className="rest-timer-pill__copy">
-        <strong data-agent-id="rest-timer-status">{statusLabel}</strong>
-        <span data-agent-id="rest-timer-next">Next: {targetLabel}</span>
-      </span>
-      <button
-        aria-label="Dismiss rest timer"
-        className="rest-timer-pill__dismiss"
-        data-agent-id="rest-timer-dismiss"
-        onClick={onDismiss}
-        type="button"
-      >
-        <X aria-hidden size={18} strokeWidth={2.5} />
-      </button>
-    </div>
-  );
 }
 
 function findPendingFeedbackLift(
@@ -1759,7 +1709,7 @@ function SetRow({
         <strong>Set {set.order}</strong>
         {isRestTimerNext ? (
           <span className="set-row__next" data-agent-id={`set-next-${set.id}`}>
-            Next
+            Go
           </span>
         ) : isComplete ? (
           <span className="set-row__logged" data-agent-id={`set-logged-${set.id}`}>

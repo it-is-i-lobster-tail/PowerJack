@@ -20,7 +20,7 @@
 .visualization-header p {
   margin: 0 0 var(--space-2);
   color: var(--color-accent);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   line-height: 1;
 }
@@ -28,7 +28,7 @@
 .visualization-header h1 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: clamp(28px, 5vw, 42px);
+  font-size: var(--font-size-header-1);
   font-weight: 700;
   line-height: 1.05;
 }
@@ -62,7 +62,7 @@
   border-radius: var(--radius-structure);
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   cursor: pointer;
   transition:
@@ -121,7 +121,7 @@
 .visualization-period-nav strong {
   min-width: 0;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   text-align: center;
 }
@@ -175,7 +175,7 @@
   border-radius: var(--radius-button);
   background: transparent;
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   cursor: pointer;
   transition:
@@ -221,7 +221,7 @@
   border-radius: var(--radius-input);
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   cursor: pointer;
   text-align: left;
@@ -260,7 +260,7 @@
 .visualization-panel__header h2 {
   margin: var(--space-1) 0 0;
   color: var(--color-text-primary);
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1.1;
 }
@@ -268,7 +268,7 @@
 .visualization-panel__header span,
 .visualization-panel__header small {
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 750;
 }
 
@@ -286,7 +286,7 @@
 .visualization-panel__header strong {
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
-  font-size: 28px;
+  font-size: var(--font-size-header-2);
   font-weight: 900;
   line-height: 1;
 }
@@ -299,7 +299,7 @@
   border-radius: var(--radius-structure);
   background: var(--color-surface);
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 600;
 }
 
@@ -314,7 +314,7 @@
 .visualization-empty h2 {
   margin: 0 0 var(--space-2);
   color: var(--color-text-primary);
-  font-size: 20px;
+  font-size: var(--font-size-header-2);
   line-height: 1.1;
 }
 
@@ -322,7 +322,7 @@
   max-width: 420px;
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   line-height: 1.45;
 }
 
@@ -348,7 +348,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -357,7 +357,7 @@
 .bars-row strong {
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
-  font-size: 14px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   text-align: right;
 }
@@ -395,7 +395,7 @@
 .heatmap-grid__label {
   justify-content: center;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -403,7 +403,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -416,7 +416,7 @@
   background: var(--color-input);
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -460,7 +460,7 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border-soft);
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   font-weight: 700;
 }
 
@@ -481,7 +481,7 @@
 .visualization-note {
   margin: auto 0 0;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-info);
   line-height: 1.4;
 }
 
@@ -498,7 +498,7 @@
 
   .visualization-segmented__button {
     gap: 0;
-    font-size: 12px;
+    font-size: var(--font-size-info);
   }
 
   .visualization-segmented__button svg {

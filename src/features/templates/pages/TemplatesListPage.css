@@ -20,7 +20,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--color-text-primary);
-  font-size: clamp(30px, 6vw, 42px);
+  font-size: var(--font-size-header-1);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: 0;
@@ -44,6 +44,6 @@
   .templates-header__add {
     min-width: 112px;
     padding: 0 var(--space-3);
-    font-size: 15px;
+    font-size: var(--font-size-sub-header);
   }
 }

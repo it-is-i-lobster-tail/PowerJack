@@ -23,7 +23,7 @@
 .confirmation-modal h2 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 22px;
+  font-size: var(--font-size-header-2);
   font-weight: 700;
   line-height: 1.12;
 }
@@ -31,7 +31,7 @@
 .confirmation-modal__body {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   font-weight: 500;
   line-height: 1.45;
 }
