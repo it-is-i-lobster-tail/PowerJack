@@ -42,7 +42,14 @@ export function ExerciseSearchOverlay({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const viewport = useVisualViewportBox();
   const titleId = `${inputAgentId}-title`;
-  const panelTop = Math.max(16, Math.round(viewport.height * 0.1));
+  const subtitleId = subtitle ? `${inputAgentId}-context` : undefined;
+  const panelTop = getPanelTop(viewport.height);
+  const panelClassName = [
+    "exercise-search-overlay__panel",
+    viewport.height < 560 ? "exercise-search-overlay__panel--tight" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const overlayStyle = {
     "--exercise-search-overlay-height": `${viewport.height}px`,
     "--exercise-search-panel-top": `${panelTop}px`,
@@ -74,21 +81,20 @@ export function ExerciseSearchOverlay({
   return (
     <div className="exercise-search-overlay" data-agent-id="exercise-search-overlay" style={overlayStyle}>
       <section
+        aria-describedby={subtitleId}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="exercise-search-overlay__panel"
+        className={panelClassName}
         role="dialog"
       >
         <div className="exercise-search-overlay__header">
-          <div>
+          <div className="exercise-search-overlay__heading">
+            <h2 id={titleId}>{title}</h2>
             {subtitle ? (
-              <>
-                <p>{title}</p>
-                <h2 id={titleId}>{subtitle}</h2>
-              </>
-            ) : (
-              <h2 id={titleId}>{title}</h2>
-            )}
+              <p className="exercise-search-overlay__context" id={subtitleId}>
+                {subtitle}
+              </p>
+            ) : null}
           </div>
           <button
             aria-label={closeLabel}
@@ -103,7 +109,7 @@ export function ExerciseSearchOverlay({
         </div>
 
         <label className="exercise-search-overlay__field">
-          <span>Exercise search</span>
+          <span className="exercise-search-overlay__label">Exercise search</span>
           <input
             autoCapitalize="none"
             autoComplete="off"
@@ -148,6 +154,18 @@ export function ExerciseSearchOverlay({
       </section>
     </div>
   );
+}
+
+function getPanelTop(viewportHeight: number): number {
+  if (viewportHeight < 480) {
+    return 8;
+  }
+
+  if (viewportHeight < 560) {
+    return 12;
+  }
+
+  return Math.min(48, Math.max(16, Math.round(viewportHeight * 0.08)));
 }
 
 function useVisualViewportBox(): VisualViewportBox {
