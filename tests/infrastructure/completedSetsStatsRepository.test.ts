@@ -4,6 +4,7 @@ import { saveTemplate } from "../../src/application/templates/saveTemplate";
 import { addSetToLift } from "../../src/application/workouts/addSetToLift";
 import { removeLastSetFromLift } from "../../src/application/workouts/removeLastSetFromLift";
 import { updateWorkoutSet } from "../../src/application/workouts/updateWorkoutSet";
+import { AppRuntimeCache } from "../../src/app/AppRuntimeCache";
 import type { AppServices } from "../../src/app/AppServices";
 import type { CompletedSetEvent } from "../../src/domain/analytics/TrainingAnalytics";
 import type { ActiveWorkoutView } from "../../src/domain/workouts/Workout";
@@ -189,6 +190,7 @@ async function createSqliteServices(): Promise<{
     client,
     services: {
       mode: "sqlite",
+      cache: new AppRuntimeCache({ appState, templates, workouts }),
       appState,
       exercises: new SqliteExerciseCatalogRepository(client),
       templates,
