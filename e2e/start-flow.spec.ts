@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 const setAutosaveBeforeDelayMs = 400;
 const setAutosaveStaleTimerProbeMs = 500;
@@ -498,6 +498,56 @@ async function expectExerciseSearchResultsInsideViewport(page: import("@playwrig
   }
 }
 
+async function expectExerciseSearchOverlayInsideViewport(
+  page: import("@playwright/test").Page,
+  inputAgentId: string,
+  headingName: string,
+): Promise<void> {
+  const viewport = page.viewportSize();
+  const panel = page.locator("[data-agent-id='exercise-search-overlay'] .exercise-search-overlay__panel");
+  const heading = panel.getByRole("heading", { name: headingName });
+  const input = page.locator(`[data-agent-id='${inputAgentId}']`);
+  const results = page.locator("[data-agent-id='exercise-search-results']");
+
+  expect(viewport).not.toBeNull();
+  await expect(panel).toBeVisible();
+  await expect(heading).toBeVisible();
+  await expect(input).toBeVisible();
+  await expect(results).toBeVisible();
+
+  if (!viewport) {
+    return;
+  }
+
+  const elements: Array<[string, Locator]> = [
+    ["exercise search panel", panel],
+    ["exercise search heading", heading],
+    ["exercise search input", input],
+    ["exercise search results", results],
+  ];
+
+  for (const [name, element] of elements) {
+    const box = await element.boundingBox();
+
+    expect(box, `${name} should have a layout box`).not.toBeNull();
+
+    if (!box) {
+      continue;
+    }
+
+    expect(box.x, `${name} should not overflow left`).toBeGreaterThanOrEqual(0);
+    expect(box.y, `${name} should not overflow top`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${name} should not overflow right`).toBeLessThanOrEqual(viewport.width + 1);
+    expect(box.y + box.height, `${name} should not overflow bottom`).toBeLessThanOrEqual(viewport.height + 1);
+  }
+
+  const panelOverflowY = await panel.evaluate((element) => window.getComputedStyle(element).overflowY);
+  const resultsOverflowY = await results.evaluate((element) => window.getComputedStyle(element).overflowY);
+
+  expect(panelOverflowY, "exercise search panel should not become the scroll container").toBe("hidden");
+  expect(resultsOverflowY, "exercise search results should be the scroll container").toBe("auto");
+}
+
 async function expectExerciseSearchInputStableAfterBackspace(
   page: import("@playwright/test").Page,
   inputAgentId: string,
@@ -507,6 +557,7 @@ async function expectExerciseSearchInputStableAfterBackspace(
   await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
   await expect(input).toBeVisible();
   await expect(input).toBeFocused();
+  await expectExerciseSearchOverlayInsideViewport(page, inputAgentId, "Exercise search");
   await input.fill("bench press");
   await expect(input).toHaveValue("bench press");
 
@@ -530,6 +581,7 @@ async function expectExerciseSearchInputStableAfterBackspace(
     expect(Math.abs(afterBox.width - beforeBox.width)).toBeLessThanOrEqual(1);
   }
 
+  await expectExerciseSearchOverlayInsideViewport(page, inputAgentId, "Exercise search");
   await expectExerciseSearchResultsInsideViewport(page);
 }
 
@@ -961,8 +1013,15 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='add-exercise']").click();
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
+
+    const viewportBeforeKeyboardProbe = page.viewportSize();
+    await page.setViewportSize({ width: 393, height: 520 });
     await expectExerciseSearchInputStableAfterBackspace(page, "exercise-search-input");
     await expectMobileScreenshot(page, testInfo, "warm-stone-builder-search-mobile.png");
+    if (viewportBeforeKeyboardProbe) {
+      await page.setViewportSize(viewportBeforeKeyboardProbe);
+    }
+
     await page.getByRole("button", { name: /Barbell Bench Press/ }).click();
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='save-template']")).toBeDisabled();
