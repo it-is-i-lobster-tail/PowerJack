@@ -35,7 +35,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - A template is the reusable plan: template name, focus muscles, days per week, ordered workout days, and ordered exercise ids per day.
 - A program is an instance of a selected template with a defined timeline such as program length in weeks.
 - New template creation routes through `/templates/new/name`, `/templates/new/muscle-focus`, `/templates/new/days-per-week`, and `/templates/new/builder`.
-- Template names must be 1-64 characters. Show the red `x/64` counter only when the user exceeds 64 characters.
+- Template names must be 1-24 characters. Show the red `x/24` counter only when the user exceeds 24 characters.
 - Muscle Group Focus must require at least one selected muscle, allow at most four, and use a visible `x/4` counter.
 - Save Template must stay disabled until the name is valid, at least one focus muscle is selected, days per week is selected, and every day has at least one exercise.
 - Select Template rows must show focused muscles as compact chips on the right side of the row when present.

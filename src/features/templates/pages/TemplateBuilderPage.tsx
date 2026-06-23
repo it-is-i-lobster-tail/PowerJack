@@ -23,6 +23,7 @@ import { searchExercises } from "../../../application/exercises/searchExercises"
 import { saveTemplate, updateTemplate } from "../../../application/templates/saveTemplate";
 import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
 import { validateTemplateDraft } from "../../../domain/templates/rules/validateTemplateDraft";
 import { ExerciseSearchOverlay } from "../../exercises/components/ExerciseSearchOverlay";
 import { Button } from "../../../shared/ui/Button";
@@ -267,7 +268,7 @@ export function TemplateBuilderPage() {
     [sortableIds, sortableItemsById],
   );
 
-  if (!name.trim() || name.length > 64) {
+  if (!name.trim() || name.length > TEMPLATE_NAME_MAX_LENGTH) {
     return <Navigate replace to="/templates/new/name" />;
   }
 
