@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
 import "../../start-program/pages/SetupChoicePage.css";
@@ -11,8 +12,8 @@ export function TemplateNamePage() {
   const returnPath = useTemplateDraftStore((state) => state.returnPath);
   const setName = useTemplateDraftStore((state) => state.setName);
   const nameLength = name.length;
-  const isNameTooLong = nameLength > 64;
-  const canContinue = nameLength > 0 && nameLength <= 64 && name.trim().length > 0;
+  const isNameTooLong = nameLength > TEMPLATE_NAME_MAX_LENGTH;
+  const canContinue = nameLength > 0 && nameLength <= TEMPLATE_NAME_MAX_LENGTH && name.trim().length > 0;
 
   return (
     <main className="app-screen app-screen--centered" data-agent-id="template-name-page">
@@ -36,7 +37,7 @@ export function TemplateNamePage() {
           />
           {isNameTooLong ? (
             <strong className="template-name-count" data-agent-id="template-name-count">
-              {nameLength}/64
+              {nameLength}/{TEMPLATE_NAME_MAX_LENGTH}
             </strong>
           ) : null}
         </label>
