@@ -885,6 +885,8 @@ export function WorkoutViewerPage() {
   const shouldShowFinishWorkout = isWorkoutWorkComplete;
   const isFinishBlockedByFeedback = Boolean(pendingFeedbackLift);
   const finishFeedbackHintId = "finish-feedback-hint";
+  const workoutCompletionPercent =
+    view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
 
   return (
     <main
@@ -906,12 +908,31 @@ export function WorkoutViewerPage() {
           </button>
 
           <div className="workout-header__title">
-            <span data-agent-id="workout-week-label">
+            <span className="workout-header__week" data-agent-id="workout-week-label">
               Week {view.workout.programWeek}/{view.program.programLengthWeeks}
             </span>
             <h1 data-agent-id="workout-day-title" id="active-workout-day">
-              Day {view.workout.workoutDay}
+              <span className="workout-header__day-label">Day {view.workout.workoutDay}</span>
+              <span className="workout-header__progress-separator" aria-hidden="true">
+                |
+              </span>
+              <span className="workout-header__progress" data-agent-id="workout-progress-percent">
+                {workoutCompletionPercent}% done
+              </span>
             </h1>
+            {view.isReadOnly ? (
+              <span className="workout-header__state" data-agent-id="workout-state">
+                <LockKeyhole aria-hidden size={15} strokeWidth={2.3} />
+                Read-only
+              </span>
+            ) : isSaving ? (
+              <span
+                className="workout-header__state workout-header__state--saving"
+                data-agent-id="workout-state"
+              >
+                Saving
+              </span>
+            ) : null}
           </div>
 
           <button
@@ -925,20 +946,6 @@ export function WorkoutViewerPage() {
             <ChevronRight aria-hidden size={30} strokeWidth={2.4} />
           </button>
         </header>
-
-        <div className="workout-summary" data-agent-id="workout-set-summary">
-          <strong>
-            {view.completedSets} of {view.totalSets} sets logged
-          </strong>
-          {view.isReadOnly ? (
-            <span className="workout-summary__state">
-              <LockKeyhole aria-hidden size={17} strokeWidth={2.3} />
-              Read-only
-            </span>
-          ) : isSaving ? (
-            <span className="workout-summary__state workout-summary__state--saving">Saving</span>
-          ) : null}
-        </div>
 
         {error ? (
           <p className="active-workout-error" role="alert">
