@@ -5,6 +5,7 @@ import type { DatabaseClient } from "./DatabaseClient";
 
 export class CapacitorDatabaseClient implements DatabaseClient {
   private hasPendingWebStoreSave = false;
+  private nativeTransactionDepth = 0;
   private webPersistenceSuspendDepth = 0;
   private webTransactionDepth = 0;
 
@@ -16,7 +17,12 @@ export class CapacitorDatabaseClient implements DatabaseClient {
   ) {}
 
   async execute(sql: string): Promise<void> {
-    await this.db.execute(sql);
+    if (this.nativeTransactionDepth > 0) {
+      await this.db.execute(sql, false);
+    } else {
+      await this.db.execute(sql);
+    }
+
     await this.queueWebStoreSave();
   }
 
@@ -26,7 +32,12 @@ export class CapacitorDatabaseClient implements DatabaseClient {
   }
 
   async run(sql: string, values: unknown[] = []): Promise<void> {
-    await this.db.run(sql, values);
+    if (this.nativeTransactionDepth > 0) {
+      await this.db.run(sql, values, false);
+    } else {
+      await this.db.run(sql, values);
+    }
+
     await this.queueWebStoreSave();
   }
 
@@ -54,7 +65,18 @@ export class CapacitorDatabaseClient implements DatabaseClient {
       }
     }
 
+    if (this.nativeTransactionDepth > 0) {
+      this.nativeTransactionDepth += 1;
+
+      try {
+        return await operation(this);
+      } finally {
+        this.nativeTransactionDepth -= 1;
+      }
+    }
+
     await this.db.beginTransaction();
+    this.nativeTransactionDepth = 1;
 
     try {
       const result = await operation(this);
@@ -68,6 +90,8 @@ export class CapacitorDatabaseClient implements DatabaseClient {
       }
 
       throw error;
+    } finally {
+      this.nativeTransactionDepth = 0;
     }
   }
 
