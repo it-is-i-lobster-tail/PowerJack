@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loadStartupState } from "../../../application/app-state/loadStartupState";
 import type { AppState } from "../../../domain/app-state/AppState";
 import { Button } from "../../../shared/ui/Button";
 import { useServices } from "../../../app/useServices";
@@ -9,13 +8,16 @@ import "./HomePage.css";
 export function HomePage() {
   const services = useServices();
   const navigate = useNavigate();
-  const [appState, setAppState] = useState<AppState | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedAppState = services.cache.getAppStateSnapshot();
+  const [appState, setAppState] = useState<AppState | null>(cachedAppState ?? null);
+  const [isLoading, setIsLoading] = useState(cachedAppState === undefined);
+  const [isPreparingTemplates, setIsPreparingTemplates] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    void loadStartupState(services.appState)
+    void services.cache
+      .refreshAppState()
       .then((state) => {
         if (isMounted) {
           setAppState(state);
@@ -33,7 +35,7 @@ export function HomePage() {
     return () => {
       isMounted = false;
     };
-  }, [services.appState]);
+  }, [services.cache]);
 
   useEffect(() => {
     if (!isLoading && appState?.activeProgramId && appState.activeWorkoutId) {
@@ -43,6 +45,26 @@ export function HomePage() {
     }
   }, [appState, isLoading, navigate]);
 
+  useEffect(() => {
+    if (!isLoading && !appState?.activeProgramId) {
+      void services.cache.loadTemplates().catch(() => undefined);
+    }
+  }, [appState, isLoading, services.cache]);
+
+  async function handleStart(): Promise<void> {
+    setIsPreparingTemplates(true);
+
+    try {
+      await services.cache.loadTemplates();
+    } catch {
+      services.cache.invalidateTemplates();
+    } finally {
+      setIsPreparingTemplates(false);
+    }
+
+    void navigate("/start/select-template");
+  }
+
   return (
     <main className="app-screen app-screen--centered home-screen" data-agent-id="new-program-page">
       <section className="home-card" aria-labelledby="new-program-title">
@@ -51,10 +73,10 @@ export function HomePage() {
           aria-label="Start new program"
           className="home-card__start"
           data-agent-id="start-new-program"
-          disabled={isLoading}
+          disabled={isLoading || isPreparingTemplates}
           fullWidth
           onClick={() => {
-            void navigate("/start/select-template");
+            void handleStart();
           }}
           variant="primary"
         >
