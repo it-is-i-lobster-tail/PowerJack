@@ -380,6 +380,34 @@ async function expectScreenAllowsIntentionalScroll(
   expect(overflowY, `${screenAgentId} should use a scrollable overflow mode`).toBe("auto");
 }
 
+async function scrollActiveWorkoutPageToBottom(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+
+  const scrollTop = await screen.evaluate((element) => {
+    element.scrollTo({ top: element.scrollHeight, left: 0, behavior: "auto" });
+    return element.scrollTop;
+  });
+
+  expect(scrollTop, "active workout page should be scrolled before finishing").toBeGreaterThan(0);
+}
+
+async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        screen.evaluate((element) => {
+          return element.scrollTop;
+        }),
+      { message: "active workout page should reset to the top after Finish workout" },
+    )
+    .toBe(0);
+}
+
 async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
   await page.addInitScript((fixedIso) => {
     const fixedTime = new Date(fixedIso).getTime();
@@ -1927,6 +1955,24 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
     await expect(page.locator("[data-agent-id='workout-set-summary']")).toContainText("Read-only");
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
+  });
+
+  test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+
+    await completeLiftWithFeedback(page, "Barbell Deadlift");
+    await completeLiftWithFeedback(page, "Pull Up");
+    await completeLiftWithFeedback(page, "Cable Lat Pulldown");
+    await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+
+    await scrollActiveWorkoutPageToBottom(page);
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+    await expectActiveWorkoutPageScrolledToTop(page);
   });
 
   test("active workout restarts set autosave debounce when reps or weight receive another character", async ({ page }) => {
