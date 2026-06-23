@@ -753,12 +753,17 @@ test.describe("start program flow", () => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
 
+    const templateNameInput = page.locator("[data-agent-id='template-name-input']");
+
     await expect(page).toHaveURL(/\/templates\/new\/name$/);
     await expect(page.getByRole("heading", { name: "Name your template" })).toBeVisible();
-    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveAttribute(
-      "placeholder",
-      "My new template",
-    );
+    await expect(templateNameInput).toHaveAttribute("placeholder", "My new template");
+    await expect(templateNameInput).toHaveJSProperty("type", "text");
+    await expect(templateNameInput).toHaveJSProperty("autocomplete", "off");
+    await expect(templateNameInput).toHaveAttribute("autocorrect", "off");
+    await expect(templateNameInput).toHaveAttribute("autocapitalize", "words");
+    await expect(templateNameInput).toHaveJSProperty("enterKeyHint", "next");
+    await expect(templateNameInput).toHaveJSProperty("spellcheck", false);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
   });
 
