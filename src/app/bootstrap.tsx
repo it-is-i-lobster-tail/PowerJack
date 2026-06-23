@@ -18,6 +18,13 @@ export async function bootstrap(): Promise<void> {
 
   try {
     services = await createAppServices();
+    window.__POWERJACK_AGENT__ = {
+      reset: async () => {
+        await services.resetForAgent();
+        dispatchRestTimerAgentReset();
+      },
+      servicesMode: () => services.mode,
+    };
     await services.cache.hydrateLaunch();
   } catch (error) {
     console.error("PowerJack local storage is unavailable", error);
@@ -31,14 +38,6 @@ export async function bootstrap(): Promise<void> {
     dismissLaunchSplashAfterPaint();
     return;
   }
-
-  window.__POWERJACK_AGENT__ = {
-    reset: async () => {
-      await services.resetForAgent();
-      dispatchRestTimerAgentReset();
-    },
-    servicesMode: () => services.mode,
-  };
 
   const root = createRoot(rootElement);
 
