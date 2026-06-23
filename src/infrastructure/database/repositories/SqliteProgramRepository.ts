@@ -54,7 +54,7 @@ interface ProgramOverviewWorkoutRow extends Record<string, unknown> {
   total_sets: number;
   planned_sets: number;
   active_sets: number;
-  complete_sets: number;
+  completed_sets: number;
   halted_sets: number;
   skipped_sets: number;
 }
@@ -143,7 +143,7 @@ export class SqliteProgramRepository implements ProgramRepository {
             COUNT(workout_sets.id) AS total_sets,
             SUM(CASE WHEN workout_sets.status = 'planned' THEN 1 ELSE 0 END) AS planned_sets,
             SUM(CASE WHEN workout_sets.status = 'active' THEN 1 ELSE 0 END) AS active_sets,
-            SUM(CASE WHEN workout_sets.status = 'complete' THEN 1 ELSE 0 END) AS complete_sets,
+            SUM(CASE WHEN workout_sets.status = 'completed' THEN 1 ELSE 0 END) AS completed_sets,
             SUM(CASE WHEN workout_sets.status = 'halted' THEN 1 ELSE 0 END) AS halted_sets,
             SUM(CASE WHEN workout_sets.status = 'skipped' THEN 1 ELSE 0 END) AS skipped_sets
           FROM workouts
@@ -313,6 +313,13 @@ export class SqliteProgramRepository implements ProgramRepository {
             active_program_id = ?,
             active_workout_id = ?,
             active_lift_id = ?,
+            rest_timer_state = 'idle',
+            rest_timer_workout_id = NULL,
+            rest_timer_lift_id = NULL,
+            rest_timer_next_set_id = NULL,
+            rest_timer_started_at = NULL,
+            rest_timer_duration_seconds = 120,
+            rest_timer_remaining_seconds = 0,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = 1
         `,
@@ -338,7 +345,7 @@ function mapProgramOverviewWorkoutRow(row: ProgramOverviewWorkoutRow): Persisted
   const statusCounts: ProgramOverviewStatusCounts = createProgramOverviewStatusCounts({
     planned: row.planned_sets ?? 0,
     active: row.active_sets ?? 0,
-    complete: row.complete_sets ?? 0,
+    completed: row.completed_sets ?? 0,
     halted: row.halted_sets ?? 0,
     skipped: row.skipped_sets ?? 0,
   });
@@ -388,7 +395,7 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
     `
       UPDATE workouts
       SET
-        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        status = CASE WHEN status = 'completed' THEN status ELSE 'halted' END,
         locked = 1,
         updated_at = CURRENT_TIMESTAMP
       WHERE program_id = ?
@@ -399,7 +406,7 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
     `
       UPDATE lifts
       SET
-        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        status = CASE WHEN status = 'completed' THEN status ELSE 'halted' END,
         locked = 1,
         updated_at = CURRENT_TIMESTAMP
       WHERE workout_id IN (
@@ -414,7 +421,7 @@ async function haltActiveProgram(client: DatabaseClient, programId: number): Pro
     `
       UPDATE workout_sets
       SET
-        status = CASE WHEN status = 'complete' THEN status ELSE 'halted' END,
+        status = CASE WHEN status = 'completed' THEN status ELSE 'halted' END,
         locked = 1,
         updated_at = CURRENT_TIMESTAMP
       WHERE lift_id IN (

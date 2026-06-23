@@ -27,7 +27,7 @@ type LoadState =
   | { status: "error"; programId: number; view: null; error: string };
 
 const segmentClassNames: Record<ProgramOverviewSegment["status"], string> = {
-  complete: "program-schedule-cell__segment--complete",
+  completed: "program-schedule-cell__segment--completed",
   skipped: "program-schedule-cell__segment--skipped",
   halted: "program-schedule-cell__segment--halted",
 };
@@ -225,7 +225,7 @@ function ProgramSchedule({ view }: { view: ProgramOverviewView }) {
 
       <div className="program-schedule-legend" aria-label="Schedule legend">
         <LegendItem className="program-schedule-legend__dot--active" label="Active" />
-        <LegendItem className="program-schedule-legend__dot--complete" label="Complete" />
+        <LegendItem className="program-schedule-legend__dot--completed" label="Completed" />
         <LegendItem className="program-schedule-legend__dot--skipped" label="Skipped" />
         <LegendItem className="program-schedule-legend__dot--halted" label="Halted" />
       </div>
@@ -256,7 +256,7 @@ function ProgramScheduleWeek({
 
 function ProgramScheduleCell({ cell }: { cell: ActiveProgramOverviewScheduleCell }) {
   const completePercent =
-    cell.totalSets > 0 ? Math.round((cell.statusCounts.complete / cell.totalSets) * 100) : 0;
+    cell.totalSets > 0 ? Math.round((cell.statusCounts.completed / cell.totalSets) * 100) : 0;
   const segments = buildProgramOverviewSegments(cell);
   let segmentOffset = 0;
 
@@ -379,7 +379,7 @@ function scheduleCellLabel(cell: ActiveProgramOverviewScheduleCell): string {
 
   return [
     `Week ${cell.week}, day ${cell.day}`,
-    `${cell.statusCounts.complete} complete`,
+    `${cell.statusCounts.completed} completed`,
     `${cell.statusCounts.skipped} skipped`,
     `${cell.statusCounts.halted} halted`,
     `${cell.statusCounts.planned + cell.statusCounts.active} planned`,

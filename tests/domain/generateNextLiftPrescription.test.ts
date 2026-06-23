@@ -224,7 +224,7 @@ function lift({
   effort,
   reps,
   weight,
-  status = "complete",
+  status = "completed",
 }: {
   id?: number;
   week?: number;
@@ -258,7 +258,7 @@ function set({
   actualWeight = null,
   plannedReps = null,
   plannedWeight = null,
-  status = "complete",
+  status = "completed",
 }: {
   order: number;
   actualReps?: number | null;

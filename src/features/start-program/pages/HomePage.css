@@ -21,7 +21,7 @@
   margin: 0;
   text-align: center;
   color: var(--color-text-primary);
-  font-size: clamp(38px, 8vw, 48px);
+  font-size: var(--font-size-header-1);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: 0;
@@ -30,7 +30,7 @@
 .home-card__start {
   min-height: 96px;
   border-radius: 16px;
-  font-size: clamp(24px, 5vw, 28px);
+  font-size: var(--font-size-sub-header);
 }
 
 @media (max-width: 520px) {

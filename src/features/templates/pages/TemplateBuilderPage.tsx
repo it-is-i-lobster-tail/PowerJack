@@ -396,7 +396,7 @@ export function TemplateBuilderPage() {
     setEditSearchResults([]);
   }
 
-  const isBuilderScrollable = isSearchOpen || currentExerciseIds.length > 0;
+  const isBuilderScrollable = currentExerciseIds.length > 0;
   const builderScreenClassName = isBuilderScrollable
     ? "app-screen app-screen--scrollable template-builder-screen"
     : "app-screen template-builder-screen";
@@ -409,7 +409,6 @@ export function TemplateBuilderPage() {
           <h1 data-agent-id="template-builder-title-text" id="template-builder-title">
             {name.trim()}
           </h1>
-          <span>{workoutsPerWeek} days per week</span>
           {isHydratingCurrentExercises || isSearchOpen ? null : (
             <Button
               aria-label="Add exercise"
