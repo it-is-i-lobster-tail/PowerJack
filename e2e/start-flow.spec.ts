@@ -268,6 +268,43 @@ async function expectResumeCenteredBeforeIcons(page: import("@playwright/test").
   }
 }
 
+async function expectAppLogoOppositeMenu(page: import("@playwright/test").Page): Promise<void> {
+  const logo = page.locator("[data-agent-id='app-logo']");
+  const menu = page.locator("[data-agent-id='app-menu-toggle']");
+
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute("src", "/assets/power-jack-logo-favicon.png");
+  await expect(menu).toBeVisible();
+
+  const didLogoLoad = await logo.evaluate((element) => {
+    const image = element as HTMLImageElement;
+    return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+  });
+  const viewport = page.viewportSize();
+  const logoBox = await logo.boundingBox();
+  const menuBox = await menu.boundingBox();
+
+  expect(didLogoLoad, "app logo image should load successfully").toBe(true);
+  expect(viewport).not.toBeNull();
+  expect(logoBox, "app logo should have a layout box").not.toBeNull();
+  expect(menuBox, "app menu toggle should have a layout box").not.toBeNull();
+
+  if (!viewport || !logoBox || !menuBox) {
+    return;
+  }
+
+  const logoCenterY = logoBox.y + logoBox.height / 2;
+  const menuCenterY = menuBox.y + menuBox.height / 2;
+
+  expect(logoBox.x, "app logo should stay inside the left viewport edge").toBeGreaterThanOrEqual(0);
+  expect(menuBox.x + menuBox.width, "menu should stay inside the right viewport edge").toBeLessThanOrEqual(
+    viewport.width + 1,
+  );
+  expect(logoBox.x + logoBox.width, "app logo should sit left of the hamburger menu").toBeLessThan(menuBox.x);
+  expect(Math.abs(logoCenterY - menuCenterY), "app logo should align vertically with the menu").toBeLessThanOrEqual(4);
+  expect(await pageHasHorizontalOverflow(page)).toBe(false);
+}
+
 async function pageHasHorizontalOverflow(page: import("@playwright/test").Page): Promise<boolean> {
   return page.evaluate(() => {
     const documentElement = document.documentElement;
@@ -389,6 +426,34 @@ async function expectScreenAllowsIntentionalScroll(
 
   const overflowY = await screen.evaluate((element) => window.getComputedStyle(element).overflowY);
   expect(overflowY, `${screenAgentId} should use a scrollable overflow mode`).toBe("auto");
+}
+
+async function scrollActiveWorkoutPageToBottom(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+
+  const scrollTop = await screen.evaluate((element) => {
+    element.scrollTo({ top: element.scrollHeight, left: 0, behavior: "auto" });
+    return element.scrollTop;
+  });
+
+  expect(scrollTop, "active workout page should be scrolled before finishing").toBeGreaterThan(0);
+}
+
+async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+
+  await expect(screen).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        screen.evaluate((element) => {
+          return element.scrollTop;
+        }),
+      { message: "active workout page should reset to the top after Finish workout" },
+    )
+    .toBe(0);
 }
 
 async function freezeBrowserDate(page: import("@playwright/test").Page, isoTimestamp: string): Promise<void> {
@@ -907,6 +972,7 @@ test.describe("start program flow", () => {
 
     await expect(page.locator("[data-agent-id='app-top-bar']")).toBeVisible();
     await expect(page.locator("[data-agent-id='profile-placeholder']")).toHaveCount(0);
+    await expectAppLogoOppositeMenu(page);
     await expect(page.locator("[data-agent-id='app-menu-toggle']")).toBeVisible();
     await expect(page.locator("[data-agent-id='resume-workout']")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "New program" })).toBeVisible();
@@ -925,6 +991,31 @@ test.describe("start program flow", () => {
     }
 
     await expectMobileScreenshot(page, testInfo, "warm-stone-start-mobile.png");
+  });
+
+  test("serves PowerJack favicon and install icons", async ({ request }) => {
+    const favicon = await request.get("/favicon-32x32.png");
+    const appleTouchIcon = await request.get("/apple-touch-icon.png");
+    const manifest = await request.get("/site.webmanifest");
+
+    expect(favicon.ok(), "favicon should be served").toBe(true);
+    expect(appleTouchIcon.ok(), "Apple touch icon should be served").toBe(true);
+    expect(manifest.ok(), "web app manifest should be served").toBe(true);
+
+    const manifestJson = (await manifest.json()) as {
+      icons?: Array<{ sizes?: string; src?: string; type?: string }>;
+      name?: string;
+      short_name?: string;
+    };
+
+    expect(manifestJson.name).toBe("PowerJack");
+    expect(manifestJson.short_name).toBe("PowerJack");
+    expect(manifestJson.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sizes: "192x192", src: "/icon-192.png", type: "image/png" }),
+        expect.objectContaining({ sizes: "512x512", src: "/icon-512.png", type: "image/png" }),
+      ]),
+    );
   });
 
   test("Start navigates to empty Select Template", async ({ page }, testInfo) => {
@@ -988,12 +1079,17 @@ test.describe("start program flow", () => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
 
+    const templateNameInput = page.locator("[data-agent-id='template-name-input']");
+
     await expect(page).toHaveURL(/\/templates\/new\/name$/);
     await expect(page.getByRole("heading", { name: "Name your template" })).toBeVisible();
-    await expect(page.locator("[data-agent-id='template-name-input']")).toHaveAttribute(
-      "placeholder",
-      "My new template",
-    );
+    await expect(templateNameInput).toHaveAttribute("placeholder", "My new template");
+    await expect(templateNameInput).toHaveJSProperty("type", "text");
+    await expect(templateNameInput).toHaveJSProperty("autocomplete", "off");
+    await expect(templateNameInput).toHaveAttribute("autocorrect", "off");
+    await expect(templateNameInput).toHaveAttribute("autocapitalize", "words");
+    await expect(templateNameInput).toHaveJSProperty("enterKeyHint", "next");
+    await expect(templateNameInput).toHaveJSProperty("spellcheck", false);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
   });
 
@@ -1081,16 +1177,16 @@ test.describe("start program flow", () => {
     await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
   });
 
-  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
+  test("Name your template enforces the 24 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(25));
 
-    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
+    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("25/24");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(24));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
@@ -1174,7 +1270,7 @@ test.describe("start program flow", () => {
       testInfo,
     });
 
-    const longTitle = "Back In Action ".repeat(5).slice(0, 64);
+    const longTitle = "Back In Action Build Day";
     await openTemplateBuilder(page, { dayCount: 4, name: longTitle });
     const safeVisibleTitleCharsMobile = await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
       screenshotName: "warm-stone-builder-add-header-long-name-mobile.png",
@@ -1182,7 +1278,7 @@ test.describe("start program flow", () => {
     });
 
     expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
-    expect(safeVisibleTitleCharsMobile).toBeLessThan(64);
+    expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
@@ -2139,6 +2235,24 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
     await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
     await expectMobileScreenshot(page, testInfo, "warm-stone-completed-workout-readonly-mobile.png");
+  });
+
+  test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+
+    await completeLiftWithFeedback(page, "Barbell Deadlift");
+    await completeLiftWithFeedback(page, "Pull Up");
+    await completeLiftWithFeedback(page, "Cable Lat Pulldown");
+    await completeLiftWithFeedback(page, "Cable Rear Delt Fly");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
+
+    await scrollActiveWorkoutPageToBottom(page);
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await expect(page.getByRole("heading", { name: "Barbell Back Squat" })).toBeVisible();
+    await expectActiveWorkoutPageScrolledToTop(page);
   });
 
   test("active workout restarts set autosave debounce when reps or weight receive another character", async ({ page }) => {

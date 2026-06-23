@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
 import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useTemplateDraftStore, type WorkoutsPerWeekChangePlan } from "../state/templateDraftStore";
@@ -18,7 +19,7 @@ export function TemplateDaysPerWeekPage() {
   const [selectedWorkoutsPerWeek, setSelectedWorkoutsPerWeek] = useState<number | null>(workoutsPerWeek);
   const [pendingReductionPlan, setPendingReductionPlan] = useState<WorkoutsPerWeekChangePlan | null>(null);
 
-  if (!name.trim() || name.length > 64) {
+  if (!name.trim() || name.length > TEMPLATE_NAME_MAX_LENGTH) {
     return <Navigate replace to="/templates/new/name" />;
   }
 
