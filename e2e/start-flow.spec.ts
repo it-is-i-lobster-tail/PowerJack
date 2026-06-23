@@ -1081,16 +1081,16 @@ test.describe("start program flow", () => {
     await expectScreenAllowsIntentionalScroll(page, "active-workout-page");
   });
 
-  test("Name your template enforces the 64 character limit", async ({ page }, testInfo) => {
+  test("Name your template enforces the 24 character limit", async ({ page }, testInfo) => {
     await page.goto("/start/select-template");
     await page.locator("[data-agent-id='add-template']").click();
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(65));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(25));
 
-    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("65/64");
+    await expect(page.locator("[data-agent-id='template-name-count']")).toContainText("25/24");
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeDisabled();
     await expectMobileScreenshot(page, testInfo, "warm-stone-template-name-overflow-mobile.png");
 
-    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(64));
+    await page.locator("[data-agent-id='template-name-input']").fill("A".repeat(24));
 
     await expect(page.locator("[data-agent-id='template-name-count']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='template-name-next']")).toBeEnabled();
@@ -1174,7 +1174,7 @@ test.describe("start program flow", () => {
       testInfo,
     });
 
-    const longTitle = "Back In Action ".repeat(5).slice(0, 64);
+    const longTitle = "Back In Action Build Day";
     await openTemplateBuilder(page, { dayCount: 4, name: longTitle });
     const safeVisibleTitleCharsMobile = await expectTemplateBuilderHeaderAddExercisePlacement(page, 4, {
       screenshotName: "warm-stone-builder-add-header-long-name-mobile.png",
@@ -1182,7 +1182,7 @@ test.describe("start program flow", () => {
     });
 
     expect(safeVisibleTitleCharsMobile).toBeGreaterThan(0);
-    expect(safeVisibleTitleCharsMobile).toBeLessThan(64);
+    expect(safeVisibleTitleCharsMobile).toBeLessThan(longTitle.length);
   });
 
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
