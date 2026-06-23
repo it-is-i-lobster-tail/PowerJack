@@ -130,7 +130,7 @@ describe("Program and Workout repository contracts", () => {
       workoutId: view.workout.id,
       isActive: true,
     });
-    expect(overview?.schedule[0]?.statusCounts.complete).toBe(1);
+    expect(overview?.schedule[0]?.statusCounts.completed).toBe(1);
     expect(overview?.schedule[0]?.statusCounts.active).toBe(1);
     expect(overview?.schedule[2]).toMatchObject({
       week: 2,
@@ -179,7 +179,7 @@ describe("Program and Workout repository contracts", () => {
     expect(view.lifts[0]?.sets[0]).toMatchObject({
       actualReps: 12,
       actualWeight: 220,
-      status: "complete",
+      status: "completed",
     });
 
     view = await updateWorkoutSet(
@@ -286,7 +286,7 @@ describe("Program and Workout repository contracts", () => {
 
     expect(view.lifts[0]).toMatchObject({
       exerciseName: "Barbell Bench Press",
-      status: "complete",
+      status: "completed",
       feedbackSubmitted: true,
     });
 
@@ -391,11 +391,11 @@ describe("Program and Workout repository contracts", () => {
     expect(oldLockedView?.workout).toMatchObject({ status: "halted", locked: true });
     expect(oldLockedView?.lifts[0]).toMatchObject({ status: "halted", locked: true });
     expect(oldLockedView?.completedSets).toBe(1);
-    expect(oldLockedView?.lifts[0]?.sets[0]).toMatchObject({ status: "complete", locked: true });
+    expect(oldLockedView?.lifts[0]?.sets[0]).toMatchObject({ status: "completed", locked: true });
     expect(oldLockedView?.lifts[0]?.sets[1]).toMatchObject({ status: "halted", locked: true });
   });
 
-  it("lists active halted and complete program summaries newest first", async () => {
+  it("lists active halted and completed program summaries newest first", async () => {
     const services = createInMemoryAppServices();
     const template = await createTemplate(services, [[1]]);
     await startTemplateProgram(services, template.id);
@@ -440,7 +440,7 @@ describe("Program and Workout repository contracts", () => {
 
     const summaries = await services.programs.listSummaries();
 
-    expect(summaries.map((summary) => summary.status)).toEqual(["active", "halted", "complete"]);
+    expect(summaries.map((summary) => summary.status)).toEqual(["active", "halted", "completed"]);
     expect(summaries.map((summary) => summary.name)).toEqual([
       "Back In Action x3",
       "Back In Action x2",
@@ -576,7 +576,7 @@ describe("Program and Workout repository contracts", () => {
     expect(view.lifts[0]?.sets[0]).toMatchObject({
       actualReps: 8,
       actualWeight: null,
-      status: "complete",
+      status: "completed",
     });
 
     view = await updateWorkoutSet(
@@ -585,11 +585,11 @@ describe("Program and Workout repository contracts", () => {
     );
 
     expect(view.completedSets).toBe(2);
-    expect(view.lifts[0]).toMatchObject({ status: "complete" });
+    expect(view.lifts[0]).toMatchObject({ status: "completed" });
     expect(view.lifts[0]?.sets[1]).toMatchObject({
       actualReps: 7,
       actualWeight: null,
-      status: "complete",
+      status: "completed",
     });
 
     const completedSetEvents = await services.analytics.loadCompletedSetEvents({
@@ -648,7 +648,7 @@ describe("Program and Workout repository contracts", () => {
     expect(view.lifts[0]?.sets[0]).toMatchObject({
       actualReps: 6,
       actualWeight: null,
-      status: "complete",
+      status: "completed",
     });
   });
 
@@ -683,13 +683,13 @@ describe("Program and Workout repository contracts", () => {
 
     expect(view.completedSets).toBe(2);
     expect(view.lifts[0]).toMatchObject({
-      status: "complete",
+      status: "completed",
       repsOnly: false,
       timeBased: true,
     });
     expect(view.lifts[0]?.sets).toEqual([
-      expect.objectContaining({ actualReps: 6, actualWeight: 25, status: "complete" }),
-      expect.objectContaining({ actualReps: 5, actualWeight: 25, status: "complete" }),
+      expect.objectContaining({ actualReps: 6, actualWeight: 25, status: "completed" }),
+      expect.objectContaining({ actualReps: 5, actualWeight: 25, status: "completed" }),
     ]);
 
     view = await submitFeedbackForCompletedLifts(services, view);
@@ -758,7 +758,7 @@ describe("Program and Workout repository contracts", () => {
     view = await completeWorkout(services, view, [12, 10], 220);
 
     expect(view.lifts[0]).toMatchObject({
-      status: "complete",
+      status: "completed",
       feedbackSubmitted: false,
     });
     expect(view.canFinish).toBe(false);
@@ -979,7 +979,7 @@ async function submitFeedbackForCompletedLifts(
 ): Promise<ActiveWorkoutView> {
   let nextView = view;
 
-  for (const lift of view.lifts.filter((lift) => lift.status === "complete" && !lift.feedbackSubmitted)) {
+  for (const lift of view.lifts.filter((lift) => lift.status === "completed" && !lift.feedbackSubmitted)) {
     nextView = await submitLiftFeedback(
       { liftId: lift.id, levelOfPain: 1, levelOfEffort: 3 },
       services.workouts,

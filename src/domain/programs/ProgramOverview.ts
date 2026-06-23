@@ -9,7 +9,7 @@ export interface ProgramOverviewFocusMuscle {
 export interface ProgramOverviewStatusCounts {
   planned: number;
   active: number;
-  complete: number;
+  completed: number;
   halted: number;
   skipped: number;
 }
@@ -56,7 +56,7 @@ export interface ProgramOverviewSnapshot {
 }
 
 export interface ProgramOverviewSegment {
-  status: "complete" | "skipped" | "halted";
+  status: "completed" | "skipped" | "halted";
   count: number;
   widthPercent: number;
 }
@@ -67,7 +67,7 @@ export function createProgramOverviewStatusCounts(
   return {
     planned: overrides.planned ?? 0,
     active: overrides.active ?? 0,
-    complete: overrides.complete ?? 0,
+    completed: overrides.completed ?? 0,
     halted: overrides.halted ?? 0,
     skipped: overrides.skipped ?? 0,
   };
@@ -129,7 +129,7 @@ export function calculateProgramProgress(schedule: ProgramOverviewScheduleCell[]
   totalSets: number;
   progressPercent: number;
 } {
-  const completedSets = schedule.reduce((total, cell) => total + cell.statusCounts.complete, 0);
+  const completedSets = schedule.reduce((total, cell) => total + cell.statusCounts.completed, 0);
   const totalSets = schedule.reduce((total, cell) => total + cell.totalSets, 0);
 
   return {
@@ -190,7 +190,7 @@ export function buildProgramOverviewSegments(
     return [];
   }
 
-  return (["complete", "skipped", "halted"] as const)
+  return (["completed", "skipped", "halted"] as const)
     .map((status) => ({
       status,
       count: cell.statusCounts[status],
