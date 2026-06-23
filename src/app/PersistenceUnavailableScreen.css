@@ -23,13 +23,13 @@
 .persistence-unavailable__eyebrow {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-info);
   font-weight: 600;
 }
 
 .persistence-unavailable h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--font-size-header-2);
   line-height: 1.12;
 }
 
@@ -39,7 +39,7 @@
 
 .persistence-unavailable__panel > p:not(.persistence-unavailable__eyebrow) {
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: var(--font-size-sub-header);
   line-height: 1.45;
 }
 
@@ -51,7 +51,7 @@
   background: var(--color-accent);
   color: var(--color-bg);
   font: inherit;
-  font-size: 17px;
+  font-size: var(--font-size-sub-header);
   font-weight: 700;
   cursor: pointer;
 }
