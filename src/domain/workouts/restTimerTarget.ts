@@ -61,7 +61,7 @@ export function didAnySetBecomeComplete(
   const previousSetsById = buildSetsById(previousView);
 
   return nextView.lifts.some((lift) =>
-    lift.sets.some((set) => previousSetsById.get(set.id)?.status !== "complete" && set.status === "complete"),
+    lift.sets.some((set) => previousSetsById.get(set.id)?.status !== "completed" && set.status === "completed"),
   );
 }
 
@@ -76,12 +76,12 @@ export function didAnySetBecomeIncomplete(
   const previousSetsById = buildSetsById(previousView);
 
   return nextView.lifts.some((lift) =>
-    lift.sets.some((set) => previousSetsById.get(set.id)?.status === "complete" && set.status !== "complete"),
+    lift.sets.some((set) => previousSetsById.get(set.id)?.status === "completed" && set.status !== "completed"),
   );
 }
 
 export function isIncompleteRestTimerSet(set: ActiveWorkoutSetView): boolean {
-  return set.status !== "complete" && set.status !== "skipped";
+  return set.status !== "completed" && set.status !== "skipped";
 }
 
 function buildRestTimerTarget(
@@ -125,7 +125,7 @@ function findNearestPriorCompletedSet(
 ): ActiveWorkoutSetView | null {
   return (
     [...lift.sets]
-      .filter((set) => set.order < setOrder && set.status === "complete")
+      .filter((set) => set.order < setOrder && set.status === "completed")
       .sort((left, right) => right.order - left.order)[0] ?? null
   );
 }

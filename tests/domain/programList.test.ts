@@ -22,7 +22,7 @@ describe("program list", () => {
       filter: "all",
       summaries: [
         program({ id: 1, createdAt: "2026-06-10 10:00:00", status: "active" }),
-        program({ id: 2, createdAt: "2026-06-11 10:00:00", status: "complete" }),
+        program({ id: 2, createdAt: "2026-06-11 10:00:00", status: "completed" }),
         program({ id: 3, createdAt: "2026-06-12 10:00:00", status: "halted" }),
       ],
     });
@@ -31,16 +31,16 @@ describe("program list", () => {
     expect(items[0]?.isCurrentProgram).toBe(true);
   });
 
-  it("filters complete and halted programs without adding an active filter", () => {
+  it("filters completed and halted programs without adding an active filter", () => {
     const summaries = [
       program({ id: 1, status: "active" }),
-      program({ id: 2, status: "complete" }),
+      program({ id: 2, status: "completed" }),
       program({ id: 3, status: "halted" }),
-      program({ id: 4, status: "complete", createdAt: "2026-06-12 10:00:00" }),
+      program({ id: 4, status: "completed", createdAt: "2026-06-12 10:00:00" }),
     ];
 
     expect(
-      buildProgramListItems({ summaries, activeProgramId: 1, filter: "complete" }).map(
+      buildProgramListItems({ summaries, activeProgramId: 1, filter: "completed" }).map(
         (item) => item.id,
       ),
     ).toEqual([4, 2]);

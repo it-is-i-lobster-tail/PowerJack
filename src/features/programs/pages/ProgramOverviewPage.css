@@ -220,7 +220,7 @@
   bottom: 0;
 }
 
-.program-schedule-cell__segment--complete {
+.program-schedule-cell__segment--completed {
   background: var(--color-success);
 }
 
@@ -270,7 +270,7 @@
   background: var(--color-accent);
 }
 
-.program-schedule-legend__dot--complete {
+.program-schedule-legend__dot--completed {
   background: var(--color-success);
 }
 

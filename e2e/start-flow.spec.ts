@@ -1874,7 +1874,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Current program");
     await expect(page.locator("[data-agent-id='program-card-1']")).toContainText("Active");
 
-    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await page.locator("[data-agent-id='program-filter-completed']").click();
     await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
 
     await page.locator("[data-agent-id='program-filter-all']").click();
@@ -1908,7 +1908,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='program-card-1']")).toBeVisible();
     await expect(page.locator("[data-agent-id='program-card-list']")).not.toContainText("List Check x2");
 
-    await page.locator("[data-agent-id='program-filter-complete']").click();
+    await page.locator("[data-agent-id='program-filter-completed']").click();
     await expect(page.locator("[data-agent-id='program-list-empty-state']")).toBeVisible();
 
     await page.locator("[data-agent-id='program-filter-halted']").click();
@@ -2447,7 +2447,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='finish-feedback-hint']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
     await expect(page.locator("[data-agent-id='finish-workout']")).not.toHaveAttribute("aria-disabled", "true");
-    await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-complete-mobile.png");
+    await expectMobileScreenshot(page, testInfo, "warm-stone-active-workout-completed-mobile.png");
 
     await firstRep.fill("");
     await page.waitForTimeout(setAutosaveSettleMs);

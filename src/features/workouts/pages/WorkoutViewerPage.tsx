@@ -635,7 +635,7 @@ export function WorkoutViewerPage() {
   }
 
   function handleOpenFeedbackNeeded(lift: ActiveWorkoutLiftView): void {
-    if (lift.status !== "complete" || lift.feedbackSubmitted) {
+    if (lift.status !== "completed" || lift.feedbackSubmitted) {
       return;
     }
 
@@ -1057,7 +1057,7 @@ export function WorkoutViewerPage() {
               onSetFieldChange={handleSetFieldChange}
               onToggleMenu={handleToggleLiftMenu}
               showFeedbackNeeded={
-                !feedbackLift && !view.isReadOnly && lift.status === "complete" && !lift.feedbackSubmitted
+                !feedbackLift && !view.isReadOnly && lift.status === "completed" && !lift.feedbackSubmitted
               }
             />
           ))}
@@ -1220,10 +1220,10 @@ function findPendingFeedbackLift(
     const newlyCompletedLift = nextView.lifts.find((lift) => {
       const previousLift = previousLiftsById.get(lift.id);
       return (
-        lift.status === "complete" &&
+        lift.status === "completed" &&
         !lift.feedbackSubmitted &&
         !dismissedLiftIds.has(lift.id) &&
-        previousLift?.status !== "complete"
+        previousLift?.status !== "completed"
       );
     });
 
@@ -1234,7 +1234,7 @@ function findPendingFeedbackLift(
 
   return (
     nextView.lifts.find(
-      (lift) => lift.status === "complete" && !lift.feedbackSubmitted && !dismissedLiftIds.has(lift.id),
+      (lift) => lift.status === "completed" && !lift.feedbackSubmitted && !dismissedLiftIds.has(lift.id),
     ) ?? null
   );
 }
@@ -1244,7 +1244,7 @@ function findFirstLiftNeedingFeedback(view: ActiveWorkoutView): ActiveWorkoutLif
     return null;
   }
 
-  return view.lifts.find((lift) => lift.status === "complete" && !lift.feedbackSubmitted) ?? null;
+  return view.lifts.find((lift) => lift.status === "completed" && !lift.feedbackSubmitted) ?? null;
 }
 
 function isWorkoutWorkCompleteWithoutFeedback(view: ActiveWorkoutView): boolean {
@@ -1253,9 +1253,9 @@ function isWorkoutWorkCompleteWithoutFeedback(view: ActiveWorkoutView): boolean 
   }
 
   const countableSets = view.lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
-  const allCountableSetsComplete = countableSets.every((set) => set.status === "complete");
+  const allCountableSetsComplete = countableSets.every((set) => set.status === "completed");
   const allLiftsCompleteOrSkipped = view.lifts.every(
-    (lift) => lift.status === "complete" || lift.status === "skipped",
+    (lift) => lift.status === "completed" || lift.status === "skipped",
   );
 
   return allCountableSetsComplete && allLiftsCompleteOrSkipped;
@@ -1563,7 +1563,7 @@ function LiftCard({
   const menuId = `lift-actions-menu-${lift.id}`;
   const className = [
     "lift-card",
-    lift.status === "complete" ? "lift-card--complete" : "",
+    lift.status === "completed" ? "lift-card--completed" : "",
     isSkipped ? "lift-card--skipped" : "",
   ]
     .filter(Boolean)
@@ -1687,7 +1687,7 @@ function SetRow({
   set: ActiveWorkoutSetView;
   timeBased: boolean;
 }) {
-  const isComplete = set.status === "complete";
+  const isComplete = set.status === "completed";
   const isSkipped = set.status === "skipped";
   const amountLabel = timeBased ? "Seconds" : "Reps";
   const amountAriaLabel = `Set ${set.order} ${timeBased ? "seconds" : "reps"}`;
@@ -1696,7 +1696,7 @@ function SetRow({
     <div
       className={[
         "set-row",
-        isComplete ? "set-row--complete" : "",
+        isComplete ? "set-row--completed" : "",
         isRestTimerNext ? "set-row--rest-next" : "",
         isSkipped ? "set-row--skipped" : "",
       ]
