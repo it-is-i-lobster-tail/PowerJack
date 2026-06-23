@@ -35,7 +35,7 @@ export function ProgramLengthPage() {
     setError(null);
 
     try {
-      const appState = await services.appState.load();
+      const appState = await services.cache.refreshAppState();
 
       if (appState?.activeProgramId && !replaceActiveProgram) {
         setShowReplaceConfirmation(true);
@@ -60,6 +60,9 @@ export function ProgramLengthPage() {
       }
 
       setShowReplaceConfirmation(false);
+      services.cache.invalidateActiveProgramWorkouts();
+      services.cache.invalidateTemplates();
+      await services.cache.refreshAppState();
       void navigate(`/programs/${state.activeProgramId}/workouts/${state.activeWorkoutId}`);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Could not start program.");

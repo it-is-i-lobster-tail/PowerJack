@@ -16,7 +16,6 @@ import { searchExercises } from "../../../application/exercises/searchExercises"
 import { addSetToLift } from "../../../application/workouts/addSetToLift";
 import { changeLiftExercise } from "../../../application/workouts/changeLiftExercise";
 import { finishWorkout } from "../../../application/workouts/finishWorkout";
-import { loadWorkoutView } from "../../../application/workouts/loadWorkoutView";
 import { removeLastSetFromLift } from "../../../application/workouts/removeLastSetFromLift";
 import { resolveManualCheckIn } from "../../../application/workouts/resolveManualCheckIn";
 import { submitLiftFeedback } from "../../../application/workouts/submitLiftFeedback";
@@ -92,16 +91,25 @@ export function WorkoutViewerPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
+  const routeWorkoutId = Number(params.workoutId);
+  const routeProgramId = Number(params.programId);
+  const cachedRouteWorkout =
+    Number.isInteger(routeWorkoutId) && Number.isInteger(routeProgramId)
+      ? services.cache.getWorkoutViewSnapshot(routeWorkoutId)
+      : null;
+  const initialWorkoutView =
+    cachedRouteWorkout?.program.id === routeProgramId ? cachedRouteWorkout : null;
+  const initialDraftValues = initialWorkoutView ? buildDraftValues(initialWorkoutView) : {};
   const saveVersionRef = useRef(0);
   const activeWorkoutScreenRef = useRef<HTMLElement | null>(null);
   const persistTimersRef = useRef<SetPersistTimers>({});
   const persistingSetIdsRef = useRef<Set<number>>(new Set());
-  const draftValuesRef = useRef<SetDraftValues>({});
-  const viewRef = useRef<ActiveWorkoutView | null>(null);
+  const draftValuesRef = useRef<SetDraftValues>(initialDraftValues);
+  const viewRef = useRef<ActiveWorkoutView | null>(initialWorkoutView);
   const dismissedFeedbackLiftIdsRef = useRef<Set<number>>(new Set());
-  const [view, setView] = useState<ActiveWorkoutView | null>(null);
-  const [draftValues, setDraftValues] = useState<SetDraftValues>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [view, setView] = useState<ActiveWorkoutView | null>(initialWorkoutView);
+  const [draftValues, setDraftValues] = useState<SetDraftValues>(initialDraftValues);
+  const [isLoading, setIsLoading] = useState(!initialWorkoutView);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedbackLift, setFeedbackLift] = useState<ActiveWorkoutLiftView | null>(null);
@@ -167,11 +175,12 @@ export function WorkoutViewerPage() {
       }
 
       setView(nextView);
+      services.cache.setWorkoutView(nextView);
       viewRef.current = nextView;
       draftValuesRef.current = nextDraftValues;
       setDraftValues(nextDraftValues);
     },
-    [clearPendingSetPersists],
+    [clearPendingSetPersists, services.cache],
   );
 
   const resetFeedbackModal = useCallback(() => {
@@ -273,8 +282,6 @@ export function WorkoutViewerPage() {
 
   useEffect(() => {
     let isMounted = true;
-    const routeWorkoutId = Number(params.workoutId);
-    const routeProgramId = Number(params.programId);
 
     if (!Number.isInteger(routeWorkoutId) || !Number.isInteger(routeProgramId)) {
       void navigate("/", { replace: true });
@@ -285,8 +292,33 @@ export function WorkoutViewerPage() {
     }
 
     clearPendingSetPersists();
+    const cachedWorkoutView = services.cache.getWorkoutViewSnapshot(routeWorkoutId);
 
-    void loadWorkoutView(routeWorkoutId, services.workouts)
+    void Promise.resolve().then(() => {
+      if (!isMounted) {
+        return;
+      }
+
+      if (cachedWorkoutView?.program.id === routeProgramId) {
+        resetFeedbackModal();
+        resetManualCheckInModal();
+        resetLiftEditing();
+        clearDismissedFeedback();
+        setFinishFeedbackHint(null);
+        commitView(cachedWorkoutView);
+        setIsLoading(false);
+        return;
+      }
+
+      setView(null);
+      viewRef.current = null;
+      draftValuesRef.current = {};
+      setDraftValues({});
+      setIsLoading(true);
+    });
+
+    void services.cache
+      .loadWorkoutView(routeWorkoutId)
       .then((workoutView) => {
         if (!isMounted) {
           return;
@@ -332,12 +364,12 @@ export function WorkoutViewerPage() {
     clearDismissedFeedback,
     navigate,
     openFeedbackIfNeeded,
-    params.programId,
-    params.workoutId,
+    routeProgramId,
+    routeWorkoutId,
     resetFeedbackModal,
     resetLiftEditing,
     resetManualCheckInModal,
-    services.workouts,
+    services.cache,
   ]);
 
   useEffect(() => {
@@ -917,13 +949,17 @@ export function WorkoutViewerPage() {
     setFinishFeedbackHint(null);
 
     void finishWorkout(view.workout.id, services.workouts)
-      .then((nextView) => {
+      .then(async (nextView) => {
         clearRestTimer();
+        services.cache.invalidateActiveProgramWorkouts();
+        await services.cache.refreshAppState();
+
         if (!nextView) {
           void navigate("/", { replace: true });
           return;
         }
 
+        services.cache.setWorkoutView(nextView);
         void navigate(canonicalWorkoutPath(nextView), {
           state: { scrollToTopAfterFinishWorkoutId: nextView.workout.id },
         });

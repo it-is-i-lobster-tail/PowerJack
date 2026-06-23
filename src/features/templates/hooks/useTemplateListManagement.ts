@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listTemplates } from "../../../application/templates/listTemplates";
 import { useServices } from "../../../app/useServices";
 import type { TemplateSummary } from "../../../domain/templates/Template";
 import type { TemplateFlowReturnPath } from "../state/templateDraftStore";
@@ -24,8 +23,9 @@ export function useTemplateListManagement({
   const services = useServices();
   const resetTemplateDraft = useTemplateDraftStore((state) => state.reset);
   const loadTemplateDraft = useTemplateDraftStore((state) => state.loadFromAggregate);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedTemplates = services.cache.getTemplatesSnapshot();
+  const [templates, setTemplates] = useState<TemplateSummary[]>(cachedTemplates ?? []);
+  const [isLoading, setIsLoading] = useState(cachedTemplates === undefined);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [blockedTemplateMessage, setBlockedTemplateMessage] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<TemplateSummary | null>(null);
@@ -35,7 +35,8 @@ export function useTemplateListManagement({
   useEffect(() => {
     let isMounted = true;
 
-    void listTemplates(services.templates)
+    void services.cache
+      .loadTemplates()
       .then((items) => {
         if (isMounted) {
           setTemplates(items);
@@ -56,14 +57,15 @@ export function useTemplateListManagement({
     return () => {
       isMounted = false;
     };
-  }, [services.templates]);
+  }, [services.cache]);
 
   async function reloadTemplates(): Promise<void> {
     setIsLoading(true);
     setLoadErrorMessage(null);
 
     try {
-      setTemplates(await listTemplates(services.templates));
+      services.cache.invalidateTemplates();
+      setTemplates(await services.cache.refreshTemplates());
     } catch (error: unknown) {
       console.error("Failed to load templates", error);
       setLoadErrorMessage("Try again from the menu.");
