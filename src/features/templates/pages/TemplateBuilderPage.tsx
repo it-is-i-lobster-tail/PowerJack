@@ -1,7 +1,8 @@
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   type DragEndEvent,
   useSensor,
@@ -14,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowLeft, Copy as CopyIcon, GripVertical, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy as CopyIcon, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { listExerciseSummariesByIds } from "../../../application/exercises/listExerciseSummariesByIds";
@@ -73,9 +74,15 @@ export function TemplateBuilderPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 180,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -679,22 +686,23 @@ function SortableExerciseRow({
       >
         <button
           aria-label={`Reorder ${exercise.name}, position ${index + 1} of ${exerciseCount}`}
-          className="builder-exercise-row__order"
+          className="builder-exercise-row__drag-zone"
           data-agent-id={`template-exercise-drag-${index + 1}`}
           ref={setActivatorNodeRef}
           type="button"
           {...attributes}
           {...listeners}
         >
-          <GripVertical aria-hidden size={18} strokeWidth={2.4} />
-          <span>{index + 1}</span>
+          <span className="builder-exercise-row__order" aria-hidden="true">
+            {index + 1}
+          </span>
+          <span className="builder-exercise-row__text">
+            <strong>{exercise.name}</strong>
+            <small>
+              {exercise.primaryMuscleName} - {exercise.equipmentName}
+            </small>
+          </span>
         </button>
-        <span className="builder-exercise-row__text">
-          <strong>{exercise.name}</strong>
-          <small>
-            {exercise.primaryMuscleName} - {exercise.equipmentName}
-          </small>
-        </span>
         <span className="builder-exercise-row__actions">
           <button
             aria-label={`Edit ${exercise.name}`}

@@ -1512,6 +1512,27 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] .builder-exercise-row__order")).toHaveText(
+      "1",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-1'] svg")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='remove-template-exercise-2']").click();
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id^='exercise-result-']")).toHaveCount(0);
+    await page.locator("[data-agent-id='exercise-search-input']").fill("squat");
+    await page.getByRole("button", { name: /Barbell Back Squat/ }).click();
+
+    await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
+    await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] .builder-exercise-row__order")).toHaveText(
+      "2",
+    );
+    await expect(page.locator("[data-agent-id='template-exercise-drag-2'] svg")).toHaveCount(0);
+
     await page.locator("[data-agent-id='edit-template-exercise-1']").click();
     await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
     await expect(page.locator("[data-agent-id='edit-exercise-search-input-1']")).toBeVisible();
@@ -1524,19 +1545,19 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Pull Up");
     await expect(page.locator("[data-agent-id='template-exercise-2']")).toContainText("Barbell Back Squat");
 
-    const firstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const secondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const firstDragBox = await firstDragHandle.boundingBox();
-    const secondDragBox = await secondDragHandle.boundingBox();
+    const firstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const secondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const firstDragBox = await firstDragZone.boundingBox();
+    const secondDragBox = await secondDragZone.boundingBox();
 
     expect(firstDragBox).not.toBeNull();
     expect(secondDragBox).not.toBeNull();
 
     if (firstDragBox && secondDragBox) {
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y + secondDragBox.height / 2);
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y + secondDragBox.height / 2);
       await page.mouse.down();
-      await page.mouse.move(secondDragBox.x + secondDragBox.width / 2, secondDragBox.y - 12);
-      await page.mouse.move(firstDragBox.x + firstDragBox.width / 2, firstDragBox.y + firstDragBox.height / 2, {
+      await page.mouse.move(secondDragBox.x + secondDragBox.width * 0.6, secondDragBox.y - 12);
+      await page.mouse.move(firstDragBox.x + firstDragBox.width * 0.6, firstDragBox.y + firstDragBox.height / 2, {
         steps: 12,
       });
       await expect(page.locator("[data-agent-id='template-exercise-2']")).toHaveAttribute(
@@ -1573,10 +1594,10 @@ test.describe("start program flow", () => {
 
     await page.waitForTimeout(200);
 
-    const refreshedFirstDragHandle = page.locator("[data-agent-id='template-exercise-drag-1']");
-    const refreshedSecondDragHandle = page.locator("[data-agent-id='template-exercise-drag-2']");
-    const refreshedFirstDragBox = await refreshedFirstDragHandle.boundingBox();
-    const refreshedSecondDragBox = await refreshedSecondDragHandle.boundingBox();
+    const refreshedFirstDragZone = page.locator("[data-agent-id='template-exercise-drag-1']");
+    const refreshedSecondDragZone = page.locator("[data-agent-id='template-exercise-drag-2']");
+    const refreshedFirstDragBox = await refreshedFirstDragZone.boundingBox();
+    const refreshedSecondDragBox = await refreshedSecondDragZone.boundingBox();
 
     expect(refreshedFirstDragBox).not.toBeNull();
     expect(refreshedSecondDragBox).not.toBeNull();
