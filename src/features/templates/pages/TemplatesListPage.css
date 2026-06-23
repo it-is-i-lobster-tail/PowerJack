@@ -8,11 +8,42 @@
   gap: var(--space-6);
 }
 
+.templates-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
 .templates-header h1 {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--color-text-primary);
   font-size: clamp(30px, 6vw, 42px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.templates-header__add {
+  justify-self: end;
+  flex-shrink: 0;
+  min-width: 124px;
+  padding: 0 var(--space-4);
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .templates-header {
+    gap: var(--space-2);
+  }
+
+  .templates-header__add {
+    min-width: 112px;
+    padding: 0 var(--space-3);
+    font-size: 15px;
+  }
 }

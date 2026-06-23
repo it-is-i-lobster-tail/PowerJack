@@ -8,8 +8,20 @@
   gap: var(--space-6);
 }
 
+.flow-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "eyebrow ."
+    "title add";
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  align-items: center;
+}
+
 .flow-header p {
-  margin: 0 0 var(--space-2);
+  grid-area: eyebrow;
+  margin: 0;
   color: var(--color-accent);
   font-size: 17px;
   font-weight: 700;
@@ -18,10 +30,36 @@
 }
 
 .flow-header h1 {
+  grid-area: title;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--color-text-primary);
   font-size: clamp(30px, 6vw, 42px);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-header__add {
+  grid-area: add;
+  justify-self: end;
+  flex-shrink: 0;
+  min-width: 124px;
+  padding: 0 var(--space-4);
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .flow-header {
+    column-gap: var(--space-2);
+  }
+
+  .flow-header__add {
+    min-width: 112px;
+    padding: 0 var(--space-3);
+    font-size: 15px;
+  }
 }

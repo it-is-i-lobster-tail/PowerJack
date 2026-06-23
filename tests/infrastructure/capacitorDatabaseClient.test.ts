@@ -87,15 +87,43 @@ describe("CapacitorDatabaseClient", () => {
 
     await client.transaction(async (transactionClient) => {
       await transactionClient.run("INSERT INTO templates (name) VALUES (?)", ["Push"]);
+      await transactionClient.execute("DELETE FROM template_focus_muscles WHERE template_id = 1");
     });
 
     expect(db.beginTransaction).toHaveBeenCalledTimes(1);
     expect(db.commitTransaction).toHaveBeenCalledTimes(1);
     expect(db.rollbackTransaction).not.toHaveBeenCalled();
-    expect(statements).toEqual(["INSERT INTO templates (name) VALUES (?)"]);
+    expect(db.run).toHaveBeenCalledWith("INSERT INTO templates (name) VALUES (?)", ["Push"], false);
+    expect(db.execute).toHaveBeenCalledWith("DELETE FROM template_focus_muscles WHERE template_id = 1", false);
+    expect(statements).toEqual([
+      "INSERT INTO templates (name) VALUES (?)",
+      "DELETE FROM template_focus_muscles WHERE template_id = 1",
+    ]);
     expect(statements).not.toContain("BEGIN TRANSACTION");
     expect(statements).not.toContain("COMMIT");
     expect(statements).not.toContain("ROLLBACK");
+  });
+
+  it("joins nested native transactions without starting another plugin transaction", async () => {
+    const { client, db } = createHarness(false);
+
+    await client.transaction(async (outerClient) => {
+      await outerClient.run("INSERT INTO templates (name) VALUES (?)", ["Push"]);
+      await outerClient.transaction(async (innerClient) => {
+        await innerClient.run("INSERT INTO workout_templates (template_id) VALUES (?)", [1]);
+      });
+    });
+
+    expect(db.beginTransaction).toHaveBeenCalledTimes(1);
+    expect(db.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(db.rollbackTransaction).not.toHaveBeenCalled();
+    expect(db.run).toHaveBeenNthCalledWith(1, "INSERT INTO templates (name) VALUES (?)", ["Push"], false);
+    expect(db.run).toHaveBeenNthCalledWith(
+      2,
+      "INSERT INTO workout_templates (template_id) VALUES (?)",
+      [1],
+      false,
+    );
   });
 
   it("rolls back native plugin transactions and preserves the operation error", async () => {
@@ -106,6 +134,25 @@ describe("CapacitorDatabaseClient", () => {
       client.transaction(async (transactionClient) => {
         await transactionClient.run("INSERT INTO templates (name) VALUES (?)", ["Pull"]);
         throw operationError;
+      }),
+    ).rejects.toBe(operationError);
+
+    expect(db.beginTransaction).toHaveBeenCalledTimes(1);
+    expect(db.commitTransaction).not.toHaveBeenCalled();
+    expect(db.rollbackTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back a failed nested native transaction only once", async () => {
+    const { client, db } = createHarness(false);
+    const operationError = new Error("nested save failed");
+
+    await expect(
+      client.transaction(async (outerClient) => {
+        await outerClient.run("INSERT INTO templates (name) VALUES (?)", ["Pull"]);
+        await outerClient.transaction(async (innerClient) => {
+          await innerClient.run("INSERT INTO workout_templates (template_id) VALUES (?)", [1]);
+          throw operationError;
+        });
       }),
     ).rejects.toBe(operationError);
 
