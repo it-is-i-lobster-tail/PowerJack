@@ -441,6 +441,37 @@ async function scrollActiveWorkoutPageToBottom(page: import("@playwright/test").
   expect(scrollTop, "active workout page should be scrolled before finishing").toBeGreaterThan(0);
 }
 
+async function expectElementWithinActiveWorkoutViewport(
+  page: import("@playwright/test").Page,
+  locator: Locator,
+  name: string,
+): Promise<void> {
+  const screen = page.locator("[data-agent-id='active-workout-page']");
+  const [screenBox, elementBox] = await Promise.all([screen.boundingBox(), locator.boundingBox()]);
+
+  expect(screenBox, "active workout page should have a layout box").not.toBeNull();
+  expect(elementBox, `${name} should have a layout box`).not.toBeNull();
+
+  if (!screenBox || !elementBox) {
+    return;
+  }
+
+  expect(elementBox.x, `${name} should not overflow the active workout left edge`).toBeGreaterThanOrEqual(
+    screenBox.x,
+  );
+  expect(
+    elementBox.x + elementBox.width,
+    `${name} should not overflow the active workout right edge`,
+  ).toBeLessThanOrEqual(screenBox.x + screenBox.width + 1);
+  expect(elementBox.y, `${name} should not overflow the active workout top edge`).toBeGreaterThanOrEqual(
+    screenBox.y,
+  );
+  expect(
+    elementBox.y + elementBox.height,
+    `${name} should not be clipped by the active workout bottom edge`,
+  ).toBeLessThanOrEqual(screenBox.y + screenBox.height + 1);
+}
+
 async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
   const screen = page.locator("[data-agent-id='active-workout-page']");
 
@@ -2423,6 +2454,30 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='remove-last-set-confirmation']")).toHaveCount(0);
     await expect(page.locator("[data-agent-id^='set-reps-']")).toHaveCount(2);
     await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
+  });
+
+  test("last lift menu stays fully visible above reserved finish space on mobile", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createWeightedVolumeTemplate(page);
+    await startSelectedProgram(page, 4);
+
+    await expect(page.locator("[data-agent-id='finish-workout']")).toHaveCount(0);
+
+    await scrollActiveWorkoutPageToBottom(page);
+
+    const lastMenuToggle = page.locator("[data-agent-id^='lift-menu-toggle-']").last();
+    await expect(lastMenuToggle).toBeVisible();
+    await lastMenuToggle.click();
+
+    const actionsMenu = page.locator("[data-agent-id^='lift-actions-menu-']");
+    await expect(actionsMenu).toBeVisible();
+    await expect(actionsMenu.locator("[data-agent-id^='lift-remove-last-set-']")).toBeVisible();
+    await expectElementWithinActiveWorkoutViewport(page, actionsMenu, "last lift actions menu");
+
+    await testInfo.attach("last-lift-menu-reserved-finish-space-mobile", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
   });
 
   test("changing a lift exercise resets the lift and carries into future weeks", async ({ page }, testInfo) => {
