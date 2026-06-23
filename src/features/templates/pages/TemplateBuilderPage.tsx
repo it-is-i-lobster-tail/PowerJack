@@ -555,7 +555,7 @@ export function TemplateBuilderPage() {
           query={query}
           resultAgentId={(exerciseId) => `exercise-result-${exerciseId}`}
           results={addSearchResults}
-          title="Add exercise"
+          title="Exercise search"
         />
       ) : null}
 
@@ -577,7 +577,7 @@ export function TemplateBuilderPage() {
           query={editQuery}
           resultAgentId={(exerciseId) => `replace-exercise-result-${exerciseId}`}
           results={editSearchResults}
-          title="Edit exercise"
+          title="Exercise search"
         />
       ) : null}
     </main>
