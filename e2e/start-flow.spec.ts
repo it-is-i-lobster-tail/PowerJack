@@ -1512,6 +1512,35 @@ test.describe("start program flow", () => {
     await expectExerciseSearchScrollContained(page);
   });
 
+  test("template builder limits each day to 20 exercises", async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 393, height: 852 });
+    await openTemplateBuilder(page, { dayCount: 2, name: "Twenty Lift Day" });
+
+    for (let index = 1; index <= 20; index += 1) {
+      await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press\b/);
+    }
+
+    await expect(page.locator("[data-agent-id='template-exercise-20']")).toContainText("Barbell Bench Press");
+    await expect(page.locator("[data-agent-id='template-exercise-21']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='add-exercise']")).toHaveAttribute("aria-disabled", "true");
+
+    await page.locator("[data-agent-id='add-exercise']").click({ force: true });
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-limit-modal']")).toContainText(
+      "Workouts are limited to 20 exercises.",
+    );
+    await expectMobileScreenshot(page, testInfo, "warm-stone-builder-exercise-limit-modal-mobile.png");
+
+    await page.getByRole("button", { name: "Okay" }).click();
+    await expect(page.locator("[data-agent-id='template-exercise-limit-modal']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await expect(page.locator("[data-agent-id='add-exercise']")).not.toHaveAttribute("aria-disabled", "true");
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+  });
+
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);

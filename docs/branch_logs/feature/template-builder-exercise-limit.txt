@@ -1,0 +1,11 @@
+Branch: feature/template-builder-exercise-limit
+Date: 2026-06-24
+
+Why was the branch needed:
+PJ-31 required the template builder to prevent unrealistic workout-template days from growing past 20 exercises. The existing builder let users continue adding lift templates without a per-day cap, which could create awkward, oversized builder screens and persist template drafts with too many exercises.
+
+Outcomes of code changes:
+Each template day now has a shared 20-exercise limit enforced in domain validation and in the template draft store. In the builder UI, the Add exercise control remains visible at the limit with a disabled-looking, aria-disabled state; tapping it shows a modal that states "Workouts are limited to 20 exercises." and can be dismissed with Okay. The limit is isolated per day, so reaching 20 exercises on Day 1 does not prevent Day 2 from opening exercise search.
+
+Implementation decisions that were made:
+The limit was added as a shared domain constant rather than a page-local number so validation, state, and UI behavior stay aligned. The button intentionally uses aria-disabled instead of the native disabled attribute because the acceptance criteria require a tap on the limited control to show explanatory feedback. The popup reuses the shared ConfirmationModal styles so typography and modal layout remain consistent with the PowerJack UI standards. Unit tests cover validation and store behavior, while Playwright covers the full builder interaction and mobile visual baseline.

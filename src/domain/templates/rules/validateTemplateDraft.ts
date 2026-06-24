@@ -1,5 +1,5 @@
 import type { CompletedTemplateDraft, TemplateDraft } from "../Template";
-import { TEMPLATE_NAME_MAX_LENGTH } from "./templateDraftLimits";
+import { TEMPLATE_DAY_EXERCISE_MAX, TEMPLATE_NAME_MAX_LENGTH } from "./templateDraftLimits";
 
 export interface TemplateDraftValidationResult {
   ok: boolean;
@@ -39,6 +39,12 @@ export function validateTemplateDraft(draft: TemplateDraft): TemplateDraftValida
 
   if (emptyDay) {
     return { ok: false, message: `Add at least one exercise to Day ${emptyDay.order}.` };
+  }
+
+  const overloadedDay = draft.days.find((day) => day.exerciseIds.length > TEMPLATE_DAY_EXERCISE_MAX);
+
+  if (overloadedDay) {
+    return { ok: false, message: "Workouts are limited to 20 exercises." };
   }
 
   return {

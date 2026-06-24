@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { TEMPLATE_DAY_EXERCISE_MAX } from "../../src/domain/templates/rules/templateDraftLimits";
 import { useTemplateDraftStore } from "../../src/features/templates/state/templateDraftStore";
 
 describe("templateDraftStore", () => {
@@ -67,6 +68,25 @@ describe("templateDraftStore", () => {
 
     expect(useTemplateDraftStore.getState().exerciseIdsByDay[1]).toEqual([10, 20]);
     expect(useTemplateDraftStore.getState().exerciseRowIdsByDay[1]).toEqual([thirdRowId, secondRowId]);
+  });
+
+  it("limits added exercises to 20 per day without affecting other days", () => {
+    const store = useTemplateDraftStore.getState();
+
+    store.setWorkoutsPerWeek(2);
+
+    for (let index = 1; index <= TEMPLATE_DAY_EXERCISE_MAX + 1; index += 1) {
+      useTemplateDraftStore.getState().addExerciseToDay(1, index);
+    }
+
+    useTemplateDraftStore.getState().addExerciseToDay(2, 99);
+
+    const state = useTemplateDraftStore.getState();
+
+    expect(state.exerciseIdsByDay[1]).toHaveLength(TEMPLATE_DAY_EXERCISE_MAX);
+    expect(state.exerciseIdsByDay[1]).not.toContain(TEMPLATE_DAY_EXERCISE_MAX + 1);
+    expect(state.exerciseRowIdsByDay[1]).toHaveLength(TEMPLATE_DAY_EXERCISE_MAX);
+    expect(state.exerciseIdsByDay[2]).toEqual([99]);
   });
 
   it("copies exercises to another day by replacing the target with fresh row ids", () => {
