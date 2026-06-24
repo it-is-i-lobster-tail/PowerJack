@@ -1,3 +1,7 @@
+import {
+  primaryMuscleSetCredit,
+  secondaryMuscleSetCredit,
+} from "../../../domain/analytics/TrainingAnalytics";
 import type { EntityId } from "../../../domain/ids";
 import type { Program } from "../../../domain/programs/Program";
 import { isPowerJackStatus, type PowerJackStatus } from "../../../domain/status";
@@ -24,8 +28,10 @@ import type {
 import {
   completedSetStatsColumnByMuscleName,
   completedSetStatsColumns,
+  completedSetStatsMuscles,
   completedSetStatsValuePlaceholders,
   createEmptyCompletedSetStatsValues,
+  type CompletedSetStatsColumn,
   type CompletedSetStatsValues,
 } from "../completedSetStats";
 import type { DatabaseClient } from "../DatabaseClient";
@@ -163,9 +169,12 @@ interface TemplateLiftRow extends Record<string, unknown> {
   reps_only: number;
   lift_order: number;
   primary_muscle_id: number;
+  secondary_muscle_ids: string | null;
   min_reps_hypertrophy: number;
   max_reps_hypertrophy: number;
 }
+
+type CompletedSetStatsTotalsRow = Record<CompletedSetStatsColumn, number | null> & Record<string, unknown>;
 
 interface LiftHistoryRow extends Record<string, unknown> {
   lift_id: number;
@@ -193,6 +202,11 @@ interface SecondaryMuscleNameRow extends Record<string, unknown> {
   muscle_name: string;
 }
 
+interface MuscleLookupRow extends Record<string, unknown> {
+  id: number;
+  name: string;
+}
+
 interface ResolveManualCheckinRow extends Record<string, unknown> {
   lift_id: number;
   workout_id: number;
@@ -204,6 +218,12 @@ interface ResolveManualCheckinRow extends Record<string, unknown> {
 interface LastInsertIdRow extends Record<string, unknown> {
   id: number;
 }
+
+const completedSetStatsTotalSelectColumns = completedSetStatsColumns
+  .map((column) => `COALESCE(SUM(completed_sets_stats.${column}), 0) AS ${column}`)
+  .join(", ");
+const completedSetStatsMuscleNamePlaceholders = completedSetStatsMuscles.map(() => "?").join(", ");
+const completedSetStatsMuscleNames = completedSetStatsMuscles.map(([muscleName]) => muscleName);
 
 export class SqliteWorkoutRepository implements WorkoutRepository {
   constructor(private readonly db: DatabaseClient) {}
@@ -1240,13 +1260,13 @@ function buildCompletedSetStatsValues(input: {
     throw new Error(`Cannot record completed set stats for muscle ${input.primaryMuscleName}.`);
   }
 
-  values[primaryColumn] = 1;
+  values[primaryColumn] = primaryMuscleSetCredit;
 
   for (const secondaryMuscleName of input.secondaryMuscleNames) {
     const secondaryColumn = completedSetStatsColumnByMuscleName.get(secondaryMuscleName);
 
-    if (secondaryColumn && values[secondaryColumn] < 1) {
-      values[secondaryColumn] = 0.5;
+    if (secondaryColumn && values[secondaryColumn] < primaryMuscleSetCredit) {
+      values[secondaryColumn] = secondaryMuscleSetCredit;
     }
   }
 
@@ -1415,12 +1435,23 @@ async function createProgramWeek(
         exercises.reps_only,
         lift_templates."order" AS lift_order,
         exercises.primary_muscle_id,
+        GROUP_CONCAT(exercise_secondary_muscles.muscle_id, ',') AS secondary_muscle_ids,
         exercises.min_reps_hypertrophy,
         exercises.max_reps_hypertrophy
       FROM workout_templates
       INNER JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
       INNER JOIN exercises ON exercises.id = lift_templates.exercise_id
+      LEFT JOIN exercise_secondary_muscles
+        ON exercise_secondary_muscles.exercise_id = exercises.id
       WHERE workout_templates.template_id = ?
+      GROUP BY
+        workout_templates."order",
+        lift_templates.exercise_id,
+        exercises.reps_only,
+        lift_templates."order",
+        exercises.primary_muscle_id,
+        exercises.min_reps_hypertrophy,
+        exercises.max_reps_hypertrophy
       ORDER BY workout_templates."order" ASC, lift_templates."order" ASC
     `,
     [input.templateId],
@@ -1430,6 +1461,10 @@ async function createProgramWeek(
     [input.templateId],
   );
   const focusMuscleIds = focusMuscleRows.map((row) => row.muscle_id);
+  const previousWeekMuscleSetCredits = await loadCompletedMuscleSetCreditsForProgramWeek(client, {
+    programId: input.programId,
+    programWeek: input.programWeek - 1,
+  });
   const liftsByDay = new Map<number, TemplateLiftRow[]>();
 
   for (const row of templateRows) {
@@ -1456,6 +1491,7 @@ async function createProgramWeek(
         liftRow,
         focusMuscleIds,
         programLengthWeeks: input.programLengthWeeks,
+        previousWeekMuscleSetCredits,
       });
       const manualCheckinStatus: ManualCheckinStatus = prescription.manualCheckinSourceLiftId
         ? "pending"
@@ -1526,6 +1562,7 @@ async function buildNextLiftPrescription(
     liftRow: TemplateLiftRow;
     focusMuscleIds: EntityId[];
     programLengthWeeks: number;
+    previousWeekMuscleSetCredits: ReadonlyMap<EntityId, number>;
   },
 ) {
   const current = await loadLiftHistory(client, {
@@ -1561,12 +1598,14 @@ async function buildNextLiftPrescription(
     twoWeeksAgo,
     exercise: {
       primaryMuscleId: input.liftRow.primary_muscle_id,
+      secondaryMuscleIds: parseSecondaryMuscleIds(input.liftRow.secondary_muscle_ids),
       minRepsHypertrophy: input.liftRow.min_reps_hypertrophy,
       maxRepsHypertrophy: input.liftRow.max_reps_hypertrophy,
       repsOnly: Boolean(input.liftRow.reps_only),
     },
     focusMuscleIds: input.focusMuscleIds,
     programLengthWeeks: input.programLengthWeeks,
+    previousWeekMuscleSetCredits: input.previousWeekMuscleSetCredits,
   });
 }
 
@@ -1579,6 +1618,60 @@ function buildInitialLiftPrescription(): NextLiftPrescription {
       { order: 2, plannedReps: null, plannedWeight: null },
     ],
   };
+}
+
+async function loadCompletedMuscleSetCreditsForProgramWeek(
+  client: DatabaseClient,
+  input: {
+    programId: EntityId;
+    programWeek: number;
+  },
+): Promise<Map<EntityId, number>> {
+  if (input.programWeek < 1) {
+    return new Map();
+  }
+
+  const totalRows = await client.query<CompletedSetStatsTotalsRow>(
+    `
+      SELECT
+        ${completedSetStatsTotalSelectColumns}
+      FROM completed_sets_stats
+      INNER JOIN workout_sets ON workout_sets.id = completed_sets_stats.set_id
+      INNER JOIN lifts ON lifts.id = workout_sets.lift_id
+      INNER JOIN workouts ON workouts.id = lifts.workout_id
+      WHERE
+        completed_sets_stats.program_id = ?
+        AND workouts.program_week = ?
+    `,
+    [input.programId, input.programWeek],
+  );
+  const totals = totalRows[0];
+
+  if (!totals) {
+    return new Map();
+  }
+
+  const muscleRows = await client.query<MuscleLookupRow>(
+    `
+      SELECT id, name
+      FROM muscles
+      WHERE name IN (${completedSetStatsMuscleNamePlaceholders})
+    `,
+    completedSetStatsMuscleNames,
+  );
+  const musclesByName = new Map(muscleRows.map((row) => [row.name, row]));
+  const credits = new Map<EntityId, number>();
+
+  for (const [muscleName, column] of completedSetStatsMuscles) {
+    const muscle = musclesByName.get(muscleName);
+    const setCredit = Number(totals[column] ?? 0);
+
+    if (muscle && setCredit > 0) {
+      credits.set(muscle.id, setCredit);
+    }
+  }
+
+  return credits;
 }
 
 async function loadLiftHistory(
@@ -1648,6 +1741,17 @@ async function loadLiftHistory(
     manualCheckinSourceLiftId: lift.manual_checkin_source_lift_id,
     sets: setRows.map(mapProgressionSet),
   };
+}
+
+function parseSecondaryMuscleIds(value: string | null): EntityId[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id));
 }
 
 async function loadLastInsertId(client: DatabaseClient): Promise<number> {

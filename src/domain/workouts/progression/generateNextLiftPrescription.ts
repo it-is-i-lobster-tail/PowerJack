@@ -1,3 +1,8 @@
+import {
+  primaryMuscleSetCredit,
+  secondaryMuscleSetCredit,
+  weeklyMuscleSetProgressionCap,
+} from "../../analytics/TrainingAnalytics";
 import type { EntityId } from "../../ids";
 import type { PowerJackStatus } from "../../status";
 
@@ -16,6 +21,7 @@ export interface ProgressionExercise {
   minRepsHypertrophy: number;
   maxRepsHypertrophy: number;
   primaryMuscleId: EntityId;
+  secondaryMuscleIds: EntityId[];
   repsOnly: boolean;
 }
 
@@ -57,6 +63,7 @@ export interface GenerateNextLiftPrescriptionInput {
   exercise: ProgressionExercise;
   focusMuscleIds: EntityId[];
   programLengthWeeks: number;
+  previousWeekMuscleSetCredits: ReadonlyMap<EntityId, number>;
 }
 
 const loadIncrementLb = 5;
@@ -127,7 +134,8 @@ export function generateNextLiftPrescription(
     isFocusMuscle &&
     isEligibleForVolume(current, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.previous, exercise, input.programLengthWeeks) &&
-    currentSets.length < maxWorkingSets
+    currentSets.length < maxWorkingSets &&
+    canAddVolumeWithinWeeklyMuscleSetCap(exercise, input.previousWeekMuscleSetCredits)
   ) {
     return addVolumeSet("gate_5_focus_volume", currentSets);
   }
@@ -137,7 +145,8 @@ export function generateNextLiftPrescription(
     isEligibleForVolume(current, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.previous, exercise, input.programLengthWeeks) &&
     isEligibleForVolume(input.twoWeeksAgo, exercise, input.programLengthWeeks) &&
-    currentSets.length < maxWorkingSets
+    currentSets.length < maxWorkingSets &&
+    canAddVolumeWithinWeeklyMuscleSetCap(exercise, input.previousWeekMuscleSetCredits)
   ) {
     return addVolumeSet("gate_6_non_focus_volume", currentSets);
   }
@@ -229,6 +238,27 @@ function addVolumeSet(
       },
     ]),
   };
+}
+
+function canAddVolumeWithinWeeklyMuscleSetCap(
+  exercise: ProgressionExercise,
+  previousWeekMuscleSetCredits: ReadonlyMap<EntityId, number>,
+): boolean {
+  return projectedAddedSetMuscleCredits(exercise).every(
+    ({ muscleId, setCredit }) =>
+      (previousWeekMuscleSetCredits.get(muscleId) ?? 0) + setCredit <= weeklyMuscleSetProgressionCap,
+  );
+}
+
+function projectedAddedSetMuscleCredits(
+  exercise: ProgressionExercise,
+): Array<{ muscleId: EntityId; setCredit: number }> {
+  return [
+    { muscleId: exercise.primaryMuscleId, setCredit: primaryMuscleSetCredit },
+    ...exercise.secondaryMuscleIds
+      .filter((muscleId) => muscleId !== exercise.primaryMuscleId)
+      .map((muscleId) => ({ muscleId, setCredit: secondaryMuscleSetCredit })),
+  ];
 }
 
 function isEligibleForVolume(

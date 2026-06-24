@@ -500,6 +500,54 @@ describe("Program and Workout repository contracts", () => {
     ]);
   });
 
+  it("does not add next-week focus volume when the previous program week reached 25 muscle credits", async () => {
+    const services = createInMemoryAppServices();
+    const chestId = await findMuscleId(services, "Chest");
+    const exerciseIds = await Promise.all(
+      [
+        "Barbell Bench Press",
+        "Barbell Incline Bench Press",
+        "Dumbbell Bench Press",
+        "Machine Chest Press",
+        "Cable Chest Fly",
+        "Dumbbell Fly",
+      ].map((name) => findExerciseId(services, name)),
+    );
+    const template = await createTemplate(services, [exerciseIds], [chestId]);
+
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+    view = await addSetsToLiftCounts(services, view, [2, 5, 5, 5, 5, 3]);
+    view = await submitFeedbackForCompletedLifts(
+      services,
+      await completeWorkout(services, view, [12, 12, 12, 12, 12], 100),
+    );
+
+    let weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    expect(weekTwo.lifts.map((lift) => lift.sets.length)).toEqual([2, 5, 5, 5, 5, 3]);
+
+    weekTwo = await submitFeedbackForCompletedLifts(
+      services,
+      await completeWorkout(services, weekTwo, [12, 12, 12, 12, 12], 100),
+    );
+
+    const weekThree = await finishWorkout(weekTwo.workout.id, services.workouts);
+
+    if (!weekThree) {
+      throw new Error("Expected week 3.");
+    }
+
+    expect(weekThree.lifts[0]?.sets).toEqual([
+      expect.objectContaining({ order: 1, plannedReps: 12, plannedWeight: 105 }),
+      expect.objectContaining({ order: 2, plannedReps: 12, plannedWeight: 105 }),
+    ]);
+  });
+
   it("uses active template edits only for future generated weeks", async () => {
     const services = createInMemoryAppServices();
     const benchPressId = await findExerciseId(services, "Barbell Bench Press");
@@ -947,11 +995,15 @@ describe("Program and Workout repository contracts", () => {
   });
 });
 
-async function createTemplate(services: AppServices, exerciseIdsByDay: number[][]) {
+async function createTemplate(
+  services: AppServices,
+  exerciseIdsByDay: number[][],
+  focusMuscleIds: number[] = [1],
+) {
   return saveTemplate(
     {
       name: "Back In Action",
-      focusMuscleIds: [1],
+      focusMuscleIds,
       workoutsPerWeek: exerciseIdsByDay.length,
       days: exerciseIdsByDay.map((exerciseIds, index) => ({
         order: index + 1,
@@ -960,6 +1012,17 @@ async function createTemplate(services: AppServices, exerciseIdsByDay: number[][
     },
     services.templates,
   );
+}
+
+async function findMuscleId(services: AppServices, name: string): Promise<number> {
+  const muscles = await services.exercises.listMuscles();
+  const muscle = muscles.find((item) => item.name === name);
+
+  if (!muscle) {
+    throw new Error(`Expected muscle ${name}.`);
+  }
+
+  return muscle.id;
 }
 
 async function findExerciseId(services: AppServices, name: string): Promise<number> {
@@ -971,6 +1034,28 @@ async function findExerciseId(services: AppServices, name: string): Promise<numb
   }
 
   return exercise.id;
+}
+
+async function addSetsToLiftCounts(
+  services: AppServices,
+  view: ActiveWorkoutView,
+  targetCounts: number[],
+): Promise<ActiveWorkoutView> {
+  let nextView = view;
+
+  for (const [liftIndex, targetCount] of targetCounts.entries()) {
+    while ((nextView.lifts[liftIndex]?.sets.length ?? 0) < targetCount) {
+      const liftId = nextView.lifts[liftIndex]?.id;
+
+      if (!liftId) {
+        throw new Error(`Expected lift ${liftIndex + 1}.`);
+      }
+
+      nextView = await addSetToLift({ liftId }, services.workouts);
+    }
+  }
+
+  return nextView;
 }
 
 async function submitFeedbackForCompletedLifts(
