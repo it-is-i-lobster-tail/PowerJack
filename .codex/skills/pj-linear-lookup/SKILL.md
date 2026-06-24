@@ -1,6 +1,6 @@
 ---
 name: pj-linear-lookup
-description: Use when a PowerJack task starts from a Linear issue key such as PJ-31. Requires the invoking chat message to include exactly one PJ issue key, verifies the issue belongs to the Linear project named PowerJack, sets it to In Progress when appropriate, reviews the full issue contents, and then proceeds in /plan mode before implementation.
+description: Use when a PowerJack task starts from a Linear issue key such as PJ-31. Requires the invoking chat message to include exactly one PJ issue key, verifies the issue belongs to the Linear project named PowerJack v0.1, sets it to In Progress when appropriate, reviews the full issue contents, and then proceeds in /plan mode before implementation.
 ---
 
 # PowerJack Linear Lookup
@@ -19,9 +19,9 @@ Follow these steps in order. Do not skip status handling or issue review.
 2. Use Linear tools only for tracker work.
    - If Linear tools are unavailable or authentication is missing, pause and ask the user to connect Linear.
    - Do not use GitHub, local files, or memory as substitutes for the Linear issue lookup.
-3. Find the Linear project named exactly `PowerJack`.
+3. Find the Linear project named exactly `PowerJack v0.1`.
    - Retrieve the target issue by key.
-   - Verify the issue belongs to the `PowerJack` project.
+   - Verify the issue belongs to the `PowerJack v0.1` project.
    - If the issue is not found, or belongs to a different project, pause and report the mismatch.
 4. Resolve the issue status.
    - If the issue status is already exactly `In Progress`, pause and ask the user whether to continue before planning.

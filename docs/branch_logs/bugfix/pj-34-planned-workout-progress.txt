@@ -1,0 +1,11 @@
+Branch: bugfix/pj-34-planned-workout-progress
+Date: 2026-06-24
+
+Why was the branch needed:
+PJ-34 reported that planned workouts displayed the inline "| x% done" header progress even though work had not started. The issue also clarified that non-planned workout progress should count completed sets against all workout sets, so skipped sets lower the displayed percentage instead of disappearing from the denominator.
+
+Outcomes of code changes:
+Planned workout headers now show only the day label and existing read-only state. Active, completed, halted, and skipped workout views continue to show progress, with completed sets divided by all visible sets. Skipped sets remain finishable while still contributing to the total set count used for display progress.
+
+Implementation decisions that were made:
+The progress denominator was corrected in both SQLite and in-memory workout view builders so UI consumers receive consistent `ActiveWorkoutView.totalSets` semantics. Finish eligibility remains based on non-skipped countable sets plus lift feedback requirements, keeping skipped manual-check-in workouts finishable. E2E coverage checks planned header hiding and mixed skipped/completed progress, while repository coverage locks the view-model totals.
