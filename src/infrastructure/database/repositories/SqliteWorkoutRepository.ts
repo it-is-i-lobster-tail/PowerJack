@@ -1,3 +1,7 @@
+import {
+  primaryMuscleSetCredit,
+  secondaryMuscleSetCredit,
+} from "../../../domain/analytics/TrainingAnalytics";
 import type { EntityId } from "../../../domain/ids";
 import type { Program } from "../../../domain/programs/Program";
 import { isPowerJackStatus, type PowerJackStatus } from "../../../domain/status";
@@ -153,8 +157,14 @@ interface TemplateLiftRow extends Record<string, unknown> {
   reps_only: number;
   lift_order: number;
   primary_muscle_id: number;
+  secondary_muscle_ids: string | null;
   min_reps_hypertrophy: number;
   max_reps_hypertrophy: number;
+}
+
+interface MuscleSetCreditRow extends Record<string, unknown> {
+  muscle_id: number;
+  set_credit: number;
 }
 
 interface LiftHistoryRow extends Record<string, unknown> {
@@ -1324,12 +1334,23 @@ async function createProgramWeek(
         exercises.reps_only,
         lift_templates."order" AS lift_order,
         exercises.primary_muscle_id,
+        GROUP_CONCAT(exercise_secondary_muscles.muscle_id, ',') AS secondary_muscle_ids,
         exercises.min_reps_hypertrophy,
         exercises.max_reps_hypertrophy
       FROM workout_templates
       INNER JOIN lift_templates ON lift_templates.workout_template_id = workout_templates.id
       INNER JOIN exercises ON exercises.id = lift_templates.exercise_id
+      LEFT JOIN exercise_secondary_muscles
+        ON exercise_secondary_muscles.exercise_id = exercises.id
       WHERE workout_templates.template_id = ?
+      GROUP BY
+        workout_templates."order",
+        lift_templates.exercise_id,
+        exercises.reps_only,
+        lift_templates."order",
+        exercises.primary_muscle_id,
+        exercises.min_reps_hypertrophy,
+        exercises.max_reps_hypertrophy
       ORDER BY workout_templates."order" ASC, lift_templates."order" ASC
     `,
     [input.templateId],
@@ -1339,6 +1360,10 @@ async function createProgramWeek(
     [input.templateId],
   );
   const focusMuscleIds = focusMuscleRows.map((row) => row.muscle_id);
+  const previousWeekMuscleSetCredits = await loadCompletedMuscleSetCreditsForProgramWeek(client, {
+    programId: input.programId,
+    programWeek: input.programWeek - 1,
+  });
   const liftsByDay = new Map<number, TemplateLiftRow[]>();
 
   for (const row of templateRows) {
@@ -1365,6 +1390,7 @@ async function createProgramWeek(
         liftRow,
         focusMuscleIds,
         programLengthWeeks: input.programLengthWeeks,
+        previousWeekMuscleSetCredits,
       });
       const manualCheckinStatus: ManualCheckinStatus = prescription.manualCheckinSourceLiftId
         ? "pending"
@@ -1435,6 +1461,7 @@ async function buildNextLiftPrescription(
     liftRow: TemplateLiftRow;
     focusMuscleIds: EntityId[];
     programLengthWeeks: number;
+    previousWeekMuscleSetCredits: ReadonlyMap<EntityId, number>;
   },
 ) {
   const current = await loadLiftHistory(client, {
@@ -1470,12 +1497,14 @@ async function buildNextLiftPrescription(
     twoWeeksAgo,
     exercise: {
       primaryMuscleId: input.liftRow.primary_muscle_id,
+      secondaryMuscleIds: parseSecondaryMuscleIds(input.liftRow.secondary_muscle_ids),
       minRepsHypertrophy: input.liftRow.min_reps_hypertrophy,
       maxRepsHypertrophy: input.liftRow.max_reps_hypertrophy,
       repsOnly: Boolean(input.liftRow.reps_only),
     },
     focusMuscleIds: input.focusMuscleIds,
     programLengthWeeks: input.programLengthWeeks,
+    previousWeekMuscleSetCredits: input.previousWeekMuscleSetCredits,
   });
 }
 
@@ -1488,6 +1517,59 @@ function buildInitialLiftPrescription(): NextLiftPrescription {
       { order: 2, plannedReps: null, plannedWeight: null },
     ],
   };
+}
+
+async function loadCompletedMuscleSetCreditsForProgramWeek(
+  client: DatabaseClient,
+  input: {
+    programId: EntityId;
+    programWeek: number;
+  },
+): Promise<Map<EntityId, number>> {
+  if (input.programWeek < 1) {
+    return new Map();
+  }
+
+  const rows = await client.query<MuscleSetCreditRow>(
+    `
+      WITH completed_sets AS (
+        SELECT
+          workout_sets.id AS set_id,
+          exercises.id AS exercise_id,
+          exercises.primary_muscle_id AS primary_muscle_id
+        FROM workouts
+        INNER JOIN lifts ON lifts.workout_id = workouts.id
+        INNER JOIN workout_sets ON workout_sets.lift_id = lifts.id
+        INNER JOIN exercises ON exercises.id = lifts.exercise_id
+        WHERE
+          workouts.program_id = ?
+          AND workouts.program_week = ?
+          AND workout_sets.status = 'completed'
+          AND workout_sets.actual_reps IS NOT NULL
+      ),
+      completed_set_muscles AS (
+        SELECT
+          primary_muscle_id AS muscle_id,
+          ? AS set_credit
+        FROM completed_sets
+        UNION ALL
+        SELECT
+          exercise_secondary_muscles.muscle_id,
+          ? AS set_credit
+        FROM completed_sets
+        INNER JOIN exercise_secondary_muscles
+          ON exercise_secondary_muscles.exercise_id = completed_sets.exercise_id
+      )
+      SELECT
+        muscle_id,
+        SUM(set_credit) AS set_credit
+      FROM completed_set_muscles
+      GROUP BY muscle_id
+    `,
+    [input.programId, input.programWeek, primaryMuscleSetCredit, secondaryMuscleSetCredit],
+  );
+
+  return new Map(rows.map((row) => [row.muscle_id, row.set_credit]));
 }
 
 async function loadLiftHistory(
@@ -1557,6 +1639,17 @@ async function loadLiftHistory(
     manualCheckinSourceLiftId: lift.manual_checkin_source_lift_id,
     sets: setRows.map(mapProgressionSet),
   };
+}
+
+function parseSecondaryMuscleIds(value: string | null): EntityId[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id));
 }
 
 async function loadLastInsertId(client: DatabaseClient): Promise<number> {

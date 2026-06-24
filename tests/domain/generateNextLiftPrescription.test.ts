@@ -9,6 +9,7 @@ const exercise = {
   minRepsHypertrophy: 6,
   maxRepsHypertrophy: 12,
   primaryMuscleId: 4,
+  secondaryMuscleIds: [],
   repsOnly: false,
 };
 
@@ -94,6 +95,69 @@ describe("generateNextLiftPrescription", () => {
     ]);
   });
 
+  it("falls through to load progression when focus volume would push the primary muscle above 25 sets", () => {
+    const result = generateNextLiftPrescription(
+      input({
+        current: lift({ week: 2, pain: 1, effort: 2, reps: [12, 11], weight: 185 }),
+        previous: lift({ week: 1, pain: 1, effort: 2, reps: [11, 11], weight: 180 }),
+        focusMuscleIds: [4],
+        previousWeekMuscleSetCredits: new Map([[4, 25]]),
+      }),
+    );
+
+    expect(result.gate).toBe("gate_7_load");
+    expect(result.sets).toEqual([
+      { order: 1, plannedReps: 12, plannedWeight: 190 },
+      { order: 2, plannedReps: 11, plannedWeight: 190 },
+    ]);
+  });
+
+  it("falls through to rep progression when focus volume would push a secondary muscle above 25 sets", () => {
+    const result = generateNextLiftPrescription(
+      input({
+        current: lift({ week: 2, pain: 1, effort: 2, reps: [10, 8], weight: 135 }),
+        previous: lift({ week: 1, pain: 1, effort: 2, reps: [9, 8], weight: 130 }),
+        exercise: {
+          ...exercise,
+          secondaryMuscleIds: [8],
+        },
+        focusMuscleIds: [4],
+        previousWeekMuscleSetCredits: new Map([[8, 25]]),
+      }),
+    );
+
+    expect(result.gate).toBe("gate_7_reps");
+    expect(result.sets).toEqual([
+      { order: 1, plannedReps: 11, plannedWeight: 135 },
+      { order: 2, plannedReps: 9, plannedWeight: 135 },
+    ]);
+  });
+
+  it("allows volume when the added primary and secondary credits land exactly on 25 sets", () => {
+    const result = generateNextLiftPrescription(
+      input({
+        current: lift({ week: 2, pain: 1, effort: 2, reps: [10, 8], weight: 135 }),
+        previous: lift({ week: 1, pain: 1, effort: 2, reps: [9, 8], weight: 130 }),
+        exercise: {
+          ...exercise,
+          secondaryMuscleIds: [8],
+        },
+        focusMuscleIds: [4],
+        previousWeekMuscleSetCredits: new Map([
+          [4, 24],
+          [8, 24.5],
+        ]),
+      }),
+    );
+
+    expect(result.gate).toBe("gate_5_focus_volume");
+    expect(result.sets).toEqual([
+      { order: 1, plannedReps: 10, plannedWeight: 135 },
+      { order: 2, plannedReps: 8, plannedWeight: 135 },
+      { order: 3, plannedReps: null, plannedWeight: 135 },
+    ]);
+  });
+
   it("adds one set for non-focus muscles after three eligible exposures", () => {
     const result = generateNextLiftPrescription(
       input({
@@ -167,6 +231,7 @@ describe("generateNextLiftPrescription", () => {
           minRepsHypertrophy: 8,
           maxRepsHypertrophy: 25,
           primaryMuscleId: 4,
+          secondaryMuscleIds: [],
           repsOnly: true,
         },
       }),
@@ -213,6 +278,7 @@ function input(
     exercise,
     focusMuscleIds: [],
     programLengthWeeks: 8,
+    previousWeekMuscleSetCredits: new Map(),
     ...overrides,
   };
 }

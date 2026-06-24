@@ -1,4 +1,8 @@
-import type { CompletedSetEvent } from "../../../domain/analytics/TrainingAnalytics";
+import {
+  primaryMuscleSetCredit,
+  secondaryMuscleSetCredit,
+  type CompletedSetEvent,
+} from "../../../domain/analytics/TrainingAnalytics";
 import type { TrainingAnalyticsRepository } from "../../../domain/analytics/TrainingAnalyticsRepository";
 import type { EntityId } from "../../../domain/ids";
 import type { DatabaseClient } from "../DatabaseClient";
@@ -40,7 +44,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           muscles.id AS muscle_id,
           muscles.name AS muscle_name,
           completed_sets.completed_at,
-          1 AS set_credit
+          ? AS set_credit
         FROM completed_sets
         INNER JOIN muscles ON muscles.id = completed_sets.primary_muscle_id
         UNION ALL
@@ -49,7 +53,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           secondary_muscles.id AS muscle_id,
           secondary_muscles.name AS muscle_name,
           completed_sets.completed_at,
-          0.5 AS set_credit
+          ? AS set_credit
         FROM completed_sets
         INNER JOIN exercise_secondary_muscles
           ON exercise_secondary_muscles.exercise_id = completed_sets.exercise_id
@@ -57,7 +61,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           ON secondary_muscles.id = exercise_secondary_muscles.muscle_id
         ORDER BY completed_at ASC, muscle_name ASC
       `,
-      [input.fromInclusive, input.toExclusive],
+      [input.fromInclusive, input.toExclusive, primaryMuscleSetCredit, secondaryMuscleSetCredit],
     );
 
     return rows.map((row) => ({
@@ -92,7 +96,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           muscles.id AS muscle_id,
           muscles.name AS muscle_name,
           completed_sets.completed_at,
-          1 AS set_credit
+          ? AS set_credit
         FROM completed_sets
         INNER JOIN muscles ON muscles.id = completed_sets.primary_muscle_id
         UNION ALL
@@ -101,7 +105,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           secondary_muscles.id AS muscle_id,
           secondary_muscles.name AS muscle_name,
           completed_sets.completed_at,
-          0.5 AS set_credit
+          ? AS set_credit
         FROM completed_sets
         INNER JOIN exercise_secondary_muscles
           ON exercise_secondary_muscles.exercise_id = completed_sets.exercise_id
@@ -109,7 +113,7 @@ export class SqliteTrainingAnalyticsRepository implements TrainingAnalyticsRepos
           ON secondary_muscles.id = exercise_secondary_muscles.muscle_id
         ORDER BY completed_at ASC, muscle_name ASC
       `,
-      [programId],
+      [programId, primaryMuscleSetCredit, secondaryMuscleSetCredit],
     );
 
     return rows.map((row) => ({

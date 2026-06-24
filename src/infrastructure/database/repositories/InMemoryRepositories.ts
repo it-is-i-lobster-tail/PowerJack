@@ -1346,6 +1346,11 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       throw new Error("Program template could not be loaded.");
     }
 
+    const previousWeekMuscleSetCredits = this.completedMuscleSetCreditsForProgramWeek(
+      program.id,
+      programWeek - 1,
+    );
+
     for (const day of template.days) {
       const workout = this.createWorkout({
         programId: program.id,
@@ -1363,6 +1368,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
           liftOrder: exerciseIndex + 1,
           exerciseId,
           focusMuscleIds: template.focusMuscleIds,
+          previousWeekMuscleSetCredits,
         });
         const manualCheckinStatus: ManualCheckinStatus = prescription.manualCheckinSourceLiftId
           ? "pending"
@@ -1398,6 +1404,7 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
     liftOrder: number;
     exerciseId: number;
     focusMuscleIds: number[];
+    previousWeekMuscleSetCredits: ReadonlyMap<number, number>;
   }) {
     const current = this.liftHistory({
       programId: input.program.id,
@@ -1423,6 +1430,8 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       throw new Error("Exercise primary muscle could not be loaded for progression.");
     }
 
+    const secondaryMuscles = resolveSecondaryMuscles(this.catalog.muscles, exercise.secondaryMuscleNames);
+
     return generateNextLiftPrescription({
       current,
       previous: this.liftHistory({
@@ -1441,13 +1450,57 @@ class InMemoryTrainingRepository implements ProgramRepository, WorkoutRepository
       }),
       exercise: {
         primaryMuscleId: primaryMuscle.id,
+        secondaryMuscleIds: secondaryMuscles.map((muscle) => muscle.id),
         minRepsHypertrophy: exercise.minRepsHypertrophy,
         maxRepsHypertrophy: exercise.maxRepsHypertrophy,
         repsOnly: exercise.repsOnly,
       },
       focusMuscleIds: input.focusMuscleIds,
       programLengthWeeks: input.program.programLengthWeeks,
+      previousWeekMuscleSetCredits: input.previousWeekMuscleSetCredits,
     });
+  }
+
+  private completedMuscleSetCreditsForProgramWeek(programId: number, programWeek: number): Map<number, number> {
+    if (programWeek < 1) {
+      return new Map();
+    }
+
+    const creditsByMuscle = new Map<number, number>();
+
+    for (const set of this.sets) {
+      const lift = this.lifts.find((item) => item.id === set.liftId);
+      const workout = lift ? this.workouts.find((item) => item.id === lift.workoutId) : null;
+      const exercise = lift ? this.catalog.exercises.find((item) => item.id === lift.exerciseId) : null;
+      const primaryMuscle = exercise
+        ? this.catalog.muscles.find((muscle) => muscle.name === exercise.primaryMuscleName)
+        : null;
+
+      if (
+        !workout ||
+        !exercise ||
+        !primaryMuscle ||
+        workout.programId !== programId ||
+        workout.programWeek !== programWeek ||
+        set.status !== "completed" ||
+        set.actualReps === null
+      ) {
+        continue;
+      }
+
+      const events = buildCompletedSetEventsForMuscles({
+        setId: set.id,
+        completedAt: set.updatedAt,
+        primaryMuscle,
+        secondaryMuscles: resolveSecondaryMuscles(this.catalog.muscles, exercise.secondaryMuscleNames),
+      });
+
+      for (const event of events) {
+        creditsByMuscle.set(event.muscleId, (creditsByMuscle.get(event.muscleId) ?? 0) + event.setCredit);
+      }
+    }
+
+    return creditsByMuscle;
   }
 
   private liftHistory(input: {
