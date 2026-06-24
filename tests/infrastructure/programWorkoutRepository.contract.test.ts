@@ -864,7 +864,7 @@ describe("Program and Workout repository contracts", () => {
 
     expect(skippedWeekTwo).toMatchObject({
       completedSets: 0,
-      totalSets: 0,
+      totalSets: 2,
       canFinish: true,
     });
     expect(skippedWeekTwo.lifts[0]).toMatchObject({ status: "skipped", locked: true });
@@ -888,6 +888,72 @@ describe("Program and Workout repository contracts", () => {
       expect.objectContaining({ plannedReps: 10, plannedWeight: 100 }),
       expect.objectContaining({ plannedReps: 8, plannedWeight: 100 }),
     ]);
+  });
+
+  it("includes skipped sets in workout progress totals without blocking finish eligibility", async () => {
+    const services = createInMemoryAppServices();
+    const benchId = await findExerciseId(services, "Barbell Bench Press");
+    const deadliftId = await findExerciseId(services, "Barbell Deadlift");
+    const squatId = await findExerciseId(services, "Barbell Back Squat");
+    const template = await createTemplate(services, [[benchId, deadliftId], [squatId]]);
+    await startTemplateProgram(services, template.id);
+    let view = await loadRequiredActiveWorkout(services);
+
+    view = await completeWorkout(services, view, [10, 8], 100);
+    view = await submitLiftFeedback(
+      { liftId: view.lifts[0]?.id ?? 0, levelOfPain: 4, levelOfEffort: 3 },
+      services.workouts,
+    );
+    view = await submitLiftFeedback(
+      { liftId: view.lifts[1]?.id ?? 0, levelOfPain: 1, levelOfEffort: 3 },
+      services.workouts,
+    );
+    await finishWorkout(view.workout.id, services.workouts);
+    view = await loadRequiredActiveWorkout(services);
+    view = await completeWorkout(services, view, [8, 8], 150);
+    view = await submitFeedbackForCompletedLifts(services, view);
+    const weekTwo = await finishWorkout(view.workout.id, services.workouts);
+
+    if (!weekTwo) {
+      throw new Error("Expected week 2.");
+    }
+
+    const skippedBenchView = await resolveManualCheckIn(
+      { liftId: weekTwo.lifts[0]?.id ?? 0, decision: "skip" },
+      services.workouts,
+    );
+
+    expect(skippedBenchView).toMatchObject({
+      completedSets: 0,
+      totalSets: 4,
+      canFinish: false,
+    });
+
+    view = skippedBenchView;
+
+    for (const set of view.lifts[1]?.sets ?? []) {
+      view = await updateWorkoutSet(
+        { setId: set.id, actualReps: 8, actualWeight: 100 },
+        services.workouts,
+      );
+    }
+
+    expect(view).toMatchObject({
+      completedSets: 2,
+      totalSets: 4,
+      canFinish: false,
+    });
+
+    view = await submitLiftFeedback(
+      { liftId: view.lifts[1]?.id ?? 0, levelOfPain: 1, levelOfEffort: 3 },
+      services.workouts,
+    );
+
+    expect(view).toMatchObject({
+      completedSets: 2,
+      totalSets: 4,
+      canFinish: true,
+    });
   });
 
   it("resets a high-pain manual check-in lift to two blank active sets", async () => {
