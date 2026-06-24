@@ -7,6 +7,9 @@ export type SetVolumeBand = "not-ideal" | "maintaining" | "growth" | "max-growth
 export const setVisualizationRanges: SetVisualizationRange[] = ["week", "month", "quarter", "year"];
 export const setVisualizationViews: SetVisualizationView[] = ["bars", "heatmap"];
 export const setVisualizationMinimumYear = 2026;
+export const primaryMuscleSetCredit = 1;
+export const secondaryMuscleSetCredit = 0.5;
+export const weeklyMuscleSetProgressionCap = 25;
 export const setVolumeBandOrder: SetVolumeBand[] = ["not-ideal", "maintaining", "growth", "max-growth", "overtraining"];
 export const setVolumeBandLabels: Record<SetVolumeBand, string> = {
   "not-ideal": "Not Ideal",
@@ -232,7 +235,7 @@ export function buildProgramSetVolumeReport(input: {
 }
 
 export function classifyWeeklySetVolume(value: number): SetVolumeBand {
-  if (value > 25) {
+  if (value > weeklyMuscleSetProgressionCap) {
     return "overtraining";
   }
 
@@ -263,7 +266,7 @@ export function buildCompletedSetEventsForMuscles(input: {
       muscleId: input.primaryMuscle.id,
       muscleName: input.primaryMuscle.name,
       completedAt: input.completedAt,
-      setCredit: 1,
+      setCredit: primaryMuscleSetCredit,
     },
     ...input.secondaryMuscles
       .filter((muscle) => muscle.id !== input.primaryMuscle.id)
@@ -272,7 +275,7 @@ export function buildCompletedSetEventsForMuscles(input: {
         muscleId: muscle.id,
         muscleName: muscle.name,
         completedAt: input.completedAt,
-        setCredit: 0.5,
+        setCredit: secondaryMuscleSetCredit,
       })),
   ];
 }
