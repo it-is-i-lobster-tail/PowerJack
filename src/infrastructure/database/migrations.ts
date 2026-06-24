@@ -7,6 +7,7 @@ import exerciseRepsOnly from "./migrations/006_exercise_reps_only.sql?raw";
 import exerciseTimeBased from "./migrations/007_exercise_time_based.sql?raw";
 import appStateRestTimer from "./migrations/008_app_state_rest_timer.sql?raw";
 import completedStatusEnum from "./migrations/009_completed_status_enum.sql?raw";
+import completedSetsStats from "./migrations/010_completed_sets_stats.sql?raw";
 
 export interface DatabaseMigration {
   id: number;
@@ -24,4 +25,5 @@ export const databaseMigrations: DatabaseMigration[] = [
   { id: 7, name: "exercise_time_based", sql: exerciseTimeBased },
   { id: 8, name: "app_state_rest_timer", sql: appStateRestTimer },
   { id: 9, name: "completed_status_enum", sql: completedStatusEnum },
+  { id: 10, name: "completed_sets_stats", sql: completedSetsStats },
 ];

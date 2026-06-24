@@ -21,6 +21,13 @@ import type {
   ManualCheckinDecision,
   WorkoutRepository,
 } from "../../../domain/workouts/WorkoutRepository";
+import {
+  completedSetStatsColumnByMuscleName,
+  completedSetStatsColumns,
+  completedSetStatsValuePlaceholders,
+  createEmptyCompletedSetStatsValues,
+  type CompletedSetStatsValues,
+} from "../completedSetStats";
 import type { DatabaseClient } from "../DatabaseClient";
 
 interface AppStateActiveWorkoutRow extends Record<string, unknown> {
@@ -80,6 +87,9 @@ interface LiftSetRow extends Record<string, unknown> {
 interface SetMutationRow extends Record<string, unknown> {
   lift_id: number;
   workout_id: number;
+  program_id: number;
+  exercise_id: number;
+  primary_muscle_name: string;
   set_locked: number;
   workout_locked: number;
   workout_status: string;
@@ -177,6 +187,10 @@ interface LiftHistorySetRow extends Record<string, unknown> {
 
 interface FocusMuscleRow extends Record<string, unknown> {
   muscle_id: number;
+}
+
+interface SecondaryMuscleNameRow extends Record<string, unknown> {
+  muscle_name: string;
 }
 
 interface ResolveManualCheckinRow extends Record<string, unknown> {
@@ -341,6 +355,9 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           SELECT
             workout_sets.lift_id,
             lifts.workout_id,
+            workouts.program_id,
+            exercises.id AS exercise_id,
+            primary_muscles.name AS primary_muscle_name,
             workout_sets.locked AS set_locked,
             workouts.locked AS workout_locked,
             workouts.status AS workout_status,
@@ -348,6 +365,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           FROM workout_sets
           INNER JOIN lifts ON lifts.id = workout_sets.lift_id
           INNER JOIN exercises ON exercises.id = lifts.exercise_id
+          INNER JOIN muscles AS primary_muscles ON primary_muscles.id = exercises.primary_muscle_id
           INNER JOIN workouts ON workouts.id = lifts.workout_id
           WHERE workout_sets.id = ?
         `,
@@ -380,6 +398,17 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
         `,
         [input.actualReps, nextActualWeight, nextStatus, input.setId],
       );
+
+      if (nextStatus === "completed") {
+        await insertCompletedSetStats(client, {
+          exerciseId: row.exercise_id,
+          primaryMuscleName: row.primary_muscle_name,
+          programId: row.program_id,
+          setId: input.setId,
+        });
+      } else {
+        await client.run("DELETE FROM completed_sets_stats WHERE set_id = ?", [input.setId]);
+      }
 
       const incompleteRows = await client.query<CountRow>(
         `
@@ -1160,6 +1189,68 @@ async function refreshLiftStatusFromSets(client: DatabaseClient, liftId: EntityI
     `,
     [liftStatus, liftId],
   );
+}
+
+async function insertCompletedSetStats(
+  client: DatabaseClient,
+  input: {
+    exerciseId: EntityId;
+    primaryMuscleName: string;
+    programId: EntityId;
+    setId: EntityId;
+  },
+): Promise<void> {
+  const secondaryRows = await client.query<SecondaryMuscleNameRow>(
+    `
+      SELECT muscles.name AS muscle_name
+      FROM exercise_secondary_muscles
+      INNER JOIN muscles ON muscles.id = exercise_secondary_muscles.muscle_id
+      WHERE exercise_secondary_muscles.exercise_id = ?
+      ORDER BY muscles.name ASC
+    `,
+    [input.exerciseId],
+  );
+  const values = buildCompletedSetStatsValues({
+    primaryMuscleName: input.primaryMuscleName,
+    secondaryMuscleNames: secondaryRows.map((row) => row.muscle_name),
+  });
+
+  await client.run(
+    `
+      INSERT OR IGNORE INTO completed_sets_stats
+        (program_id, set_id, ${completedSetStatsColumns.join(", ")})
+      VALUES (?, ?, ${completedSetStatsValuePlaceholders})
+    `,
+    [
+      input.programId,
+      input.setId,
+      ...completedSetStatsColumns.map((column) => values[column]),
+    ],
+  );
+}
+
+function buildCompletedSetStatsValues(input: {
+  primaryMuscleName: string;
+  secondaryMuscleNames: string[];
+}): CompletedSetStatsValues {
+  const values = createEmptyCompletedSetStatsValues();
+  const primaryColumn = completedSetStatsColumnByMuscleName.get(input.primaryMuscleName);
+
+  if (!primaryColumn) {
+    throw new Error(`Cannot record completed set stats for muscle ${input.primaryMuscleName}.`);
+  }
+
+  values[primaryColumn] = 1;
+
+  for (const secondaryMuscleName of input.secondaryMuscleNames) {
+    const secondaryColumn = completedSetStatsColumnByMuscleName.get(secondaryMuscleName);
+
+    if (secondaryColumn && values[secondaryColumn] < 1) {
+      values[secondaryColumn] = 0.5;
+    }
+  }
+
+  return values;
 }
 
 function validatePainValue(value: number): void {
