@@ -1,0 +1,11 @@
+Branch: codex/enhancement/pj-linear-project-v01
+Date: 2026-06-24
+
+Why was the branch needed:
+The repo-local `pj-linear-lookup` Codex skill still instructed agents to verify Linear issues against the project named `PowerJack`. The active project name for this workflow is `PowerJack v0.1`, so agents could reject valid issues or search for the wrong project.
+
+Outcomes of code changes:
+The skill frontmatter and required workflow now refer to `PowerJack v0.1` wherever the exact Linear project name is specified. This keeps future issue lookups aligned with the intended Linear project while preserving the rest of the planning and status workflow.
+
+Implementation decisions that were made:
+The change was kept to instruction text only: no runtime app code, dependencies, UI, database, or iOS behavior changed. The branch documentation was added per the final-review workflow, and the required verification is `npm run check` because this is a repo instruction update.

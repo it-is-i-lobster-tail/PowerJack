@@ -17,16 +17,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "eyebrow ."
     "title add"
-    "meta .";
+    "mode .";
   column-gap: var(--space-3);
-  row-gap: var(--space-2);
+  row-gap: var(--space-1);
   align-items: center;
 }
 
 .template-builder-header p {
-  grid-area: eyebrow;
+  grid-area: mode;
   margin: 0;
   color: var(--color-accent);
   font-size: var(--font-size-info);
@@ -44,15 +43,6 @@
   overflow-wrap: anywhere;
 }
 
-.template-builder-header span {
-  grid-area: meta;
-  min-width: 0;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sub-header);
-  font-weight: 500;
-}
-
 .template-builder-header__add {
   grid-area: add;
   justify-self: end;
@@ -60,6 +50,17 @@
   min-width: 124px;
   padding: 0 var(--space-4);
   white-space: nowrap;
+}
+
+.template-builder-header__add--limited {
+  border-color: var(--color-border-soft);
+  background: var(--color-disabled-surface);
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+
+.template-builder-header__add--limited:active:not(:disabled) {
+  transform: none;
 }
 
 .day-tabs {

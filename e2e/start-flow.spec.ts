@@ -185,7 +185,7 @@ async function completeActiveLiftWithFeedback(
 async function completeLiftWithFeedback(
   page: import("@playwright/test").Page,
   exerciseName: string,
-  options: { reps?: string; weight?: string } = {},
+  options: { effort?: number; pain?: number; reps?: string; weight?: string } = {},
 ) {
   const liftCard = page.locator("[data-agent-id^='lift-card-']").filter({ hasText: exerciseName });
   const repsInputs = liftCard.locator("[data-agent-id^='set-reps-']");
@@ -212,8 +212,8 @@ async function completeLiftWithFeedback(
   }
 
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
-  await page.locator("[data-agent-id='feedback-pain-option-1']").click();
-  await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+  await page.locator(`[data-agent-id='feedback-pain-option-${options.pain ?? 1}']`).click();
+  await page.locator(`[data-agent-id='feedback-effort-option-${options.effort ?? 3}']`).click();
   await page.locator("[data-agent-id='feedback-save']").click();
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
 }
@@ -535,6 +535,30 @@ async function expectElementWithinActiveWorkoutViewport(
   ).toBeLessThanOrEqual(screenBox.y + screenBox.height + 1);
 }
 
+async function captureElementBox(locator: Locator, name: string) {
+  const box = await locator.boundingBox();
+
+  expect(box, `${name} should have a layout box`).not.toBeNull();
+
+  if (!box) {
+    throw new Error(`${name} should have a layout box`);
+  }
+
+  return box;
+}
+
+async function expectElementBoxStable(
+  locator: Locator,
+  before: Awaited<ReturnType<typeof captureElementBox>>,
+  name: string,
+) {
+  const after = await captureElementBox(locator, name);
+
+  expect(Math.abs(after.x - before.x), `${name} x position should stay stable`).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - before.y), `${name} y position should stay stable`).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.width - before.width), `${name} width should stay stable`).toBeLessThanOrEqual(1);
+}
+
 async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
   const screen = page.locator("[data-agent-id='active-workout-page']");
 
@@ -660,6 +684,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   page: import("@playwright/test").Page,
   dayCount: number,
   options: {
+    expectedModeLabel?: string;
     screenshotName?: string;
     testInfo?: import("@playwright/test").TestInfo;
   } = {},
@@ -674,6 +699,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   await expect(addExercise).toHaveText("exercise");
   await expect(lastDayTab).toBeVisible();
   await expect(page.locator("[data-agent-id='template-builder-page']")).not.toContainText(/\d+ days per week/);
+  await expectTemplateBuilderModeLabelBelowTitle(page, options.expectedModeLabel ?? "New template");
 
   const metrics = await page.evaluate(
     ({ dayCount: expectedDayCount }) => {
@@ -739,6 +765,53 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   }
 
   return metrics.safeVisibleTitleCharsMobile;
+}
+
+async function expectTemplateBuilderModeLabelBelowTitle(
+  page: import("@playwright/test").Page,
+  expectedLabel: string,
+): Promise<void> {
+  const title = page.locator("[data-agent-id='template-builder-title-text']");
+  const modeLabel = page.locator("[data-agent-id='template-builder-mode-label']");
+
+  await expect(title).toBeVisible();
+  await expect(modeLabel).toBeVisible();
+  await expect(modeLabel).toHaveText(expectedLabel);
+
+  const metrics = await page.evaluate(() => {
+    const titleElement = document.querySelector<HTMLElement>(
+      "[data-agent-id='template-builder-title-text']",
+    );
+    const modeElement = document.querySelector<HTMLElement>(
+      "[data-agent-id='template-builder-mode-label']",
+    );
+
+    if (!titleElement || !modeElement) {
+      throw new Error("Template builder mode label geometry targets are missing.");
+    }
+
+    const titleRect = titleElement.getBoundingClientRect();
+    const modeRect = modeElement.getBoundingClientRect();
+
+    return {
+      modeLeft: modeRect.left,
+      modeTop: modeRect.top,
+      titleBottom: titleRect.bottom,
+      titleLeft: titleRect.left,
+      titleTop: titleRect.top,
+    };
+  });
+
+  expect(metrics.modeTop, "mode label should sit below the template title").toBeGreaterThanOrEqual(
+    metrics.titleBottom - 1,
+  );
+  expect(metrics.modeTop, "mode label should not appear above the template title").toBeGreaterThan(
+    metrics.titleTop,
+  );
+  expect(
+    Math.abs(metrics.modeLeft - metrics.titleLeft),
+    "mode label should align with the title",
+  ).toBeLessThanOrEqual(2);
 }
 
 async function expectTemplateListHeaderAddPlacement(
@@ -1512,6 +1585,35 @@ test.describe("start program flow", () => {
     await expectExerciseSearchScrollContained(page);
   });
 
+  test("template builder limits each day to 20 exercises", async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 393, height: 852 });
+    await openTemplateBuilder(page, { dayCount: 2, name: "Twenty Lift Day" });
+
+    for (let index = 1; index <= 20; index += 1) {
+      await addExerciseToCurrentTemplateDay(page, "bench", /^Barbell Bench Press\b/);
+    }
+
+    await expect(page.locator("[data-agent-id='template-exercise-20']")).toContainText("Barbell Bench Press");
+    await expect(page.locator("[data-agent-id='template-exercise-21']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='add-exercise']")).toHaveAttribute("aria-disabled", "true");
+
+    await page.locator("[data-agent-id='add-exercise']").click({ force: true });
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='template-exercise-limit-modal']")).toContainText(
+      "Workouts are limited to 20 exercises.",
+    );
+    await expectMobileScreenshot(page, testInfo, "warm-stone-builder-exercise-limit-modal-mobile.png");
+
+    await page.getByRole("button", { name: "Okay" }).click();
+    await expect(page.locator("[data-agent-id='template-exercise-limit-modal']")).toHaveCount(0);
+
+    await page.locator("[data-agent-id='template-day-2']").click();
+    await expect(page.locator("[data-agent-id='add-exercise']")).not.toHaveAttribute("aria-disabled", "true");
+    await page.locator("[data-agent-id='add-exercise']").click();
+    await expect(page.locator("[data-agent-id='exercise-search-overlay']")).toBeVisible();
+  });
+
   test("new template saves only after every day has an exercise", async ({ page }, testInfo) => {
     await openTemplateFocus(page);
     await selectFocusAndOpenDays(page);
@@ -1930,6 +2032,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-muscle-focus-next']").click();
     await expect(page.locator("[data-agent-id='template-days-per-week-2']")).toHaveAttribute("aria-checked", "true");
     await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expectTemplateBuilderModeLabelBelowTitle(page, "Edit template");
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
     await page.locator("[data-agent-id='save-template']").click();
 
@@ -1993,6 +2096,8 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     expect(page.url()).not.toBe(canonicalDayOneUrl);
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toHaveCount(0);
+    await expect(page.locator(".workout-header__progress-separator")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Finish current workout first");
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
@@ -2544,6 +2649,44 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 1");
   });
 
+  test("active workout set rows keep input positions stable when logging on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoLiftFirstDayTemplate(page, "Stable Set Rows");
+    await startSelectedProgram(page, 4);
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOneReps = reps.nth(0);
+    const benchSetOneWeight = weights.nth(0);
+    const benchSetTwoReps = reps.nth(1);
+    const benchSetTwoWeight = weights.nth(1);
+
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(reps).toHaveCount(4);
+    await benchSetOneReps.fill("12");
+    await benchSetOneWeight.fill("200");
+
+    const setOneRepsBefore = await captureElementBox(benchSetOneReps, "set one reps input before logging");
+    const setOneWeightBefore = await captureElementBox(benchSetOneWeight, "set one weight input before logging");
+    const setTwoRepsBefore = await captureElementBox(benchSetTwoReps, "set two reps input before logging");
+    const setTwoWeightBefore = await captureElementBox(benchSetTwoWeight, "set two weight input before logging");
+
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
+    await expect(page.locator("[data-agent-id^='set-logged-']")).toContainText("Logged");
+
+    await expectElementBoxStable(benchSetOneReps, setOneRepsBefore, "set one reps input after logging");
+    await expectElementBoxStable(benchSetOneWeight, setOneWeightBefore, "set one weight input after logging");
+
+    await page.evaluate(() => {
+      (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
+    });
+    await page.waitForTimeout(1100);
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Go");
+    await expectElementBoxStable(benchSetTwoReps, setTwoRepsBefore, "set two reps input after next badge");
+    await expectElementBoxStable(benchSetTwoWeight, setTwoWeightBefore, "set two weight input after next badge");
+  });
+
   test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
     await createWeightedVolumeTemplate(page);
     await startSelectedProgram(page, 4);
@@ -2913,6 +3056,31 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
       "Last week Barbell Bench Press caused a pain of 4/5",
     );
+  });
+
+  test("skipped sets stay in non-planned workout progress totals", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Skipped Progress");
+    await startSelectedProgram(page, 4);
+
+    await completeLiftWithFeedback(page, "Barbell Bench Press", { pain: 4, weight: "100" });
+    await completeLiftWithFeedback(page, "Barbell Deadlift", { weight: "100" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await completeActiveLiftWithFeedback(page, { pain: 1, effort: 3, reps: ["8", "8"], weight: "150" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='manual-checkin-skip-yes']").click();
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
+    await expect(page.locator("[data-agent-id^='set-skipped-']")).toHaveCount(2);
+
+    await completeLiftWithFeedback(page, "Barbell Deadlift", { reps: "8", weight: "100" });
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
   });
 
   test("high-pain manual check-in can reset on mobile", async ({ page }) => {

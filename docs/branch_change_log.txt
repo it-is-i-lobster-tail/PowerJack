@@ -25,5 +25,20 @@ Summary: Added a previous-program-week muscle volume cap so progression stops ad
 ## feature/pj-linear-lookup-skill - 2026-06-23
 Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJack work from a Linear issue key. The skill verifies the PowerJack Linear project, handles the In Progress status workflow, reviews issue context, and directs agents into `/plan` before implementation.
 
-## enhancement/clarify-locked-workout-copy - 2026-06-23
+## codex/enhancement/compact-template-builder-label - 2026-06-23
+Summary: Repositioned the template builder mode label below the template title so the title and add-exercise action sit closer to the top navigation. Added rendered geometry coverage for new and edit template modes and refreshed the affected mobile builder screenshots.
+
+## codex/enhancement/pj-linear-project-v01 - 2026-06-24
+Summary: Updated the repo-local `pj-linear-lookup` Codex skill so Linear issue lookup verifies the `PowerJack v0.1` project instead of the older `PowerJack` project name.
+
+## feature/template-builder-exercise-limit - 2026-06-24
+Summary: Limited each template-builder workout day to 20 exercises across domain validation, draft state, and UI behavior. Added a disabled-looking Add exercise state, a clear limit modal, focused unit coverage, and mobile E2E visual coverage.
+
+## bugfix/pj-34-planned-workout-progress - 2026-06-24
+Summary: Hid workout header progress for planned workouts and corrected non-planned progress totals so skipped sets remain in the denominator. Added repository and E2E coverage for planned headers and skipped-set progress.
+
+## codex/bugfix/workout-set-log-stability - 2026-06-24
+Summary: Stabilized active workout set row geometry so logging a set and showing rest-timer status badges no longer shifts reps or weight inputs. Added mobile E2E coverage for input-position stability and refreshed affected active-workout mobile snapshots.
+
+## enhancement/clarify-locked-workout-copy - 2026-06-24
 Summary: Clarified the locked future workout chip so users see `Finish current workout first` instead of generic read-only copy. Preserved the completed workout read-only label and updated E2E coverage for the future workout state.
