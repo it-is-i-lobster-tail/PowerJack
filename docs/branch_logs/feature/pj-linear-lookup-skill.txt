@@ -1,0 +1,11 @@
+Branch: feature/pj-linear-lookup-skill
+Date: 2026-06-23
+
+Why was the branch needed:
+PowerJack needs a repeatable agent workflow for turning Linear issues such as PJ-31 into implementation plans. The workflow must ensure agents use the PowerJack Linear project, claim issues deliberately, inspect the complete issue context, and ask for intent clarification before changing code.
+
+Outcomes of code changes:
+Added the `pj-linear-lookup` repo-local Codex skill with UI metadata. The skill requires a single PJ issue key in the invoking message, verifies that the issue belongs to the Linear project named PowerJack, updates eligible issues to In Progress, pauses when an issue is already In Progress, reviews issue title, labels, description, AC, and comments, then proceeds as a `/plan` request.
+
+Implementation decisions that were made:
+The skill is procedural and does not include scripts, references, or assets because the repeated work is Linear-tool sequencing and planning discipline rather than deterministic file processing. It mirrors the existing repo-local skill shape with `SKILL.md` and `agents/openai.yaml`, uses exact-name checks for the PowerJack project and In Progress status, and avoids live Linear forward-testing because the workflow intentionally mutates issue status.
