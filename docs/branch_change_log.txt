@@ -36,3 +36,6 @@ Summary: Limited each template-builder workout day to 20 exercises across domain
 
 ## bugfix/pj-34-planned-workout-progress - 2026-06-24
 Summary: Hid workout header progress for planned workouts and corrected non-planned progress totals so skipped sets remain in the denominator. Added repository and E2E coverage for planned headers and skipped-set progress.
+
+## codex/bugfix/workout-set-log-stability - 2026-06-24
+Summary: Stabilized active workout set row geometry so logging a set and showing rest-timer status badges no longer shifts reps or weight inputs. Added mobile E2E coverage for input-position stability and refreshed affected active-workout mobile snapshots.
