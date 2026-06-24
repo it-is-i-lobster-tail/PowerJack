@@ -30,3 +30,6 @@ Summary: Updated the repo-local `pj-linear-lookup` Codex skill so Linear issue l
 
 ## feature/template-builder-exercise-limit - 2026-06-24
 Summary: Limited each template-builder workout day to 20 exercises across domain validation, draft state, and UI behavior. Added a disabled-looking Add exercise state, a clear limit modal, focused unit coverage, and mobile E2E visual coverage.
+
+## codex/bugfix/workout-set-log-stability - 2026-06-24
+Summary: Stabilized active workout set row geometry so logging a set and showing rest-timer status badges no longer shifts reps or weight inputs. Added mobile E2E coverage for input-position stability and refreshed affected active-workout mobile snapshots.

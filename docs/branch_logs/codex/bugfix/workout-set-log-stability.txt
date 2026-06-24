@@ -1,0 +1,11 @@
+Branch: codex/bugfix/workout-set-log-stability
+Date: 2026-06-24
+
+Why was the branch needed:
+PJ-36 reported a visible jerk in the active workout page after a user entered set weight on an iOS 26 iPhone and the set autosaved. The affected workflow is core workout logging, where the UI needs to stay calm and fixed while rows change from editable to logged and rest-timer state appears.
+
+Outcomes of code changes:
+Active workout set rows now reserve stable space for the set label and status badge column across desktop and mobile breakpoints. The mobile next-set badge is narrower, so adding Logged or Go state does not push reps and weight controls sideways. Mobile Playwright snapshots for active workout row states were refreshed to match the stabilized layout.
+
+Implementation decisions that were made:
+The fix stays in ActiveWorkoutPage CSS instead of changing domain logic, persistence, rest-timer behavior, or mobile input semantics. A focused E2E regression records reps and weight input boxes before autosave, verifies the set logs successfully, advances the test clock until the Go badge appears, and asserts the input positions remain stable.
