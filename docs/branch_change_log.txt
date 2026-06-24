@@ -15,3 +15,6 @@ Summary: Renamed the shared PowerJack completion status enum value from complete
 
 ## codex/enhancement/startup-hydration-template-cache - 2026-06-23
 Summary: Added launch-time app hydration and in-memory runtime caching so the iOS app can keep the splash visible until active workout data is ready. Warmed template summaries before the Select Template route renders so empty template lists show directly without a loading flash.
+
+## codex/enhancement/completed-set-stats - 2026-06-23
+Summary: Added a materialized completed_sets_stats table for one live muscle-credit row per completed workout set. The SQLite workout flow now creates, preserves, clears, and cascades stats rows while analytics reads from the optimized table.
