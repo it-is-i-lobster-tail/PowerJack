@@ -1,4 +1,0 @@
-interface:
-  display_name: "PowerJack Linear Lookup"
-  short_description: "Plan PowerJack work from a Linear issue"
-  default_prompt: "Use $pj-linear-lookup with PJ-31 to load the PowerJack Linear issue and plan the work."

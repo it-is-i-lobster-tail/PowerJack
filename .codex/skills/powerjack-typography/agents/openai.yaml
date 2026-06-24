@@ -1,4 +1,0 @@
-interface:
-  display_name: "PowerJack Typography"
-  short_description: "Audit PowerJack font-size token usage"
-  default_prompt: "Use $powerjack-typography to standardize PowerJack text sizes with the repo typography tokens."

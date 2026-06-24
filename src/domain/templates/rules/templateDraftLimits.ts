@@ -1,2 +1,0 @@
-export const TEMPLATE_NAME_MAX_LENGTH = 24;
-export const TEMPLATE_DAY_EXERCISE_MAX = 20;
