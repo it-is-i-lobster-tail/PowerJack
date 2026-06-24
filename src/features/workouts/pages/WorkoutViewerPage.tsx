@@ -999,6 +999,10 @@ export function WorkoutViewerPage() {
   const shouldShowWorkoutCompletion = view.workout.status !== "planned";
   const workoutCompletionPercent =
     view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
+  const isFutureLockedWorkout =
+    view.workout.locked && (view.workout.status === "planned" || view.workout.status === "active");
+  const readOnlyWorkoutStateLabel =
+    isFutureLockedWorkout ? "Finish current workout first" : "Read-only";
   const shouldReserveFinishWorkoutSpace = !shouldShowFinishWorkout;
   const activeWorkoutFlowClassName = [
     "active-workout-flow",
@@ -1046,7 +1050,7 @@ export function WorkoutViewerPage() {
             {view.isReadOnly ? (
               <span className="workout-header__state" data-agent-id="workout-state">
                 <LockKeyhole aria-hidden size={15} strokeWidth={2.3} />
-                Read-only
+                {readOnlyWorkoutStateLabel}
               </span>
             ) : isSaving ? (
               <span
