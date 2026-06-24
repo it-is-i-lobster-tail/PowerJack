@@ -997,8 +997,13 @@ export function WorkoutViewerPage() {
   const shouldShowFinishWorkout = isWorkoutWorkComplete;
   const isFinishBlockedByFeedback = Boolean(pendingFeedbackLift);
   const finishFeedbackHintId = "finish-feedback-hint";
+  const shouldShowWorkoutCompletion = view.workout.status !== "planned";
   const workoutCompletionPercent =
     view.totalSets > 0 ? Math.round((view.completedSets / view.totalSets) * 100) : 0;
+  const isFutureLockedWorkout =
+    view.workout.locked && (view.workout.status === "planned" || view.workout.status === "active");
+  const readOnlyWorkoutStateLabel =
+    isFutureLockedWorkout ? "Finish current workout first" : "Read-only";
   const shouldReserveFinishWorkoutSpace = !shouldShowFinishWorkout;
   const activeWorkoutFlowClassName = [
     "active-workout-flow",
@@ -1032,17 +1037,21 @@ export function WorkoutViewerPage() {
             </span>
             <h1 data-agent-id="workout-day-title" id="active-workout-day">
               <span className="workout-header__day-label">Day {view.workout.workoutDay}</span>
-              <span className="workout-header__progress-separator" aria-hidden="true">
-                |
-              </span>
-              <span className="workout-header__progress" data-agent-id="workout-progress-percent">
-                {workoutCompletionPercent}% done
-              </span>
+              {shouldShowWorkoutCompletion ? (
+                <>
+                  <span className="workout-header__progress-separator" aria-hidden="true">
+                    |
+                  </span>
+                  <span className="workout-header__progress" data-agent-id="workout-progress-percent">
+                    {workoutCompletionPercent}% done
+                  </span>
+                </>
+              ) : null}
             </h1>
             {view.isReadOnly ? (
               <span className="workout-header__state" data-agent-id="workout-state">
                 <LockKeyhole aria-hidden size={15} strokeWidth={2.3} />
-                Read-only
+                {readOnlyWorkoutStateLabel}
               </span>
             ) : isSaving ? (
               <span
