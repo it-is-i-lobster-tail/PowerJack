@@ -185,7 +185,7 @@ async function completeActiveLiftWithFeedback(
 async function completeLiftWithFeedback(
   page: import("@playwright/test").Page,
   exerciseName: string,
-  options: { reps?: string; weight?: string } = {},
+  options: { effort?: number; pain?: number; reps?: string; weight?: string } = {},
 ) {
   const liftCard = page.locator("[data-agent-id^='lift-card-']").filter({ hasText: exerciseName });
   const repsInputs = liftCard.locator("[data-agent-id^='set-reps-']");
@@ -212,8 +212,8 @@ async function completeLiftWithFeedback(
   }
 
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toContainText(exerciseName);
-  await page.locator("[data-agent-id='feedback-pain-option-1']").click();
-  await page.locator("[data-agent-id='feedback-effort-option-3']").click();
+  await page.locator(`[data-agent-id='feedback-pain-option-${options.pain ?? 1}']`).click();
+  await page.locator(`[data-agent-id='feedback-effort-option-${options.effort ?? 3}']`).click();
   await page.locator("[data-agent-id='feedback-save']").click();
   await expect(page.locator("[data-agent-id='lift-feedback-modal']")).toHaveCount(0);
 }
@@ -684,6 +684,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   page: import("@playwright/test").Page,
   dayCount: number,
   options: {
+    expectedModeLabel?: string;
     screenshotName?: string;
     testInfo?: import("@playwright/test").TestInfo;
   } = {},
@@ -698,6 +699,7 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   await expect(addExercise).toHaveText("exercise");
   await expect(lastDayTab).toBeVisible();
   await expect(page.locator("[data-agent-id='template-builder-page']")).not.toContainText(/\d+ days per week/);
+  await expectTemplateBuilderModeLabelBelowTitle(page, options.expectedModeLabel ?? "New template");
 
   const metrics = await page.evaluate(
     ({ dayCount: expectedDayCount }) => {
@@ -763,6 +765,53 @@ async function expectTemplateBuilderHeaderAddExercisePlacement(
   }
 
   return metrics.safeVisibleTitleCharsMobile;
+}
+
+async function expectTemplateBuilderModeLabelBelowTitle(
+  page: import("@playwright/test").Page,
+  expectedLabel: string,
+): Promise<void> {
+  const title = page.locator("[data-agent-id='template-builder-title-text']");
+  const modeLabel = page.locator("[data-agent-id='template-builder-mode-label']");
+
+  await expect(title).toBeVisible();
+  await expect(modeLabel).toBeVisible();
+  await expect(modeLabel).toHaveText(expectedLabel);
+
+  const metrics = await page.evaluate(() => {
+    const titleElement = document.querySelector<HTMLElement>(
+      "[data-agent-id='template-builder-title-text']",
+    );
+    const modeElement = document.querySelector<HTMLElement>(
+      "[data-agent-id='template-builder-mode-label']",
+    );
+
+    if (!titleElement || !modeElement) {
+      throw new Error("Template builder mode label geometry targets are missing.");
+    }
+
+    const titleRect = titleElement.getBoundingClientRect();
+    const modeRect = modeElement.getBoundingClientRect();
+
+    return {
+      modeLeft: modeRect.left,
+      modeTop: modeRect.top,
+      titleBottom: titleRect.bottom,
+      titleLeft: titleRect.left,
+      titleTop: titleRect.top,
+    };
+  });
+
+  expect(metrics.modeTop, "mode label should sit below the template title").toBeGreaterThanOrEqual(
+    metrics.titleBottom - 1,
+  );
+  expect(metrics.modeTop, "mode label should not appear above the template title").toBeGreaterThan(
+    metrics.titleTop,
+  );
+  expect(
+    Math.abs(metrics.modeLeft - metrics.titleLeft),
+    "mode label should align with the title",
+  ).toBeLessThanOrEqual(2);
 }
 
 async function expectTemplateListHeaderAddPlacement(
@@ -1983,6 +2032,7 @@ test.describe("start program flow", () => {
     await page.locator("[data-agent-id='template-muscle-focus-next']").click();
     await expect(page.locator("[data-agent-id='template-days-per-week-2']")).toHaveAttribute("aria-checked", "true");
     await page.locator("[data-agent-id='template-days-per-week-next']").click();
+    await expectTemplateBuilderModeLabelBelowTitle(page, "Edit template");
     await expect(page.locator("[data-agent-id='template-exercise-1']")).toContainText("Barbell Bench Press");
     await page.locator("[data-agent-id='save-template']").click();
 
@@ -2046,6 +2096,8 @@ test.describe("start program flow", () => {
     await expect(page).toHaveURL(/\/programs\/\d+\/workouts\/\d+$/);
     expect(page.url()).not.toBe(canonicalDayOneUrl);
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toHaveCount(0);
+    await expect(page.locator(".workout-header__progress-separator")).toHaveCount(0);
     await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
@@ -3004,6 +3056,31 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
       "Last week Barbell Bench Press caused a pain of 4/5",
     );
+  });
+
+  test("skipped sets stay in non-planned workout progress totals", async ({ page }) => {
+    await createTwoLiftFirstDayTemplate(page, "Skipped Progress");
+    await startSelectedProgram(page, 4);
+
+    await completeLiftWithFeedback(page, "Barbell Bench Press", { pain: 4, weight: "100" });
+    await completeLiftWithFeedback(page, "Barbell Deadlift", { weight: "100" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
+    await completeActiveLiftWithFeedback(page, { pain: 1, effort: 3, reps: ["8", "8"], weight: "150" });
+    await page.locator("[data-agent-id='finish-workout']").click();
+
+    await expect(page.locator("[data-agent-id='workout-week-label']")).toContainText("Week 2/4");
+    await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 1");
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toBeVisible();
+    await page.locator("[data-agent-id='manual-checkin-skip-yes']").click();
+
+    await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("0% done");
+    await expect(page.locator("[data-agent-id^='set-skipped-']")).toHaveCount(2);
+
+    await completeLiftWithFeedback(page, "Barbell Deadlift", { reps: "8", weight: "100" });
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("50% done");
+    await expect(page.locator("[data-agent-id='finish-workout']")).toBeVisible();
   });
 
   test("high-pain manual check-in can reset on mobile", async ({ page }) => {
