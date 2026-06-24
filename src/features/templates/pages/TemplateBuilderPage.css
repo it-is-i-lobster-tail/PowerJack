@@ -52,6 +52,17 @@
   white-space: nowrap;
 }
 
+.template-builder-header__add--limited {
+  border-color: var(--color-border-soft);
+  background: var(--color-disabled-surface);
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+
+.template-builder-header__add--limited:active:not(:disabled) {
+  transform: none;
+}
+
 .day-tabs {
   display: grid;
   grid-template-columns: repeat(var(--template-day-count), minmax(0, 1fr));
