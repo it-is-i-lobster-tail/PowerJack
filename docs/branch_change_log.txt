@@ -24,3 +24,6 @@ Summary: Added a previous-program-week muscle volume cap so progression stops ad
 
 ## feature/pj-linear-lookup-skill - 2026-06-23
 Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJack work from a Linear issue key. The skill verifies the PowerJack Linear project, handles the In Progress status workflow, reviews issue context, and directs agents into `/plan` before implementation.
+
+## feature/template-builder-exercise-limit - 2026-06-24
+Summary: Limited each template-builder workout day to 20 exercises across domain validation, draft state, and UI behavior. Added a disabled-looking Add exercise state, a clear limit modal, focused unit coverage, and mobile E2E visual coverage.
