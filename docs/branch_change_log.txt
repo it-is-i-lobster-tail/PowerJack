@@ -27,3 +27,9 @@ Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJac
 
 ## codex/enhancement/compact-template-builder-label - 2026-06-23
 Summary: Repositioned the template builder mode label below the template title so the title and add-exercise action sit closer to the top navigation. Added rendered geometry coverage for new and edit template modes and refreshed the affected mobile builder screenshots.
+
+## codex/enhancement/pj-linear-project-v01 - 2026-06-24
+Summary: Updated the repo-local `pj-linear-lookup` Codex skill so Linear issue lookup verifies the `PowerJack v0.1` project instead of the older `PowerJack` project name.
+
+## feature/template-builder-exercise-limit - 2026-06-24
+Summary: Limited each template-builder workout day to 20 exercises across domain validation, draft state, and UI behavior. Added a disabled-looking Add exercise state, a clear limit modal, focused unit coverage, and mobile E2E visual coverage.

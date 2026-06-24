@@ -23,10 +23,14 @@ import { searchExercises } from "../../../application/exercises/searchExercises"
 import { saveTemplate, updateTemplate } from "../../../application/templates/saveTemplate";
 import { useServices } from "../../../app/useServices";
 import type { ExerciseSummary } from "../../../domain/exercises/Exercise";
-import { TEMPLATE_NAME_MAX_LENGTH } from "../../../domain/templates/rules/templateDraftLimits";
+import {
+  TEMPLATE_DAY_EXERCISE_MAX,
+  TEMPLATE_NAME_MAX_LENGTH,
+} from "../../../domain/templates/rules/templateDraftLimits";
 import { validateTemplateDraft } from "../../../domain/templates/rules/validateTemplateDraft";
 import { ExerciseSearchOverlay } from "../../exercises/components/ExerciseSearchOverlay";
 import { Button } from "../../../shared/ui/Button";
+import { ConfirmationModal } from "../../../shared/ui/ConfirmationModal";
 import { FlowActionBar } from "../../../shared/ui/FlowActionBar";
 import { useStartProgramStore } from "../../start-program/state/startProgramStore";
 import { useTemplateDraftStore } from "../state/templateDraftStore";
@@ -71,6 +75,7 @@ export function TemplateBuilderPage() {
   const [editSearchResults, setEditSearchResults] = useState<ExerciseSummary[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isExerciseLimitModalOpen, setIsExerciseLimitModalOpen] = useState(false);
   const [copySourceDay, setCopySourceDay] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -225,6 +230,7 @@ export function TemplateBuilderPage() {
   );
   const isHydratingCurrentExercises =
     currentExerciseIds.length > 0 && currentExerciseItems.length < currentExerciseIds.length;
+  const isCurrentDayAtExerciseLimit = currentExerciseIds.length >= TEMPLATE_DAY_EXERCISE_MAX;
   const validation = validateTemplateDraft(toDraft());
   const canSave = validation.ok && !isSaving;
   const dragAnnouncements = useMemo(
@@ -329,6 +335,12 @@ export function TemplateBuilderPage() {
     setEditingIndex(null);
     clearEditQuery();
     setCopySourceDay(null);
+
+    if (isCurrentDayAtExerciseLimit) {
+      setIsExerciseLimitModalOpen(true);
+      return;
+    }
+
     setIsSearchOpen(true);
   }
 
@@ -345,6 +357,7 @@ export function TemplateBuilderPage() {
     clearEditQuery();
     setIsSearchOpen(false);
     clearAddQuery();
+    setIsExerciseLimitModalOpen(false);
     setCopySourceDay(null);
     setActiveDay(day);
   }
@@ -413,8 +426,13 @@ export function TemplateBuilderPage() {
           </p>
           {isHydratingCurrentExercises || isSearchOpen ? null : (
             <Button
+              aria-disabled={isCurrentDayAtExerciseLimit}
               aria-label="Add exercise"
-              className="template-builder-header__add"
+              className={
+                isCurrentDayAtExerciseLimit
+                  ? "template-builder-header__add template-builder-header__add--limited"
+                  : "template-builder-header__add"
+              }
               data-agent-id="add-exercise"
               leadingIcon={<Plus aria-hidden size={24} strokeWidth={2.8} />}
               onClick={handleOpenAddSearch}
@@ -589,6 +607,15 @@ export function TemplateBuilderPage() {
           resultAgentId={(exerciseId) => `replace-exercise-result-${exerciseId}`}
           results={editSearchResults}
           title="Exercise search"
+        />
+      ) : null}
+
+      {isExerciseLimitModalOpen ? (
+        <ConfirmationModal
+          agentId="template-exercise-limit-modal"
+          cancelLabel="Okay"
+          onCancel={() => setIsExerciseLimitModalOpen(false)}
+          title="Workouts are limited to 20 exercises."
         />
       ) : null}
     </main>
