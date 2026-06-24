@@ -1,0 +1,11 @@
+Branch: codex/enhancement/compact-template-builder-label
+Date: 2026-06-23
+
+Why was the branch needed:
+PJ-28 requested a more compact template builder header. The existing mode label, such as New template or Edit template, appeared above the template name and consumed the first content row, leaving less useful vertical space for the builder controls and day content.
+
+Outcomes of code changes:
+The template builder now places the template name and add-exercise action directly under the top navigation, with the New template or Edit template label shown below the title. The builder keeps its compact mobile layout, and the updated Playwright screenshots capture the new header position across short names, long names, filled builder state, copy modal, and reorder feedback.
+
+Implementation decisions that were made:
+The existing header grid was adjusted instead of adding a new component, keeping the change local to the template builder feature. A stable data-agent-id was added for the mode label, and Playwright geometry assertions now verify that both New template and Edit template labels sit below the title while preserving the add-exercise alignment checks. Typography stayed on the approved shared tokens.

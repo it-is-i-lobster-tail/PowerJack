@@ -24,3 +24,6 @@ Summary: Added a previous-program-week muscle volume cap so progression stops ad
 
 ## feature/pj-linear-lookup-skill - 2026-06-23
 Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJack work from a Linear issue key. The skill verifies the PowerJack Linear project, handles the In Progress status workflow, reviews issue context, and directs agents into `/plan` before implementation.
+
+## codex/enhancement/compact-template-builder-label - 2026-06-23
+Summary: Repositioned the template builder mode label below the template title so the title and add-exercise action sit closer to the top navigation. Added rendered geometry coverage for new and edit template modes and refreshed the affected mobile builder screenshots.
