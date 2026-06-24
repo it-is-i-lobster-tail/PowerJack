@@ -418,13 +418,26 @@ async function expectElementsWithinViewport(
 }
 
 async function expectCopyDayModalCenteredInViewport(page: import("@playwright/test").Page): Promise<void> {
-  const modal = page.locator("[data-agent-id='copy-day-modal']");
+  await expectModalCenteredInViewport(page, "copy-day-modal", "copy-day modal");
+  await expectElementsWithinViewport(page, [
+    "copy-day-target-2",
+    "copy-day-target-3",
+    "copy-day-target-4",
+  ]);
+}
+
+async function expectModalCenteredInViewport(
+  page: import("@playwright/test").Page,
+  agentId: string,
+  label: string,
+): Promise<void> {
+  const modal = page.locator(`[data-agent-id='${agentId}']`);
   const viewport = page.viewportSize();
   const modalBox = await modal.boundingBox();
 
   await expect(modal).toBeVisible();
   expect(viewport).not.toBeNull();
-  expect(modalBox, "copy-day modal should have a layout box").not.toBeNull();
+  expect(modalBox, `${label} should have a layout box`).not.toBeNull();
 
   if (!viewport || !modalBox) {
     return;
@@ -432,20 +445,13 @@ async function expectCopyDayModalCenteredInViewport(page: import("@playwright/te
 
   const modalCenterY = modalBox.y + modalBox.height / 2;
 
-  expect(modalBox.y, "copy-day modal should not overflow top").toBeGreaterThanOrEqual(0);
-  expect(modalBox.y + modalBox.height, "copy-day modal should not overflow bottom").toBeLessThanOrEqual(
+  expect(modalBox.y, `${label} should not overflow top`).toBeGreaterThanOrEqual(0);
+  expect(modalBox.y + modalBox.height, `${label} should not overflow bottom`).toBeLessThanOrEqual(
     viewport.height + 1,
   );
-  expect(
-    Math.abs(modalCenterY - viewport.height / 2),
-    "copy-day modal should be vertically centered",
-  ).toBeLessThanOrEqual(16);
-
-  await expectElementsWithinViewport(page, [
-    "copy-day-target-2",
-    "copy-day-target-3",
-    "copy-day-target-4",
-  ]);
+  expect(Math.abs(modalCenterY - viewport.height / 2), `${label} should be vertically centered`).toBeLessThanOrEqual(
+    16,
+  );
 }
 
 async function expectStaticScreenFitsViewport(
@@ -2690,6 +2696,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='feedback-effort-option-2']")).toContainText("Tough");
     await expect(page.locator("[data-agent-id='feedback-effort-option-3']")).toContainText("Challenge");
 
+    await expectModalCenteredInViewport(page, "lift-feedback-modal", "lift feedback modal");
     await expectFeedbackOptionsOnSingleRow(page, "feedback-pain-option");
     await expectFeedbackOptionsOnSingleRow(page, "feedback-effort-option");
     expect(await pageHasHorizontalOverflow(page)).toBe(false);
@@ -2923,6 +2930,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toContainText(
       "Would you like to reset progress for Barbell Bench Press?",
     );
+    await expectModalCenteredInViewport(page, "manual-checkin-modal", "manual check-in modal");
     await page.locator("[data-agent-id='manual-checkin-reset-yes']").click();
 
     await expect(page.locator("[data-agent-id='manual-checkin-modal']")).toHaveCount(0);

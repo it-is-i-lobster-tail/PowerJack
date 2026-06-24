@@ -38,6 +38,7 @@ Build mobile-first, then widen for browser layouts.
 - Do not use large decorative shadows except for modals and elevated overlays.
 - Keep primary touch targets at least 44px tall where practical.
 - Keep the next step or primary action easy to find without making it visually loud.
+- On iPhones, rounded bottom corners and curved bezels can visually clip content placed flush with the bottom edge. Keep important cards, dialogs, and controls centered or buffered by safe-area-aware bottom spacing instead of anchoring them at the physical bottom.
 
 Workout logging must stay compact:
 

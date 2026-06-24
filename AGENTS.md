@@ -74,6 +74,7 @@ PowerJack is being rebuilt as a client-only `React + TypeScript + Vite + Capacit
 - Use green for selected, active, success, and complete states.
 - Use orange for caution/destructive confirmation and red only for validation/destructive failure.
 - Never rely on color alone for state.
+- Do not place important cards, dialogs, or controls flush with the physical bottom of iPhones; curved bottom corners can clip them. Prefer centered modals or safe-area-buffered bottom UI.
 - Keep copy short, calm, and direct.
 - Avoid social fitness patterns, dashboards during workout execution, confetti, XP, badges, and loud gamification.
 

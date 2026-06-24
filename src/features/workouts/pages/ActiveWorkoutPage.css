@@ -493,7 +493,7 @@
 .feedback-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 50;
   display: grid;
   place-items: center;
   padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4)
@@ -762,11 +762,6 @@
 
   .set-row__multiplier {
     font-size: var(--font-size-sub-header);
-  }
-
-  .feedback-modal-overlay {
-    align-items: end;
-    padding: var(--space-3);
   }
 
   .lift-feedback-modal {

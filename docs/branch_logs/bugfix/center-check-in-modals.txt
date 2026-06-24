@@ -1,0 +1,11 @@
+Branch: bugfix/center-check-in-modals
+Date: 2026-06-24
+
+Why was the branch needed:
+PJ-35 reported that the workout feedback check-in card could appear at the very bottom of iPhone screens, where curved physical corners and bezels can visually clip card corners even when the browser viewport still renders them. The branch was needed to keep check-in modals visibly centered and to document this mobile layout risk for future agents.
+
+Outcomes of code changes:
+Workout Quick check-in and Manual check-in modals now render through a shared body-level overlay, so scroll position inside the active workout page cannot pull the fixed overlay toward the bottom. The mobile bottom-alignment override was removed, safe-area-aware padding remains in place, and updated Playwright assertions verify both check-in modal types are vertically centered and within the viewport. The affected mobile screenshot baselines now show the centered card position.
+
+Implementation decisions that were made:
+The shared feedback overlay was portaled to `document.body` instead of relying only on CSS because the active workout page is a scrollable container and fixed descendants can be positioned relative to that scrolled context. The overlay uses the same z-index layer as other modal overlays, applies the fix to both feedback and manual check-in dialogs, and keeps the existing modal copy, saving flow, domain logic, and persistence untouched. Documentation was added to the UI standards and agent guide so future mobile layouts avoid placing critical cards or controls flush with iPhone bottom edges.

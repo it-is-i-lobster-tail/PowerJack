@@ -10,7 +10,8 @@ import {
   LockKeyhole,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { searchExercises } from "../../../application/exercises/searchExercises";
 import { addSetToLift } from "../../../application/workouts/addSetToLift";
@@ -1364,7 +1365,7 @@ function ManualCheckInModal({
   const painLevel = lift.manualCheckinSourcePain ?? "?";
 
   return (
-    <div className="feedback-modal-overlay">
+    <FeedbackModalOverlay>
       <section
         aria-labelledby="manual-checkin-title"
         aria-modal="true"
@@ -1434,7 +1435,7 @@ function ManualCheckInModal({
           </p>
         ) : null}
       </section>
-    </div>
+    </FeedbackModalOverlay>
   );
 }
 
@@ -1462,7 +1463,7 @@ function LiftFeedbackModal({
   const canSave = painValue !== null && effortValue !== null && !isSaving;
 
   return (
-    <div className="feedback-modal-overlay">
+    <FeedbackModalOverlay>
       <section
         aria-labelledby="lift-feedback-title"
         aria-modal="true"
@@ -1520,8 +1521,12 @@ function LiftFeedbackModal({
           {isSaving ? "Saving feedback" : "Save feedback"}
         </Button>
       </section>
-    </div>
+    </FeedbackModalOverlay>
   );
+}
+
+function FeedbackModalOverlay({ children }: { children: ReactNode }) {
+  return createPortal(<div className="feedback-modal-overlay">{children}</div>, document.body);
 }
 
 function FeedbackScale({
