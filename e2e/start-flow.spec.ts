@@ -535,6 +535,30 @@ async function expectElementWithinActiveWorkoutViewport(
   ).toBeLessThanOrEqual(screenBox.y + screenBox.height + 1);
 }
 
+async function captureElementBox(locator: Locator, name: string) {
+  const box = await locator.boundingBox();
+
+  expect(box, `${name} should have a layout box`).not.toBeNull();
+
+  if (!box) {
+    throw new Error(`${name} should have a layout box`);
+  }
+
+  return box;
+}
+
+async function expectElementBoxStable(
+  locator: Locator,
+  before: Awaited<ReturnType<typeof captureElementBox>>,
+  name: string,
+) {
+  const after = await captureElementBox(locator, name);
+
+  expect(Math.abs(after.x - before.x), `${name} x position should stay stable`).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - before.y), `${name} y position should stay stable`).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.width - before.width), `${name} width should stay stable`).toBeLessThanOrEqual(1);
+}
+
 async function expectActiveWorkoutPageScrolledToTop(page: import("@playwright/test").Page): Promise<void> {
   const screen = page.locator("[data-agent-id='active-workout-page']");
 
@@ -2623,6 +2647,44 @@ test.describe("start program flow", () => {
     await expect(restPill).toBeVisible();
     await expect(page.locator("[data-agent-id='rest-timer-status']")).toContainText("Rest");
     await expect(page.locator("[data-agent-id='rest-timer-next']")).toContainText("Next: Set 1");
+  });
+
+  test("active workout set rows keep input positions stable when logging on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createTwoLiftFirstDayTemplate(page, "Stable Set Rows");
+    await startSelectedProgram(page, 4);
+
+    const reps = page.locator("[data-agent-id^='set-reps-']");
+    const weights = page.locator("[data-agent-id^='set-weight-']");
+    const benchSetOneReps = reps.nth(0);
+    const benchSetOneWeight = weights.nth(0);
+    const benchSetTwoReps = reps.nth(1);
+    const benchSetTwoWeight = weights.nth(1);
+
+    await expect(page.getByRole("heading", { name: "Barbell Bench Press" })).toBeVisible();
+    await expect(reps).toHaveCount(4);
+    await benchSetOneReps.fill("12");
+    await benchSetOneWeight.fill("200");
+
+    const setOneRepsBefore = await captureElementBox(benchSetOneReps, "set one reps input before logging");
+    const setOneWeightBefore = await captureElementBox(benchSetOneWeight, "set one weight input before logging");
+    const setTwoRepsBefore = await captureElementBox(benchSetTwoReps, "set two reps input before logging");
+    const setTwoWeightBefore = await captureElementBox(benchSetTwoWeight, "set two weight input before logging");
+
+    await page.waitForTimeout(setAutosaveSettleMs);
+    await expect(page.locator("[data-agent-id='workout-progress-percent']")).toContainText("25% done");
+    await expect(page.locator("[data-agent-id^='set-logged-']")).toContainText("Logged");
+
+    await expectElementBoxStable(benchSetOneReps, setOneRepsBefore, "set one reps input after logging");
+    await expectElementBoxStable(benchSetOneWeight, setOneWeightBefore, "set one weight input after logging");
+
+    await page.evaluate(() => {
+      (window as TestClockWindow).__POWERJACK_TEST_CLOCK__?.advance(121_000);
+    });
+    await page.waitForTimeout(1100);
+    await expect(page.locator("[data-agent-id^='set-next-']")).toContainText("Go");
+    await expectElementBoxStable(benchSetTwoReps, setTwoRepsBefore, "set two reps input after next badge");
+    await expectElementBoxStable(benchSetTwoWeight, setTwoWeightBefore, "set two weight input after next badge");
   });
 
   test("Finish workout advances to the next workout at the top of the page", async ({ page }) => {
