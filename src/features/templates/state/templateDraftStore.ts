@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TemplateAggregate, TemplateDraft } from "../../../domain/templates/Template";
+import { TEMPLATE_DAY_EXERCISE_MAX } from "../../../domain/templates/rules/templateDraftLimits";
 
 export interface WorkoutsPerWeekChangePlan {
   daysToRemove: number[];
@@ -229,12 +230,18 @@ export const useTemplateDraftStore = create<TemplateDraftState>((set, get) => ({
   setActiveDay: (activeDay) => set({ activeDay }),
   addExerciseToDay: (day, exerciseId) =>
     set((state) => {
+      const dayExerciseIds = state.exerciseIdsByDay[day] ?? [];
+
+      if (dayExerciseIds.length >= TEMPLATE_DAY_EXERCISE_MAX) {
+        return state;
+      }
+
       const rowId = buildExerciseRowId(state.nextExerciseRowId);
 
       return {
         exerciseIdsByDay: {
           ...state.exerciseIdsByDay,
-          [day]: [...(state.exerciseIdsByDay[day] ?? []), exerciseId],
+          [day]: [...dayExerciseIds, exerciseId],
         },
         exerciseRowIdsByDay: {
           ...state.exerciseRowIdsByDay,
