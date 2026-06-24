@@ -418,10 +418,12 @@ export function TemplateBuilderPage() {
     <main className={builderScreenClassName} data-agent-id="template-builder-page">
       <section className="app-flow template-builder-flow" aria-labelledby="template-builder-title">
         <header className="template-builder-header">
-          <p>{editingTemplateId ? "Edit template" : "New template"}</p>
           <h1 data-agent-id="template-builder-title-text" id="template-builder-title">
             {name.trim()}
           </h1>
+          <p data-agent-id="template-builder-mode-label">
+            {editingTemplateId ? "Edit template" : "New template"}
+          </p>
           {isHydratingCurrentExercises || isSearchOpen ? null : (
             <Button
               aria-disabled={isCurrentDayAtExerciseLimit}
