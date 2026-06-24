@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { TEMPLATE_NAME_MAX_LENGTH } from "../../src/domain/templates/rules/templateDraftLimits";
+import {
+  TEMPLATE_DAY_EXERCISE_MAX,
+  TEMPLATE_NAME_MAX_LENGTH,
+} from "../../src/domain/templates/rules/templateDraftLimits";
 import { validateTemplateDraft } from "../../src/domain/templates/rules/validateTemplateDraft";
 
 describe("validateTemplateDraft", () => {
@@ -75,6 +78,56 @@ describe("validateTemplateDraft", () => {
     ).toMatchObject({
       ok: false,
       message: "Add at least one exercise to Day 2.",
+    });
+  });
+
+  it("allows a day with exactly 20 exercises", () => {
+    const result = validateTemplateDraft({
+      name: "Back In Action",
+      focusMuscleIds: [1],
+      workoutsPerWeek: 1,
+      days: [{ order: 1, exerciseIds: Array.from({ length: TEMPLATE_DAY_EXERCISE_MAX }, (_, index) => index + 1) }],
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a day with more than 20 exercises", () => {
+    expect(
+      validateTemplateDraft({
+        name: "Back In Action",
+        focusMuscleIds: [1],
+        workoutsPerWeek: 1,
+        days: [
+          {
+            order: 1,
+            exerciseIds: Array.from({ length: TEMPLATE_DAY_EXERCISE_MAX + 1 }, (_, index) => index + 1),
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      message: "Workouts are limited to 20 exercises.",
+    });
+  });
+
+  it("applies the exercise limit to the overloaded day only", () => {
+    expect(
+      validateTemplateDraft({
+        name: "Back In Action",
+        focusMuscleIds: [1],
+        workoutsPerWeek: 2,
+        days: [
+          {
+            order: 1,
+            exerciseIds: Array.from({ length: TEMPLATE_DAY_EXERCISE_MAX + 1 }, (_, index) => index + 1),
+          },
+          { order: 2, exerciseIds: [99] },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      message: "Workouts are limited to 20 exercises.",
     });
   });
 
