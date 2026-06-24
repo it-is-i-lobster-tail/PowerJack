@@ -21,3 +21,6 @@ Summary: Added a materialized completed_sets_stats table for one live muscle-cre
 
 ## codex/enhancement/progression-weekly-muscle-cap - 2026-06-23
 Summary: Added a previous-program-week muscle volume cap so progression stops adding sets once a credited muscle would exceed 25 sets. Documented the progression decision rules as the source of truth and added focused domain, in-memory repository, and SQLite coverage.
+
+## feature/pj-linear-lookup-skill - 2026-06-23
+Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJack work from a Linear issue key. The skill verifies the PowerJack Linear project, handles the In Progress status workflow, reviews issue context, and directs agents into `/plan` before implementation.
