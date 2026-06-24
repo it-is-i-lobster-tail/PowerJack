@@ -2098,7 +2098,7 @@ test.describe("start program flow", () => {
     await expect(page.locator("[data-agent-id='workout-day-title']")).toContainText("Day 2");
     await expect(page.locator("[data-agent-id='workout-progress-percent']")).toHaveCount(0);
     await expect(page.locator(".workout-header__progress-separator")).toHaveCount(0);
-    await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Read-only");
+    await expect(page.locator("[data-agent-id='workout-state']")).toContainText("Finish current workout first");
     await expectResumeCenteredBeforeIcons(page);
     await page.locator("[data-agent-id='resume-workout']").click();
     await expect(page).toHaveURL(canonicalDayOneUrl);

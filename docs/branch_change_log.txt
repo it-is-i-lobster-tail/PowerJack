@@ -39,3 +39,6 @@ Summary: Hid workout header progress for planned workouts and corrected non-plan
 
 ## codex/bugfix/workout-set-log-stability - 2026-06-24
 Summary: Stabilized active workout set row geometry so logging a set and showing rest-timer status badges no longer shifts reps or weight inputs. Added mobile E2E coverage for input-position stability and refreshed affected active-workout mobile snapshots.
+
+## enhancement/clarify-locked-workout-copy - 2026-06-24
+Summary: Clarified the locked future workout chip so users see `Finish current workout first` instead of generic read-only copy. Preserved the completed workout read-only label and updated E2E coverage for the future workout state.
