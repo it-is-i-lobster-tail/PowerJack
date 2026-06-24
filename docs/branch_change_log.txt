@@ -24,3 +24,6 @@ Summary: Added a previous-program-week muscle volume cap so progression stops ad
 
 ## feature/pj-linear-lookup-skill - 2026-06-23
 Summary: Added a repo-local `pj-linear-lookup` Codex skill for starting PowerJack work from a Linear issue key. The skill verifies the PowerJack Linear project, handles the In Progress status workflow, reviews issue context, and directs agents into `/plan` before implementation.
+
+## enhancement/clarify-locked-workout-copy - 2026-06-23
+Summary: Clarified the locked future workout chip so users see `Finish current workout first` instead of generic read-only copy. Preserved the completed workout read-only label and updated E2E coverage for the future workout state.
