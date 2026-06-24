@@ -337,8 +337,9 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
 
     const weekWorkouts = weekRows.map(mapWeekWorkout);
     const lifts = mapLiftSetRows(liftSetRows);
-    const countableSets = lifts.flatMap((lift) => lift.sets).filter((set) => set.status !== "skipped");
-    const completedCountableSets = countableSets.filter((set) => set.status === "completed");
+    const allSets = lifts.flatMap((lift) => lift.sets);
+    const countableSets = allSets.filter((set) => set.status !== "skipped");
+    const completedCountableSets = allSets.filter((set) => set.status === "completed");
     const currentWeekIndex = weekWorkouts.findIndex((item) => item.id === workout.id);
 
     return {
@@ -352,7 +353,7 @@ export class SqliteWorkoutRepository implements WorkoutRepository {
           ? weekWorkouts[currentWeekIndex + 1]?.id ?? null
           : null,
       completedSets: completedCountableSets.length,
-      totalSets: countableSets.length,
+      totalSets: allSets.length,
       canFinish:
         workout.status === "active" &&
         !workout.locked &&
