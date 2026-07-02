@@ -19,7 +19,7 @@ struct GlassIconButtonStyle: ButtonStyle {
             )
             .glassEffect(
                 .regular
-                    .tint(.gray.opacity(OpacityPJ.focusLight))
+                    .tint(.white.opacity(OpacityPJ.focusUltra))
                     .interactive(),
                 in: .circle
             )

@@ -12,7 +12,7 @@ struct GlassPressButtonStyle: ButtonStyle {
         configuration.label
             .glassEffect(
                 .regular
-                    .tint(.gray.opacity(OpacityPJ.focusLight))
+                    .tint(.blue.opacity(OpacityPJ.focusHeavy))
                     .interactive()
             )
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)

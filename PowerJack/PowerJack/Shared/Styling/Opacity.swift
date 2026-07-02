@@ -6,6 +6,9 @@
 //
 
 enum OpacityPJ {
-    static let focusLight = 0.15
-    static let focusHeavy = 0.25
+    static let focusThin = 0.15
+    static let focusLight = 0.25
+    static let focusStandard = 0.5
+    static let focusHeavy = 0.75
+    static let focusUltra = 1.0
 }

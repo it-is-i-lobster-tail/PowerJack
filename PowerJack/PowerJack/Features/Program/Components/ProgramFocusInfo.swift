@@ -44,7 +44,7 @@ struct ProgramFocusInfo: View {
                         }
                         .frame(width: 80)
                         .glassEffect(
-                            .regular.tint(.white.opacity(OpacityPJ.focusLight)),
+                            .regular.tint(.white.opacity(OpacityPJ.focusThin)),
                             in: .rect(cornerRadius: 26))
                     }
                     .padding(.horizontal, 5)
@@ -56,7 +56,7 @@ struct ProgramFocusInfo: View {
         }
         .padding(.vertical, 15)
         .glassEffect(
-            .regular.tint(.white.opacity(OpacityPJ.focusLight)),
+            .regular.tint(.white.opacity(OpacityPJ.focusThin)),
             in: .rect(cornerRadius: 14))
     }
 }

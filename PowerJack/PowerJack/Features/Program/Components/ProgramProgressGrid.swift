@@ -58,12 +58,12 @@ struct ProgramProgressGrid: View {
                                         .fill(.clear)
                                         .glassEffect(
                                             .regular
-                                                .tint( .gray.opacity(OpacityPJ.focusHeavy)),
+                                                .tint( .gray.opacity(OpacityPJ.focusThin)),
                                             in: .rect(cornerRadius: 8))
                                     
                                     Circle()
-                                        .fill(.gray.opacity(OpacityPJ.focusHeavy))
-                                        .frame(width: 10, height: 10)
+                                        .fill(.gray.opacity(OpacityPJ.focusThin))
+                                        .frame(width: 8, height: 8)
                                 }
                                 .frame(
                                     width: dataCellWidth,
@@ -81,17 +81,17 @@ struct ProgramProgressGrid: View {
                                         .fill(
                                             LinearGradient(
                                                 stops: [
-                                                    .init(color: .green, location: 0),
-                                                    .init(color: .green, location: completedPercent),
-                                                    .init(color: .gray, location: completedPercent),
-                                                    .init(color: .gray, location: 1)
+                                                    .init(color: .green.opacity(OpacityPJ.focusLight), location: 0),
+                                                    .init(color: .green.opacity(OpacityPJ.focusLight), location: completedPercent),
+                                                    .init(color: .gray.opacity(OpacityPJ.focusLight), location: completedPercent),
+                                                    .init(color: .gray.opacity(OpacityPJ.focusLight), location: 1)
                                                 ],
                                                 startPoint: .bottom,
                                                 endPoint: .top
                                             )
                                         )
                                         .glassEffect(
-                                            .regular.tint(.white.opacity(OpacityPJ.focusLight)),
+                                            .regular.tint(.white.opacity(OpacityPJ.focusThin)),
                                             in: .rect(cornerRadius: 14)
                                         )
                                     
@@ -112,7 +112,7 @@ struct ProgramProgressGrid: View {
             )
         }
         .glassEffect(
-            .regular.tint(.white.opacity(OpacityPJ.focusLight)),
+            .regular.tint(.white.opacity(OpacityPJ.focusThin)),
             in: .rect(cornerRadius: 14))
     }
 }

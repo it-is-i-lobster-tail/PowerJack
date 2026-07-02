@@ -68,6 +68,6 @@ struct WorkoutExerciseOptionsMenu: View {
             height: 80
         )
         .glassEffect(
-        .regular.tint(.gray.opacity(OpacityPJ.focusHeavy)), in: .rect(cornerRadius: 26))
+        .regular.tint(.gray.opacity(OpacityPJ.focusLight)), in: .rect(cornerRadius: 26))
     }
 }

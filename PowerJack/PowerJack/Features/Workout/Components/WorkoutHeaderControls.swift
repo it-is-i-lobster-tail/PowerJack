@@ -39,7 +39,7 @@ struct WorkoutHeaderControls: View {
                 .padding(.horizontal, 25)
                 .glassEffect(
                     .regular
-                        .tint(.gray.opacity(OpacityPJ.focusLight)),
+                        .tint(.gray.opacity(OpacityPJ.focusThin)),
                     in: .rect(cornerRadius: 26))
                 .clipShape(Capsule())
 

@@ -32,7 +32,7 @@ struct ProgramStartWorkout: View {
             height: hight
         )
         .glassEffect(
-            .regular.tint(.white.opacity(OpacityPJ.focusLight)),
+            .regular.tint(.white.opacity(OpacityPJ.focusThin)),
             in: .rect(cornerRadius: 14))
     }
 }

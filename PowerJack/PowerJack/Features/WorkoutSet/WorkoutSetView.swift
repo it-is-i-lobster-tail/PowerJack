@@ -51,7 +51,7 @@ struct WorkoutSetView: View {
                     .regular
                         .tint(
                             repsIsFocused ?
-                                .blue.opacity(OpacityPJ.focusHeavy) : .gray.opacity(OpacityPJ.focusLight)),
+                                .blue.opacity(OpacityPJ.focusLight) : .gray.opacity(OpacityPJ.focusThin)),
                     in: .rect(cornerRadius: 26))
 
             Text(
@@ -75,7 +75,7 @@ struct WorkoutSetView: View {
                     .regular
                         .tint(
                             weightIsFocused ?
-                                .blue.opacity(OpacityPJ.focusHeavy) : .gray.opacity(OpacityPJ.focusLight)),
+                                .blue.opacity(OpacityPJ.focusLight) : .gray.opacity(OpacityPJ.focusThin)),
                     in: .rect(cornerRadius: 26))
 
             ZStack {
