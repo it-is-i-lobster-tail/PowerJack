@@ -9,23 +9,57 @@ import SwiftUI
 import SwiftData
 
 struct WorkoutExerciseView: View {
+    let screenWidth: CGFloat
+    @Environment(\.modelContext) private var modelContext
     @Bindable var workoutExercise: WorkoutExercise
+    let focusedSetField: FocusState<FocusedSetField?>.Binding
     
-    var body: some View {
-        Text("Lift")
-            .font(.title)
-            .foregroundStyle(.primary)
-        
-        WorkoutSetView()
+    private var orderedWorkoutSets: [WorkoutSet] {
+        workoutExercise.workoutSets.sorted { $0.order < $1.order}
     }
-}
 
-#Preview ("WorkoutExerciseView"){
-    let workoutExercisePreview = WorkoutExercise(
-        exercise: "Bench Press",
-        order: 1,
-    )
+    var body: some View {
+        VStack{
+            VStack(alignment: .center) {
+                Text(workoutExercise.exercise.exerciseName)
+                    .font(.title)
+                    .foregroundStyle(.primary)
+                Text(workoutExercise.exercise.exerciseEquipment.rawValue)
+                    .font(.default)
+                    .foregroundStyle(.primary)
+            }
+            List {
+                ForEach(orderedWorkoutSets) { workoutSet in
+                    VStack {
+                        WorkoutSetView(
+                            screenWidth: screenWidth,
+                            workoutSet: workoutSet,
+                            focusedSetField: focusedSetField
+                        )
+                        .frame(width: screenWidth * 0.82, height: 45)
+                        
+                        Color.gray.opacity(0.2)
+                            .frame(width: screenWidth * 0.75, height: 1)
+                            .padding(.vertical, 8)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets())
+//                .onDelete(perform: deleteItems)
 
-    WorkoutExerciseView(workoutExercise: workoutExercisePreview)
-        .modelContainer(makeWorkoutExercisePreviewContainer())
+            }
+            .listStyle(.plain)
+            .listRowSpacing(0)
+            
+        }
+    }
+    
+    private func deleteItems(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(orderedWorkoutSets[index])
+            }
+        }
+    }
 }

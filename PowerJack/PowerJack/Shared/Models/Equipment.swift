@@ -8,11 +8,11 @@
 import Foundation
 
 enum Equipment: String, Codable, CaseIterable {
-    case barbell
-    case dumbbell
-    case body
-    case cable
-    case machine
-    case kettlebell
+    case Barbell
+    case Dumbbell
+    case Body
+    case Cable
+    case Machine
+    case Kettlebell
+    case LegPress
 }
-

@@ -13,20 +13,5 @@ func makeWorkoutPreviewContainer() -> ModelContainer {
         for: Workout.self,
         configurations: config
     )
-    
-    container.mainContext.insert(
-        WorkoutSet(
-            order: 1,
-            reps: 15,
-            weightTenthsPounds: 1350
-        )
-    )
-    container.mainContext.insert(
-        WorkoutSet(
-            order: 2,
-            reps: 12,
-            weightTenthsPounds: 1350
-        )
-    )
     return container
 }

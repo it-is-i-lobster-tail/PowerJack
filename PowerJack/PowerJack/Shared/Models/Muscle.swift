@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum Muscles: String, Codable, CaseIterable {
+enum Muscle: String, Codable, CaseIterable {
     case chest
     case shoulders
     case back

@@ -25,7 +25,8 @@ struct PowerJackApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WorkoutView()
+//            WorkoutView(workout: PreviewWorkout.workoutDay0Preview)
+            ProgramDetailView(program: PreviewProgram.programPreview)
         }
         .modelContainer(sharedModelContainer)
     }

@@ -12,5 +12,5 @@ enum Status: String, Codable, CaseIterable {
     case active
     case complete
     case skipped
-    case halted
+    case stopped
 }
