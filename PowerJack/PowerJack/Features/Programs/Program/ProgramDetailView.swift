@@ -72,9 +72,12 @@ struct ProgramDetailView: View {
                         height: screenHeight * programDetailBuffer
                     )
                 // Start/Resume Program
+//                Text("\()")
+                //
                 ProgramStartWorkout(
                     screenWidth: screenWidth * 0.9,
-                    hight: screenHeight * programStartWorkoutVerticalAlloction * 0.95
+                    hight: screenHeight * programStartWorkoutVerticalAlloction * 0.95,
+                    workout: program.programWeeks[0].workouts[2]  // Fix Hardcoding Later
                 )
                     .frame(
                         width: screenWidth,
@@ -102,6 +105,8 @@ struct ProgramDetailView: View {
 }
 
 #Preview ("ProgramDetailView"){
-    ProgramDetailView(program: PreviewProgram.programPreview)
-        .modelContainer(makeWorkoutPreviewContainer())
+    let scenario = PowerJackSeed.weekOneProgress()
+    
+    ProgramDetailView(program: scenario.program)
+        .modelContainer(scenario.container)
 }

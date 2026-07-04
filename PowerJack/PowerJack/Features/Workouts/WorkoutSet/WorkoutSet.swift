@@ -26,7 +26,7 @@ final class WorkoutSet {
         self.repsValue = reps
         self.weightTenthsPoundsValue = weightTenthsPounds
         self.statusValue = .planned
-        self.lockedValue = true
+        self.lockedValue = false
     }
 }
 
@@ -40,7 +40,7 @@ extension WorkoutSet {
     var reps: Int? {
         get { repsValue }
         set {
-            guard !lockedValue else { return }
+            guard status == .active else { return }
             
             if let newValue, newValue > 0 {
                 repsValue = newValue
@@ -53,7 +53,7 @@ extension WorkoutSet {
     var weightTenthsPounds: Int? {
         get { self.weightTenthsPoundsValue }
         set {
-            guard !lockedValue else { return }
+            guard status == .active else { return }
             
             if let newValue, newValue > 0 {
                 weightTenthsPoundsValue = newValue
@@ -77,7 +77,7 @@ extension WorkoutSet {
             return Double(weightTenthsPoundsValue) / 10.0
         }
         set {
-            guard !lockedValue else { return }
+            guard status == .active else { return }
             if let newValue, newValue > 0 {
                 weightTenthsPoundsValue = Int(newValue * 10)
             }
@@ -92,7 +92,7 @@ extension WorkoutSet {
 extension WorkoutSet {
     func complete() {
         guard !lockedValue else {
-            Logger.workoutSet.warning("Attempted to complete a WorkoutSet that cannot be completed.")
+            Logger.workoutSet.warning("Cannot complete a locked WorkoutSet")
             return
         }
         statusValue = Status.complete
@@ -101,27 +101,25 @@ extension WorkoutSet {
     }
     func skip() {
         guard !lockedValue else {
-            Logger.workoutSet.warning("Attempted to skip a WorkoutSet that cannot be stopped.")
+            Logger.workoutSet.warning("Cannot skip a locked WorkoutSet.")
             return
         }
         statusValue = Status.skipped
         lockedValue = true
-        Logger.workoutSet.debug("WorkoutSet Stopped")
+        Logger.workoutSet.debug("WorkoutSet skipped")
     }
     func stop() {
         skip()
     }
     func start() {
         guard
-            lockedValue,
             statusValue == Status.planned
         else {
-            Logger.workoutSet.warning("Attempted to start a WorkoutSet that cannot be started.")
+            Logger.workoutSet.warning("Can only stat a WorkoutSet that is in the planned state.")
             return
         }
 
         statusValue = Status.active
-        lockedValue = false
         Logger.workoutSet.debug("Starting WorkoutSet")
     }
 }

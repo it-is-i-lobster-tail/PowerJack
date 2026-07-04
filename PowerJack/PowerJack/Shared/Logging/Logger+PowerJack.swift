@@ -14,5 +14,6 @@ extension Logger {
     static let workoutExercise = Logger(subsystem: subsystem, category: "WorkoutExercise")
     static let workoutSet = Logger(subsystem: subsystem, category: "WorkoutSet")
     static let program = Logger(subsystem: subsystem, category: "Program")
+    static let programWeek = Logger(subsystem: subsystem, category: "ProgramWeek")
     static let ui = Logger(subsystem: subsystem, category: "UI")
 }

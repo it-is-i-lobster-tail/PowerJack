@@ -12,28 +12,46 @@ struct ProgramProgressGrid: View {
     let workableWidth: CGFloat
     let workableHeight: CGFloat
     let program: Program
+
+    private func positiveFinite(_ value: CGFloat, fallback: CGFloat = 1) -> CGFloat {
+        guard value.isFinite, value > 0 else { return fallback }
+        return value
+    }
     
     var body: some View {
-        let girdHorizontalSpacing: CGFloat = 8
-        let girdVerticalSpacing: CGFloat = 8
+        let layoutWidth = positiveFinite(workableWidth)
+        let layoutHeight = positiveFinite(workableHeight)
+        let rows = max(1, program.programLengthWeeks + 1) // header + weeks
+        let columns = max(1, program.templateProgram.workoutsPerWeek)
+
+        let gridHorizontalSpacing: CGFloat = 8
+        let gridVerticalSpacing: CGFloat = 8
         let rowWidth: CGFloat = 33
-        let dataWidthWorkable = workableWidth - rowWidth - (Double(program.templateProgram.workoutsPerWeek) * girdHorizontalSpacing)
-        let dataCellWidth = (dataWidthWorkable / Double(program.templateProgram.workoutsPerWeek)) * 0.95
-        let rowsTotal = program.programLengthWeeksValue + 1
-        let cellHeight = (workableHeight - (Double(program.programLengthWeeks) * girdVerticalSpacing)) / Double(rowsTotal)
+
+        let totalVerticalSpacing = CGFloat(rows - 1) * gridVerticalSpacing
+        let totalHorizontalSpacing = CGFloat(columns) * gridHorizontalSpacing
+
+        let availableGridHeight = positiveFinite(layoutHeight - totalVerticalSpacing)
+        let availableDataWidth = positiveFinite(layoutWidth - rowWidth - totalHorizontalSpacing)
+
+        let cellHeight = availableGridHeight / CGFloat(rows)
         let columnCellHeight = cellHeight * 0.5
+        let dataCellWidth = availableDataWidth / CGFloat(columns)
         
         ZStack {
 
-            Grid(horizontalSpacing: girdHorizontalSpacing, verticalSpacing: girdVerticalSpacing) {
+            Grid(
+                horizontalSpacing: gridHorizontalSpacing,
+                verticalSpacing: gridVerticalSpacing
+            ) {
                 // Column Headers
                 GridRow() {
                     Text("")
                         .frame(
                             width: rowWidth,
                             height: columnCellHeight
-                        )
-                    ForEach(1...program.templateProgram.workoutsPerWeek, id: \.self) {i in
+                            )
+                    ForEach(1...columns, id: \.self) {i in
                             Text("Day \(i)")
                             .frame(
                                 width: dataCellWidth,
@@ -42,17 +60,16 @@ struct ProgramProgressGrid: View {
                     }
                 }
                 
-                ForEach(0...program.programLengthWeeks - 1, id: \.self) {j in
+                ForEach(program.programWeeks, id: \.self) {programWeek in
                     GridRow {
-                        Text("WK \(j + 1)")
+                        Text("WK \(programWeek.order + 1)")
                             .font(.caption)
                             .frame(
                                 width: rowWidth,
                                 height: cellHeight
                             )
-                        let workouts: [Workout] = program.programWeeks[j].workouts
-                        if workouts.isEmpty {
-                            ForEach(1...program.templateProgram.workoutsPerWeek, id: \.self) {k in
+                        if programWeek.workouts.isEmpty {
+                            ForEach(1...columns, id: \.self) {k in
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(.clear)
@@ -71,9 +88,11 @@ struct ProgramProgressGrid: View {
                                 )
                             }
                         } else {
-                            ForEach(workouts, id: \.self) {workout in
+                            ForEach(programWeek.workouts, id: \.self) {workout in
                                 
-                                let completedPercent: Double = Double(workout.getCountCompletedSets()) / Double(workout.totalSets)
+                                let completedPercent: Double = workout.totalSets > 0
+                                    ? min(1, max(0, Double(workout.getCountCompletedSets()) / Double(workout.totalSets)))
+                                    : 0
                                 let displayCompletedPercent: Int = Int((completedPercent * 100).rounded())
 
                                 ZStack {
@@ -107,9 +126,11 @@ struct ProgramProgressGrid: View {
                 }
             }
             .frame(
-                width: workableWidth,
-                height: workableHeight
+                width: layoutWidth,
+                height: layoutHeight
             )
+            .padding(.leading, 4)
+            .padding(.trailing, 8)
         }
         .glassEffect(
             .regular.tint(.white.opacity(OpacityPJ.focusThin)),

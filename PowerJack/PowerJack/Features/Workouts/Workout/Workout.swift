@@ -9,6 +9,8 @@ import Foundation
 import SwiftData
 import OSLog
 
+// ToDo: Restrict appending to `workoutExercisesValue` to an extention function to ensure order is maintained
+
 @Model
 final class Workout {
     private var orderValue: Int
@@ -17,11 +19,10 @@ final class Workout {
     private var lockedValue: Bool
     
     init(
-        order: Int,
-        workoutExercises: [WorkoutExercise],
+        order: Int
     ){
         self.orderValue = order
-        self.workoutExercisesValue = workoutExercises
+        self.workoutExercisesValue = []
         self.statusValue = .planned
         self.lockedValue = true
     }
@@ -34,9 +35,11 @@ extension Workout {
     // Order
     var order: Int { orderValue}
     // Workout Exercises
-    var workoutExercises: [WorkoutExercise] { workoutExercisesValue }
+    var workoutExercises: [WorkoutExercise] { workoutExercisesValue.sorted {$0.order < $1.order} }
     // Status
     var status: Status { statusValue }
+    // Locked
+    var locked: Bool { lockedValue }
 }
 
 //
@@ -83,7 +86,7 @@ extension Workout {
 extension Workout {
     func complete() {
         guard !lockedValue else {
-            Logger.workout.warning("Attempted to complete a WorkouExercise that cannot be completed.")
+            Logger.workout.warning("Cannot complete a locked Workout.")
             return
         }
         statusValue = Status.complete
@@ -92,43 +95,80 @@ extension Workout {
     }
     func stop() {
         guard !lockedValue else {
-            Logger.workout.warning("Attempted to stop a WorkouExercise that cannot be stopped.")
+            Logger.workout.warning("Cannot stop a locked Workout.")
             return
         }
         statusValue = Status.stopped
         lockedValue = true
         Logger.workout.debug("Stopped workout")
     }
+    func skip() {
+        guard !lockedValue else {
+            Logger.workout.warning("Cannot skip a locked Workout.")
+            return
+        }
+        statusValue = Status.skipped
+        lockedValue = true
+        Logger.workout.debug("Skipped workout")
+    }
     func start() {
         guard
-            lockedValue,
-            statusValue == Status.planned
+            lockedValue
         else {
-            Logger.workout.warning("Attempted to start a WorkouExercise that cannot be started.")
+            Logger.workout.warning("Cannot start a locked Workout.")
             return
         }
         statusValue = Status.active
-        lockedValue = false
         Logger.workout.debug("Started workout")
     }
     func completeAndCascade() {
         complete()
-        for workoutExercise in self.workoutExercisesValue {
+        for workoutExercise in workoutExercisesValue {
             workoutExercise.completeAndCascade()
         }
     }
     func stopAndCascade() {
         stop()
-        for workoutExercise in self.workoutExercisesValue {
+        for workoutExercise in workoutExercisesValue {
             workoutExercise.stopAndCascade()
+        }
+    }
+    func skipAndCascade() {
+        skip()
+        for workoutExercise in workoutExercisesValue {
+            workoutExercise.skipAndCascade()
         }
     }
     func startAndCascade() {
         start()
 
-        for workoutExercise in self.workoutExercises {
+        for workoutExercise in workoutExercises {
             workoutExercise.startandCascade()
         }
         
     }
+    func addWorkoutExercise(exercise: Exercise) -> WorkoutExercise? {
+        guard locked else {
+            Logger.workout.warning("Cannot add WorkoutExercise to locked Workout")
+            return nil
+        }
+        let newWorkoutExercise = WorkoutExercise(
+            exercise: exercise,
+            order: workoutExercises.count
+        )
+        workoutExercisesValue.append(newWorkoutExercise)
+        Logger.workout.debug("Added new WorkoutExercise to Workout")
+        return newWorkoutExercise
+    }
+    func removeWorkoutExercise(index: Int) -> WorkoutExercise? {
+        guard workoutExercisesValue.indices.contains(index) else { return nil }
+        return workoutExercisesValue.remove(at: index)
+    }
+    // Move WorkoutExercises
+    func moveWorkoutExercises(from source: IndexSet, to destination: Int) {
+        var ordered = workoutExercises
+        ordered.moveAndReorder(from: source, to: destination)
+        workoutExercisesValue = ordered
+    }
+    
 }

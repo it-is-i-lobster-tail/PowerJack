@@ -22,13 +22,12 @@ final class WorkoutExercise {
     init(
         exercise: Exercise,
         order: Int,
-        workoutSets: [WorkoutSet],
     ){
         self.exerciseValue = exercise
         self.orderValue = order
-        self.workoutSetsValue = workoutSets
+        self.workoutSetsValue = []
         self.statusValue = .planned
-        self.lockedValue = true
+        self.lockedValue = false
     }
 }
 
@@ -39,20 +38,21 @@ extension WorkoutExercise {
     // Exercise
     var exercise: Exercise {
         get { exerciseValue }
-        set {
-            guard !lockedValue else { return }
-            exerciseValue = newValue
-        }
     }
     // Order
-    var order: Int { orderValue }
+    var order: Int {
+        get { orderValue }
+        set { orderValue = newValue }
+    }
     // WorkoutSets
-    var workoutSets: [WorkoutSet] { workoutSetsValue }
+    var workoutSets: [WorkoutSet] { workoutSetsValue.sorted { $0.order < $1.order} }
     // Status
     var status: Status { statusValue }
     // Locked
     var locked: Bool { lockedValue }
 }
+
+extension WorkoutExercise: OrderedModel {}
 //
 // Derived Values
 //
@@ -95,30 +95,40 @@ extension WorkoutExercise {
 extension WorkoutExercise {
     func complete() {
         guard !lockedValue else {
-            Logger.workoutExercise.warning("Attempted to complete a WorkouExercise that cannot be completed.")
+            Logger.workoutExercise.warning("Cannot complete a locked WorkoutExercise.")
             return
         }
         statusValue = Status.complete
         lockedValue = true
+        Logger.workoutSet.debug("WorkouExercise completed")
     }
     func stop() {
         guard !lockedValue else {
-            Logger.workoutExercise.warning("Attempted to stop a WorkouExercise that cannot be stopped.")
+            Logger.workoutExercise.warning("Cannot stop a locked WorkoutExercise.")
             return
         }
         statusValue = Status.stopped
         lockedValue = true
+        Logger.workoutSet.debug("WorkouExercise stopped")
+    }
+    func skip() {
+        guard !lockedValue else {
+            Logger.workoutExercise.warning("Cannot skip a locked WorkoutExercise.")
+            return
+        }
+        statusValue = Status.skipped
+        lockedValue = true
+        Logger.workoutSet.debug("WorkouExercise skipped")
     }
     func start() {
         guard
-            lockedValue,
             statusValue == Status.planned
         else {
-            Logger.workoutExercise.warning("Attempted to start a WorkouExercise that cannot be started.")
+            Logger.workoutExercise.warning("Can only stat a WorkoutExercise that is in the planned state.")
             return
         }
         statusValue = Status.active
-        lockedValue = false
+        Logger.workoutSet.debug("WorkouExercise started")
     }
     func completeAndCascade() {
         complete()
@@ -132,6 +142,12 @@ extension WorkoutExercise {
             workoutSet.stop()
         }
     }
+    func skipAndCascade() {
+        skip()
+        for workoutSet in self.workoutSetsValue {
+            workoutSet.skip()
+        }
+    }
     func startandCascade() {
         start()
 
@@ -139,18 +155,17 @@ extension WorkoutExercise {
             workoutSet.start()
         }
     }
-    func addSet() {
+    func addSet() -> WorkoutSet? {
         guard
             !lockedValue,
             workoutSetsValue.count <= 7
         else {
-            Logger.workoutExercise.warning("Unable to addSet to WorkoutExercise. Max sets exceeded or workoutExercise is locked.")
-            return
+            Logger.workoutExercise.warning("Unable to add WorkoutSet to WorkoutExercise. Max sets exceeded or workoutExercise is locked.")
+            return nil
         }
 
-        Logger.workoutExercise.info("Adding a new set to WorkoutExercise \(self.exercise.exerciseName)")
         let nextOrder = workoutSetsValue.count
-        let lastSetWeight = (nextOrder == 0 ? 0 : workoutSetsValue[nextOrder - 1].weightTenthsPounds)
+        let lastSetWeight = (nextOrder == 0 ? nil : workoutSetsValue[nextOrder - 1].weightTenthsPounds)
         let newSet = WorkoutSet(
             order: nextOrder,
             reps: nil,
@@ -158,10 +173,12 @@ extension WorkoutExercise {
         )
         newSet.start()
         workoutSetsValue.append(newSet)
+        Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
+        return newSet
     }
     func removeLastSet() -> WorkoutSet? {
         guard !lockedValue else {
-            Logger.workoutExercise.warning("Unable to remove a set from WorkoutExercise. WorkoutExercise is locked.")
+            Logger.workoutExercise.warning("Cannot remove last WorkoutSet of locked WorkoutExercise.")
             return nil
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise.exerciseName)")
@@ -169,13 +186,13 @@ extension WorkoutExercise {
     }
     func changeExercise(newExercise: Exercise) {
         guard !lockedValue else {
-            Logger.workoutExercise.warning("Unable to change Exercise of WorkoutExercise. WorkoutExercise is locked.")
+            Logger.workoutExercise.warning("Cannot change Exercise of locked WorkoutExercisez")
             return
         }
         Logger.workoutExercise.info("Changing \(self.exercise.exerciseName) to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
         workoutSetsValue.removeAll()
-        addSet()
-        addSet()
+        _ = addSet()
+        _ = addSet()
     }
 }

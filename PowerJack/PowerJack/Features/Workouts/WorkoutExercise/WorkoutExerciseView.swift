@@ -14,10 +14,6 @@ struct WorkoutExerciseView: View {
     @Bindable var workoutExercise: WorkoutExercise
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     
-    private var orderedWorkoutSets: [WorkoutSet] {
-        workoutExercise.workoutSets.sorted { $0.order < $1.order}
-    }
-
     var body: some View {
         VStack{
             VStack(alignment: .center) {
@@ -28,38 +24,26 @@ struct WorkoutExerciseView: View {
                     .font(.default)
                     .foregroundStyle(.primary)
             }
-            List {
-                ForEach(orderedWorkoutSets) { workoutSet in
-                    VStack {
-                        WorkoutSetView(
-                            screenWidth: screenWidth,
-                            workoutSet: workoutSet,
-                            focusedSetField: focusedSetField
-                        )
-                        .frame(width: screenWidth * 0.82, height: 45)
-                        
-                        Color.gray.opacity(0.2)
-                            .frame(width: screenWidth * 0.75, height: 1)
-                            .padding(.vertical, 8)
-                    }
+            List(workoutExercise.workoutSets) { workoutSet in
+                VStack {
+                    WorkoutSetView(
+                        screenWidth: screenWidth,
+                        workoutSet: workoutSet,
+                        focusedSetField: focusedSetField
+                    )
+                    .frame(width: screenWidth * 0.82, height: 45)
+                    
+                    Color.gray.opacity(0.2)
+                        .frame(width: screenWidth * 0.75, height: 1)
+                        .padding(.vertical, 8)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets())
-//                .onDelete(perform: deleteItems)
-
             }
             .listStyle(.plain)
             .listRowSpacing(0)
             
-        }
-    }
-    
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(orderedWorkoutSets[index])
-            }
         }
     }
 }
