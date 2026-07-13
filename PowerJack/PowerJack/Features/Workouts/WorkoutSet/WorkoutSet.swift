@@ -91,8 +91,11 @@ extension WorkoutSet {
 
 extension WorkoutSet {
     func complete() {
-        guard !lockedValue else {
-            Logger.workoutSet.warning("Cannot complete a locked WorkoutSet")
+        guard
+            !lockedValue,
+            status == .active
+        else {
+            Logger.workoutSet.warning("Cannot complete a locked or skipped WorkoutSet")
             return
         }
         statusValue = Status.complete
@@ -100,7 +103,10 @@ extension WorkoutSet {
         Logger.workoutSet.debug("WorkoutSet Completed")
     }
     func skip() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .planned || status == .active
+        else {
             Logger.workoutSet.warning("Cannot skip a locked WorkoutSet.")
             return
         }
@@ -113,7 +119,7 @@ extension WorkoutSet {
     }
     func start() {
         guard
-            statusValue == Status.planned
+            statusValue == .planned
         else {
             Logger.workoutSet.warning("Can only stat a WorkoutSet that is in the planned state.")
             return

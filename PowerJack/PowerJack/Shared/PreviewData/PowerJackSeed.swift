@@ -10,7 +10,15 @@ import SwiftData
 struct PowerJackProgramSeedScenario {
     let container: ModelContainer
     let program: Program
+    let exercises: [Exercise]
+    let templateProgram: TemplateProgram
+    let templatePrograms: [TemplateProgram]
     let weekOneWorkouts: [Workout]
+}
+
+struct PowerJackWorkoutSeedScenario {
+    let container: ModelContainer
+    let workout: Workout
 }
 
 enum PowerJackSeed {
@@ -38,120 +46,79 @@ enum PowerJackSeed {
 
     static func weekOneProgress() -> PowerJackProgramSeedScenario {
         let container = makeInMemoryContainer()
-
-        let benchPress = Exercise(
-            exerciseName: "Barbell Bench Press",
-            exerciseEquipment: .Barbell,
-            primaryMuscleFocus: .chest
-        )
-        let backSquat = Exercise(
-            exerciseName: "Barbell Back Squat",
-            exerciseEquipment: .Barbell,
-            primaryMuscleFocus: .quads
-        )
-        let pullUp = Exercise(
-            exerciseName: "Pull Up",
-            exerciseEquipment: .Body,
-            primaryMuscleFocus: .back
-        )
-        let latPulldown = Exercise(
-            exerciseName: "Lat Pulldown",
-            exerciseEquipment: .Cable,
-            primaryMuscleFocus: .back
-        )
-        let lateralRaise = Exercise(
-            exerciseName: "Cable Lateral Raise",
-            exerciseEquipment: .Cable,
-            primaryMuscleFocus: .shoulders
-        )
-        let legPress = Exercise(
-            exerciseName: "Leg Press",
-            exerciseEquipment: .LegPress,
-            primaryMuscleFocus: .quads
+        let exercises = makeExercises()
+        let templateProgram = makeTemplateProgram(exercises: exercises)
+        let accessoryTemplateProgram = TemplateProgram(
+            templateName: "Upper Tune Up",
+            workoutsPerWeek: 2,
+            templateMuscleFocus: [.shoulders, .back]
         )
 
-        let templateProgram = TemplateProgram(
-            templateName: "Back In Action",
-            workoutsPerWeek: 3,
-            templateMuscleFocus: [.chest, .back, .quads]
-        )
-        templateProgram.templateWorkoutsValue = [
-            TemplateWorkout(order: 0, templateExercises: [
-                TemplateExercise(templateExercise: benchPress, order: 0),
-                TemplateExercise(templateExercise: backSquat, order: 1),
-            ]),
-            TemplateWorkout(order: 1, templateExercises: [
-                TemplateExercise(templateExercise: pullUp, order: 0),
-                TemplateExercise(templateExercise: latPulldown, order: 1),
-            ]),
-            TemplateWorkout(order: 2, templateExercises: [
-                TemplateExercise(templateExercise: lateralRaise, order: 0),
-                TemplateExercise(templateExercise: legPress, order: 1),
-            ]),
-        ]
-
-        let dayOne = Workout(
+        let dayOne = makeWorkout(
             order: 0,
-            workoutExercises: [
-                workoutExercise(exercise: benchPress, order: 0, sets: [
-                    WorkoutSet(order: 0, reps: 8, weightTenthsPounds: 1800),
-                    WorkoutSet(order: 1, reps: 8, weightTenthsPounds: 1800),
-                    WorkoutSet(order: 2, reps: 6, weightTenthsPounds: 1850),
-                ]),
-                workoutExercise(exercise: backSquat, order: 1, sets: [
-                    WorkoutSet(order: 0, reps: 8, weightTenthsPounds: 2250),
-                    WorkoutSet(order: 1, reps: 8, weightTenthsPounds: 2250),
-                    WorkoutSet(order: 2, reps: 6, weightTenthsPounds: 2300),
-                ]),
+            exercises: [exercises[0], exercises[1]],
+            sets: [
+                [
+                    SeedSet(reps: 8, weightTenthsPounds: 1800, status: .complete),
+                    SeedSet(reps: 8, weightTenthsPounds: 1800, status: .complete),
+                    SeedSet(reps: 6, weightTenthsPounds: 1850, status: .complete),
+                ],
+                [
+                    SeedSet(reps: 8, weightTenthsPounds: 2250, status: .complete),
+                    SeedSet(reps: 8, weightTenthsPounds: 2250, status: .complete),
+                    SeedSet(reps: 6, weightTenthsPounds: 2300, status: .complete),
+                ],
             ]
         )
-        completeWorkout(dayOne)
 
-        let dayTwo = Workout(
+        let dayTwo = makeWorkout(
             order: 1,
-            workoutExercises: [
-                workoutExercise(exercise: pullUp, order: 0, sets: [
-                    WorkoutSet(order: 0, reps: 10, weightTenthsPounds: 0),
-                    WorkoutSet(order: 1, reps: 8, weightTenthsPounds: 0),
-                    WorkoutSet(order: 2, reps: 6, weightTenthsPounds: 0),
-                ]),
-                workoutExercise(exercise: latPulldown, order: 1, sets: [
-                    WorkoutSet(order: 0, reps: 10, weightTenthsPounds: 1200),
-                    WorkoutSet(order: 1, reps: 10, weightTenthsPounds: 1200),
-                    WorkoutSet(order: 2, reps: 8, weightTenthsPounds: 1300),
-                ]),
+            exercises: [exercises[2], exercises[3]],
+            sets: [
+                [
+                    SeedSet(reps: 10, weightTenthsPounds: nil, status: .complete),
+                    SeedSet(reps: 8, weightTenthsPounds: nil, status: .skipped),
+                    SeedSet(reps: 6, weightTenthsPounds: nil, status: .complete),
+                ],
+                [
+                    SeedSet(reps: 10, weightTenthsPounds: 1200, status: .skipped),
+                    SeedSet(reps: 10, weightTenthsPounds: 1200, status: .complete),
+                    SeedSet(reps: 8, weightTenthsPounds: 1300, status: .active),
+                ],
             ]
         )
-        finishWorkout(dayTwo, setStatuses: [
-            [.complete, .skipped, .complete],
-            [.skipped, .complete, .complete],
-        ])
 
-        let dayThree = Workout(
+        let dayThree = makeWorkout(
             order: 2,
-            workoutExercises: [
-                workoutExercise(exercise: lateralRaise, order: 0, sets: [
-                    WorkoutSet(order: 0, reps: 12, weightTenthsPounds: 150),
-                    WorkoutSet(order: 1, reps: 12, weightTenthsPounds: 150),
-                    WorkoutSet(order: 2, reps: 10, weightTenthsPounds: 150),
-                ]),
-                workoutExercise(exercise: legPress, order: 1, sets: [
-                    WorkoutSet(order: 0, reps: 10, weightTenthsPounds: 3150),
-                    WorkoutSet(order: 1, reps: 10, weightTenthsPounds: 3150),
-                    WorkoutSet(order: 2, reps: 8, weightTenthsPounds: 3350),
-                ]),
+            exercises: [exercises[4], exercises[5]],
+            sets: [
+                [
+                    SeedSet(reps: 12, weightTenthsPounds: 150, status: .active),
+                    SeedSet(reps: 12, weightTenthsPounds: 150, status: .active),
+                    SeedSet(reps: 10, weightTenthsPounds: 150, status: .active),
+                ],
+                [
+                    SeedSet(reps: 10, weightTenthsPounds: 3150, status: .active),
+                    SeedSet(reps: 10, weightTenthsPounds: 3150, status: .active),
+                    SeedSet(reps: 8, weightTenthsPounds: 3350, status: .active),
+                ],
             ]
         )
 
-        let weekOne = ProgramWeek(order: 0, workouts: [dayOne, dayTwo, dayThree])
-        let emptyWeeks = (1..<8).map { ProgramWeek(order: $0, workouts: []) }
-        let program = Program(
-            programLengthWeeks: 8,
-            status: .active,
-            templateProgram: templateProgram,
-            programWeeks: [weekOne] + emptyWeeks
-        )
+        let weekOne = ProgramWeek(order: 0)
+        weekOne.workoutsValue = [dayOne, dayTwo, dayThree]
+        let emptyWeeks = (1..<8).map { ProgramWeek(order: $0) }
 
+        let program = Program(programLengthWeeks: 8, templateProgram: templateProgram)
+        program.programLengthWeeksValue = 8
+        program.statusValue = .active
+        program.programWeeksValue = [weekOne] + emptyWeeks
+
+        for exercise in exercises {
+            container.mainContext.insert(exercise)
+        }
+        container.mainContext.insert(templateProgram)
+        container.mainContext.insert(accessoryTemplateProgram)
         container.mainContext.insert(program)
 
         do {
@@ -163,50 +130,137 @@ enum PowerJackSeed {
         return PowerJackProgramSeedScenario(
             container: container,
             program: program,
+            exercises: exercises,
+            templateProgram: templateProgram,
+            templatePrograms: [templateProgram, accessoryTemplateProgram],
             weekOneWorkouts: [dayOne, dayTwo, dayThree]
         )
+    }
+
+    static func emptyWorkout() -> PowerJackWorkoutSeedScenario {
+        let container = makeInMemoryContainer()
+        let workout = Workout(order: 0)
+
+        container.mainContext.insert(workout)
+
+        do {
+            try container.mainContext.save()
+        } catch {
+            fatalError("Could not save empty workout preview data: \(error)")
+        }
+
+        return PowerJackWorkoutSeedScenario(container: container, workout: workout)
     }
 }
 
 private extension PowerJackSeed {
-    static func workoutExercise(
-        exercise: Exercise,
-        order: Int,
-        sets: [WorkoutSet]
-    ) -> WorkoutExercise {
-        WorkoutExercise(
-            exercise: exercise,
-            order: order,
-            workoutSets: sets
+    struct SeedSet {
+        let reps: Int?
+        let weightTenthsPounds: Int?
+        let status: Status
+    }
+
+    static func makeExercises() -> [Exercise] {
+        [
+            Exercise(
+                exerciseName: "Barbell Bench Press",
+                exerciseEquipment: .barbell,
+                primaryMuscleFocus: .chest
+            ),
+            Exercise(
+                exerciseName: "Barbell Back Squat",
+                exerciseEquipment: .barbell,
+                primaryMuscleFocus: .quads
+            ),
+            Exercise(
+                exerciseName: "Pull Up",
+                exerciseEquipment: .bodyweight,
+                primaryMuscleFocus: .back
+            ),
+            Exercise(
+                exerciseName: "Lat Pulldown",
+                exerciseEquipment: .cable,
+                primaryMuscleFocus: .back
+            ),
+            Exercise(
+                exerciseName: "Cable Lateral Raise",
+                exerciseEquipment: .cable,
+                primaryMuscleFocus: .shoulders
+            ),
+            Exercise(
+                exerciseName: "Leg Press",
+                exerciseEquipment: .legPress,
+                primaryMuscleFocus: .quads
+            ),
+        ]
+    }
+
+    static func makeTemplateProgram(exercises: [Exercise]) -> TemplateProgram {
+        let templateProgram = TemplateProgram(
+            templateName: "Back In Action",
+            workoutsPerWeek: 3,
+            templateMuscleFocus: [.chest, .back, .quads]
         )
+
+        let dayOne = TemplateWorkout(order: 0)
+        dayOne.templateExercisesValue = [
+            TemplateExercise(exercise: exercises[0], order: 0),
+            TemplateExercise(exercise: exercises[1], order: 1),
+        ]
+
+        let dayTwo = TemplateWorkout(order: 1)
+        dayTwo.templateExercisesValue = [
+            TemplateExercise(exercise: exercises[2], order: 0),
+            TemplateExercise(exercise: exercises[3], order: 1),
+        ]
+
+        let dayThree = TemplateWorkout(order: 2)
+        dayThree.templateExercisesValue = [
+            TemplateExercise(exercise: exercises[4], order: 0),
+            TemplateExercise(exercise: exercises[5], order: 1),
+        ]
+
+        templateProgram.templateWorkoutsValue = [dayOne, dayTwo, dayThree]
+        return templateProgram
     }
 
-    static func completeWorkout(_ workout: Workout) {
-        workout.startAndCascade()
-        workout.completeAndCascade()
-    }
+    static func makeWorkout(
+        order: Int,
+        exercises: [Exercise],
+        sets: [[SeedSet]]
+    ) -> Workout {
+        let workout = Workout(order: order)
 
-    static func finishWorkout(_ workout: Workout, setStatuses: [[Status]]) {
-        workout.startAndCascade()
-
-        let orderedWorkoutExercises = workout.workoutExercises.sorted { $0.order < $1.order }
-        for (workoutExercise, statuses) in zip(orderedWorkoutExercises, setStatuses) {
-            let orderedSets = workoutExercise.workoutSets.sorted { $0.order < $1.order }
-            for (workoutSet, status) in zip(orderedSets, statuses) {
-                switch status {
-                case .complete:
-                    workoutSet.complete()
-                case .skipped:
-                    workoutSet.skip()
-                case .stopped:
-                    workoutSet.stop()
-                case .planned, .active:
-                    break
-                }
+        for (exerciseIndex, exercise) in exercises.enumerated() {
+            guard let workoutExercise = workout.addWorkoutExercise(exercise: exercise) else {
+                continue
             }
-            workoutExercise.complete()
+
+            let exerciseSets = sets.indices.contains(exerciseIndex) ? sets[exerciseIndex] : []
+            for seedSet in exerciseSets {
+                guard let workoutSet = workoutExercise.addSet() else {
+                    continue
+                }
+
+                workoutSet.reps = seedSet.reps
+                workoutSet.weightTenthsPounds = seedSet.weightTenthsPounds
+                apply(seedSet.status, to: workoutSet)
+            }
         }
 
-        workout.complete()
+        return workout
+    }
+
+    static func apply(_ status: Status, to workoutSet: WorkoutSet) {
+        switch status {
+        case .complete:
+            workoutSet.complete()
+        case .skipped:
+            workoutSet.skip()
+        case .stopped:
+            workoutSet.stop()
+        case .active, .planned:
+            break
+        }
     }
 }

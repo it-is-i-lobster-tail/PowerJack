@@ -7,12 +7,14 @@
 
 import Foundation
 
-enum Equipment: String, Codable, CaseIterable {
-    case Barbell
-    case Dumbbell
-    case Body
-    case Cable
-    case Machine
-    case Kettlebell
-    case LegPress
+enum Equipment: String, Codable, CaseIterable, Identifiable {
+    case barbell
+    case dumbbell
+    case bodyweight
+    case cable
+    case machine
+    case kettlebell
+    case legPress
+    
+    var id: Self { self }
 }

@@ -104,9 +104,11 @@ struct ProgramDetailView: View {
     }
 }
 
-#Preview ("ProgramDetailView"){
+#Preview("ProgramDetailView") {
     let scenario = PowerJackSeed.weekOneProgress()
     
-    ProgramDetailView(program: scenario.program)
+    NavigationStack {
+        ProgramDetailView(program: scenario.program)
+    }
         .modelContainer(scenario.container)
 }

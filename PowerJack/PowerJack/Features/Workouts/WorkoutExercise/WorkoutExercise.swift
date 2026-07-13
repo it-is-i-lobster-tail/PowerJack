@@ -9,6 +9,8 @@ import Foundation
 import SwiftData
 import OSLog
 
+
+
 @Model
 final class WorkoutExercise {
     private var exerciseValue: Exercise
@@ -17,7 +19,7 @@ final class WorkoutExercise {
     private var statusValue: Status
     private var lockedValue: Bool
     
-    private static var maxSets = 7
+    static var maxSets = 4
 
     init(
         exercise: Exercise,
@@ -94,7 +96,10 @@ extension WorkoutExercise {
 //
 extension WorkoutExercise {
     func complete() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .active
+        else {
             Logger.workoutExercise.warning("Cannot complete a locked WorkoutExercise.")
             return
         }
@@ -103,7 +108,10 @@ extension WorkoutExercise {
         Logger.workoutSet.debug("WorkouExercise completed")
     }
     func stop() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .planned || status == .active
+        else {
             Logger.workoutExercise.warning("Cannot stop a locked WorkoutExercise.")
             return
         }
@@ -112,7 +120,10 @@ extension WorkoutExercise {
         Logger.workoutSet.debug("WorkouExercise stopped")
     }
     func skip() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .planned || status == .active
+        else {
             Logger.workoutExercise.warning("Cannot skip a locked WorkoutExercise.")
             return
         }
@@ -122,7 +133,7 @@ extension WorkoutExercise {
     }
     func start() {
         guard
-            statusValue == Status.planned
+            statusValue == .planned
         else {
             Logger.workoutExercise.warning("Can only stat a WorkoutExercise that is in the planned state.")
             return
@@ -158,7 +169,7 @@ extension WorkoutExercise {
     func addSet() -> WorkoutSet? {
         guard
             !lockedValue,
-            workoutSetsValue.count <= 7
+            workoutSetsValue.count < Self.maxSets
         else {
             Logger.workoutExercise.warning("Unable to add WorkoutSet to WorkoutExercise. Max sets exceeded or workoutExercise is locked.")
             return nil

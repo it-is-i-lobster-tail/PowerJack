@@ -1,7 +1,6 @@
 //
-//  PreviewTemplateExercises.swift
+//  PreviewTemplateExercise.swift
 //  PowerJack
 //
-//  Created by Brendon on 6/29/26.
+//  Legacy preview fixtures have moved to PowerJackSeed.
 //
-

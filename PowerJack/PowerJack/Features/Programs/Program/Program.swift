@@ -109,7 +109,10 @@ extension Program {
 //
 extension Program {
     func complete() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .active
+        else {
             Logger.program.warning("Cannot complete a locked Program.")
             return
         }
@@ -118,7 +121,10 @@ extension Program {
         Logger.program.debug("Completed Program")
     }
     func stop() {
-        guard !lockedValue else {
+        guard
+            !lockedValue,
+            status == .planned || status == .active
+        else {
             Logger.program.warning("Cannot stop a locked Program.")
             return
         }
@@ -128,7 +134,8 @@ extension Program {
     }
     func start() {
         guard
-            lockedValue
+            lockedValue,
+            status == .planned
         else {
             Logger.program.warning("Cannot start a locked Program.")
             return

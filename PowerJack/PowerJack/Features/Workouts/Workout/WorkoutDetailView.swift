@@ -12,7 +12,55 @@ struct WorkoutDetailView: View {
     @Bindable var workout: Workout
     @FocusState private var focusedSetField: FocusedSetField?
     @State private var selectedExerciseIndex: Int? = 0
-    @State private var showOptions = false
+    @State private var isShowingWorkoutExerciseSheet = false
+    
+    func canAddSet() -> Bool {
+        if let selectedExerciseIndex {
+            let canAdd =
+            workout.workoutExercises[selectedExerciseIndex].totalSets < WorkoutExercise.maxSets &&
+            !workout.workoutExercises[selectedExerciseIndex].locked
+            
+            return canAdd
+        } else {
+            return false
+        }
+    }
+    
+    func canChangeExercise() -> Bool {
+        if let selectedExerciseIndex {
+            let canChange =
+            !workout.workoutExercises[selectedExerciseIndex].locked
+            return canChange
+        } else {
+            return false
+        }
+    }
+    
+    func canRemoveLastSet() -> Bool {
+        if let selectedExerciseIndex {
+            let canChange =
+            !workout.workoutExercises[selectedExerciseIndex].locked
+            return canChange
+        } else {
+            return false
+        }
+    }
+    
+    func canSkipRemainingSets() -> Bool {
+        if let selectedExerciseIndex {
+            let canChange =
+            !workout.workoutExercises[selectedExerciseIndex].locked
+            return canChange
+        } else {
+            return false
+        }
+    }
+    
+    func canSkipWorkout() -> Bool {
+        let canChange =
+        !workout.locked
+        return canChange
+    }
 
     var body: some View {
         if workout.workoutExercises.isEmpty {
@@ -46,21 +94,6 @@ struct WorkoutDetailView: View {
                             height: contentHeight * 0.1
                         )
                     }
-
-                    if let selectedExerciseIndex,
-                       workout.workoutExercises.indices.contains(selectedExerciseIndex) {
-                        FloatingMenuOverlay(
-                            isPresented: $showOptions,
-                            xOffset: (screenWidth / 4) - SpacingPJ.buttonStandardOffset + (SpacingPJ.buttonStandardSize / 2),
-                            yOffset: (-screenHeight / 2) + 75 - (SpacingPJ.buttonStandardSize / 2)
-                        ) {
-                            WorkoutExerciseOptionsMenu(
-                                screenWidth: screenWidth,
-                                workoutExercise: workout.workoutExercises[selectedExerciseIndex],
-                                showOptions: $showOptions
-                            )
-                        }
-                    }
                 }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -80,24 +113,95 @@ struct WorkoutDetailView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             if let selectedExerciseIndex {
-                                Button("Add Set") {
-                                    workout.workoutExercises[selectedExerciseIndex].addSet()
+                                Button {
+                                    _ = workout.workoutExercises[selectedExerciseIndex].addSet()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                        Text("Add Set")
+                                    }
                                 }
-
-                                Button("Remove Last Set", role: .destructive) {
+                                .disabled(!canAddSet())
+     
+                                
+                                Button {
+                                    isShowingWorkoutExerciseSheet.toggle()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "slider.horizontal.3")
+                                        Text("Change Exercise")
+                                    }
+                                }
+                                .disabled(!canChangeExercise())
+                                
+                                Button() {
                                     _ = workout.workoutExercises[selectedExerciseIndex].removeLastSet()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "trash")
+                                        Text("Remove Last Set")
+                                    }
+                                }
+                                .disabled(!canRemoveLastSet())
+                                
+                                Divider()
+                                
+                                Button() {
+                                    workout.workoutExercises[selectedExerciseIndex].skipAndCascade()
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "forward")
+                                        Text("Skip Remaining Sets")
+                                    }
+                                }
+                                .disabled(!canSkipRemainingSets())
+                                
+                            }
+                            
+                            Button() {
+                                workout.skipAndCascade()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "forward.end")
+                                    Text("Skip Workout")
                                 }
                             }
+                            .disabled(!canSkipWorkout())
 
-                            Button("Skip Workout", role: .destructive) {
-                                workout.skipAndCascade()
-                            }
                         } label: {
                             Image(systemName: "ellipsis")
                         }
                     }
                 }
+                .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
+                    if let selectedExerciseIndex {
+                        ExerciseSelection(
+                            workoutExerciseToChange: workout.workoutExercises[selectedExerciseIndex],
+                            navigationTitle: "Change Exercise"
+                        )
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                    }
+                }
             }
         }
     }
+}
+
+#Preview("WorkoutDetailView - Loaded") {
+    let scenario = PowerJackSeed.weekOneProgress()
+
+    NavigationStack {
+        WorkoutDetailView(workout: scenario.weekOneWorkouts[2])
+    }
+    .modelContainer(scenario.container)
+}
+
+#Preview("WorkoutDetailView - Empty") {
+    let scenario = PowerJackSeed.emptyWorkout()
+
+    NavigationStack {
+        WorkoutDetailView(workout: scenario.workout)
+    }
+    .modelContainer(scenario.container)
 }

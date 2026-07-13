@@ -24,18 +24,21 @@ struct WorkoutExerciseView: View {
                     .font(.default)
                     .foregroundStyle(.primary)
             }
-            List(workoutExercise.workoutSets) { workoutSet in
+            List(Array(workoutExercise.workoutSets.enumerated()), id: \.element.id) { index, workoutSet in
+
                 VStack {
                     WorkoutSetView(
                         screenWidth: screenWidth,
                         workoutSet: workoutSet,
                         focusedSetField: focusedSetField
                     )
-                    .frame(width: screenWidth * 0.82, height: 45)
+                    .frame(width: screenWidth * 0.88, height: 55)
                     
-                    Color.gray.opacity(0.2)
-                        .frame(width: screenWidth * 0.75, height: 1)
-                        .padding(.vertical, 8)
+                    if index < (workoutExercise.workoutSets.count - 1) {
+                        Color.gray.opacity(0.2)
+                            .frame(width: screenWidth * 0.75, height: 1)
+                            .padding(.bottom, 8)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .listRowSeparator(.hidden)

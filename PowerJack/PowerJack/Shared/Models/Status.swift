@@ -7,10 +7,12 @@
 
 import Foundation
 
-enum Status: String, Codable, CaseIterable {
+enum Status: String, Codable, CaseIterable, Identifiable {
     case planned
     case active
     case complete
     case skipped
     case stopped
+    
+    var id: Self { self }
 }

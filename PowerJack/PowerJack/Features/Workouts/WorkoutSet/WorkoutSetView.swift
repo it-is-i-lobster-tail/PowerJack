@@ -82,12 +82,21 @@ struct WorkoutSetView: View {
                 if workoutSet.status == Status.complete {
                     Image(systemName: "checkmark")
                         .font(.title3)
-                        .foregroundStyle(.mint)
+//                        .foregroundStyle(.mint)
+                }
+                if workoutSet.locked {
+                    Image(systemName: "lock")
+                        .font(.title3)
                 }
             }
             .frame(width: 25)
         }
-        .frame(alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 5)
         .animation(.easeInOut(duration: Self.animationtime), value: focusedSetField.wrappedValue)
+        .glassEffect(
+            .regular
+                .tint(.white.opacity(OpacityPJ.focusStandard)),
+            in: .rect(cornerRadius: 12))
     }
 }
