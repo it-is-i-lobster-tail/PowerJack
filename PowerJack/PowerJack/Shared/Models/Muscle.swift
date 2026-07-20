@@ -1,5 +1,5 @@
 //
-//  Muscles.swift
+//  Muscle.swift
 //  PowerJack
 //
 //  Created by Brendon on 6/24/26.
@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum Muscle: String, Codable, CaseIterable, Identifiable {
+enum Muscle: String, Codable, CaseIterable, Identifiable, Hashable {
     case chest
     case shoulders
     case back
@@ -20,6 +20,6 @@ enum Muscle: String, Codable, CaseIterable, Identifiable {
     case glutes
     case calves
     case hamstrings
-    
+
     var id: Self { self }
 }

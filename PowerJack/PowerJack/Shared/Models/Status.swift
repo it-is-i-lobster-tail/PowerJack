@@ -1,5 +1,5 @@
 //
-//  status.swift
+//  Status.swift
 //  PowerJack
 //
 //  Created by Brendon on 6/24/26.
@@ -13,6 +13,6 @@ enum Status: String, Codable, CaseIterable, Identifiable {
     case complete
     case skipped
     case stopped
-    
+
     var id: Self { self }
 }

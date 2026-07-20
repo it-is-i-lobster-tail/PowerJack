@@ -15,6 +15,6 @@ enum Equipment: String, Codable, CaseIterable, Identifiable {
     case machine
     case kettlebell
     case legPress
-    
+
     var id: Self { self }
 }
