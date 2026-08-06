@@ -55,21 +55,13 @@ struct ProgramListView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemBackground))
         } createDestination: {
             ProgramNew(onSave: handleNewProgram)
         }
         .navigationDestination(item: $selectedProgram) { program in
             ProgramDetailView(program: program)
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                NavigationLink {
-                    TemplateProgramListView()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .accessibilityLabel("Templates")
-            }
         }
     }
 
@@ -77,21 +69,25 @@ struct ProgramListView: View {
         selectedProgram = program
     }
 
-    private func handleNewProgram(_: Program) {}
+    private func handleNewProgram(newProgram: Program) {
+        if let activeProgram {
+            activeProgram.stop()
+            activeProgram.stopAndCascade()
+        }
+        newProgram.start()
+    }
 }
 
 #Preview("ProgramListView - Loaded") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ProgramListView()
     }
-    .modelContainer(scenario.container)
 }
 
 #Preview("ProgramListView - Empty") {
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
         ProgramListView()
     }
-    .modelContainer(PowerJackSeed.makeInMemoryContainer())
 }

@@ -30,6 +30,7 @@ struct ProgramDetailView: View {
                 - (programDetailBuffer * detailBufferCount)
                 - programBottomBuffer
                 - programDividerVerticalAllocation
+                - 0.025
 
             VStack(spacing: 0) {
                 // Info Banner
@@ -72,18 +73,16 @@ struct ProgramDetailView: View {
                 )
                 .frame(width: screenWidth * 0.9,
                            height: screenHeight * programFocusInfoVerticalAllocation)
-                // Detail Buffer
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: screenWidth,
-                        height: screenHeight * programDetailBuffer
-                    )
+                Spacer()
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 Group {
                     if let nextWorkout = program.nextWorkout {
                         ProgramStartWorkout(
                             screenWidth: screenWidth * 0.9,
-                            height: screenHeight * programStartWorkoutVerticalAllocation * 0.95,
+                            height: screenHeight
+                                * programStartWorkoutVerticalAllocation
+                                * 0.95,
                             workout: nextWorkout
                         )
                     } else {
@@ -91,25 +90,15 @@ struct ProgramDetailView: View {
                             title: "No upcoming workouts",
                             systemImage: "checkmark.circle"
                         )
+                        .frame(
+                            maxWidth: screenWidth * 0.9,
+                            minHeight: screenHeight
+                                * programStartWorkoutVerticalAllocation
+                        )
                     }
                 }
-                .frame(
-                    width: screenWidth,
-                    height: screenHeight * programStartWorkoutVerticalAllocation
-                )
-                // Detail Buffer
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: screenWidth,
-                        height: screenHeight * programDetailBuffer
-                    )
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: screenWidth,
-                        height: screenHeight * programBottomBuffer
-                    )
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, screenHeight * programBottomBuffer)
             }
         }
     }
@@ -118,8 +107,7 @@ struct ProgramDetailView: View {
 #Preview("ProgramDetailView") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ProgramDetailView(program: scenario.program)
     }
-        .modelContainer(scenario.container)
 }

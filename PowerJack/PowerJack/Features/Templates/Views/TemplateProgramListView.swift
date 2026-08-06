@@ -9,69 +9,107 @@ import SwiftData
 import SwiftUI
 
 struct TemplateProgramListView: View {
-    @Query(sort: \TemplateProgram.templateName) private var templatePrograms: [TemplateProgram]
+    @Environment(\.dismiss) private var dismiss
 
+    let onSelect: ((TemplateProgram) -> Void)?
+
+    @Query(sort: \TemplateProgram.templateName) private var templatePrograms: [TemplateProgram]
     @State private var selectedTemplate: TemplateProgram?
 
-    var body: some View {
-        AddableListScaffold(
-            navigationTitle: "My Templates",
-            isEmpty: templatePrograms.isEmpty,
-            emptyTitle: "No templates",
-            emptySystemImage: "doc.on.doc"
-        ) {
-            List(templatePrograms) { template in
-                Button {
-                    select(template)
-                } label: {
-                    VStack {
-                        HStack {
-                            Text(template.templateName)
-                            Spacer()
-                        }
+    init(
+        onSelect: ((TemplateProgram) -> Void)? = nil
+    ) {
+        self.onSelect = onSelect
+    }
 
-                        TemplateProgramFocusMusclesView(
-                            templateMuscleFocus: template.templateMuscleFocus
-                        )
+    var body: some View {
+        NavigationStack {
+            AddableListScaffold(
+                navigationTitle: "My Templates",
+                isEmpty: templatePrograms.isEmpty,
+                emptyTitle: "No templates",
+                emptySystemImage: "doc.on.doc"
+            ) {
+                List(templatePrograms) { template in
+                    Button {
+                        select(template)
+                    } label: {
+                        VStack {
+                            HStack {
+                                Text(template.templateName)
+                                Spacer()
+                            }
+
+                            TemplateProgramInfo(
+                                templateMuscleFocus: template.templateMuscleFocus,
+                                workoutsPerWeek: template.workoutsPerWeek
+                            )
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            select(template)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(Color(uiColor: .systemBackground))
+            } createDestination: {
+                 TemplateProgramNew(
+                    onSave: handleNewTemplate
+                 )
             }
-        } createDestination: {
-            TemplateProgramNew(onSave: handleNewTemplate)
-        }
-        .navigationDestination(item: $selectedTemplate) { template in
-            TemplateProgramDetailView(templateProgram: template)
+            .navigationDestination(item: $selectedTemplate) { template in
+                TemplateProgramDetailView(templateProgram: template)
+            }
         }
     }
 
     private func select(_ template: TemplateProgram) {
-        selectedTemplate = template
+        guard let onSelect else {
+            selectedTemplate = template
+            return
+        }
+
+        onSelect(template)
+        dismiss()
     }
 
-    private func handleNewTemplate(_: TemplateProgram) {}
+    private func handleNewTemplate(_ template: TemplateProgram) {
+        guard let onSelect else { return }
+        onSelect(template)
+        dismiss()
+    }
 }
 
 #Preview("TemplateListView - Loaded") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
-        TemplateProgramListView()
-    }
-    .modelContainer(scenario.container)
+    TemplateProgramListView()
+        .modelContainer(scenario.container)
 }
 
 #Preview("TemplateListView - Empty") {
-    NavigationStack {
-        TemplateProgramListView()
-    }
-    .modelContainer(PowerJackSeed.makeInMemoryContainer())
+    TemplateProgramListView()
+        .modelContainer(PowerJackSeed.makeInMemoryContainer())
 }
 
-private struct TemplateProgramFocusMusclesView: View {
+private struct TemplateProgramInfo: View {
     let templateMuscleFocus: [Muscle]
+    let workoutsPerWeek: Int
 
     var body: some View {
         HStack(spacing: 5) {
+            Text("\(workoutsPerWeek) days/wk")
+                .font(.caption2)
+
+            Text("|")
+                .font(.caption2)
+                .padding(.horizontal, 2)
+
             ForEach(Array(templateMuscleFocus.enumerated()), id: \.element.id) { index, muscleFocus in
                 Text(muscleFocus.rawValue.localizedCapitalized)
                     .font(.caption2)
@@ -81,6 +119,8 @@ private struct TemplateProgramFocusMusclesView: View {
                         .font(.caption2)
                 }
             }
+
+
             Spacer()
         }
         .padding(.top, 0.1)

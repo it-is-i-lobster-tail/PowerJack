@@ -23,4 +23,13 @@ extension View {
             in: .rect(cornerRadius: LayoutMetrics.panelCornerRadius)
         )
     }
+    
+    func powerJackGlassSelection(interactive: Bool = false) -> some View {
+        glassEffect(
+            .regular
+                .tint(.white.opacity(VisualOpacity.heavy))
+                .interactive(interactive),
+            in: .rect(cornerRadius: LayoutMetrics.curvedCornerRaius)
+        )
+    }
 }

@@ -10,22 +10,32 @@ import SwiftUI
 
 struct TemplateWorkoutDraft: Identifiable {
     let id: UUID
+    var enabled: Bool
+    let orderValue: Int
     var templateExerciseDraftsValue: [TemplateExerciseDraft]
-    var orderValue: Int?
 
     init(
         id: UUID = UUID(),
-        order: Int? = nil
+        enabled: Bool,
+        order: Int,
+        templateExercises: [TemplateExercise]?
     ) {
         self.id = id
-        self.templateExerciseDraftsValue = []
+        self.enabled = enabled
         self.orderValue = order
+        self.templateExerciseDraftsValue = []
+        
+        if let exercises = templateExercises {
+            for exercise in exercises {
+                addTemplateExerciseDraft(
+                    exercise: exercise.exercise
+                )
+            }
+        }
     }
 
     var canSave: Bool {
-        !templateExerciseDrafts.isEmpty &&
-        templateExerciseDrafts.allSatisfy(\.canSave) &&
-        orderValue != nil
+        !templateExerciseDrafts.isEmpty || !enabled
     }
 }
 
@@ -33,36 +43,31 @@ struct TemplateWorkoutDraft: Identifiable {
 // Public Accessors
 //
 extension TemplateWorkoutDraft {
-    var order: Int? {
+    var order: Int {
         get { orderValue }
-        set { orderValue = newValue }
     }
 
-    var templateExerciseDrafts: [TemplateExerciseDraft] {
-        templateExerciseDraftsValue.sorted {
-            ($0.order ?? .max) < ($1.order ?? .max)
-        }
-    }
+    var templateExerciseDrafts: [TemplateExerciseDraft] { templateExerciseDraftsValue.sorted { $0.order < $1.order} }
 }
 
 //
 // Mutations
 //
 extension TemplateWorkoutDraft {
-    func contains(_ exercise: Exercise) -> Bool {
-        templateExerciseDraftsValue.contains { draft in
-            guard let existingExercise = draft.exercise else { return false }
-            return existingExercise === exercise
-        }
-    }
+//    func contains(_ exercise: Exercise) -> Bool {
+//        templateExerciseDraftsValue.contains { draft in
+//            guard let existingExercise = draft.exercise else { return false }
+//            return existingExercise === exercise
+//        }
+//    }
 
     @discardableResult
     mutating func addTemplateExerciseDraft(exercise: Exercise) -> TemplateExerciseDraft? {
-        guard !contains(exercise) else { return nil }
+        // guard !contains(exercise) else { return nil }
 
         let newTemplateExerciseDraft = TemplateExerciseDraft(
-            exercise: exercise,
-            order: templateExerciseDraftsValue.count
+            order: templateExerciseDraftsValue.count,
+            exercise: exercise
         )
         templateExerciseDraftsValue.append(newTemplateExerciseDraft)
         return newTemplateExerciseDraft

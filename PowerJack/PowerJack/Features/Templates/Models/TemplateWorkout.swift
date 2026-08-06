@@ -34,6 +34,7 @@ extension TemplateWorkout {
 //
 extension TemplateWorkout {
     // Add TemplateExercise
+    @discardableResult
     func addTemplateExercise(exercise: Exercise) -> TemplateExercise {
         let newTemplateExercise = TemplateExercise(
             exercise: exercise,

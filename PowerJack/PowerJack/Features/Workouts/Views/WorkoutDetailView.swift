@@ -95,17 +95,15 @@ struct WorkoutDetailView: View {
 #Preview("WorkoutDetailView - Loaded") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         WorkoutDetailView(workout: scenario.weekOneWorkouts[2])
     }
-    .modelContainer(scenario.container)
 }
 
 #Preview("WorkoutDetailView - Empty") {
     let scenario = PowerJackSeed.emptyWorkout()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         WorkoutDetailView(workout: scenario.workout)
     }
-    .modelContainer(scenario.container)
 }

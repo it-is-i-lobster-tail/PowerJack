@@ -5,6 +5,35 @@
 //  Created by Codex on 7/14/26.
 //
 
+import SwiftData
+
+struct PowerJackExercises {
+    let container: ModelContainer
+    let exercises: [Exercise]
+}
+
+extension PowerJackSeed {
+    static func exercises() -> PowerJackExercises {
+        let container = makeInMemoryContainer()
+        let exercises = makeExercises()
+        
+        for exercise in exercises {
+            container.mainContext.insert(exercise)
+        }
+        
+        do {
+            try container.mainContext.save()
+        } catch {
+            fatalError("Could not save seeded in-memory data: \(error)")
+        }
+        
+        return PowerJackExercises(
+            container: container,
+            exercises: exercises,
+        )
+    }
+}
+
 extension PowerJackSeed {
     static func makeExercises() -> [Exercise] {
         [

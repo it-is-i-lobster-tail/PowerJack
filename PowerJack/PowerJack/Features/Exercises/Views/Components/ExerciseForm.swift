@@ -13,7 +13,7 @@ struct ExerciseForm: View {
 
     private let boxHeight: CGFloat = 85
 
-    @Binding var draft: ExerciseDraft
+    @Binding private var draft: ExerciseDraft
     @FocusState private var nameIsFocused: Bool
 
     init(

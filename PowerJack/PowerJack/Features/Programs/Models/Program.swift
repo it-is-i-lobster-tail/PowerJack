@@ -98,6 +98,7 @@ extension Program {
     var totalWorkouts: Int { programLengthWeeks * templateProgram.workoutsPerWeek }
 
     var nextWorkout: Workout? {
+        guard status == .active else { return nil }
         let workouts = programWeeks.flatMap(\.workouts)
         return workouts.first { $0.status == .active }
             ?? workouts.first { $0.status == .planned }

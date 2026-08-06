@@ -7,22 +7,18 @@
 
 import Foundation
 
-struct TemplateExerciseDraft: Identifiable {
+struct TemplateExerciseDraft: Identifiable, Hashable {
     let id: UUID
-    var exercise: Exercise?
-    var order: Int?
+    var order: Int
+    var exercise: Exercise
 
     init(
         id: UUID = UUID(),
-        exercise: Exercise? = nil,
-        order: Int? = nil
+        order: Int,
+        exercise: Exercise
     ) {
         self.id = id
         self.exercise = exercise
         self.order = order
-    }
-
-    var canSave: Bool {
-        exercise != nil && order != nil
     }
 }

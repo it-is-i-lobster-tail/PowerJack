@@ -14,6 +14,9 @@ struct LimitedMuscleSelectionView: View {
     let excludedMuscles: Set<Muscle>
 
     @Binding var selectedMuscles: [Muscle]
+    
+    private let listVerticalPadding: CGFloat = 8
+    private let minimumRowHeight: CGFloat = 44
 
     private var muscles: [Muscle] {
         Muscle.allCases.sorted { $0.rawValue < $1.rawValue }
@@ -40,10 +43,10 @@ struct LimitedMuscleSelectionView: View {
                 Text("\(selectedMuscles.count) of \(maximumSelection)")
                     .font(.footnote)
             }
-            .padding(.vertical, LayoutMetrics.sectionSpacing)
+            .padding(.vertical, 15)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 0) {
                     ForEach(muscles, id: \.self) { muscle in
                         MuscleSelectionRow(
                             muscle: muscle,
@@ -52,15 +55,29 @@ struct LimitedMuscleSelectionView: View {
                             canSelectMore: selectedMuscles.count < maximumSelection,
                             action: { toggle(muscle) }
                         )
+                        .containerRelativeFrame(
+                            .vertical,
+                            alignment: .leading
+                        ) { availableHeight, _ in
+                            let padding = listVerticalPadding * 2
+                            let usableHeight = max(0, availableHeight - padding)
+                            let equalRowHeight =
+                                usableHeight / CGFloat(max(muscles.count, 1))
 
-                        if muscle != muscles.last {
-                            Divider()
-                                .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                            return max(minimumRowHeight, equalRowHeight)
+                        }
+                        .overlay(alignment: .bottom) {
+                            if muscle != muscles.last {
+                                Divider()
+                                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                                    .allowsHitTesting(false)
+                            }
                         }
                     }
                 }
-                .powerJackGlassCard(interactive: true)
+                .padding(.vertical, listVerticalPadding)
             }
+            .powerJackGlassCard(interactive: true)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
@@ -95,22 +112,30 @@ private struct MuscleSelectionRow: View {
         Button(action: action) {
             HStack {
                 Text(muscle.rawValue.capitalized)
+
                 if isExcluded {
                     Text("(Primary)")
                         .font(.caption)
                 }
+
                 Spacer()
+
                 if isSelected {
                     Image(systemName: "checkmark")
                         .foregroundStyle(.blue)
                 }
             }
-            .frame(minHeight: 50)
             .padding(.horizontal, LayoutMetrics.sectionSpacing)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .leading
+            )
+            .contentShape(Rectangle())
             .background(
                 isSelected
-                ? Color.gray.opacity(VisualOpacity.subtle)
-                : Color.clear
+                    ? Color.gray.opacity(VisualOpacity.subtle)
+                    : Color.clear
             )
         }
         .buttonStyle(.plain)

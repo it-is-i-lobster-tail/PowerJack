@@ -9,28 +9,56 @@ import SwiftData
 import SwiftUI
 
 struct TemplateProgramDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    
+    let onSave: (TemplateProgram) -> Void
     let templateProgram: TemplateProgram
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(templateProgram.templateName)
-                .font(.headline)
-            Text("Workouts per week: \(templateProgram.workoutsPerWeek)")
-            Text("Focus: \(focusText)")
-        }
-        .padding()
+    
+    @State private var draft: TemplateProgramDraft
+    @State private var saveErrorMessage: String?
+    
+    init(
+        templateProgram: TemplateProgram,
+        onSave: @escaping (TemplateProgram) -> Void = { _ in}
+    ) {
+        self.templateProgram = templateProgram
+        self.onSave = onSave
+        _draft = State(initialValue: TemplateProgramDraft(
+            templateProgram: templateProgram
+        ))
     }
 
-    private var focusText: String {
-        templateProgram.templateMuscleFocus.map(\.rawValue).joined(separator: ", ")
+    var body: some View {
+        TemplateForm(
+            editExistingExercise: false,
+            onSave: save,
+            draft: $draft
+        )
+        .saveErrorAlert($saveErrorMessage)
+    }
+
+    private func save() {
+        let originalDraft = TemplateProgramDraft(
+            templateProgram: templateProgram
+        )
+        guard draft.apply(to: templateProgram) else { return }
+
+        do {
+            try modelContext.save()
+            onSave(templateProgram)
+            dismiss()
+        } catch {
+            _ = originalDraft.apply(to: templateProgram)
+            saveErrorMessage = error.localizedDescription
+        }
     }
 }
 
 #Preview("TemplateProgramDetailView") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         TemplateProgramDetailView(templateProgram: scenario.templateProgram)
     }
-    .modelContainer(scenario.container)
 }

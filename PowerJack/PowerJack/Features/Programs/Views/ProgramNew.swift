@@ -17,7 +17,6 @@ struct ProgramNew: View {
     private let boxHeight: CGFloat = 55
     private let programLengths = Array(stride(from: 2, through: 12, by: 2))
 
-    @Query(sort: \TemplateProgram.templateName) private var templatePrograms: [TemplateProgram]
     @State private var draft = ProgramDraft()
     @State private var isCreatingTemplate = false
     @State private var saveErrorMessage: String?
@@ -44,9 +43,8 @@ struct ProgramNew: View {
 
             ProgramTemplateSelection(
                 boxHeight: boxHeight,
-                templatePrograms: templatePrograms,
-                selectedTemplate: $draft.templateProgram,
-                createTemplate: presentTemplateCreator
+                createTemplate: presentTemplateCreator,
+                selectedTemplate: $draft.templateProgram
             )
         } footer: {
             FormSubmitButton(
@@ -55,8 +53,10 @@ struct ProgramNew: View {
                 action: save
             )
         }
-        .navigationDestination(isPresented: $isCreatingTemplate) {
-            TemplateProgramNew(onSave: handleNewTemplate)
+        .sheet(isPresented: $isCreatingTemplate) {
+            TemplateProgramListView(
+                onSelect: handleNewTemplate
+            )
         }
         .saveErrorAlert($saveErrorMessage)
     }
@@ -85,71 +85,44 @@ struct ProgramNew: View {
 
 private struct ProgramTemplateSelection: View {
     let boxHeight: CGFloat
-    let templatePrograms: [TemplateProgram]
     let createTemplate: () -> Void
 
     @Binding var selectedTemplate: TemplateProgram?
 
-    init(
-        boxHeight: CGFloat,
-        templatePrograms: [TemplateProgram],
-        selectedTemplate: Binding<TemplateProgram?>,
-        createTemplate: @escaping () -> Void
-    ) {
-        self.boxHeight = boxHeight
-        self.templatePrograms = templatePrograms
-        self.createTemplate = createTemplate
-        _selectedTemplate = selectedTemplate
-    }
-
     var body: some View {
-        VStack(spacing: LayoutMetrics.compactSpacing) {
-            if templatePrograms.isEmpty {
-                Button(action: createTemplate) {
-                    FormFieldLabel(
-                        systemImage: "doc.badge.plus",
-                        title: "Create a Template",
-                        detail: "A program needs at least one template"
-                    )
-                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
-                    .frame(maxWidth: .infinity, minHeight: boxHeight)
-                }
-                .buttonStyle(.plain)
-                .powerJackGlassCard(interactive: true)
-            } else {
-                GlassPickerField(
-                    selection: $selectedTemplate,
-                    options: templatePrograms,
-                    height: boxHeight
-                ) {
-                    FormFieldLabel(
-                        systemImage: "doc.on.doc",
-                        title: "Template",
-                        detail: "Select a workout template"
-                    )
-                } optionLabel: { templateProgram in
-                    Text(templateProgram.templateName)
-                }
+        Button {
+            createTemplate()
+        } label: {
+            HStack(spacing: 12) {
+                FormFieldLabel(
+                    systemImage: "target",
+                    title: "Tempalte",
+                    detail: "Select program's template"
+                )
 
-                Button("New Template", systemImage: "plus", action: createTemplate)
-                    .buttonStyle(.glass)
+                if let tempalte = selectedTemplate {
+                    Text(tempalte.templateName)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
+        .padding(.horizontal, LayoutMetrics.sectionSpacing)
+        .frame(maxWidth: .infinity, minHeight: boxHeight, maxHeight: boxHeight)
+        .powerJackGlassCard(interactive: true)
     }
 }
 
 #Preview("ProgramNew - Loaded") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ProgramNew(onSave: { _ in })
     }
-    .modelContainer(scenario.container)
 }
 
 #Preview("ProgramNew - No Templates") {
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
         ProgramNew(onSave: { _ in })
     }
-    .modelContainer(PowerJackSeed.makeInMemoryContainer())
 }

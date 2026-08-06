@@ -23,16 +23,21 @@ struct SecondaryMuscleSelectionLink: View {
             )
         } label: {
             HStack(spacing: 12) {
-                FormFieldLabel(
-                    systemImage: "target",
-                    title: "Secondary Muscles",
-                    detail: "Select helper muscles (optional)"
-                )
+                VStack {
+                    FormFieldLabel(
+                        systemImage: "target",
+                        title: "Secondary Muscles",
+                        detail: "Select helper muscles (optional)"
+                    )
+                }
 
-                if !selectedSecondaryMuscles.isEmpty {
-                    Text(selectedSecondaryMuscles.count, format: .number)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                Spacer()
+                
+                VStack {
+                    ForEach(selectedSecondaryMuscles) { muscle in
+                        Text(muscle.rawValue.localizedCapitalized)
+                            .font(.caption2)
+                    }
                 }
             }
         }

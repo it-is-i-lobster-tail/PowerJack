@@ -40,8 +40,7 @@ struct ExerciseNewView: View {
 }
 
 #Preview("ExerciseNew - Default") {
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
         ExerciseNewView(onSave: { _ in })
     }
-    .modelContainer(PowerJackSeed.makeInMemoryContainer())
 }

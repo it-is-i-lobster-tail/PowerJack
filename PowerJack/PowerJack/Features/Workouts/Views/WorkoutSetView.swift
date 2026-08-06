@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct WorkoutSetView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding

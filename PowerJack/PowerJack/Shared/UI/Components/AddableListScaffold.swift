@@ -37,7 +37,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
     var body: some View {
         content()
             .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.automatic)
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $isCreating) {
                 createDestination()
             }

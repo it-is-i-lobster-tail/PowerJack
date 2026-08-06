@@ -79,8 +79,7 @@ struct ExerciseSelectionView: View {
             .searchPresentationToolbarBehavior(.avoidHidingContent)
             .navigationDestination(item: $exerciseToEdit) { exercise in
                 ExerciseDetailView(
-                    exercise: exercise,
-                    onSave: handleUpdateExercise
+                    exercise: exercise
                 )
             }
             .toolbar {
@@ -110,10 +109,6 @@ struct ExerciseSelectionView: View {
         guard let onSelect else { return }
         onSelect(exercise)
         dismiss()
-    }
-
-    private func handleUpdateExercise(_: Exercise) {
-        exerciseToEdit = nil
     }
 
     private func edit(_ exercise: Exercise) {

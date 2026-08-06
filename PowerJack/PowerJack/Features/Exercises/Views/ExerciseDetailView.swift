@@ -54,35 +54,32 @@ struct ExerciseDetailView: View {
 #Preview("ExerciseDetailView - Barbell") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ExerciseDetailView(
             exercise: scenario.exercises[0],
             onSave: { _ in },
         )
     }
-    .modelContainer(scenario.container)
 }
 
 #Preview("ExerciseDetailView - Bodyweight") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ExerciseDetailView(
             exercise: scenario.exercises[2],
             onSave: { _ in },
         )
     }
-    .modelContainer(scenario.container)
 }
 
 #Preview("ExerciseDetailView - Leg Press") {
     let scenario = PowerJackSeed.weekOneProgress()
 
-    NavigationStack {
+    NavigationPreviewHost(modelContainer: scenario.container) {
         ExerciseDetailView(
             exercise: scenario.exercises[5],
             onSave: { _ in },
         )
     }
-    .modelContainer(scenario.container)
 }

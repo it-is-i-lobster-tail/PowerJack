@@ -8,20 +8,61 @@
 import SwiftData
 import SwiftUI
 
+private enum MainBrowserOption:
+    CaseIterable,
+    Hashable,
+    Identifiable
+{
+    case programs
+    case templates
+
+    var id: Self { self }
+
+    var name: String {
+        switch self {
+        case .programs:
+            "Programs"
+        case .templates:
+            "Templates"
+        }
+    }
+}
+
 struct PowerJackRootView: View {
     @Query private var programs: [Program]
 
     private var activeProgram: Program? { programs.active }
+    @State private var options: [MainBrowserOption] = [
+        MainBrowserOption.programs,
+        MainBrowserOption.templates
+    ]
+    @State private var selection: MainBrowserOption = MainBrowserOption.programs
 
+    
     var body: some View {
-        NavigationStack {
-            Group {
-                if let activeProgram {
-                    ProgramDetailView(program: activeProgram)
-                } else {
+        TabView(selection: $selection) {
+            Tab(value: MainBrowserOption.programs) {
+                // Programs gets its own navigation world.
+                NavigationStack {
                     ProgramListView()
                 }
             }
+
+            Tab(value: MainBrowserOption.templates) {
+                // Templates gets a separate navigation world.
+                NavigationStack {
+                    TemplateProgramListView()
+                }
+            }
+        }
+        // Turns the tabs into horizontally swipeable pages.
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .safeAreaInset(edge: .bottom) {
+            SlidingGlassPicker(
+                options: MainBrowserOption.allCases,
+                selection: $selection,
+                title: \.name
+            )
         }
     }
 }

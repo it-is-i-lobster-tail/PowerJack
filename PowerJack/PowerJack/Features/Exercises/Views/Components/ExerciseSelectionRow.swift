@@ -19,13 +19,13 @@ struct ExerciseSelectionRow: View {
                     Text(exercise.exerciseName)
 
                     HStack {
-                        Text(exercise.exerciseEquipment.rawValue.capitalized)
+                        Text(exercise.exerciseEquipment.rawValue.localizedCapitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text("|")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(exercise.primaryMuscleFocus.rawValue.capitalized)
+                        Text(exercise.primaryMuscleFocus.rawValue.localizedCapitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

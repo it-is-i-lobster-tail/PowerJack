@@ -14,8 +14,14 @@ struct ProgramInfoBanner: View {
         VStack {
             Text(program.templateProgram.templateName)
                 .font(.title2)
-            Text("\(program.percentFinished)% Finished")
-                .font(.footnote)
+            HStack {
+                Text("\(program.percentFinished)% Finished")
+                    .font(.footnote)
+                if program.status != .active {
+                    Text(" | \(program.status.rawValue.localizedCapitalized)")
+                        .font(.footnote)
+                }
+            }
         }
         .padding(.horizontal, 15)
         .padding(.vertical, LayoutMetrics.compactSpacing)

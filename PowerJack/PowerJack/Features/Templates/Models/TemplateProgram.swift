@@ -15,7 +15,11 @@ final class TemplateProgram {
     var templateWorkoutsValue: [TemplateWorkout]
     var templateMuscleFocusValue: [Muscle]
 
-    init(templateName: String, workoutsPerWeek: Int, templateMuscleFocus: [Muscle]) {
+    init(
+        templateName: String,
+        workoutsPerWeek: Int,
+        templateMuscleFocus: [Muscle]
+    ) {
         self.templateName = templateName
         self.workoutsPerWeek = max(0, workoutsPerWeek)
         self.templateWorkoutsValue = []
@@ -41,5 +45,24 @@ extension TemplateProgram {
                 templateMuscleFocusValue = newValue
             }
         }
+    }
+}
+
+//
+// Mutations
+//
+extension TemplateProgram {
+    
+    @discardableResult
+    func addTemplateWorkout() -> TemplateWorkout {
+        let new = TemplateWorkout(
+            order: templateWorkoutsValue.count
+        )
+        templateWorkoutsValue.append(new)
+        return new
+    }
+    
+    func clearAllTemplateWorkoutsValue() -> Void {
+        templateWorkoutsValue.removeAll()
     }
 }
