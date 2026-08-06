@@ -54,6 +54,11 @@ struct ProgramListView: View {
                             .foregroundStyle(program === activeProgram ? .green : .blue)
                     }
                 }
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemBackground))
