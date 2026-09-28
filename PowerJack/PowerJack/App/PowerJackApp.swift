@@ -12,7 +12,9 @@ import SwiftData
 struct PowerJackApp: App {
     private let modelContainer: ModelContainer = {
         do {
-            return try PowerJackSchema.makeModelContainer()
+            let container = try PowerJackSchema.makeModelContainer()
+            try ExerciseCatalog.seed(in: container.mainContext)
+            return container
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")
         }

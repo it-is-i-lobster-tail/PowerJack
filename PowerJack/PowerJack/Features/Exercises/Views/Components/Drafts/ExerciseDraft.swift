@@ -62,7 +62,7 @@ struct ExerciseDraft {
 
     @discardableResult
     func apply(to exercise: Exercise) -> Bool {
-        guard canSave,
+        guard exercise.userCreated, canSave,
               let equipment,
               let primaryMuscle
         else {

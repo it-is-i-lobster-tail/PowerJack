@@ -13,6 +13,7 @@ let maxSecondaryMuscles: Int = 4
 
 @Model
 final class Exercise {
+    var catalogID: String? = nil
     var exerciseName: String
     var exerciseEquipment: Equipment
     var primaryMuscleFocus: Muscle

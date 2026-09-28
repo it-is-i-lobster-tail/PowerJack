@@ -28,15 +28,39 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
-        ExerciseForm(
-            draft: $draft,
-            editExistingExercise: true,
-            onSubmit: save
-        )
+        Group {
+            if exercise.userCreated {
+                ExerciseForm(
+                    draft: $draft,
+                    editExistingExercise: true,
+                    onSubmit: save
+                )
+            } else {
+                Form {
+                    Section("Exercise") {
+                        LabeledContent("Name", value: exercise.exerciseName)
+                        LabeledContent("Equipment", value: exercise.exerciseEquipment.rawValue.localizedCapitalized)
+                        LabeledContent("Primary Muscle", value: exercise.primaryMuscleFocus.rawValue.localizedCapitalized)
+                        if !exercise.secondaryMuscles.isEmpty {
+                            LabeledContent("Secondary Muscles", value: exercise.secondaryMuscles.map {
+                                $0.rawValue.localizedCapitalized
+                            }.joined(separator: ", "))
+                        }
+                    }
+                    Section {
+                        Text("This exercise is included with PowerJack and cannot be edited.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("Exercise Details")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
         .saveErrorAlert($saveErrorMessage)
     }
 
     private func save() {
+        guard exercise.userCreated else { return }
         let originalDraft = ExerciseDraft(exercise: exercise)
         guard draft.apply(to: exercise) else { return }
 
