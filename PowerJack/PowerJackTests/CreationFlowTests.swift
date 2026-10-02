@@ -15,7 +15,7 @@ struct CreationFlowTests {
     @Test("Exercise drafts validate, trim, create, and update")
     func exerciseDraftLifecycle() throws {
         var draft = ExerciseDraft()
-        draft.name = "  Row  "
+        draft.name = "  Cable Row  "
         draft.equipment = .cable
         draft.primaryMuscle = .back
         draft.secondaryMuscles = [.biceps]
@@ -23,7 +23,7 @@ struct CreationFlowTests {
         #expect(draft.canSave)
 
         let exercise = try #require(draft.makeExercise())
-        #expect(exercise.exerciseName == "Row")
+        #expect(exercise.exerciseName == "Cable Row")
         #expect(exercise.userCreated)
         #expect(exercise.secondaryMuscles == [.biceps])
 
@@ -38,36 +38,63 @@ struct CreationFlowTests {
         #expect(exercise.primaryMuscleFocus == .shoulders)
     }
 
-    @Test("Template workout counts stay ordered and protect configured trailing days")
+    @Test("Exercise drafts cap rep ranges at 30 and keep min at or below max")
+    func exerciseDraftRepRange() throws {
+        var draft = ExerciseDraft()
+        draft.name = "Cable Row"
+        draft.equipment = .cable
+        draft.primaryMuscle = .back
+        #expect(draft.canSave)
+        #expect(draft.minReps == Exercise.defaultMinReps && draft.maxReps == Exercise.defaultMaxReps)
+
+        draft.maxReps = 31
+        #expect(!draft.canSave)
+        draft.maxReps = 30
+        #expect(draft.canSave)
+        draft.minReps = 0
+        #expect(!draft.canSave)
+        draft.minReps = 20
+        draft.maxReps = 15
+        #expect(!draft.canSave)
+        draft.maxReps = 25
+
+        let exercise = try #require(draft.makeExercise())
+        #expect(exercise.repRange == 20...25)
+
+        draft.minReps = 6
+        draft.maxReps = 10
+        #expect(draft.apply(to: exercise))
+        #expect(exercise.repRange == 6...10)
+    }
+
+    @Test("Template workout counts stay ordered and retain disabled days")
     func templateWorkoutCountSynchronization() {
         var draft = TemplateProgramDraft()
-        draft.setWorkoutsPerWeek(3)
+        draft.workoutsPerWeek = 3
 
         #expect(draft.templateWorkoutDrafts.count == 3)
         #expect(draft.templateWorkoutDrafts.compactMap(\.order) == [0, 1, 2])
-        #expect(!draft.removingConfiguredWorkouts(for: 2))
 
         let exercise = makeExercise(name: "Row")
         _ = draft.templateWorkoutDraftsValue[2].addTemplateExerciseDraft(exercise: exercise)
 
-        #expect(draft.removingConfiguredWorkouts(for: 2))
 
-        draft.setWorkoutsPerWeek(2)
+        draft.workoutsPerWeek = 2
         #expect(draft.templateWorkoutDrafts.count == 2)
-        #expect(draft.templateWorkoutDrafts.compactMap(\.order) == [0, 1])
+        #expect(draft.templateWorkoutDrafts.map(\.order) == [0, 1])
+        draft.workoutsPerWeek = 3
+        #expect(draft.templateWorkoutDrafts[2].templateExerciseDrafts.first?.exercise === exercise)
     }
 
-    @Test("Template workout exercises reject duplicates and preserve order")
+    @Test("Template workout exercises preserve order")
     func templateExerciseOrdering() {
         let row = makeExercise(name: "Row")
         let press = makeExercise(name: "Press")
-        var workout = TemplateWorkoutDraft(order: 0)
+        var workout = TemplateWorkoutDraft(enabled: true, order: 0, templateExercises: nil)
 
         let firstRow = workout.addTemplateExerciseDraft(exercise: row)
-        let duplicateRow = workout.addTemplateExerciseDraft(exercise: row)
         let firstPress = workout.addTemplateExerciseDraft(exercise: press)
         #expect(firstRow != nil)
-        #expect(duplicateRow == nil)
         #expect(firstPress != nil)
 
         workout.moveTemplateExercises(from: IndexSet(integer: 0), to: 2)
@@ -90,13 +117,13 @@ struct CreationFlowTests {
         var draft = TemplateProgramDraft()
         draft.templateName = "  Pull Days  "
         draft.templateMuscleFocus = [.back, .biceps]
-        draft.setWorkoutsPerWeek(2)
+        draft.workoutsPerWeek = 2
         _ = draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: exercise)
         _ = draft.templateWorkoutDraftsValue[1].addTemplateExerciseDraft(exercise: exercise)
 
         #expect(draft.canSave)
 
-        let templateProgram = try #require(draft.makeTemplateProgram())
+        let templateProgram = try #require(draft.makeTemplate())
         try context.insertAndSave(templateProgram)
 
         let storedTemplates = try context.fetch(FetchDescriptor<TemplateProgram>())
@@ -125,6 +152,8 @@ struct CreationFlowTests {
                     $0.workoutExercises.count == 1 &&
                     $0.workoutExercises[0].workoutSets.count == 2
                 } == true)
+                #expect(program.nextWorkout == nil)
+                program.start()
                 #expect(program.nextWorkout != nil)
             }
         }

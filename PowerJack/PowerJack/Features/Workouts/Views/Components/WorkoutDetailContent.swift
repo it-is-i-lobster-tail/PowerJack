@@ -13,7 +13,7 @@ struct WorkoutDetailContent: View {
     let workoutExercises: [WorkoutExercise]
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
-    let nextWorkoutExercise: () -> Void
+    let onExerciseSetsDone: (WorkoutExercise) -> Void
 
     var body: some View {
         ZStack {
@@ -21,7 +21,7 @@ struct WorkoutDetailContent: View {
                 WorkoutExercisePager(
                     screenWidth: screenWidth,
                     workoutExercises: workoutExercises ,
-                    nextWorkoutExercise: nextWorkoutExercise,
+                    onExerciseSetsDone: onExerciseSetsDone,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: focusedSetField
                 )

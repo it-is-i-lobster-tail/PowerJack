@@ -1,3 +1,5 @@
+// xcode: set sdk=iOS
+
 //
 //  ProgramNew.swift
 //  PowerJack

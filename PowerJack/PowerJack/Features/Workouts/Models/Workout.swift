@@ -78,6 +78,22 @@ extension Workout {
     func getCountActiveSets() -> Int {
         return countSetStatus(status: Status.active)
     }
+
+    /// Where the user should be: the first exercise still being logged or waiting on feedback.
+    /// Derived from stored state so it survives relaunches.
+    var currentExerciseIndex: Int {
+        let exercises = workoutExercises
+        return exercises.firstIndex { !$0.isFinished || $0.needsFeedback }
+            ?? max(0, exercises.count - 1)
+    }
+
+    var allExercisesFinished: Bool {
+        workoutExercisesValue.allSatisfy { $0.isFinished && !$0.needsFeedback }
+    }
+
+    var isFinished: Bool {
+        status == .complete || status == .skipped || status == .stopped
+    }
 }
 
 //

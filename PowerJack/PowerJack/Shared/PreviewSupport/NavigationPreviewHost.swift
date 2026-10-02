@@ -12,6 +12,7 @@ import SwiftUI
 struct NavigationPreviewHost<Content: View>: View {
     private let modelContainer: ModelContainer
     private let content: Content
+    @State private var router = ProgramsRouter()
 
     init(
         modelContainer: ModelContainer,
@@ -22,9 +23,11 @@ struct NavigationPreviewHost<Content: View>: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $router.path) {
             content
+                .programRouteDestinations()
         }
+        .environment(router)
         .modelContainer(modelContainer)
     }
 }

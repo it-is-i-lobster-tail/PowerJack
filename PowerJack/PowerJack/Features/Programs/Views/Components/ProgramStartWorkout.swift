@@ -5,14 +5,17 @@
 //  Created by Brendon on 6/29/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct ProgramStartWorkout: View {
     let screenWidth: CGFloat
     let height: CGFloat
+    let program: Program
     let workout: Workout
 
-    @State private var showWorkout = false
+    @Environment(\.modelContext) private var modelContext
+    @Environment(ProgramsRouter.self) private var router
 
     var body: some View {
         Button(action: startWorkout) {
@@ -23,9 +26,6 @@ struct ProgramStartWorkout: View {
             }
         }
         .buttonStyle(.glassProminent)
-        .navigationDestination(isPresented: $showWorkout) {
-            WorkoutDetailView(workout: workout)
-        }
         .frame(
             width: screenWidth,
             height: height
@@ -44,7 +44,8 @@ struct ProgramStartWorkout: View {
     private func startWorkout() {
         if workout.status == .planned && workout.locked {
             workout.startAndCascade()
+            try? modelContext.save()
         }
-        showWorkout = true
+        router.showSession(program)
     }
 }

@@ -14,8 +14,33 @@ struct WorkoutSetView: View {
     private static let paddingVertical = 10.0
     private static let frameWidth = 50.0
     private static let animationDuration = 0.050
+    /// Pause after the last keystroke before a fully logged set completes itself.
+    static let autoCompleteDelay: Duration = .milliseconds(1200)
 
+    @Environment(\.modelContext) private var modelContext
     @Bindable var workoutSet: WorkoutSet
+    let repsOnly: Bool
+    let onAutoComplete: () -> Void
+
+    // Text-backed so the model updates on every keystroke.
+    @State private var repsText: String
+    @State private var weightText: String
+    // Only edits made in this view arm auto-completion, never initial or restored values.
+    @State private var autoCompleteArmed = false
+
+    init(
+        focusedSetField: FocusState<FocusedSetField?>.Binding,
+        workoutSet: WorkoutSet,
+        repsOnly: Bool = false,
+        onAutoComplete: @escaping () -> Void = {}
+    ) {
+        self.focusedSetField = focusedSetField
+        self.workoutSet = workoutSet
+        self.repsOnly = repsOnly
+        self.onAutoComplete = onAutoComplete
+        _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
+        _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightInPounds))
+    }
 
     private var repsIsFocused: Bool {
         focusedSetField.wrappedValue == .reps(workoutSet.id)
@@ -25,18 +50,18 @@ struct WorkoutSetView: View {
         focusedSetField.wrappedValue == .weight(workoutSet.id)
     }
 
-    private var repsBinding: Binding<Int?> {
-        Binding(
-            get: { workoutSet.reps },
-            set: { newValue in
-                guard let newValue else {
-                    workoutSet.reps = nil
-                    return
-                }
+    private var isEditable: Bool {
+        workoutSet.status == .active && !workoutSet.locked
+    }
 
-                workoutSet.reps = min(max(newValue, 1), 100)
-            }
-        )
+    /// Reps above `Exercise.maxRepsAllowed` are shown as invalid and never saved.
+    private var repsInvalid: Bool {
+        guard let reps = Int(repsText) else { return false }
+        return !WorkoutSet.isValidReps(reps)
+    }
+
+    private var isFullyLogged: Bool {
+        workoutSet.reps != nil && (repsOnly || workoutSet.weightTenthsPounds != nil)
     }
 
     private var plannedRepsPrompt: Text {
@@ -49,10 +74,19 @@ struct WorkoutSetView: View {
 
     private var plannedWeightPrompt: Text {
         guard let plannedWeight = workoutSet.weightInPoundsPlanned else {
-            return Text("")
+            return Text(repsOnly ? "BW" : "")
         }
 
         return Text(plannedWeight, format: .number)
+    }
+
+    private struct AutoCompleteKey: Hashable {
+        let reps: Int?
+        let weight: Int?
+    }
+
+    private var autoCompleteKey: AutoCompleteKey {
+        AutoCompleteKey(reps: workoutSet.reps, weight: workoutSet.weightTenthsPounds)
     }
 
     var body: some View {
@@ -70,15 +104,16 @@ struct WorkoutSetView: View {
 
                 TextField(
                     "Actual Reps",
-                    value: repsBinding,
-                    format: .number,
-                    prompt: plannedRepsPrompt,
+                    text: $repsText,
+                    prompt: plannedRepsPrompt
                 )
                 .keyboardType(.numberPad)
+                .disabled(!isEditable)
                 .frame(width: Self.frameWidth)
                 .padding(.horizontal, Self.paddingHorizontal)
                 .padding(.vertical, Self.paddingVertical)
                 .font(.default)
+                .foregroundStyle(repsInvalid ? .red : .primary)
                 .focused(focusedSetField, equals: .reps(workoutSet.id))
                 .transition(
                     .scale(scale: 0.95, anchor: .center)
@@ -86,14 +121,11 @@ struct WorkoutSetView: View {
                 )
                 .glassEffect(
                     .regular
-                        .tint(
-                            repsIsFocused
-                                ? .blue.opacity(VisualOpacity.light)
-                                : .gray.opacity(VisualOpacity.subtle)
-                        )
+                        .tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid))
                         .interactive(),
                     in: .rect(cornerRadius: 26)
                 )
+                .accessibilityLabel("Set \(workoutSet.order + 1) reps")
 
                 Text("Weight")
                     .frame(width: 43, alignment: .trailing)
@@ -102,11 +134,11 @@ struct WorkoutSetView: View {
 
                 TextField(
                     "Actual weight",
-                    value: $workoutSet.weightInPounds,
-                    format: .number.precision(.fractionLength(0...1)),
+                    text: $weightText,
                     prompt: plannedWeightPrompt
                 )
-                .keyboardType(.numberPad)
+                .keyboardType(.decimalPad)
+                .disabled(!isEditable)
                 .frame(width: Self.frameWidth)
                 .padding(.horizontal, Self.paddingHorizontal)
                 .padding(.vertical, Self.paddingVertical)
@@ -118,20 +150,19 @@ struct WorkoutSetView: View {
                 )
                 .glassEffect(
                     .regular
-                        .tint(
-                            weightIsFocused
-                                ? .blue.opacity(VisualOpacity.light)
-                                : .gray.opacity(VisualOpacity.subtle)
-                        )
+                        .tint(fieldTint(isFocused: weightIsFocused, isInvalid: false))
                         .interactive(),
                     in: .rect(cornerRadius: 26)
                 )
+                .accessibilityLabel("Set \(workoutSet.order + 1) weight")
 
                 ZStack {
                     Button(action: toggleCompletion) {
                         Image(systemName: "circle")
                             .font(.system(size: 35, weight: .thin))
                     }
+                    .disabled(workoutSet.locked || repsInvalid)
+                    .accessibilityLabel("Set \(workoutSet.order + 1) complete")
 
                     if workoutSet.status == .complete {
                         Image(systemName: "checkmark")
@@ -143,6 +174,11 @@ struct WorkoutSetView: View {
                                 )
                             )
                             .foregroundStyle(.green)
+                            .allowsHitTesting(false)
+                    } else if workoutSet.status == .skipped {
+                        Image(systemName: "forward")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
                             .allowsHitTesting(false)
                     } else if workoutSet.locked {
                         Image(systemName: "lock")
@@ -158,6 +194,79 @@ struct WorkoutSetView: View {
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
         }
+        .onChange(of: repsText) { _, newValue in
+            updateReps(from: newValue)
+        }
+        .onChange(of: weightText) { _, newValue in
+            updateWeight(from: newValue)
+        }
+        .onChange(of: workoutSet.reps) { _, newValue in
+            // Keep text in sync when the model changes elsewhere, e.g. completing with planned values.
+            if Int(repsText) != newValue, !repsInvalid {
+                repsText = Self.text(forReps: newValue)
+            }
+        }
+        .onChange(of: workoutSet.weightTenthsPounds) { _, _ in
+            if parsedWeight(weightText) != workoutSet.weightInPounds {
+                weightText = Self.text(forWeight: workoutSet.weightInPounds)
+            }
+        }
+        .task(id: autoCompleteKey) {
+            await autoCompleteAfterDebounce()
+        }
+    }
+
+    private func fieldTint(isFocused: Bool, isInvalid: Bool) -> Color {
+        if isInvalid { return .red.opacity(VisualOpacity.light) }
+        return isFocused
+            ? .blue.opacity(VisualOpacity.light)
+            : .gray.opacity(VisualOpacity.subtle)
+    }
+
+    private func updateReps(from text: String) {
+        guard isEditable else { return }
+        let digits = text.filter(\.isNumber)
+        if digits != text {
+            repsText = digits
+            return
+        }
+        // Invalid (e.g. > 30) reps are stored as nil so they can never be saved.
+        let newValue = Int(digits)
+        guard newValue != workoutSet.reps else { return }
+        autoCompleteArmed = true
+        workoutSet.reps = newValue
+    }
+
+    private func updateWeight(from text: String) {
+        guard isEditable else { return }
+        let newValue = parsedWeight(text)
+        guard newValue != workoutSet.weightInPounds else { return }
+        autoCompleteArmed = true
+        workoutSet.weightInPounds = newValue
+    }
+
+    private func parsedWeight(_ text: String) -> Double? {
+        let normalized = text.replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(normalized), value > 0 else { return nil }
+        return value
+    }
+
+    /// `task(id:)` restarts on every edit, so this only fires once typing pauses.
+    private func autoCompleteAfterDebounce() async {
+        guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
+
+        do {
+            try await Task.sleep(for: Self.autoCompleteDelay)
+        } catch {
+            return
+        }
+
+        guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
+        autoCompleteArmed = false
+        withAnimation {
+            completeSet()
+        }
+        onAutoComplete()
     }
 
     private func toggleCompletion() {
@@ -166,6 +275,7 @@ struct WorkoutSetView: View {
                 completeSet()
             }
         } else {
+            autoCompleteArmed = false
             workoutSet.start()
         }
     }
@@ -179,5 +289,15 @@ struct WorkoutSetView: View {
             workoutSet.weightTenthsPounds = workoutSet.weightTenthsPlannedPounds
         }
         workoutSet.complete()
+        try? modelContext.save()
+    }
+
+    private static func text(forReps reps: Int?) -> String {
+        reps.map(String.init) ?? ""
+    }
+
+    private static func text(forWeight weight: Double?) -> String {
+        guard let weight else { return "" }
+        return weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
     }
 }

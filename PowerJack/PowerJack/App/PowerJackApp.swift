@@ -1,3 +1,5 @@
+// xcode: set sdk=iOS
+
 //
 //  PowerJackApp.swift
 //  PowerJack
@@ -12,7 +14,9 @@ import SwiftData
 struct PowerJackApp: App {
     private let modelContainer: ModelContainer = {
         do {
-            let container = try PowerJackSchema.makeModelContainer()
+            let container = try PowerJackSchema.makeModelContainer(
+                inMemory: ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            )
             try ExerciseCatalog.seed(in: container.mainContext)
             return container
         } catch {

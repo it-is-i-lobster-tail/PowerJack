@@ -74,17 +74,64 @@ struct ExerciseCatalogTests {
             exerciseName: "Legacy Exercise", exerciseEquipment: .barbell, primaryMuscleFocus: .chest
         )] {
             let originalName = exercise.exerciseName
+            let originalSecondary = exercise.secondaryMuscles
+            let originalRange = exercise.repRange
             var draft = ExerciseDraft(exercise: exercise)
             draft.name = "Changed Exercise"
             draft.equipment = .cable
             draft.primaryMuscle = .back
             draft.secondaryMuscles = [.biceps]
+            draft.minReps = 3
+            draft.maxReps = 4
             #expect(draft.canSave)
             #expect(!draft.apply(to: exercise))
             #expect(exercise.exerciseName == originalName)
             #expect(exercise.exerciseEquipment == .barbell)
             #expect(exercise.primaryMuscleFocus == .chest)
-            #expect(exercise.secondaryMuscles.isEmpty)
+            #expect(exercise.secondaryMuscles == originalSecondary)
+            #expect(exercise.repRange == originalRange)
         }
+    }
+
+    @Test("Catalog rep ranges stay within the app-wide limit")
+    func catalogRepRanges() {
+        for entry in ExerciseCatalog.entries {
+            #expect(entry.minReps >= 1, "\(entry.id)")
+            #expect(entry.maxReps <= Exercise.maxRepsAllowed, "\(entry.id)")
+            #expect(entry.minReps <= entry.maxReps, "\(entry.id)")
+            #expect(!entry.secondaryMuscles.contains(entry.primaryMuscle), "\(entry.id)")
+        }
+    }
+
+    @Test("Seeding backfills progression data on existing catalog rows only")
+    func backfill() throws {
+        let container = try PowerJackSchema.makeModelContainer(inMemory: true)
+        let context = container.mainContext
+        let entry = ExerciseCatalog.entries[0]
+        // Simulates a row saved before rep ranges existed.
+        let stale = Exercise(
+            exerciseName: "Renamed Bench",
+            exerciseEquipment: entry.equipment,
+            primaryMuscleFocus: entry.primaryMuscle
+        )
+        stale.catalogID = entry.id
+        let custom = Exercise(
+            exerciseName: "Custom",
+            exerciseEquipment: .cable,
+            primaryMuscleFocus: .back,
+            userCreated: true,
+            minReps: 3,
+            maxReps: 5
+        )
+        context.insert(stale)
+        context.insert(custom)
+        try context.save()
+
+        try ExerciseCatalog.seed(in: context)
+
+        #expect(stale.repRange == entry.minReps...entry.maxReps)
+        #expect(Set(stale.secondaryMuscles) == Set(entry.secondaryMuscles))
+        #expect(stale.exerciseName == "Renamed Bench")
+        #expect(custom.repRange == 3...5)
     }
 }

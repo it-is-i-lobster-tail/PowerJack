@@ -31,7 +31,7 @@ struct TemplateProgramDetailView: View {
 
     var body: some View {
         TemplateForm(
-            editExistingExercise: false,
+            editExistingExercise: true,
             onSave: save,
             draft: $draft
         )

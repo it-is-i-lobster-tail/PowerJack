@@ -5,14 +5,15 @@
 //  Created by trogdor on 7/15/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct Feedback: View {
     @Environment(\.dismiss) private var dismiss
-
-    let nextWorkoutExercise: () -> Void
+    @Environment(\.modelContext) private var modelContext
 
     @Bindable var workoutExercise: WorkoutExercise
+    let onFinished: () -> Void
     @State private var draft = FeedbackDraft()
 
     var body: some View {
@@ -61,8 +62,12 @@ struct Feedback: View {
             levelOfPain: levelOfPain
         )
         workoutExercise.addFeedback(feedback: newFeedback)
+        if workoutExercise.status == .active {
+            workoutExercise.completeAndCascade()
+        }
+        try? modelContext.save()
         dismiss()
-        nextWorkoutExercise()
+        onFinished()
     }
 }
 
@@ -95,4 +100,15 @@ private struct FeedbackScaleSection<
         .padding(.vertical, 10)
         .powerJackGlassCard(interactive: true)
     }
+}
+
+#Preview("Feedback") {
+    let scenario = PowerJackSeed.weekOneProgress()
+
+    Feedback(
+        workoutExercise: scenario.weekOneWorkouts[1].workoutExercises[0],
+        onFinished: {}
+    )
+    .padding(.horizontal, LayoutMetrics.sectionSpacing)
+    .modelContainer(scenario.container)
 }

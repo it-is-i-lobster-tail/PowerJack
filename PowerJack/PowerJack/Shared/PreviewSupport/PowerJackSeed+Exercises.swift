@@ -40,32 +40,50 @@ extension PowerJackSeed {
             Exercise(
                 exerciseName: "Barbell Bench Press",
                 exerciseEquipment: .barbell,
-                primaryMuscleFocus: .chest
+                primaryMuscleFocus: .chest,
+                secondaryMuscles: [.triceps, .shoulders],
+                minReps: 5,
+                maxReps: 12
             ),
             Exercise(
                 exerciseName: "Barbell Back Squat",
                 exerciseEquipment: .barbell,
-                primaryMuscleFocus: .quads
+                primaryMuscleFocus: .quads,
+                secondaryMuscles: [.glutes, .hamstrings],
+                minReps: 6,
+                maxReps: 12
             ),
             Exercise(
                 exerciseName: "Pull Up",
                 exerciseEquipment: .bodyweight,
-                primaryMuscleFocus: .back
+                primaryMuscleFocus: .back,
+                secondaryMuscles: [.biceps, .forearms],
+                minReps: 5,
+                maxReps: 12
             ),
             Exercise(
                 exerciseName: "Lat Pulldown",
                 exerciseEquipment: .cable,
-                primaryMuscleFocus: .back
+                primaryMuscleFocus: .back,
+                secondaryMuscles: [.biceps],
+                minReps: 8,
+                maxReps: 15
             ),
             Exercise(
                 exerciseName: "Cable Lateral Raise",
                 exerciseEquipment: .cable,
-                primaryMuscleFocus: .shoulders
+                primaryMuscleFocus: .shoulders,
+                secondaryMuscles: [],
+                minReps: 10,
+                maxReps: 25
             ),
             Exercise(
                 exerciseName: "Leg Press",
                 exerciseEquipment: .legPress,
-                primaryMuscleFocus: .quads
+                primaryMuscleFocus: .quads,
+                secondaryMuscles: [.glutes],
+                minReps: 8,
+                maxReps: 15
             ),
         ]
     }

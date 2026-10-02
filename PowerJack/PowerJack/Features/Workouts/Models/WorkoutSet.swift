@@ -25,7 +25,7 @@ final class WorkoutSet {
         plannedWeightTenthsPounds: Int?,
     ) {
         self.orderValue = order
-        self.repsPlannedValue = plannedReps
+        self.repsPlannedValue = plannedReps.flatMap { Self.isValidReps($0) ? $0 : nil }
         self.weightTenthsPoundsPlannedValue = plannedWeightTenthsPounds
         self.statusValue = .planned
         self.lockedValue = false
@@ -44,7 +44,7 @@ extension WorkoutSet {
         set {
             guard status == .active else { return }
 
-            if let newValue, newValue > 0 {
+            if let newValue, Self.isValidReps(newValue) {
                 repsValue = newValue
             } else {
                 repsValue = nil
@@ -57,7 +57,7 @@ extension WorkoutSet {
         set {
             guard status == .active else { return }
 
-            if let newValue, newValue > 0 {
+            if let newValue, Self.isValidReps(newValue) {
                 repsPlannedValue = newValue
             } else {
                 repsPlannedValue = nil
@@ -99,6 +99,12 @@ extension WorkoutSet {
 // Derived Values
 //
 extension WorkoutSet {
+    /// Reps above `Exercise.maxRepsAllowed` can never be saved.
+    static func isValidReps(_ reps: Int) -> Bool {
+        (1...Exercise.maxRepsAllowed).contains(reps)
+    }
+    // Complete or skipped
+    var isDone: Bool { status == .complete || status == .skipped }
     // Weight In Pounds
     var weightInPounds: Double? {
         get {
@@ -108,7 +114,9 @@ extension WorkoutSet {
         set {
             guard status == .active else { return }
             if let newValue, newValue > 0 {
-                weightTenthsPounds = Int(newValue * 10)
+                weightTenthsPounds = Int((newValue * 10).rounded())
+            } else {
+                weightTenthsPounds = nil
             }
         }
     }
@@ -135,7 +143,7 @@ extension WorkoutSet {
     func completeAndLock() {
         guard
             !lockedValue,
-            status == .active
+            status == .active || status == .complete
         else {
             Logger.workoutSet.warning("Cannot complete a locked or skipped WorkoutSet")
             return

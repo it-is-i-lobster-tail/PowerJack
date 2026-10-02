@@ -10,7 +10,7 @@ import SwiftUI
 struct WorkoutExercisePager: View {
     let screenWidth: CGFloat
     let workoutExercises: [WorkoutExercise]
-    let nextWorkoutExercise: () -> Void
+    let onExerciseSetsDone: (WorkoutExercise) -> Void
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
 
@@ -19,7 +19,7 @@ struct WorkoutExercisePager: View {
             LazyHStack(spacing: 0) {
                 ForEach(workoutExercises.indices, id: \.self) { index in
                     WorkoutExerciseView(
-                        nextWorkoutExercise: nextWorkoutExercise,
+                        onSetsDone: onExerciseSetsDone,
                         screenWidth: screenWidth,
                         focusedSetField: focusedSetField,
                         workoutExercise: workoutExercises[index]

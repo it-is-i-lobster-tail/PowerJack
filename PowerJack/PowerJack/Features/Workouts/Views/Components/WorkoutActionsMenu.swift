@@ -5,12 +5,16 @@
 //  Created by Codex on 7/14/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct WorkoutActionsMenu: View {
     let workout: Workout
     let selectedExerciseIndex: Int?
     @Binding var isShowingWorkoutExerciseSheet: Bool
+    var onSkipWorkout: (() -> Void)? = nil
+
+    @Environment(\.modelContext) private var modelContext
 
     private var selectedWorkoutExercise: WorkoutExercise? {
         guard let selectedExerciseIndex,
@@ -43,6 +47,7 @@ struct WorkoutActionsMenu: View {
             if let selectedWorkoutExercise {
                 Button {
                     _ = selectedWorkoutExercise.addSet()
+                    try? modelContext.save()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
@@ -63,6 +68,7 @@ struct WorkoutActionsMenu: View {
 
                 Button {
                     _ = selectedWorkoutExercise.removeLastSet()
+                    try? modelContext.save()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash")
@@ -75,6 +81,7 @@ struct WorkoutActionsMenu: View {
 
                 Button {
                     selectedWorkoutExercise.skipAndCascade()
+                    try? modelContext.save()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "forward")
@@ -85,7 +92,12 @@ struct WorkoutActionsMenu: View {
             }
 
             Button {
-                workout.skipAndCascade()
+                if let onSkipWorkout {
+                    onSkipWorkout()
+                } else {
+                    workout.skipAndCascade()
+                    try? modelContext.save()
+                }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "forward.end")

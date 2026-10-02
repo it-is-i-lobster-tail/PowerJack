@@ -44,6 +44,11 @@ struct ExercisePreviewStrip: View {
                 .scrollTargetLayout()
             }
             .contentMargins(.horizontal, sideMargin, for: .scrollContent)
+            .onAppear {
+                // Center the restored exercise when a workout reopens mid-way.
+                guard let selectedExerciseIndex else { return }
+                proxy.scrollTo(selectedExerciseIndex, anchor: .center)
+            }
             .onChange(of: selectedExerciseIndex) { _, newValue in
                 guard let newValue else { return }
 

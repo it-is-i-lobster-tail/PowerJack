@@ -10,8 +10,7 @@ import SwiftUI
 
 struct ProgramListView: View {
     @Query private var programs: [Program]
-
-    @State private var selectedProgram: Program?
+    @Environment(ProgramsRouter.self) private var router
 
     private var activeProgram: Program? {
         programs.active
@@ -65,13 +64,10 @@ struct ProgramListView: View {
         } createDestination: {
             ProgramNew(onSave: handleNewProgram)
         }
-        .navigationDestination(item: $selectedProgram) { program in
-            ProgramDetailView(program: program)
-        }
     }
 
     private func select(_ program: Program) {
-        selectedProgram = program
+        router.showDetail(program)
     }
 
     private func handleNewProgram(newProgram: Program) {

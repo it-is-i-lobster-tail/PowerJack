@@ -83,6 +83,7 @@ struct ProgramDetailView: View {
                             height: screenHeight
                                 * programStartWorkoutVerticalAllocation
                                 * 0.95,
+                            program: program,
                             workout: nextWorkout
                         )
                     } else {

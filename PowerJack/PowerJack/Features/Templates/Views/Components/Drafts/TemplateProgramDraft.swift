@@ -42,10 +42,13 @@ struct TemplateProgramDraft {
                 addTemplateWorkoutDraft(enabled: false)
             }
         }
+        if let workoutsPerWeekValue {
+            updateWorkoutsPerWeek(newValue: workoutsPerWeekValue)
+        }
     }
 
     var canSave: Bool {
-        templateName != "" &&
+        !trimmedName.isEmpty && trimmedName.count <= Self.maximumNameLength &&
         workoutsPerWeek != nil &&
         !templateMuscleFocus.isEmpty &&
         templateWorkoutDrafts.allSatisfy(\.canSave)
@@ -117,7 +120,7 @@ struct TemplateProgramDraft {
 //
 extension TemplateProgramDraft {
     var templateWorkoutDrafts: [TemplateWorkoutDraft] {
-        templateWorkoutDraftsValue.sorted { $0.order < $1.order }
+        templateWorkoutDraftsValue.filter(\.enabled).sorted { $0.order < $1.order }
     }
 
     var templateMuscleFocus: [Muscle] {

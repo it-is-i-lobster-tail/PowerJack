@@ -188,6 +188,21 @@ extension PowerJackSeed {
 
         let weekOne = ProgramWeek(order: 0)
         weekOne.workoutsValue = [dayOne, dayTwo, dayThree]
+        weekOne.start()
+        dayOne.start()
+        for exercise in dayOne.workoutExercises {
+            exercise.start()
+            exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+            exercise.complete()
+        }
+        dayOne.complete()
+        dayTwo.start()
+        for exercise in dayTwo.workoutExercises {
+            exercise.start()
+            if exercise.allSetsDone() {
+                exercise.complete()
+            }
+        }
         let emptyWeeks = (1..<8).map { ProgramWeek(order: $0) }
 
         let program = Program(programLengthWeeks: 8, templateProgram: templateProgram)

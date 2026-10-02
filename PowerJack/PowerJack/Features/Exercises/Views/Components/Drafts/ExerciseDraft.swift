@@ -12,6 +12,10 @@ struct ExerciseDraft {
     var equipment: Equipment?
     var primaryMuscle: Muscle?
     var secondaryMuscles: [Muscle] = []
+    var minReps: Int = Exercise.defaultMinReps
+    var maxReps: Int = Exercise.defaultMaxReps
+
+    static let repLimits = 1...Exercise.maxRepsAllowed
 
     init() {}
 
@@ -20,6 +24,8 @@ struct ExerciseDraft {
         equipment = exercise.exerciseEquipment
         primaryMuscle = exercise.primaryMuscleFocus
         secondaryMuscles = exercise.secondaryMusclesValue
+        minReps = exercise.minReps
+        maxReps = exercise.maxReps
     }
 
     private var trimmedName: String {
@@ -35,7 +41,14 @@ struct ExerciseDraft {
 
         return (4...maxExerciseNameLengthInput).contains(trimmedName.count) &&
             secondaryMuscles.count <= maxSecondaryMuscles &&
-            !secondaryMuscles.contains(primaryMuscle)
+            !secondaryMuscles.contains(primaryMuscle) &&
+            repRangeIsValid
+    }
+
+    var repRangeIsValid: Bool {
+        Self.repLimits.contains(minReps) &&
+            Self.repLimits.contains(maxReps) &&
+            minReps <= maxReps
     }
 
     mutating func removePrimaryFromSecondary() {
@@ -56,7 +69,9 @@ struct ExerciseDraft {
             exerciseEquipment: equipment,
             primaryMuscleFocus: primaryMuscle,
             secondaryMuscles: secondaryMuscles,
-            userCreated: userCreated
+            userCreated: userCreated,
+            minReps: minReps,
+            maxReps: maxReps
         )
     }
 
@@ -73,6 +88,8 @@ struct ExerciseDraft {
         exercise.exerciseEquipment = equipment
         exercise.primaryMuscleFocus = primaryMuscle
         exercise.secondaryMuscles = secondaryMuscles
+        exercise.minReps = minReps
+        exercise.maxReps = maxReps
         return true
     }
 }

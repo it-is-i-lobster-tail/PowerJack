@@ -14,6 +14,7 @@ enum PowerJackSchema {
         Workout.self,
         WorkoutExercise.self,
         WorkoutSet.self,
+        ExerciseFeedback.self,
         Exercise.self,
         TemplateProgram.self,
         TemplateWorkout.self,
@@ -23,7 +24,8 @@ enum PowerJackSchema {
     static func makeModelContainer(inMemory: Bool = false) throws -> ModelContainer {
         let configuration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: inMemory
+            isStoredInMemoryOnly: inMemory,
+            cloudKitDatabase: .none
         )
 
         return try ModelContainer(

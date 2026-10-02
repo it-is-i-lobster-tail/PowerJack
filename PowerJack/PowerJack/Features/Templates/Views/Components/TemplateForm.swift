@@ -128,17 +128,11 @@ private struct BuildTemplate: View {
             FormFieldLabel(
                 systemImage: "target",
                 title: "Build Workouts",
-                detail: "Set exercies for each workout"
+                detail: "Set exercises for each workout"
             )
         }
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .frame(maxWidth: .infinity, minHeight: boxHeight, maxHeight: boxHeight)
         .powerJackGlassCard(interactive: true)
-    }
-}
-
-#Preview("TemplateProgramNew") {
-    NavigationPreviewHost(modelContainer: PowerJackSeed.weekOneProgress().container) {
-        TemplateProgramNew(onSave: { _ in })
     }
 }

@@ -37,22 +37,21 @@ struct PowerJackRootView: View {
         MainBrowserOption.templates
     ]
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
+    @State private var router = ProgramsRouter()
+    @State private var didRestore = false
 
-    
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: MainBrowserOption.programs) {
                 // Programs gets its own navigation world.
-                NavigationStack {
+                NavigationStack(path: $router.path) {
                     ProgramListView()
+                        .programRouteDestinations()
                 }
             }
 
             Tab(value: MainBrowserOption.templates) {
-                // Templates gets a separate navigation world.
-                NavigationStack {
-                    TemplateProgramListView()
-                }
+                TemplateProgramListView()
             }
         }
         // Turns the tabs into horizontally swipeable pages.
@@ -64,6 +63,18 @@ struct PowerJackRootView: View {
                 title: \.name
             )
         }
+        .environment(router)
+        .onAppear(perform: restoreActiveWorkout)
+    }
+
+    /// On launch, reopen the active program's current workout.
+    private func restoreActiveWorkout() {
+        guard !didRestore else { return }
+        didRestore = true
+
+        guard let activeProgram, activeProgram.nextWorkout != nil else { return }
+        selection = .programs
+        router.restore(activeProgram: activeProgram)
     }
 }
 

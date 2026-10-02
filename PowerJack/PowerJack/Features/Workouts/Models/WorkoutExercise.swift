@@ -9,7 +9,23 @@ import Foundation
 import SwiftData
 import OSLog
 
+/// Severe pain holds an exercise until the user decides how to continue.
+enum ManualCheckIn: String, Codable {
+    case none
+    case pending
+    case resolved
+}
 
+enum ManualCheckInDecision: CaseIterable, Identifiable {
+    /// Keep the held prescription and log it.
+    case `continue`
+    /// Replace the held prescription with two fresh sets.
+    case reset
+    /// Skip this exercise for this workout.
+    case skip
+
+    var id: Self { self }
+}
 
 @Model
 final class WorkoutExercise {
@@ -18,9 +34,13 @@ final class WorkoutExercise {
     private var workoutSetsValue: [WorkoutSet]
     private var statusValue: Status
     private var lockedValue: Bool
+    @Relationship(deleteRule: .cascade)
     private var feedbackValue: ExerciseFeedback?
+    private var checkInValue: ManualCheckIn = ManualCheckIn.none
+    private var checkInSourcePainValue: LevelOfPain?
 
-    static var maxSets = 4
+    static let maxSets = 5
+    static let initialSets = 2
 
     init(
         exercise: Exercise,
@@ -55,6 +75,9 @@ extension WorkoutExercise {
     var locked: Bool { lockedValue }
     // Feedback
     var feedback: ExerciseFeedback? { feedbackValue }
+    // Manual Check-In
+    var checkIn: ManualCheckIn { checkInValue }
+    var checkInSourcePain: LevelOfPain? { checkInSourcePainValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -90,6 +113,18 @@ extension WorkoutExercise {
     // Active Sets
     func getCountActiveSets() -> Int {
         return countSetStatus(status: Status.active)
+    }
+    var checkInPending: Bool { checkInValue == .pending }
+    // Complete, skipped, or stopped.
+    var isFinished: Bool {
+        status == .complete || status == .skipped || status == .stopped
+    }
+    // Every set is logged but the user has not rated the exercise yet.
+    var needsFeedback: Bool {
+        feedbackValue == nil &&
+            (status == .active || status == .skipped) &&
+            allSetsDone() &&
+            getCountCompletedSets() > 0
     }
     // All Sets Complete
     func allSetsDone() -> Bool {
@@ -170,6 +205,12 @@ extension WorkoutExercise {
         }
     }
     func startAndCascade() {
+        guard checkInValue != .pending else {
+            // Stays planned and locked until `resolveCheckIn` runs.
+            lockedValue = true
+            Logger.workoutExercise.debug("WorkoutExercise waiting on manual check-in")
+            return
+        }
         start()
 
         for workoutSet in self.workoutSetsValue {
@@ -200,6 +241,59 @@ extension WorkoutExercise {
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
         return newSet
     }
+    /// Adds a set that stays planned until the workout starts. Used for generated weeks.
+    @discardableResult
+    func addPlannedSet(
+        plannedReps: Int?,
+        plannedWeightTenthsPounds: Int?
+    ) -> WorkoutSet? {
+        guard
+            status == .planned,
+            workoutSetsValue.count < Self.maxSets
+        else {
+            Logger.workoutExercise.warning("Unable to add planned WorkoutSet. Max sets exceeded or WorkoutExercise already started.")
+            return nil
+        }
+        let newSet = WorkoutSet(
+            order: workoutSetsValue.count,
+            plannedReps: plannedReps,
+            plannedWeightTenthsPounds: plannedWeightTenthsPounds
+        )
+        workoutSetsValue.append(newSet)
+        return newSet
+    }
+    /// Holds this planned exercise behind a manual check-in (pain was severe last time).
+    func requireCheckIn(sourcePain: LevelOfPain) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only require a check-in on a planned WorkoutExercise.")
+            return
+        }
+        checkInValue = .pending
+        checkInSourcePainValue = sourcePain
+        lockedValue = true
+    }
+    func resolveCheckIn(_ decision: ManualCheckInDecision) {
+        guard checkInValue == .pending else {
+            Logger.workoutExercise.warning("WorkoutExercise does not need a manual check-in.")
+            return
+        }
+        checkInValue = .resolved
+        lockedValue = false
+
+        switch decision {
+        case .continue:
+            startAndCascade()
+        case .reset:
+            workoutSetsValue.removeAll()
+            startAndCascade()
+            for _ in 0..<Self.initialSets {
+                _ = addSet()
+            }
+        case .skip:
+            skipAndCascade()
+        }
+        Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise.exerciseName)")
+    }
     func removeLastSet() -> WorkoutSet? {
         guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot remove last WorkoutSet of locked WorkoutExercise.")
@@ -216,12 +310,14 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Changing \(self.exercise.exerciseName) to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
         workoutSetsValue.removeAll()
-        _ = addSet()
-        _ = addSet()
+        for _ in 0..<Self.initialSets {
+            _ = addSet()
+        }
     }
+    /// Feedback is recorded once every set is done, even after "Skip Remaining Sets" locked the exercise.
     func addFeedback(feedback: ExerciseFeedback) {
-        guard !lockedValue else {
-            Logger.workoutExercise.debug("Cannot add feedback to locked WorkoutExercise")
+        guard allSetsDone(), status == .active || status == .skipped else {
+            Logger.workoutExercise.debug("Cannot add feedback before every set is done")
             return
         }
         feedbackValue = feedback

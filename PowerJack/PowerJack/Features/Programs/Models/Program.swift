@@ -115,6 +115,15 @@ extension Program {
         return c
     }
 
+    /// 1-based week number of the week holding `workout`.
+    func weekNumber(containing workout: Workout) -> Int? {
+        programWeek(containing: workout).map { $0.order + 1 }
+    }
+
+    func programWeek(containing workout: Workout) -> ProgramWeek? {
+        programWeeks.first { week in week.workouts.contains { $0 === workout } }
+    }
+
     var percentFinished: Int {
         guard totalWorkouts > 0 else { return 0 }
         return Int(((Double(workoutsFinished) / Double(totalWorkouts)) * 100).rounded())
@@ -158,7 +167,58 @@ extension Program {
             return
         }
         statusValue = Status.active
+        programWeeks.first?.start()
         Logger.program.debug("Started Program")
+    }
+    /// Completes `workout` and moves the program forward.
+    /// - Returns: The next workout, already started, or `nil` when the program is finished.
+    @discardableResult
+    func finishWorkout(_ workout: Workout) -> Workout? {
+        guard status == .active else {
+            Logger.program.warning("Cannot finish a Workout of a non-active Program.")
+            return nil
+        }
+        if workout.status == .active {
+            workout.completeAndCascade()
+        }
+        return advance(after: workout)
+    }
+    /// Skips `workout` and moves the program forward.
+    @discardableResult
+    func skipWorkout(_ workout: Workout) -> Workout? {
+        guard status == .active else {
+            Logger.program.warning("Cannot skip a Workout of a non-active Program.")
+            return nil
+        }
+        if workout.status == .planned {
+            // Planned workouts are locked; starting unlocks them so they can be skipped.
+            workout.startAndCascade()
+        }
+        workout.skipAndCascade()
+        return advance(after: workout)
+    }
+    private func advance(after workout: Workout) -> Workout? {
+        if let week = programWeek(containing: workout),
+           week.workouts.allSatisfy(\.isFinished) {
+            week.complete()
+            if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
+                if nextWeek.workouts.isEmpty {
+                    ProgressionPlanner.build(nextWeek, in: self)
+                }
+                nextWeek.start()
+            }
+        }
+
+        guard let next = nextWorkout else {
+            complete()
+            completeAndCascade()
+            Logger.program.info("Program finished")
+            return nil
+        }
+        if next.status == .planned {
+            next.startAndCascade()
+        }
+        return next
     }
     func completeAndCascade() {
         guard status == .complete else {

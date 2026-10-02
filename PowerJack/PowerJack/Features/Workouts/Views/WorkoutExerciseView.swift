@@ -5,15 +5,15 @@
 //  Created by Brendon on 6/24/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct WorkoutExerciseView: View {
-    let nextWorkoutExercise: () -> Void
+    let onSetsDone: (WorkoutExercise) -> Void
     let screenWidth: CGFloat
     let focusedSetField: FocusState<FocusedSetField?>.Binding
 
     @Bindable var workoutExercise: WorkoutExercise
-    @State private var isShowingFeedbackSheet = false
 
     var body: some View {
         VStack {
@@ -24,13 +24,20 @@ struct WorkoutExerciseView: View {
                 Text(workoutExercise.exercise.exerciseEquipment.rawValue.localizedCapitalized)
                     .font(.default)
                     .foregroundStyle(.primary)
+                if workoutExercise.checkInPending {
+                    Label("Check-in required", systemImage: "cross.case")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
             List(Array(workoutExercise.workoutSets.enumerated()), id: \.element.id) { index, workoutSet in
 
                 VStack {
                     WorkoutSetView(
                         focusedSetField: focusedSetField,
-                        workoutSet: workoutSet
+                        workoutSet: workoutSet,
+                        repsOnly: workoutExercise.exercise.repsOnly,
+                        onAutoComplete: { focusSet(after: index) }
                     )
                     .frame(width: screenWidth * 0.88, height: 55)
 
@@ -48,25 +55,19 @@ struct WorkoutExerciseView: View {
             .listRowSpacing(0)
         }
         .onChange(of: workoutExercise.allSetsDone()) { wasDone, isDone in
-            showFeedbackIfNeeded(wasDone: wasDone, isDone: isDone)
-        }
-        .sheet(isPresented: $isShowingFeedbackSheet) {
-            Feedback(
-                nextWorkoutExercise: nextWorkoutExercise,
-                workoutExercise: workoutExercise
-            )
-                .padding(.horizontal, LayoutMetrics.sectionSpacing)
-                .interactiveDismissDisabled()
-                .presentationDragIndicator(.hidden)
+            guard !wasDone, isDone else { return }
+            focusedSetField.wrappedValue = nil
+            onSetsDone(workoutExercise)
         }
     }
 
-    private func showFeedbackIfNeeded(wasDone: Bool, isDone: Bool) {
-        guard !wasDone, isDone else {
+    /// Moves the keyboard to the next set that still needs logging.
+    private func focusSet(after index: Int) {
+        let sets = workoutExercise.workoutSets
+        guard let next = sets.indices.dropFirst(index + 1).first(where: { sets[$0].status == .active }) else {
+            focusedSetField.wrappedValue = nil
             return
         }
-
-        focusedSetField.wrappedValue = nil
-        isShowingFeedbackSheet = true
+        focusedSetField.wrappedValue = .reps(sets[next].id)
     }
 }

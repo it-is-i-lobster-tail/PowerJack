@@ -39,3 +39,9 @@ struct TemplateProgramNew: View {
     }
     
 }
+
+#Preview("TemplateProgramNew") {
+    NavigationPreviewHost(modelContainer: PowerJackSeed.exercises().container) {
+        TemplateProgramNew(onSave: { _ in })
+    }
+}

@@ -75,6 +75,12 @@ struct ExerciseForm: View {
                 selectedSecondaryMuscles: $draft.secondaryMuscles
             )
 
+            ExerciseRepRangeField(
+                minReps: $draft.minReps,
+                maxReps: $draft.maxReps,
+                height: boxHeight
+            )
+
             ExerciseFormNote()
         } footer: {
             FormSubmitButton(
@@ -88,6 +94,41 @@ struct ExerciseForm: View {
 
     private func handlePrimaryMuscleChange() {
         draft.removePrimaryFromSecondary()
+    }
+}
+
+private struct ExerciseRepRangeField: View {
+    @Binding var minReps: Int
+    @Binding var maxReps: Int
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FormFieldLabel(
+                systemImage: "repeat",
+                title: "Rep Range",
+                detail: "\(minReps)–\(maxReps) reps"
+            )
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Stepper(
+                    "Min \(minReps)",
+                    value: $minReps,
+                    in: ExerciseDraft.repLimits.lowerBound...maxReps
+                )
+                .font(.caption)
+                Stepper(
+                    "Max \(maxReps)",
+                    value: $maxReps,
+                    in: minReps...ExerciseDraft.repLimits.upperBound
+                )
+                .font(.caption)
+            }
+            .fixedSize()
+        }
+        .padding(.horizontal, LayoutMetrics.sectionSpacing)
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+        .powerJackGlassCard(interactive: true)
     }
 }
 
