@@ -35,7 +35,7 @@ struct SlidingGlassPicker<Option: Identifiable & Hashable>: View {
                         .padding(.vertical, 8)
                         .background {
                             if selection == option {
-                                Capsule()
+                                Color.clear
                                     .glassEffect(
                                         .regular.interactive(),
                                         in: Capsule()

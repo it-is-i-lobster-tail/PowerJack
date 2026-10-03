@@ -7,7 +7,7 @@
 
 import SwiftData
 
-enum LevelOfEffort: Int, Codable, CaseIterable, Identifiable, EnumHorizontalSelectorOption {
+enum LevelOfEffort: Int, Codable, CaseIterable, Identifiable, ScaleSelectorOption {
     case none = 0
     case veryEasy = 1
     case easy = 2
@@ -29,7 +29,7 @@ enum LevelOfEffort: Int, Codable, CaseIterable, Identifiable, EnumHorizontalSele
     }
 }
 
-enum LevelOfPain: Int, Codable, CaseIterable, Identifiable, EnumHorizontalSelectorOption {
+enum LevelOfPain: Int, Codable, CaseIterable, Identifiable, ScaleSelectorOption {
     case none = 0
     case mild = 1
     case noticeable = 2

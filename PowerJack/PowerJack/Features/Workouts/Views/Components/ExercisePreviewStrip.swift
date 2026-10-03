@@ -10,16 +10,19 @@ import SwiftUI
 struct ExercisePreviewStrip: View {
     let workoutExercises: [WorkoutExercise]
     let screenWidth: CGFloat
-    private static let cardWidth: CGFloat = 125
+    private static let visibleCards: CGFloat = 3
+    private static let edgeMargin: CGFloat = 16
 
     @Binding var selectedExerciseIndex: Int?
 
     var body: some View {
-        let sideMargin = (screenWidth - Self.cardWidth) / 2
+        // Three whole cards fit on screen, so nothing is left half cut off.
+        let spacing = LayoutMetrics.compactSpacing
+        let cardWidth = max(0, (screenWidth - Self.edgeMargin * 2 - spacing * (Self.visibleCards - 1)) / Self.visibleCards)
 
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: LayoutMetrics.compactSpacing) {
+                LazyHStack(spacing: spacing) {
                     ForEach(workoutExercises.indices, id: \.self) { index in
                         Button {
                             selectExercise(at: index)
@@ -28,7 +31,7 @@ struct ExercisePreviewStrip: View {
                                 .font(selectedExerciseIndex == index ? .default : .caption2)
                                 .fontWeight(selectedExerciseIndex == index ? .medium : .thin)
                                 .foregroundStyle(selectedExerciseIndex == index ? .white : .primary)
-                                .frame(width: Self.cardWidth, height: 54)
+                                .frame(width: cardWidth, height: 54)
                                 .background(
                                     RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
                                         .fill(
@@ -43,7 +46,8 @@ struct ExercisePreviewStrip: View {
                 }
                 .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, sideMargin, for: .scrollContent)
+            .contentMargins(.horizontal, Self.edgeMargin, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
             .onAppear {
                 // Center the restored exercise when a workout reopens mid-way.
                 guard let selectedExerciseIndex else { return }

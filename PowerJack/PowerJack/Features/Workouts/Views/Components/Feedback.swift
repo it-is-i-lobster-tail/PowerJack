@@ -17,21 +17,21 @@ struct Feedback: View {
     @State private var draft = FeedbackDraft()
 
     var body: some View {
-        GlassEffectContainer(spacing: LayoutMetrics.sectionSpacing) {
-            VStack {
-                Text("Exercise Feedback")
-                    .font(.title)
-                    .padding(.bottom, 2)
-                Text("This helps calibrate weight, reps, and sets for next week.")
-                    .font(.caption)
-                    .padding(.bottom, 10)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Exercise Feedback")
+                        .font(.title2.bold())
+                    Text("This helps calibrate weight, reps, and sets for next week.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
 
                 FeedbackScaleSection(
                     title: "Level of Effort",
                     subheading: "How difficult was this exercise to perform?",
                     selection: $draft.levelOfEffort
                 )
-                .padding(.bottom, 30)
 
                 FeedbackScaleSection(
                     title: "Level of Pain",
@@ -39,9 +39,9 @@ struct Feedback: View {
                     selection: $draft.levelOfPain
                 )
             }
-            .padding(.vertical, 10)
-            .powerJackGlassPanel()
+            .padding(.vertical, 28)
         }
+        .scrollBounceBehavior(.basedOnSize)
         .onChange(of: draft.canSave) { wasComplete, isComplete in
             saveFeedbackIfComplete(wasComplete: wasComplete, isComplete: isComplete)
         }
@@ -71,34 +71,22 @@ struct Feedback: View {
     }
 }
 
-private struct FeedbackScaleSection<
-    Option: EnumHorizontalSelectorOption
->: View {
+private struct FeedbackScaleSection<Option: ScaleSelectorOption>: View {
     let title: String
     let subheading: String
     @Binding var selection: Option?
 
     var body: some View {
-        VStack {
-            VStack {
-                HStack {
-                    Text(title)
-                        .font(.title2)
-                    Spacer()
-                }
-                HStack {
-                    Text(subheading)
-                        .font(.caption)
-                    Spacer()
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                Text(subheading)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.leading, 5)
-
-            EnumHorizontalSelector(selection: $selection)
+            ScaleSelector(selection: $selection)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 10)
-        .powerJackGlassCard(interactive: true)
     }
 }
 

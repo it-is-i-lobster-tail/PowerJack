@@ -33,17 +33,15 @@ struct ProgramFocusInfo: View {
 
                 HStack {
                     ForEach(focusMuscles, id: \.self) { focusMuscle in
-                        ZStack {
-                            Text(focusMuscle.rawValue)
-                                .font(.caption)
-                            RoundedRectangle(cornerRadius: 26)
-                        }
-                        .frame(width: 80)
-                        .glassEffect(
-                            .regular.tint(.white.opacity(VisualOpacity.subtle)),
-                            in: .rect(cornerRadius: 26)
-                        )
-                        .padding(.horizontal, 5)
+                        Text(focusMuscle.rawValue)
+                            .font(.caption)
+                            .padding(.vertical, 6)
+                            .frame(width: 80)
+                            .glassEffect(
+                                .regular.tint(.glassSurface.opacity(VisualOpacity.subtle)),
+                                in: .rect(cornerRadius: 26)
+                            )
+                            .padding(.horizontal, 5)
                     }
                 }
                 .padding(.top, 10)

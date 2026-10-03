@@ -20,6 +20,7 @@ struct WorkoutSetView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
+    let onWeightChange: (Int?) -> Void
     let onAutoComplete: () -> Void
 
     // Text-backed so the model updates on every keystroke.
@@ -32,11 +33,13 @@ struct WorkoutSetView: View {
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
+        onWeightChange: @escaping (Int?) -> Void = { _ in },
         onAutoComplete: @escaping () -> Void = {}
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
+        self.onWeightChange = onWeightChange
         self.onAutoComplete = onAutoComplete
         _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
         _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightInPounds))
@@ -97,6 +100,35 @@ struct WorkoutSetView: View {
                     .font(.title3)
                     .foregroundStyle(.primary)
 
+                Text("Weight")
+                    .frame(width: 43, alignment: .trailing)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    "Actual weight",
+                    text: $weightText,
+                    prompt: plannedWeightPrompt
+                )
+                .keyboardType(.decimalPad)
+                .disabled(!isEditable)
+                .frame(width: Self.frameWidth)
+                .padding(.horizontal, Self.paddingHorizontal)
+                .padding(.vertical, Self.paddingVertical)
+                .font(.default)
+                .focused(focusedSetField, equals: .weight(workoutSet.id))
+                .transition(
+                    .scale(scale: 0.95, anchor: .center)
+                    .combined(with: .opacity)
+                )
+                .glassEffect(
+                    .regular
+                        .tint(fieldTint(isFocused: weightIsFocused, isInvalid: false))
+                        .interactive(),
+                    in: .rect(cornerRadius: 26)
+                )
+                .accessibilityLabel("Set \(workoutSet.order + 1) weight")
+
                 Text("Reps")
                     .frame(width: 30, alignment: .trailing)
                     .font(.caption)
@@ -126,35 +158,6 @@ struct WorkoutSetView: View {
                     in: .rect(cornerRadius: 26)
                 )
                 .accessibilityLabel("Set \(workoutSet.order + 1) reps")
-
-                Text("Weight")
-                    .frame(width: 43, alignment: .trailing)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                TextField(
-                    "Actual weight",
-                    text: $weightText,
-                    prompt: plannedWeightPrompt
-                )
-                .keyboardType(.decimalPad)
-                .disabled(!isEditable)
-                .frame(width: Self.frameWidth)
-                .padding(.horizontal, Self.paddingHorizontal)
-                .padding(.vertical, Self.paddingVertical)
-                .font(.default)
-                .focused(focusedSetField, equals: .weight(workoutSet.id))
-                .transition(
-                    .scale(scale: 0.95, anchor: .center)
-                    .combined(with: .opacity)
-                )
-                .glassEffect(
-                    .regular
-                        .tint(fieldTint(isFocused: weightIsFocused, isInvalid: false))
-                        .interactive(),
-                    in: .rect(cornerRadius: 26)
-                )
-                .accessibilityLabel("Set \(workoutSet.order + 1) weight")
 
                 ZStack {
                     Button(action: toggleCompletion) {
@@ -243,6 +246,7 @@ struct WorkoutSetView: View {
         guard newValue != workoutSet.weightInPounds else { return }
         autoCompleteArmed = true
         workoutSet.weightInPounds = newValue
+        onWeightChange(workoutSet.weightTenthsPounds)
     }
 
     private func parsedWeight(_ text: String) -> Double? {

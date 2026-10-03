@@ -39,6 +39,7 @@ struct PowerJackRootView: View {
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         TabView(selection: $selection) {
@@ -56,6 +57,8 @@ struct PowerJackRootView: View {
         }
         // Turns the tabs into horizontally swipeable pages.
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // Paged tabs don't pass a live light/dark switch down to their pages, so rebuild them when it changes.
+        .id(colorScheme)
         .safeAreaInset(edge: .bottom) {
             SlidingGlassPicker(
                 options: MainBrowserOption.allCases,
@@ -64,6 +67,7 @@ struct PowerJackRootView: View {
             )
         }
         .environment(router)
+        .powerJackKeyboardBehavior()
         .onAppear(perform: restoreActiveWorkout)
     }
 

@@ -7,11 +7,16 @@
 
 import SwiftUI
 
+extension Color {
+    /// Glass tint that follows the system theme: white in light mode, black in dark mode.
+    static let glassSurface = Color(uiColor: .systemBackground)
+}
+
 extension View {
     func powerJackGlassCard(interactive: Bool = false) -> some View {
         glassEffect(
             .regular
-                .tint(.white.opacity(VisualOpacity.standard))
+                .tint(.glassSurface.opacity(VisualOpacity.standard))
                 .interactive(interactive),
             in: .rect(cornerRadius: LayoutMetrics.cardCornerRadius)
         )
@@ -19,7 +24,7 @@ extension View {
 
     func powerJackGlassPanel() -> some View {
         glassEffect(
-            .regular.tint(.white.opacity(VisualOpacity.subtle)),
+            .regular.tint(.glassSurface.opacity(VisualOpacity.subtle)),
             in: .rect(cornerRadius: LayoutMetrics.panelCornerRadius)
         )
     }
@@ -27,7 +32,7 @@ extension View {
     func powerJackGlassSelection(interactive: Bool = false) -> some View {
         glassEffect(
             .regular
-                .tint(.white.opacity(VisualOpacity.heavy))
+                .tint(.glassSurface.opacity(VisualOpacity.heavy))
                 .interactive(interactive),
             in: .rect(cornerRadius: LayoutMetrics.curvedCornerRaius)
         )
