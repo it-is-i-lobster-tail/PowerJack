@@ -67,6 +67,13 @@ struct WorkoutSetView: View {
         workoutSet.reps != nil && (repsOnly || workoutSet.weightTenthsPounds != nil)
     }
 
+    /// A set can only be checked off once its weight and reps are entered; a checked set can always be unchecked.
+    private var canToggleCompletion: Bool {
+        guard !workoutSet.locked else { return false }
+        if workoutSet.status == .complete { return true }
+        return isFullyLogged && !repsInvalid
+    }
+
     private var plannedRepsPrompt: Text {
         guard let plannedReps = workoutSet.repsPlanned else {
             return Text("2RIR")
@@ -159,38 +166,39 @@ struct WorkoutSetView: View {
                 )
                 .accessibilityLabel("Set \(workoutSet.order + 1) reps")
 
-                ZStack {
-                    Button(action: toggleCompletion) {
+                Button(action: toggleCompletion) {
+                    ZStack {
                         Image(systemName: "circle")
                             .font(.system(size: 35, weight: .thin))
-                    }
-                    .disabled(workoutSet.locked || repsInvalid)
-                    .accessibilityLabel("Set \(workoutSet.order + 1) complete")
 
-                    if workoutSet.status == .complete {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .bold))
-                            .transition(
-                                .symbolEffect(
-                                    .drawOn,
-                                    options: .speed(2.2)
+                        if workoutSet.status == .complete {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .transition(
+                                    .symbolEffect(
+                                        .drawOn,
+                                        options: .speed(2.2)
+                                    )
                                 )
-                            )
-                            .foregroundStyle(.green)
-                            .allowsHitTesting(false)
-                    } else if workoutSet.status == .skipped {
-                        Image(systemName: "forward")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .allowsHitTesting(false)
-                    } else if workoutSet.locked {
-                        Image(systemName: "lock")
-                            .font(.system(size: 13, weight: .semibold))
-                            .allowsHitTesting(false)
+                                .foregroundStyle(.green)
+                        } else if workoutSet.status == .skipped {
+                            Image(systemName: "forward")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        } else if workoutSet.locked {
+                            Image(systemName: "lock")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
                     }
+                    // Only the circle is tappable, so taps near the reps field stay there.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                 }
-                .padding(.leading, 15)
-                .frame(width: 32, height: 32)
+                // A plain style stops the List from turning the whole row into this button.
+                .buttonStyle(.plain)
+                .disabled(!canToggleCompletion)
+                .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
+                .accessibilityLabel("Set \(workoutSet.order + 1) complete")
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)
@@ -285,13 +293,6 @@ struct WorkoutSetView: View {
     }
 
     private func completeSet() {
-        if workoutSet.reps == nil {
-            workoutSet.reps = workoutSet.repsPlanned
-        }
-
-        if workoutSet.weightTenthsPounds == nil {
-            workoutSet.weightTenthsPounds = workoutSet.weightTenthsPlannedPounds
-        }
         workoutSet.complete()
         try? modelContext.save()
     }

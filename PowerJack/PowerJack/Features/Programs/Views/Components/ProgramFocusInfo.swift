@@ -31,19 +31,22 @@ struct ProgramFocusInfo: View {
                     Spacer()
                 }
 
-                HStack {
+                // Chips share the row evenly and stay inset from the card edge on every iPhone.
+                HStack(spacing: LayoutMetrics.compactSpacing) {
                     ForEach(focusMuscles, id: \.self) { focusMuscle in
                         Text(focusMuscle.rawValue)
                             .font(.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .padding(.vertical, 6)
-                            .frame(width: 80)
+                            .frame(maxWidth: .infinity)
                             .glassEffect(
                                 .regular.tint(.glassSurface.opacity(VisualOpacity.subtle)),
                                 in: .rect(cornerRadius: 26)
                             )
-                            .padding(.horizontal, 5)
                     }
                 }
+                .padding(.horizontal, LayoutMetrics.sectionSpacing)
                 .padding(.top, 10)
             }
             .padding(.vertical, 15)
