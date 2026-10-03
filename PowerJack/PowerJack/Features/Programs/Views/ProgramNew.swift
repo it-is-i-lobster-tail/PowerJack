@@ -21,6 +21,7 @@ struct ProgramNew: View {
     @State private var draft = ProgramDraft()
     @State private var isCreatingTemplate = false
     @State private var saveErrorMessage: String?
+    @State private var isConfirmingStart = false
 
     var body: some View {
         GlassFormScaffold(
@@ -49,9 +50,9 @@ struct ProgramNew: View {
             )
         } footer: {
             FormSubmitButton(
-                title: "Save",
+                title: "Start Program",
                 isEnabled: draft.canSave,
-                action: save
+                action: startTapped
             )
         }
         .sheet(isPresented: $isCreatingTemplate) {
@@ -60,6 +61,10 @@ struct ProgramNew: View {
             )
         }
         .saveErrorAlert($saveErrorMessage)
+        .alert("Starting this program will halt any active ones. Continue?", isPresented: $isConfirmingStart) {
+            Button("Yes", action: save)
+            Button("No", role: .cancel) {}
+        }
     }
 
     private func presentTemplateCreator() {
@@ -69,6 +74,15 @@ struct ProgramNew: View {
     private func handleNewTemplate(_ templateProgram: TemplateProgram) {
         draft.templateProgram = templateProgram
         isCreatingTemplate = false
+    }
+
+    /// Asks before replacing an active program; otherwise starts right away.
+    private func startTapped() {
+        if programs.active != nil {
+            isConfirmingStart = true
+        } else {
+            save()
+        }
     }
 
     /// Saves the program, makes it the active one and opens its first workout.

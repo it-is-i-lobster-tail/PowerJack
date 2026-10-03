@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import SwiftUI
 
 struct TemplateProgramDraft {
@@ -97,8 +98,10 @@ struct TemplateProgramDraft {
             templateProgram.templateName = trimmedName
             templateProgram.workoutsPerWeek = workoutCount
             templateProgram.templateMuscleFocus = templateMuscleFocus
+            // Rebuild the workouts only when their exercises changed, so renaming stays cheap.
+            guard workoutLayout != Self.workoutLayout(of: templateProgram) else { return true }
             templateProgram.clearAllTemplateWorkoutsValue()
-            
+
             for templateWorkoutDraft in templateWorkoutDrafts {
                 let newTemplateWorkout = templateProgram.addTemplateWorkout()
                 for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
@@ -112,6 +115,37 @@ struct TemplateProgramDraft {
         } else {
             return false
         }
+    }
+}
+
+//
+// Change Tracking
+//
+extension TemplateProgramDraft {
+    /// Everything the user can edit, so any change can trigger an autosave.
+    struct Snapshot: Equatable {
+        let name: String
+        let workoutsPerWeek: Int?
+        let focus: [Muscle]
+        let workoutLayout: [[PersistentIdentifier]]
+    }
+
+    var snapshot: Snapshot {
+        Snapshot(
+            name: templateName,
+            workoutsPerWeek: workoutsPerWeek,
+            focus: templateMuscleFocus,
+            workoutLayout: workoutLayout
+        )
+    }
+
+    /// The exercises in each enabled workout, in order.
+    private var workoutLayout: [[PersistentIdentifier]] {
+        templateWorkoutDrafts.map { $0.templateExerciseDrafts.map(\.exercise.persistentModelID) }
+    }
+
+    private static func workoutLayout(of templateProgram: TemplateProgram) -> [[PersistentIdentifier]] {
+        templateProgram.templateWorkouts.map { $0.templateExercises.map(\.exercise.persistentModelID) }
     }
 }
 

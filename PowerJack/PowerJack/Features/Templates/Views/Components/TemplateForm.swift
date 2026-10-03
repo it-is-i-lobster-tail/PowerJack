@@ -13,7 +13,8 @@ struct TemplateForm: View {
     @Environment(\.modelContext) private var modelContext
     
     let editExistingExercise: Bool
-    let onSave: () -> Void
+    /// Nil hides the Save button, for screens that save as the user edits.
+    let onSave: (() -> Void)?
     @Binding var draft: TemplateProgramDraft
     
     private let boxHeight: CGFloat = 85
@@ -71,11 +72,13 @@ struct TemplateForm: View {
             }
             
         } footer: {
-            FormSubmitButton(
-                title: "Save",
-                isEnabled: draft.canSave,
-                action: onSave
-            )
+            if let onSave {
+                FormSubmitButton(
+                    title: "Save",
+                    isEnabled: draft.canSave,
+                    action: onSave
+                )
+            }
         }
     }
 }

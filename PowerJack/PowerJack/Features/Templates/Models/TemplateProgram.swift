@@ -64,6 +64,13 @@ extension TemplateProgram {
     }
     
     func clearAllTemplateWorkoutsValue() -> Void {
+        // Delete the old rows so rebuilding the workouts doesn't leave orphans behind.
+        for workout in templateWorkoutsValue {
+            for exercise in workout.templateExercisesValue {
+                modelContext?.delete(exercise)
+            }
+            modelContext?.delete(workout)
+        }
         templateWorkoutsValue.removeAll()
     }
 }

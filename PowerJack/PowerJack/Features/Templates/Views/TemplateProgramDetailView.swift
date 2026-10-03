@@ -8,22 +8,17 @@
 import SwiftData
 import SwiftUI
 
+/// Edits a template and saves every valid change as it happens.
 struct TemplateProgramDetailView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    
-    let onSave: (TemplateProgram) -> Void
+
     let templateProgram: TemplateProgram
-    
+
     @State private var draft: TemplateProgramDraft
     @State private var saveErrorMessage: String?
-    
-    init(
-        templateProgram: TemplateProgram,
-        onSave: @escaping (TemplateProgram) -> Void = { _ in}
-    ) {
+
+    init(templateProgram: TemplateProgram) {
         self.templateProgram = templateProgram
-        self.onSave = onSave
         _draft = State(initialValue: TemplateProgramDraft(
             templateProgram: templateProgram
         ))
@@ -32,24 +27,24 @@ struct TemplateProgramDetailView: View {
     var body: some View {
         TemplateForm(
             editExistingExercise: true,
-            onSave: save,
+            onSave: nil,
             draft: $draft
         )
+        .onChange(of: draft.snapshot) {
+            save()
+        }
         .saveErrorAlert($saveErrorMessage)
     }
 
+    /// Changes that aren't valid yet (like an empty name) wait until they are.
     private func save() {
-        let originalDraft = TemplateProgramDraft(
-            templateProgram: templateProgram
-        )
         guard draft.apply(to: templateProgram) else { return }
 
         do {
             try modelContext.save()
-            onSave(templateProgram)
-            dismiss()
         } catch {
-            _ = originalDraft.apply(to: templateProgram)
+            modelContext.rollback()
+            draft = TemplateProgramDraft(templateProgram: templateProgram)
             saveErrorMessage = error.localizedDescription
         }
     }
