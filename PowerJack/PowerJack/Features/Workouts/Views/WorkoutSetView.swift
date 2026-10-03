@@ -10,16 +10,23 @@ import SwiftData
 
 struct WorkoutSetView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
-    private static let paddingHorizontal = 13.0
-    private static let paddingVertical = 10.0
-    private static let frameWidth = 50.0
+    // The text field fills its whole box so one light tap anywhere on it focuses it.
+    private static let fieldWidth = 76.0
+    private static let fieldHeight = 44.0
     private static let animationDuration = 0.050
     /// Pause after the last keystroke before a fully logged set completes itself.
     static let autoCompleteDelay: Duration = .milliseconds(1200)
+    /// The last set waits longer so there's time to fix values before the exercise wraps up.
+    static let lastSetDelayMultiplier = 3
+
+    static func autoCompleteDelay(isLastSet: Bool) -> Duration {
+        isLastSet ? autoCompleteDelay * lastSetDelayMultiplier : autoCompleteDelay
+    }
 
     @Environment(\.modelContext) private var modelContext
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
+    let isLastSet: Bool
     let onWeightChange: (Int?) -> Void
     let onAutoComplete: () -> Void
 
@@ -33,12 +40,14 @@ struct WorkoutSetView: View {
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
+        isLastSet: Bool = false,
         onWeightChange: @escaping (Int?) -> Void = { _ in },
         onAutoComplete: @escaping () -> Void = {}
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
+        self.isLastSet = isLastSet
         self.onWeightChange = onWeightChange
         self.onAutoComplete = onAutoComplete
         _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
@@ -119,9 +128,10 @@ struct WorkoutSetView: View {
                 )
                 .keyboardType(.decimalPad)
                 .disabled(!isEditable)
-                .frame(width: Self.frameWidth)
-                .padding(.horizontal, Self.paddingHorizontal)
-                .padding(.vertical, Self.paddingVertical)
+                .multilineTextAlignment(.center)
+                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                .contentShape(.rect)
+                .onTapGesture { focus(.weight(workoutSet.id)) }
                 .font(.default)
                 .focused(focusedSetField, equals: .weight(workoutSet.id))
                 .transition(
@@ -129,9 +139,7 @@ struct WorkoutSetView: View {
                     .combined(with: .opacity)
                 )
                 .glassEffect(
-                    .regular
-                        .tint(fieldTint(isFocused: weightIsFocused, isInvalid: false))
-                        .interactive(),
+                    .regular.tint(fieldTint(isFocused: weightIsFocused, isInvalid: false)),
                     in: .rect(cornerRadius: 26)
                 )
                 .accessibilityLabel("Set \(workoutSet.order + 1) weight")
@@ -148,9 +156,10 @@ struct WorkoutSetView: View {
                 )
                 .keyboardType(.numberPad)
                 .disabled(!isEditable)
-                .frame(width: Self.frameWidth)
-                .padding(.horizontal, Self.paddingHorizontal)
-                .padding(.vertical, Self.paddingVertical)
+                .multilineTextAlignment(.center)
+                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                .contentShape(.rect)
+                .onTapGesture { focus(.reps(workoutSet.id)) }
                 .font(.default)
                 .foregroundStyle(repsInvalid ? .red : .primary)
                 .focused(focusedSetField, equals: .reps(workoutSet.id))
@@ -159,9 +168,7 @@ struct WorkoutSetView: View {
                     .combined(with: .opacity)
                 )
                 .glassEffect(
-                    .regular
-                        .tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid))
-                        .interactive(),
+                    .regular.tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid)),
                     in: .rect(cornerRadius: 26)
                 )
                 .accessibilityLabel("Set \(workoutSet.order + 1) reps")
@@ -227,6 +234,13 @@ struct WorkoutSetView: View {
         }
     }
 
+    /// Lets a tap anywhere on a field's box focus it, not just on the text itself.
+    private func focus(_ field: FocusedSetField) {
+        guard isEditable else { return }
+        // Runs after the app-wide tap-outside handler so the new focus sticks.
+        Task { focusedSetField.wrappedValue = field }
+    }
+
     private func fieldTint(isFocused: Bool, isInvalid: Bool) -> Color {
         if isInvalid { return .red.opacity(VisualOpacity.light) }
         return isFocused
@@ -268,7 +282,7 @@ struct WorkoutSetView: View {
         guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
 
         do {
-            try await Task.sleep(for: Self.autoCompleteDelay)
+            try await Task.sleep(for: Self.autoCompleteDelay(isLastSet: isLastSet))
         } catch {
             return
         }

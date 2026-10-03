@@ -39,6 +39,8 @@ struct PowerJackRootView: View {
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
+    // A new ID rebuilds the Templates tab, which returns it to its list.
+    @State private var templatesRootID = UUID()
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -53,6 +55,7 @@ struct PowerJackRootView: View {
 
             Tab(value: MainBrowserOption.templates) {
                 TemplateProgramListView()
+                    .id(templatesRootID)
             }
         }
         // Turns the tabs into horizontally swipeable pages.
@@ -63,12 +66,23 @@ struct PowerJackRootView: View {
             SlidingGlassPicker(
                 options: MainBrowserOption.allCases,
                 selection: $selection,
-                title: \.name
+                title: \.name,
+                onTap: showList
             )
         }
         .environment(router)
         .powerJackKeyboardBehavior()
         .onAppear(perform: restoreActiveWorkout)
+    }
+
+    /// Tapping a section always lands on its list, like a tab bar.
+    private func showList(of option: MainBrowserOption) {
+        switch option {
+        case .programs:
+            router.popToRoot()
+        case .templates:
+            templatesRootID = UUID()
+        }
     }
 
     /// On launch, reopen the active program's current workout.

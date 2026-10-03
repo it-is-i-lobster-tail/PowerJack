@@ -174,6 +174,12 @@ struct WorkoutFlowTests {
         #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
     }
 
+    @Test("The last set of an exercise waits three times longer before auto-completing")
+    func lastSetAutoCompleteDelay() {
+        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: false) == .milliseconds(1200))
+        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: true) == .milliseconds(3600))
+    }
+
     @Test("The seeded week two matches the documented progression rules")
     func seededWeekTwo() {
         let scenario = PowerJackSeed.weekTwoProgression()

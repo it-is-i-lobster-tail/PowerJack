@@ -37,6 +37,7 @@ struct WorkoutExerciseView: View {
                         focusedSetField: focusedSetField,
                         workoutSet: workoutSet,
                         repsOnly: workoutExercise.exercise.repsOnly,
+                        isLastSet: index == workoutExercise.workoutSets.count - 1,
                         onWeightChange: { weight in
                             workoutExercise.applyWeight(weight, after: workoutSet)
                         },
