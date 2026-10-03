@@ -9,6 +9,7 @@ import SwiftData
 import SwiftUI
 
 enum ProgramRoute: Hashable {
+    case newProgram
     case detail(Program)
     case session(Program)
 }
@@ -18,6 +19,10 @@ final class ProgramsRouter {
     var path: [ProgramRoute] = []
     /// Bumped to ask the open workout to scroll back to its current exercise.
     private(set) var currentExerciseRequest = 0
+
+    func showNewProgram() {
+        path.append(.newProgram)
+    }
 
     func showDetail(_ program: Program) {
         path.append(.detail(program))
@@ -51,6 +56,8 @@ extension View {
     func programRouteDestinations() -> some View {
         navigationDestination(for: ProgramRoute.self) { route in
             switch route {
+            case .newProgram:
+                ProgramNew()
             case .detail(let program):
                 ProgramDetailView(program: program)
             case .session(let program):

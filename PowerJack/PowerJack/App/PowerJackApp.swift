@@ -18,6 +18,7 @@ struct PowerJackApp: App {
                 inMemory: ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             )
             try ExerciseCatalog.seed(in: container.mainContext)
+            try TemplateCatalog.seed(in: container.mainContext)
             return container
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")

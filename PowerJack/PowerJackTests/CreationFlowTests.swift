@@ -140,6 +140,35 @@ struct CreationFlowTests {
         #expect(storedTemplate.templateWorkouts.allSatisfy { $0.templateExercises.count == 1 })
     }
 
+    @Test("Applying template edits rebuilds workouts only when exercises change, without orphans")
+    func templateDraftApplyRebuildsOnlyOnLayoutChange() throws {
+        let container = PowerJackSeed.makeInMemoryContainer()
+        let context = container.mainContext
+        let row = makeExercise(name: "Row")
+        let curl = makeExercise(name: "Curl")
+        context.insert(row)
+        context.insert(curl)
+        let template = makeTemplateProgram(workoutCount: 2, exercise: row)
+        try context.insertAndSave(template)
+        let originalWorkouts = template.templateWorkouts.map(\.persistentModelID)
+
+        // A rename keeps the same workout rows.
+        var draft = TemplateProgramDraft(templateProgram: template)
+        draft.templateName = "Renamed"
+        #expect(draft.apply(to: template))
+        try context.save()
+        #expect(template.templateName == "Renamed")
+        #expect(template.templateWorkouts.map(\.persistentModelID) == originalWorkouts)
+
+        // Adding an exercise rebuilds the workouts and deletes the old rows.
+        _ = draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: curl)
+        #expect(draft.apply(to: template))
+        try context.save()
+        #expect(template.templateWorkouts[0].templateExercises.map(\.exercise.exerciseName) == ["Row", "Curl"])
+        #expect(try context.fetchCount(FetchDescriptor<TemplateWorkout>()) == 2)
+        #expect(try context.fetchCount(FetchDescriptor<TemplateExercise>()) == 3)
+    }
+
     @Test("Programs build requested weeks and all first-week template workouts")
     func programFactoryBuildsRequestedShape() throws {
         for weekCount in [2, 8, 12] {

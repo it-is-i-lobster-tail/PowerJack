@@ -151,6 +151,35 @@ struct WorkoutFlowTests {
         #expect(set.reps == nil)
     }
 
+    @Test("A weight entered on a set carries to later sets that aren't done yet")
+    func weightCarriesForward() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        _ = exercise.addSet()
+        let sets = exercise.workoutSets
+        try #require(sets.count == 4)
+
+        sets[0].weightTenthsPounds = 2000
+        sets[0].complete()
+        // A later set that is already logged keeps its own weight.
+        sets[3].weightTenthsPounds = 1500
+        sets[3].complete()
+
+        sets[1].weightTenthsPounds = 2200
+        exercise.applyWeight(2200, after: sets[1])
+
+        #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
+    }
+
+    @Test("The last set of an exercise waits three times longer before auto-completing")
+    func lastSetAutoCompleteDelay() {
+        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: false) == .milliseconds(1200))
+        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: true) == .milliseconds(3600))
+    }
+
     @Test("The seeded week two matches the documented progression rules")
     func seededWeekTwo() {
         let scenario = PowerJackSeed.weekTwoProgression()

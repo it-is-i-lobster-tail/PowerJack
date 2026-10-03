@@ -10,16 +10,24 @@ import SwiftData
 
 struct WorkoutSetView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
-    private static let paddingHorizontal = 13.0
-    private static let paddingVertical = 10.0
-    private static let frameWidth = 50.0
+    // The text field fills its whole box so one light tap anywhere on it focuses it.
+    private static let fieldWidth = 76.0
+    private static let fieldHeight = 44.0
     private static let animationDuration = 0.050
     /// Pause after the last keystroke before a fully logged set completes itself.
     static let autoCompleteDelay: Duration = .milliseconds(1200)
+    /// The last set waits longer so there's time to fix values before the exercise wraps up.
+    static let lastSetDelayMultiplier = 3
+
+    static func autoCompleteDelay(isLastSet: Bool) -> Duration {
+        isLastSet ? autoCompleteDelay * lastSetDelayMultiplier : autoCompleteDelay
+    }
 
     @Environment(\.modelContext) private var modelContext
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
+    let isLastSet: Bool
+    let onWeightChange: (Int?) -> Void
     let onAutoComplete: () -> Void
 
     // Text-backed so the model updates on every keystroke.
@@ -32,11 +40,15 @@ struct WorkoutSetView: View {
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
+        isLastSet: Bool = false,
+        onWeightChange: @escaping (Int?) -> Void = { _ in },
         onAutoComplete: @escaping () -> Void = {}
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
+        self.isLastSet = isLastSet
+        self.onWeightChange = onWeightChange
         self.onAutoComplete = onAutoComplete
         _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
         _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightInPounds))
@@ -62,6 +74,13 @@ struct WorkoutSetView: View {
 
     private var isFullyLogged: Bool {
         workoutSet.reps != nil && (repsOnly || workoutSet.weightTenthsPounds != nil)
+    }
+
+    /// A set can only be checked off once its weight and reps are entered; a checked set can always be unchecked.
+    private var canToggleCompletion: Bool {
+        guard !workoutSet.locked else { return false }
+        if workoutSet.status == .complete { return true }
+        return isFullyLogged && !repsInvalid
     }
 
     private var plannedRepsPrompt: Text {
@@ -97,36 +116,6 @@ struct WorkoutSetView: View {
                     .font(.title3)
                     .foregroundStyle(.primary)
 
-                Text("Reps")
-                    .frame(width: 30, alignment: .trailing)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                TextField(
-                    "Actual Reps",
-                    text: $repsText,
-                    prompt: plannedRepsPrompt
-                )
-                .keyboardType(.numberPad)
-                .disabled(!isEditable)
-                .frame(width: Self.frameWidth)
-                .padding(.horizontal, Self.paddingHorizontal)
-                .padding(.vertical, Self.paddingVertical)
-                .font(.default)
-                .foregroundStyle(repsInvalid ? .red : .primary)
-                .focused(focusedSetField, equals: .reps(workoutSet.id))
-                .transition(
-                    .scale(scale: 0.95, anchor: .center)
-                    .combined(with: .opacity)
-                )
-                .glassEffect(
-                    .regular
-                        .tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid))
-                        .interactive(),
-                    in: .rect(cornerRadius: 26)
-                )
-                .accessibilityLabel("Set \(workoutSet.order + 1) reps")
-
                 Text("Weight")
                     .frame(width: 43, alignment: .trailing)
                     .font(.caption)
@@ -139,9 +128,10 @@ struct WorkoutSetView: View {
                 )
                 .keyboardType(.decimalPad)
                 .disabled(!isEditable)
-                .frame(width: Self.frameWidth)
-                .padding(.horizontal, Self.paddingHorizontal)
-                .padding(.vertical, Self.paddingVertical)
+                .multilineTextAlignment(.center)
+                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                .contentShape(.rect)
+                .onTapGesture { focus(.weight(workoutSet.id)) }
                 .font(.default)
                 .focused(focusedSetField, equals: .weight(workoutSet.id))
                 .transition(
@@ -149,45 +139,73 @@ struct WorkoutSetView: View {
                     .combined(with: .opacity)
                 )
                 .glassEffect(
-                    .regular
-                        .tint(fieldTint(isFocused: weightIsFocused, isInvalid: false))
-                        .interactive(),
+                    .regular.tint(fieldTint(isFocused: weightIsFocused, isInvalid: false)),
                     in: .rect(cornerRadius: 26)
                 )
                 .accessibilityLabel("Set \(workoutSet.order + 1) weight")
 
-                ZStack {
-                    Button(action: toggleCompletion) {
+                Text("Reps")
+                    .frame(width: 30, alignment: .trailing)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField(
+                    "Actual Reps",
+                    text: $repsText,
+                    prompt: plannedRepsPrompt
+                )
+                .keyboardType(.numberPad)
+                .disabled(!isEditable)
+                .multilineTextAlignment(.center)
+                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                .contentShape(.rect)
+                .onTapGesture { focus(.reps(workoutSet.id)) }
+                .font(.default)
+                .foregroundStyle(repsInvalid ? .red : .primary)
+                .focused(focusedSetField, equals: .reps(workoutSet.id))
+                .transition(
+                    .scale(scale: 0.95, anchor: .center)
+                    .combined(with: .opacity)
+                )
+                .glassEffect(
+                    .regular.tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid)),
+                    in: .rect(cornerRadius: 26)
+                )
+                .accessibilityLabel("Set \(workoutSet.order + 1) reps")
+
+                Button(action: toggleCompletion) {
+                    ZStack {
                         Image(systemName: "circle")
                             .font(.system(size: 35, weight: .thin))
-                    }
-                    .disabled(workoutSet.locked || repsInvalid)
-                    .accessibilityLabel("Set \(workoutSet.order + 1) complete")
 
-                    if workoutSet.status == .complete {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .bold))
-                            .transition(
-                                .symbolEffect(
-                                    .drawOn,
-                                    options: .speed(2.2)
+                        if workoutSet.status == .complete {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .transition(
+                                    .symbolEffect(
+                                        .drawOn,
+                                        options: .speed(2.2)
+                                    )
                                 )
-                            )
-                            .foregroundStyle(.green)
-                            .allowsHitTesting(false)
-                    } else if workoutSet.status == .skipped {
-                        Image(systemName: "forward")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .allowsHitTesting(false)
-                    } else if workoutSet.locked {
-                        Image(systemName: "lock")
-                            .font(.system(size: 13, weight: .semibold))
-                            .allowsHitTesting(false)
+                                .foregroundStyle(.green)
+                        } else if workoutSet.status == .skipped {
+                            Image(systemName: "forward")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        } else if workoutSet.locked {
+                            Image(systemName: "lock")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
                     }
+                    // Only the circle is tappable, so taps near the reps field stay there.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                 }
-                .padding(.leading, 15)
-                .frame(width: 32, height: 32)
+                // A plain style stops the List from turning the whole row into this button.
+                .buttonStyle(.plain)
+                .disabled(!canToggleCompletion)
+                .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
+                .accessibilityLabel("Set \(workoutSet.order + 1) complete")
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)
@@ -214,6 +232,13 @@ struct WorkoutSetView: View {
         .task(id: autoCompleteKey) {
             await autoCompleteAfterDebounce()
         }
+    }
+
+    /// Lets a tap anywhere on a field's box focus it, not just on the text itself.
+    private func focus(_ field: FocusedSetField) {
+        guard isEditable else { return }
+        // Runs after the app-wide tap-outside handler so the new focus sticks.
+        Task { focusedSetField.wrappedValue = field }
     }
 
     private func fieldTint(isFocused: Bool, isInvalid: Bool) -> Color {
@@ -243,6 +268,7 @@ struct WorkoutSetView: View {
         guard newValue != workoutSet.weightInPounds else { return }
         autoCompleteArmed = true
         workoutSet.weightInPounds = newValue
+        onWeightChange(workoutSet.weightTenthsPounds)
     }
 
     private func parsedWeight(_ text: String) -> Double? {
@@ -256,7 +282,7 @@ struct WorkoutSetView: View {
         guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
 
         do {
-            try await Task.sleep(for: Self.autoCompleteDelay)
+            try await Task.sleep(for: Self.autoCompleteDelay(isLastSet: isLastSet))
         } catch {
             return
         }
@@ -281,13 +307,6 @@ struct WorkoutSetView: View {
     }
 
     private func completeSet() {
-        if workoutSet.reps == nil {
-            workoutSet.reps = workoutSet.repsPlanned
-        }
-
-        if workoutSet.weightTenthsPounds == nil {
-            workoutSet.weightTenthsPounds = workoutSet.weightTenthsPlannedPounds
-        }
         workoutSet.complete()
         try? modelContext.save()
     }

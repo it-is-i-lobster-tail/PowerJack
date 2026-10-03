@@ -314,6 +314,14 @@ extension WorkoutExercise {
             _ = addSet()
         }
     }
+    /// Copies a weight entered on `workoutSet` to every later set still being logged.
+    /// Completed and skipped sets keep what was logged.
+    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet) {
+        guard let weightTenthsPounds else { return }
+        for laterSet in workoutSets where laterSet.order > workoutSet.order && laterSet.status == .active {
+            laterSet.weightTenthsPounds = weightTenthsPounds
+        }
+    }
     /// Feedback is recorded once every set is done, even after "Skip Remaining Sets" locked the exercise.
     func addFeedback(feedback: ExerciseFeedback) {
         guard allSetsDone(), status == .active || status == .skipped else {

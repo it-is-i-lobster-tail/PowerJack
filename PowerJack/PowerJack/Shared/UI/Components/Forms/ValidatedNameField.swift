@@ -33,7 +33,7 @@ struct ValidatedNameField: View {
             return .gray.opacity(VisualOpacity.light)
         }
 
-        return .white.opacity(VisualOpacity.subtle)
+        return .glassSurface.opacity(VisualOpacity.subtle)
     }
 
     var body: some View {

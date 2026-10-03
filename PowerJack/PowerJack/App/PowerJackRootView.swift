@@ -40,6 +40,9 @@ struct PowerJackRootView: View {
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
     @State private var isShowingSettings = false
+    // A new ID rebuilds the Templates tab, which returns it to its list.
+    @State private var templatesRootID = UUID()
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         TabView(selection: $selection) {
@@ -53,10 +56,13 @@ struct PowerJackRootView: View {
 
             Tab(value: MainBrowserOption.templates) {
                 TemplateProgramListView()
+                    .id(templatesRootID)
             }
         }
         // Turns the tabs into horizontally swipeable pages.
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // Paged tabs don't pass a live light/dark switch down to their pages, so rebuild them when it changes.
+        .id(colorScheme)
         .safeAreaInset(edge: .bottom) {
             GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
                 HStack(spacing: LayoutMetrics.compactSpacing) {
@@ -65,17 +71,29 @@ struct PowerJackRootView: View {
                     SlidingGlassPicker(
                         options: MainBrowserOption.allCases,
                         selection: $selection,
-                        title: \.name
+                        title: \.name,
+                        onTap: showList
                     )
                 }
             }
         }
         .restTimer(onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
+        .powerJackKeyboardBehavior()
         .onAppear(perform: restoreActiveWorkout)
         .onOpenURL(perform: handleOpenURL)
         .sheet(isPresented: $isShowingSettings) {
             SettingsView()
+        }
+    }
+
+    /// Tapping a section always lands on its list, like a tab bar.
+    private func showList(of option: MainBrowserOption) {
+        switch option {
+        case .programs:
+            router.popToRoot()
+        case .templates:
+            templatesRootID = UUID()
         }
     }
 
@@ -104,7 +122,8 @@ struct PowerJackRootView: View {
 }
 
 private struct SettingsButton: View {
-    private static let size: CGFloat = 46
+    // Matches the switcher's height: a 44pt pill plus its 4pt padding.
+    private static let size: CGFloat = 52
 
     let action: () -> Void
 
