@@ -32,7 +32,7 @@ struct TemplateCatalogTests {
         try TemplateCatalog.seed(in: context)
 
         let seeded = try context.fetch(FetchDescriptor<TemplateProgram>())
-        #expect(Set(seeded.map(\.templateName)) == ["Upper Body Builder", "Leg Blaster", "Full Body", "Push, Pull, Legs"])
+        #expect(Set(seeded.map(\.templateName)) == ["Beach Body Builder", "Leg Blaster", "Dad Bod Try Hard", "Bro Split"])
         let edited = try #require(seeded.first)
         edited.templateName = "My Split"
         try context.save()

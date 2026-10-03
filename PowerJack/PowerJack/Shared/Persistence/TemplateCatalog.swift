@@ -37,7 +37,7 @@ enum TemplateCatalog {
     static let entries: [Entry] = [
         Entry(
             id: "upper-body-builder",
-            name: "Upper Body Builder",
+            name: "Beach Body Builder",
             muscleFocus: [.chest, .back, .biceps, .triceps],
             workouts: [
                 // Chest & back
@@ -53,21 +53,21 @@ enum TemplateCatalog {
         Entry(
             id: "leg-blaster",
             name: "Leg Blaster",
-            muscleFocus: [.quads, .hamstrings, .glutes, .calves],
+            muscleFocus: [.quads, .hamstrings, .glutes, .abs],
             workouts: [
                 // Quads
-                ["barbell-back-squat", "leg-press", "leg-extension", "lying-leg-curl", "standing-calf-raise"],
+                ["barbell-back-squat", "leg-press", "leg-extension", "lying-leg-curl", "cable-crunch"],
                 // Hamstrings & glutes
-                ["barbell-romanian-deadlift", "barbell-hip-thrust", "seated-leg-curl", "leg-press", "seated-calf-raise"],
+                ["barbell-romanian-deadlift", "barbell-hip-thrust", "seated-leg-curl", "leg-press", "hanging-knee-raise"],
                 // Quads
-                ["barbell-front-squat", "goblet-squat", "leg-extension", "seated-leg-curl", "standing-calf-raise"],
+                ["barbell-front-squat", "goblet-squat", "leg-extension", "seated-leg-curl", "cable-woodchop"],
                 // Hamstrings & glutes
-                ["barbell-deadlift", "dumbbell-romanian-deadlift", "lying-leg-curl", "cable-glute-kickback", "seated-calf-raise"],
+                ["barbell-deadlift", "dumbbell-romanian-deadlift", "lying-leg-curl", "cable-glute-kickback", "cable-crunch"],
             ]
         ),
         Entry(
             id: "full-body",
-            name: "Full Body",
+            name: "Dad Bod Try Hard",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
                 ["barbell-back-squat", "barbell-bench-press", "barbell-row", "barbell-romanian-deadlift", "dumbbell-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
@@ -76,7 +76,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "push-pull-legs",
-            name: "Push, Pull, Legs",
+            name: "Bro Split",
             muscleFocus: [.chest, .back, .quads, .shoulders],
             workouts: [
                 // Push
