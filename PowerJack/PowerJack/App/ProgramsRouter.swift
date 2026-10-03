@@ -9,6 +9,7 @@ import SwiftData
 import SwiftUI
 
 enum ProgramRoute: Hashable {
+    case newProgram
     case detail(Program)
     case session(Program)
 }
@@ -16,6 +17,10 @@ enum ProgramRoute: Hashable {
 @Observable
 final class ProgramsRouter {
     var path: [ProgramRoute] = []
+
+    func showNewProgram() {
+        path.append(.newProgram)
+    }
 
     func showDetail(_ program: Program) {
         path.append(.detail(program))
@@ -40,6 +45,8 @@ extension View {
     func programRouteDestinations() -> some View {
         navigationDestination(for: ProgramRoute.self) { route in
             switch route {
+            case .newProgram:
+                ProgramNew()
             case .detail(let program):
                 ProgramDetailView(program: program)
             case .session(let program):

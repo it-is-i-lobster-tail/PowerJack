@@ -40,7 +40,8 @@ struct ProgramListView: View {
             navigationTitle: "My Programs",
             isEmpty: programs.isEmpty,
             emptyTitle: "No programs",
-            emptySystemImage: "list.bullet.rectangle"
+            emptySystemImage: "list.bullet.rectangle",
+            onAdd: router.showNewProgram
         ) {
             List(displayedPrograms) { program in
                 Button {
@@ -61,21 +62,11 @@ struct ProgramListView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemBackground))
-        } createDestination: {
-            ProgramNew(onSave: handleNewProgram)
         }
     }
 
     private func select(_ program: Program) {
         router.showDetail(program)
-    }
-
-    private func handleNewProgram(newProgram: Program) {
-        if let activeProgram {
-            activeProgram.stop()
-            activeProgram.stopAndCascade()
-        }
-        newProgram.start()
     }
 }
 

@@ -15,6 +15,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
 
     private let content: () -> Content
     private let createDestination: () -> CreateDestination
+    private let onAdd: (() -> Void)?
 
     @State private var isCreating = false
 
@@ -32,6 +33,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
         self.emptySystemImage = emptySystemImage
         self.content = content
         self.createDestination = createDestination
+        self.onAdd = nil
     }
 
     var body: some View {
@@ -60,6 +62,30 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
     }
 
     private func presentCreateDestination() {
-        isCreating = true
+        if let onAdd {
+            onAdd()
+        } else {
+            isCreating = true
+        }
+    }
+}
+
+extension AddableListScaffold where CreateDestination == EmptyView {
+    /// Use when the caller owns navigation, e.g. through a router path.
+    init(
+        navigationTitle: LocalizedStringKey,
+        isEmpty: Bool,
+        emptyTitle: LocalizedStringKey,
+        emptySystemImage: String,
+        onAdd: @escaping () -> Void,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.navigationTitle = navigationTitle
+        self.isEmpty = isEmpty
+        self.emptyTitle = emptyTitle
+        self.emptySystemImage = emptySystemImage
+        self.content = content
+        self.createDestination = { EmptyView() }
+        self.onAdd = onAdd
     }
 }

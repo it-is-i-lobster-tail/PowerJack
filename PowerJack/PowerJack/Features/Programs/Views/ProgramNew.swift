@@ -11,10 +11,9 @@ import SwiftData
 import SwiftUI
 
 struct ProgramNew: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-
-    let onSave: (Program) -> Void
+    @Environment(ProgramsRouter.self) private var router
+    @Query private var programs: [Program]
 
     private let boxHeight: CGFloat = 55
     private let programLengths = Array(stride(from: 2, through: 12, by: 2))
@@ -72,16 +71,33 @@ struct ProgramNew: View {
         isCreatingTemplate = false
     }
 
+    /// Saves the program, makes it the active one and opens its first workout.
     private func save() {
         guard let program = draft.makeProgram() else { return }
+        let previousProgram = programs.active
 
         do {
             try modelContext.insertAndSave(program)
-            onSave(program)
-            dismiss()
         } catch {
             saveErrorMessage = error.localizedDescription
+            return
         }
+
+        if let previousProgram {
+            previousProgram.stop()
+            previousProgram.stopAndCascade()
+        }
+        program.start()
+        program.nextWorkout?.startAndCascade()
+
+        do {
+            try modelContext.save()
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            return
+        }
+        // Replaces this form with the program and its first workout.
+        router.restore(activeProgram: program)
     }
 }
 
@@ -119,12 +135,12 @@ private struct ProgramTemplateSelection: View {
     let scenario = PowerJackSeed.weekOneProgress()
 
     NavigationPreviewHost(modelContainer: scenario.container) {
-        ProgramNew(onSave: { _ in })
+        ProgramNew()
     }
 }
 
 #Preview("ProgramNew - No Templates") {
     NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
-        ProgramNew(onSave: { _ in })
+        ProgramNew()
     }
 }
