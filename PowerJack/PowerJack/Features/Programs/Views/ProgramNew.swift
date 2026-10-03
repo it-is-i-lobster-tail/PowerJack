@@ -39,7 +39,7 @@ struct ProgramNew: View {
                     detail: "Choose the number of weeks"
                 )
             } optionLabel: { number in
-                Text(number, format: .number)
+                Text("\(number) weeks")
             }
 
             ProgramTemplateSelection(
@@ -114,12 +114,12 @@ private struct ProgramTemplateSelection: View {
             HStack(spacing: 12) {
                 FormFieldLabel(
                     systemImage: "target",
-                    title: "Tempalte",
+                    title: "Template",
                     detail: "Select program's template"
                 )
 
-                if let tempalte = selectedTemplate {
-                    Text(tempalte.templateName)
+                if let template = selectedTemplate {
+                    Text(template.templateName)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
