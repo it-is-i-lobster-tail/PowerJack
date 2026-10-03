@@ -43,7 +43,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .chest,
                 secondaryMuscles: [.triceps, .shoulders],
                 minReps: 5,
-                maxReps: 12
+                maxReps: 12,
+                fatigue: .heavy
             ),
             Exercise(
                 exerciseName: "Barbell Back Squat",
@@ -51,7 +52,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .quads,
                 secondaryMuscles: [.glutes, .hamstrings],
                 minReps: 6,
-                maxReps: 12
+                maxReps: 12,
+                fatigue: .heavy
             ),
             Exercise(
                 exerciseName: "Pull Up",
@@ -59,7 +61,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .back,
                 secondaryMuscles: [.biceps, .forearms],
                 minReps: 5,
-                maxReps: 12
+                maxReps: 12,
+                fatigue: .medium
             ),
             Exercise(
                 exerciseName: "Lat Pulldown",
@@ -67,7 +70,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .back,
                 secondaryMuscles: [.biceps],
                 minReps: 8,
-                maxReps: 15
+                maxReps: 15,
+                fatigue: .medium
             ),
             Exercise(
                 exerciseName: "Cable Lateral Raise",
@@ -75,7 +79,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .shoulders,
                 secondaryMuscles: [],
                 minReps: 10,
-                maxReps: 25
+                maxReps: 25,
+                fatigue: .light
             ),
             Exercise(
                 exerciseName: "Leg Press",
@@ -83,7 +88,8 @@ extension PowerJackSeed {
                 primaryMuscleFocus: .quads,
                 secondaryMuscles: [.glutes],
                 minReps: 8,
-                maxReps: 15
+                maxReps: 15,
+                fatigue: .heavy
             ),
         ]
     }

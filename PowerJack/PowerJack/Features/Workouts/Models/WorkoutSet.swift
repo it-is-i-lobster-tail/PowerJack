@@ -18,6 +18,8 @@ final class WorkoutSet {
     private var weightTenthsPoundsPlannedValue: Int?
     private var statusValue: Status
     private var lockedValue: Bool
+    // Starts the rest timer. Cleared when the set is reopened.
+    private var completedAtValue: Date? = nil
 
     init(
         order: Int,
@@ -94,6 +96,8 @@ extension WorkoutSet {
     var status: Status { statusValue }
     // Locked
     var locked: Bool { lockedValue }
+    // Completed At
+    var completedAt: Date? { completedAtValue }
 }
 //
 // Derived Values
@@ -140,7 +144,7 @@ extension WorkoutSet {
 //
 
 extension WorkoutSet {
-    func completeAndLock() {
+    func completeAndLock(at date: Date = .now) {
         guard
             !lockedValue,
             status == .active || status == .complete
@@ -148,11 +152,15 @@ extension WorkoutSet {
             Logger.workoutSet.warning("Cannot complete a locked or skipped WorkoutSet")
             return
         }
+        // An already completed set keeps the time it was actually done.
+        if status != .complete {
+            completedAtValue = date
+        }
         statusValue = Status.complete
         lockedValue = true
         Logger.workoutSet.debug("WorkoutSet Completed and locked")
     }
-    func complete() {
+    func complete(at date: Date = .now) {
         guard
             !lockedValue,
             status == .active
@@ -161,6 +169,7 @@ extension WorkoutSet {
             return
         }
         statusValue = Status.complete
+        completedAtValue = date
         Logger.workoutSet.debug("WorkoutSet Completed")
     }
     func skip() {
@@ -187,6 +196,7 @@ extension WorkoutSet {
         }
 
         statusValue = Status.active
+        completedAtValue = nil
         Logger.workoutSet.debug("Starting WorkoutSet")
     }
 }

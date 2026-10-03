@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8B6348D6104EB1B1685F251D /* PowerJackWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		1228DEAED267C77828D61671 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA1B3EC12FEC4E2000369E8D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5CD5FB4D5AF94C9D888B0194;
+			remoteInfo = PowerJackWidgetsExtension;
+		};
 		D77D826FF9054A09897E5F5E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DA1B3EC12FEC4E2000369E8D /* Project object */;
@@ -16,12 +27,42 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		BD6E4AE354E35A6852CC25E4 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8B6348D6104EB1B1685F251D /* PowerJackWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PowerJackWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		59A1D7D8DDC8443F9093F9F7 /* PowerJackTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PowerJackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA1B3EC92FEC4E2000369E8D /* PowerJack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PowerJack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6B08A96DFB5CA0AC673629E7 /* Exceptions for "PowerJackWidgets" folder in "PowerJackWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */;
+		};
+		7D4B488321D3081790157600 /* Exceptions for "PowerJack" folder in "PowerJackWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/LiveActivity/RestActivityAttributes.swift,
+				Shared/LiveActivity/RestPeriod.swift,
+			);
+			target = 5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */;
+		};
 		DA1B3ED62FEC4E2200369E8D /* Exceptions for "PowerJack" folder in "PowerJack" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -32,10 +73,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		30224F38AA58816B2C49AFE9 /* PowerJackWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6B08A96DFB5CA0AC673629E7 /* Exceptions for "PowerJackWidgets" folder in "PowerJackWidgetsExtension" target */,
+			);
+			path = PowerJackWidgets;
+			sourceTree = "<group>";
+		};
 		DA1B3ECB2FEC4E2000369E8D /* PowerJack */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				DA1B3ED62FEC4E2200369E8D /* Exceptions for "PowerJack" folder in "PowerJack" target */,
+				7D4B488321D3081790157600 /* Exceptions for "PowerJack" folder in "PowerJackWidgetsExtension" target */,
 			);
 			path = PowerJack;
 			sourceTree = "<group>";
@@ -48,6 +98,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3F32E8FBCFF71364A9D06B9A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA1B3EC62FEC4E2000369E8D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -70,6 +127,7 @@
 			children = (
 				DA1B3ECB2FEC4E2000369E8D /* PowerJack */,
 				E5C506F11B4E40DDAE3CC6A6 /* PowerJackTests */,
+				30224F38AA58816B2C49AFE9 /* PowerJackWidgets */,
 				DA1B3ECA2FEC4E2000369E8D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -79,6 +137,7 @@
 			children = (
 				DA1B3EC92FEC4E2000369E8D /* PowerJack.app */,
 				59A1D7D8DDC8443F9093F9F7 /* PowerJackTests.xctest */,
+				5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -86,6 +145,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF7F4FD11DF925011C9061F8 /* Build configuration list for PBXNativeTarget "PowerJackWidgetsExtension" */;
+			buildPhases = (
+				B1B9FA5F41750410A7B19593 /* Sources */,
+				3F32E8FBCFF71364A9D06B9A /* Frameworks */,
+				AA0A7F744341AEBFDA3A7202 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				30224F38AA58816B2C49AFE9 /* PowerJackWidgets */,
+			);
+			name = PowerJackWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = PowerJackWidgetsExtension;
+			productReference = 5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		DA1B3EC82FEC4E2000369E8D /* PowerJack */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DA1B3ED72FEC4E2200369E8D /* Build configuration list for PBXNativeTarget "PowerJack" */;
@@ -93,10 +174,12 @@
 				DA1B3EC52FEC4E2000369E8D /* Sources */,
 				DA1B3EC62FEC4E2000369E8D /* Frameworks */,
 				DA1B3EC72FEC4E2000369E8D /* Resources */,
+				BD6E4AE354E35A6852CC25E4 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B40269D51F0CD664382C6823 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DA1B3ECB2FEC4E2000369E8D /* PowerJack */,
@@ -141,6 +224,9 @@
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					5CD5FB4D5AF94C9D888B0194 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					DA1B3EC82FEC4E2000369E8D = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -166,11 +252,19 @@
 			targets = (
 				DA1B3EC82FEC4E2000369E8D /* PowerJack */,
 				E2A755334A7346F5AC32BC53 /* PowerJackTests */,
+				5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AA0A7F744341AEBFDA3A7202 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9597029B855940F38A802BFB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -188,6 +282,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B1B9FA5F41750410A7B19593 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B4E5ECC4B277485380DC00D6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -205,6 +306,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		B40269D51F0CD664382C6823 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */;
+			targetProxy = 1228DEAED267C77828D61671 /* PBXContainerItemProxy */;
+		};
 		C49953885D074AADB4DD261E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = DA1B3EC82FEC4E2000369E8D /* PowerJack */;
@@ -213,6 +319,74 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		4D144E02DAB89D19FB7932F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KWZTWNA57G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PowerJackWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PowerJackWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv0.2.PowerJackWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		6AA0EA6AABF329D4D335713A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KWZTWNA57G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PowerJackWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PowerJackWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv0.2.PowerJackWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		0D4AC77E204C4C0BB2B1B76F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -471,6 +645,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AF7F4FD11DF925011C9061F8 /* Build configuration list for PBXNativeTarget "PowerJackWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6AA0EA6AABF329D4D335713A /* Debug */,
+				4D144E02DAB89D19FB7932F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		20F7DA3F4B9B49BC9BE71DDB /* Build configuration list for PBXNativeTarget "PowerJackTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

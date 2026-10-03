@@ -22,11 +22,14 @@ final class Exercise {
     // Hypertrophy rep range used by the progression engine.
     var minRepsValue: Int = Exercise.defaultMinReps
     var maxRepsValue: Int = Exercise.defaultMaxReps
+    // Sets the rest between sets. The default lets older stores migrate.
+    var fatigueValue: Fatigue = Exercise.defaultFatigue
 
     static let defaultMinReps = 8
     static let defaultMaxReps = 12
     // No rep value above this can be saved anywhere in the app.
     static let maxRepsAllowed = 30
+    static let defaultFatigue = Fatigue.medium
 
     init(
         exerciseName: String,
@@ -35,7 +38,8 @@ final class Exercise {
         secondaryMuscles: [Muscle] = [],
         userCreated: Bool = false,
         minReps: Int = Exercise.defaultMinReps,
-        maxReps: Int = Exercise.defaultMaxReps
+        maxReps: Int = Exercise.defaultMaxReps,
+        fatigue: Fatigue = Exercise.defaultFatigue
     ) {
         self.exerciseName = exerciseName
         self.exerciseEquipment = exerciseEquipment
@@ -44,6 +48,7 @@ final class Exercise {
         self.userCreatedValue = userCreated
         self.minRepsValue = minReps
         self.maxRepsValue = maxReps
+        self.fatigueValue = fatigue
     }
 }
 
@@ -70,4 +75,10 @@ extension Exercise {
     var repRange: ClosedRange<Int> { minReps...max(minReps, maxReps) }
     // Reps-only exercises never progress by load.
     var repsOnly: Bool { exerciseEquipment == .bodyweight }
+    // Fatigue
+    var fatigue: Fatigue {
+        get { fatigueValue }
+        set { fatigueValue = newValue }
+    }
+    var restDuration: Duration { fatigue.restDuration }
 }

@@ -16,6 +16,8 @@ enum ProgramRoute: Hashable {
 @Observable
 final class ProgramsRouter {
     var path: [ProgramRoute] = []
+    /// Bumped to ask the open workout to scroll back to its current exercise.
+    private(set) var currentExerciseRequest = 0
 
     func showDetail(_ program: Program) {
         path.append(.detail(program))
@@ -28,6 +30,15 @@ final class ProgramsRouter {
     /// Opens straight into the active program's current workout, keeping the detail page underneath.
     func restore(activeProgram: Program) {
         path = [.detail(activeProgram), .session(activeProgram)]
+    }
+
+    /// Opens the active program's workout on the exercise the user should be doing now.
+    func showCurrentExercise(of activeProgram: Program) {
+        let sessionPath: [ProgramRoute] = [.detail(activeProgram), .session(activeProgram)]
+        if path != sessionPath {
+            path = sessionPath
+        }
+        currentExerciseRequest += 1
     }
 
     func popToRoot() {

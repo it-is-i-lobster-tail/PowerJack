@@ -56,6 +56,10 @@ final class PreviewRenderingTests: XCTestCase {
                 workoutExercise: progression.checkInExercise,
                 onResolved: {}
             ).modelContainer(progression.container))),
+            ("Settings", AnyView(SettingsView())),
+            ("Rest Island", AnyView(RestIslandHost(
+                rest: try XCTUnwrap(scenario.weekOneWorkouts[1].currentRest)
+            ))),
         ]
 
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
@@ -114,5 +118,15 @@ private struct BuilderHost: View {
 
     var body: some View {
         TemplateBuilder(draft: $draft)
+    }
+}
+
+private struct RestIslandHost: View {
+    let rest: RestPeriod
+    @State private var isExpanded = true
+
+    var body: some View {
+        RestIsland(rest: rest, isExpanded: $isExpanded, onOpenExercise: {})
+            .frame(maxHeight: .infinity, alignment: .top)
     }
 }

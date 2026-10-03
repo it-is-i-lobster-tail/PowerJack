@@ -39,6 +39,7 @@ struct PowerJackRootView: View {
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
+    @State private var isShowingSettings = false
 
     var body: some View {
         TabView(selection: $selection) {
@@ -57,14 +58,25 @@ struct PowerJackRootView: View {
         // Turns the tabs into horizontally swipeable pages.
         .tabViewStyle(.page(indexDisplayMode: .never))
         .safeAreaInset(edge: .bottom) {
-            SlidingGlassPicker(
-                options: MainBrowserOption.allCases,
-                selection: $selection,
-                title: \.name
-            )
+            GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
+                HStack(spacing: LayoutMetrics.compactSpacing) {
+                    SettingsButton { isShowingSettings = true }
+
+                    SlidingGlassPicker(
+                        options: MainBrowserOption.allCases,
+                        selection: $selection,
+                        title: \.name
+                    )
+                }
+            }
         }
+        .restTimer(onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
         .onAppear(perform: restoreActiveWorkout)
+        .onOpenURL(perform: handleOpenURL)
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView()
+        }
     }
 
     /// On launch, reopen the active program's current workout.
@@ -75,6 +87,37 @@ struct PowerJackRootView: View {
         guard let activeProgram, activeProgram.nextWorkout != nil else { return }
         selection = .programs
         router.restore(activeProgram: activeProgram)
+    }
+
+    /// Takes the user to the exercise they should be doing, from the rest timer or its Live Activity.
+    private func openCurrentExercise() {
+        guard let activeProgram, activeProgram.nextWorkout != nil else { return }
+        isShowingSettings = false
+        selection = .programs
+        router.showCurrentExercise(of: activeProgram)
+    }
+
+    private func handleOpenURL(_ url: URL) {
+        guard url == RestActivityAttributes.currentExerciseURL else { return }
+        openCurrentExercise()
+    }
+}
+
+private struct SettingsButton: View {
+    private static let size: CGFloat = 46
+
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "gearshape")
+                .font(.title3)
+                .frame(width: Self.size, height: Self.size)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .powerJackGlassCircle(interactive: true)
+        .accessibilityLabel("Settings")
     }
 }
 

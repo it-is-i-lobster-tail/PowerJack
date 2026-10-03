@@ -21,21 +21,28 @@ struct CreationFlowTests {
         draft.secondaryMuscles = [.biceps]
 
         #expect(draft.canSave)
+        #expect(draft.fatigue == Exercise.defaultFatigue)
+        draft.fatigue = .heavy
 
         let exercise = try #require(draft.makeExercise())
         #expect(exercise.exerciseName == "Cable Row")
         #expect(exercise.userCreated)
         #expect(exercise.secondaryMuscles == [.biceps])
+        #expect(exercise.fatigue == .heavy)
+        #expect(ExerciseDraft(exercise: exercise).fatigue == .heavy)
 
         draft.name = String(repeating: "x", count: maxExerciseNameLengthInput + 1)
         #expect(!draft.canSave)
 
         draft.name = "Pulldown"
         draft.primaryMuscle = .shoulders
+        draft.fatigue = .light
         let didApply = draft.apply(to: exercise)
         #expect(didApply)
         #expect(exercise.exerciseName == "Pulldown")
         #expect(exercise.primaryMuscleFocus == .shoulders)
+        #expect(exercise.fatigue == .light)
+        #expect(exercise.restDuration == .seconds(75))
     }
 
     @Test("Exercise drafts cap rep ranges at 30 and keep min at or below max")

@@ -25,6 +25,8 @@ struct WorkoutDetailView: View {
     private static let headerControlHeight: CGFloat = 45
 
     @Environment(\.modelContext) private var modelContext
+    // Optional so the view still works outside the Programs navigation stack.
+    @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
 
     @Bindable var workout: Workout
     let weekNumber: Int?
@@ -151,6 +153,16 @@ struct WorkoutDetailView: View {
             .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
             }
+            .onChange(of: router?.currentExerciseRequest) {
+                showCurrentExercise()
+            }
+        }
+    }
+
+    /// Scrolls back to the exercise the user should be doing, e.g. after tapping the rest timer.
+    private func showCurrentExercise() {
+        withAnimation(.easeInOut(duration: 0.325)) {
+            selectedExerciseIndex = workout.currentExerciseIndex
         }
     }
 

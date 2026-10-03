@@ -46,6 +46,10 @@ struct ExerciseDetailView: View {
                                 $0.rawValue.localizedCapitalized
                             }.joined(separator: ", "))
                         }
+                        LabeledContent(
+                            "Fatigue",
+                            value: "\(exercise.fatigue.rawValue.localizedCapitalized) · \(exercise.restDuration.minuteSecondText) rest"
+                        )
                     }
                     Section {
                         Text("This exercise is included with PowerJack and cannot be edited.")

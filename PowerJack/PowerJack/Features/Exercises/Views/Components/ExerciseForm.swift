@@ -81,6 +81,11 @@ struct ExerciseForm: View {
                 height: boxHeight
             )
 
+            ExerciseFatigueField(
+                fatigue: $draft.fatigue,
+                height: boxHeight
+            )
+
             ExerciseFormNote()
         } footer: {
             FormSubmitButton(
@@ -128,6 +133,32 @@ private struct ExerciseRepRangeField: View {
         }
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+        .powerJackGlassCard(interactive: true)
+    }
+}
+
+private struct ExerciseFatigueField: View {
+    @Binding var fatigue: Fatigue
+    let height: CGFloat
+
+    var body: some View {
+        VStack(spacing: LayoutMetrics.compactSpacing) {
+            FormFieldLabel(
+                systemImage: "timer",
+                title: "Fatigue",
+                detail: "\(fatigue.restDuration.minuteSecondText) rest between sets"
+            )
+            Picker("Fatigue", selection: $fatigue) {
+                ForEach(Fatigue.allCases) { fatigue in
+                    Text(fatigue.rawValue.capitalized)
+                        .tag(fatigue)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal, LayoutMetrics.sectionSpacing)
+        .padding(.vertical, LayoutMetrics.compactSpacing)
+        .frame(maxWidth: .infinity, minHeight: height)
         .powerJackGlassCard(interactive: true)
     }
 }

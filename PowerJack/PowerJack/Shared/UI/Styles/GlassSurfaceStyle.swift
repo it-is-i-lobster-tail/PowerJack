@@ -32,4 +32,14 @@ extension View {
             in: .rect(cornerRadius: LayoutMetrics.curvedCornerRaius)
         )
     }
+
+    /// Matches `powerJackGlassSelection` for round buttons that sit beside it.
+    func powerJackGlassCircle(interactive: Bool = false) -> some View {
+        glassEffect(
+            .regular
+                .tint(.white.opacity(VisualOpacity.heavy))
+                .interactive(interactive),
+            in: .circle
+        )
+    }
 }
