@@ -30,9 +30,11 @@ struct GlassFormScaffold<Fields: View, Footer: View>: View {
     }
 
     var body: some View {
-        GlassEffectContainer(spacing: LayoutMetrics.sectionSpacing) {
-            VStack(spacing: LayoutMetrics.sectionSpacing) {
-                ScrollView {
+        VStack(spacing: LayoutMetrics.sectionSpacing) {
+            ScrollView {
+                // Inside the scroll view, so glass cards are clipped when they scroll
+                // under the title or the footer instead of drawing over them.
+                GlassEffectContainer(spacing: LayoutMetrics.sectionSpacing) {
                     VStack(spacing: LayoutMetrics.sectionSpacing) {
                         GlassFormHeader(
                             systemImage: headerSystemImage,
@@ -42,10 +44,10 @@ struct GlassFormScaffold<Fields: View, Footer: View>: View {
                     }
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
                 }
-
-                footer()
-                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
             }
+
+            footer()
+                .padding(.horizontal, LayoutMetrics.sectionSpacing)
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)

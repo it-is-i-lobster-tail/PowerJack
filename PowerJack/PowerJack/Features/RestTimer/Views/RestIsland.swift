@@ -87,6 +87,11 @@ private struct RestIslandContent: View {
         .frame(maxWidth: isExpanded ? 420 : nil)
         .foregroundStyle(.white)
         .background(.black, in: .rect(cornerRadius: cornerRadius, style: .continuous))
+        // Keeps the island's outline visible against a black dark-mode background.
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(.white.opacity(VisualOpacity.subtle), lineWidth: 1)
+        }
         .shadow(color: .black.opacity(VisualOpacity.light), radius: isExpanded ? 18 : 6, y: 4)
         .contentShape(.rect(cornerRadius: cornerRadius, style: .continuous))
         .onTapGesture { onTap(isReady) }
