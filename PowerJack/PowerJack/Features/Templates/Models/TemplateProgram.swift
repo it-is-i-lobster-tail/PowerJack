@@ -10,6 +10,7 @@ import SwiftData
 
 @Model
 final class TemplateProgram {
+    var catalogID: String? = nil
     var templateName: String
     var workoutsPerWeek: Int
     var templateWorkoutsValue: [TemplateWorkout]
