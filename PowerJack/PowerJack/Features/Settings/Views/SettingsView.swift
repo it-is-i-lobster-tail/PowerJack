@@ -9,6 +9,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(PowerJackStore.self) private var store
 
     @AppStorage(AppSettings.Key.inAppRestTimer)
     private var showsInAppRestTimer = AppSettings.Default.inAppRestTimer
@@ -16,13 +17,17 @@ struct SettingsView: View {
     private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+    @State private var iCloudAvailable = true
+    @State private var isConfirmingICloudOff = false
+    @State private var isDeletingICloudCopy = false
+    @State private var showsICloudOffError = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     Toggle(isOn: $showsInAppRestTimer) {
-                        SettingsToggleLabel(
+                        SettingsRowLabel(
                             systemImage: "timer",
                             title: "In-App Timer",
                             detail: "An island-style countdown at the top of the screen while PowerJack is open."
@@ -30,10 +35,10 @@ struct SettingsView: View {
                     }
 
                     Toggle(isOn: $showsRestLiveActivity) {
-                        SettingsToggleLabel(
+                        SettingsRowLabel(
                             systemImage: "iphone.gen3",
                             title: "Dynamic Island & Lock Screen",
-                            detail: "Keeps the countdown visible when you leave PowerJack. Tap it to jump back to your exercise."
+                            detail: "Shows your current set and rest countdown when you leave PowerJack. Tap it to jump back to your exercise."
                         )
                     }
 
@@ -42,16 +47,36 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Rest Timer")
-                } footer: {
-                    Text("iOS shows a Live Activity in the Dynamic Island and on the Lock Screen together, so they share one switch.")
                 }
 
-                Section("Rest Between Sets") {
-                    ForEach(Fatigue.allCases) { fatigue in
-                        LabeledContent(
-                            fatigue.rawValue.capitalized,
-                            value: fatigue.restDuration.minuteSecondText
+                Section {
+                    NavigationLink {
+                        RestBetweenSetsView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "hourglass",
+                            title: "Rest Between Sets",
+                            detail: "How long the timer counts down after each set, based on the exercise's fatigue level."
                         )
+                    }
+                }
+
+                Section {
+                    Toggle(isOn: iCloudBackup) {
+                        SettingsRowLabel(
+                            systemImage: "icloud",
+                            title: "iCloud Backup",
+                            detail: "Keeps your programs, templates and workout history in your private iCloud, so a new iPhone or a reinstall picks up where you left off. Only you can see it."
+                        )
+                    }
+                    .disabled(isDeletingICloudCopy)
+                } header: {
+                    Text("Your Data")
+                } footer: {
+                    if isDeletingICloudCopy {
+                        Text("Deleting your iCloud copy…")
+                    } else if store.syncsWithICloud, !iCloudAvailable {
+                        Text("Sign in to iCloud in iOS Settings to start backing up.")
                     }
                 }
             }
@@ -63,10 +88,50 @@ struct SettingsView: View {
                 }
             }
         }
+        .alert("Turn Off iCloud Backup?", isPresented: $isConfirmingICloudOff) {
+            Button("Yes, Turn Off", role: .destructive, action: turnOffICloudBackup)
+            Button("No", role: .cancel) {}
+        } message: {
+            Text("Your workouts stay on this iPhone, but the copy in iCloud will be deleted. A new iPhone or a reinstall won't get them back.")
+        }
+        .alert("Couldn't Turn Off iCloud Backup", isPresented: $showsICloudOffError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("iCloud couldn't be reached, so nothing was deleted. Check your connection and try again.")
+        }
+        .task {
+            iCloudAvailable = await store.iCloudAccountAvailable()
+        }
         .task {
             for await enabled in ActivityAuthorizationInfo().activityEnablementUpdates {
                 liveActivitiesAllowed = enabled
             }
+        }
+    }
+
+    // Turning backup off asks first, because it deletes the iCloud copy.
+    private var iCloudBackup: Binding<Bool> {
+        Binding(
+            get: { store.syncsWithICloud },
+            set: { isOn in
+                if isOn {
+                    store.turnOnICloudBackup()
+                } else {
+                    isConfirmingICloudOff = true
+                }
+            }
+        )
+    }
+
+    private func turnOffICloudBackup() {
+        isDeletingICloudCopy = true
+        Task {
+            do {
+                try await store.turnOffICloudBackup()
+            } catch {
+                showsICloudOffError = true
+            }
+            isDeletingICloudCopy = false
         }
     }
 
@@ -76,7 +141,7 @@ struct SettingsView: View {
     }
 }
 
-private struct SettingsToggleLabel: View {
+private struct SettingsRowLabel: View {
     let systemImage: String
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
@@ -112,4 +177,5 @@ private struct LiveActivitiesOffNote: View {
 
 #Preview("Settings") {
     SettingsView()
+        .environment(PowerJackStore(inMemory: true))
 }

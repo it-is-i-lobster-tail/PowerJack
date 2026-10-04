@@ -48,7 +48,7 @@ struct ProgramListView: View {
                     select(program)
                 } label: {
                     VStack(alignment: .leading) {
-                        Text(program.templateProgram.templateName)
+                        Text(program.templateName)
                         Text("\(program.status.rawValue)  |  \(program.percentFinished)%")
                             .font(.caption)
                             .foregroundStyle(program === activeProgram ? .green : .blue)

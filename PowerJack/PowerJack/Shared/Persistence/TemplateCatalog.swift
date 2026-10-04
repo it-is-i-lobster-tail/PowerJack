@@ -92,22 +92,46 @@ enum TemplateCatalog {
     /// Inserts any built-in template that isn't stored yet. Existing ones are left alone so user edits stick.
     @MainActor
     static func seed(in context: ModelContext) throws {
+        var changed = try removeDuplicates(in: context)
         let existingIDs = Set(try context.fetch(FetchDescriptor<TemplateProgram>()).compactMap(\.catalogID))
         let missing = entries.filter { !existingIDs.contains($0.id) }
-        guard !missing.isEmpty else { return }
 
-        let exercisesByID = Dictionary(
-            try context.fetch(FetchDescriptor<Exercise>()).compactMap { exercise in exercise.catalogID.map { ($0, exercise) } },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var changed = false
-        for entry in missing {
-            guard let template = entry.makeTemplate(exercisesByID: exercisesByID) else { continue }
-            context.insert(template)
-            changed = true
+        if !missing.isEmpty {
+            let exercisesByID = Dictionary(
+                try context.fetch(FetchDescriptor<Exercise>()).compactMap { exercise in exercise.catalogID.map { ($0, exercise) } },
+                uniquingKeysWith: { first, _ in first }
+            )
+            for entry in missing {
+                guard let template = entry.makeTemplate(exercisesByID: exercisesByID) else { continue }
+                context.insert(template)
+                changed = true
+            }
         }
 
         guard changed else { return }
         try context.save()
+    }
+
+    /// Merges copies of the same built-in template, the same way `ExerciseCatalog.removeDuplicates`
+    /// does. The oldest copy keeps the user's edits; programs that used a duplicate are pointed at it.
+    /// - Returns: Whether anything changed. The caller saves.
+    @MainActor
+    static func removeDuplicates(in context: ModelContext) throws -> Bool {
+        let catalogTemplates = try context.fetch(FetchDescriptor<TemplateProgram>()).filter { $0.catalogID != nil }
+        var changed = false
+
+        for copies in Dictionary(grouping: catalogTemplates, by: \.catalogID).values where copies.count > 1 {
+            let oldestFirst = copies.sorted { $0.createdAtValue < $1.createdAtValue }
+            let survivor = oldestFirst[0]
+            for duplicate in oldestFirst.dropFirst() {
+                for program in duplicate.programsValue ?? [] {
+                    program.templateProgramValue = survivor
+                }
+                // Cascades to the duplicate's workouts and their exercises.
+                context.delete(duplicate)
+            }
+            changed = true
+        }
+        return changed
     }
 }

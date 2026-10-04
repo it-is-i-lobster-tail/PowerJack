@@ -21,27 +21,27 @@ struct CreationFlowTests {
         draft.secondaryMuscles = [.biceps]
 
         #expect(draft.canSave)
-        #expect(draft.fatigue == Exercise.defaultFatigue)
-        draft.fatigue = .heavy
+        #expect(draft.fatigueLevel == Exercise.defaultFatigueLevel)
+        draft.fatigueLevel = .high
 
         let exercise = try #require(draft.makeExercise())
         #expect(exercise.exerciseName == "Cable Row")
         #expect(exercise.userCreated)
         #expect(exercise.secondaryMuscles == [.biceps])
-        #expect(exercise.fatigue == .heavy)
-        #expect(ExerciseDraft(exercise: exercise).fatigue == .heavy)
+        #expect(exercise.fatigueLevel == .high)
+        #expect(ExerciseDraft(exercise: exercise).fatigueLevel == .high)
 
         draft.name = String(repeating: "x", count: maxExerciseNameLengthInput + 1)
         #expect(!draft.canSave)
 
         draft.name = "Pulldown"
         draft.primaryMuscle = .shoulders
-        draft.fatigue = .light
+        draft.fatigueLevel = .low
         let didApply = draft.apply(to: exercise)
         #expect(didApply)
         #expect(exercise.exerciseName == "Pulldown")
         #expect(exercise.primaryMuscleFocus == .shoulders)
-        #expect(exercise.fatigue == .light)
+        #expect(exercise.fatigueLevel == .low)
         #expect(exercise.restDuration == .seconds(75))
     }
 
@@ -164,7 +164,7 @@ struct CreationFlowTests {
         _ = draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: curl)
         #expect(draft.apply(to: template))
         try context.save()
-        #expect(template.templateWorkouts[0].templateExercises.map(\.exercise.exerciseName) == ["Row", "Curl"])
+        #expect(template.templateWorkouts[0].templateExercises.map(\.exercise?.exerciseName) == ["Row", "Curl"])
         #expect(try context.fetchCount(FetchDescriptor<TemplateWorkout>()) == 2)
         #expect(try context.fetchCount(FetchDescriptor<TemplateExercise>()) == 3)
     }

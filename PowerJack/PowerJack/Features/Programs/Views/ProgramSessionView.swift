@@ -15,9 +15,15 @@ struct ProgramSessionView: View {
 
     let program: Program
 
+    /// Totals for the workout just finished, shown until the user taps Continue.
+    @State private var summary: [MuscleSetCount] = []
+
     var body: some View {
         Group {
-            if let workout = program.nextWorkout {
+            if !summary.isEmpty {
+                ExerciseSummaryView(setCounts: summary, onContinue: continueAfterSummary)
+                    .transition(.push(from: .trailing))
+            } else if let workout = program.nextWorkout {
                 WorkoutDetailView(
                     workout: workout,
                     weekNumber: program.weekNumber(containing: workout),
@@ -35,6 +41,7 @@ struct ProgramSessionView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: program.nextWorkout?.persistentModelID)
+        .animation(.easeInOut(duration: 0.35), value: summary.isEmpty)
         .onAppear(perform: startCurrentWorkout)
     }
 
@@ -45,9 +52,19 @@ struct ProgramSessionView: View {
     }
 
     private func finish(_ workout: Workout) {
+        let setCounts = workout.completedSetsByMuscle
         let next = program.finishWorkout(workout)
         save()
-        if next == nil {
+        if !setCounts.isEmpty {
+            summary = setCounts
+        } else if next == nil {
+            router.popToRoot()
+        }
+    }
+
+    private func continueAfterSummary() {
+        summary = []
+        if program.nextWorkout == nil {
             router.popToRoot()
         }
     }

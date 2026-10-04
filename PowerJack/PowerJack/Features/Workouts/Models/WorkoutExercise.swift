@@ -29,15 +29,18 @@ enum ManualCheckInDecision: CaseIterable, Identifiable {
 
 @Model
 final class WorkoutExercise {
-    private var exerciseValue: Exercise
-    private var orderValue: Int
-    private var workoutSetsValue: [WorkoutSet]
-    private var statusValue: Status
-    private var lockedValue: Bool
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .nullify, inverse: \Exercise.workoutExercisesValue)
+    private var exerciseValue: Exercise?
+    private var orderValue: Int = 0
+    @Relationship(deleteRule: .cascade, inverse: \WorkoutSet.workoutExerciseValue)
+    private var workoutSetsValue: [WorkoutSet]? = []
+    private var statusValue: Status = Status.planned
+    private var lockedValue: Bool = false
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseFeedback.workoutExerciseValue)
     private var feedbackValue: ExerciseFeedback?
     private var checkInValue: ManualCheckIn = ManualCheckIn.none
     private var checkInSourcePainValue: LevelOfPain?
+    var workoutValue: Workout?
 
     static let maxSets = 5
     static let initialSets = 2
@@ -58,17 +61,15 @@ final class WorkoutExercise {
 // Public Accessors
 //
 extension WorkoutExercise {
-    // Exercise
-    var exercise: Exercise {
-        get { exerciseValue }
-    }
+    // Exercise. Optional because a synced row can arrive before its exercise.
+    var exercise: Exercise? { exerciseValue }
     // Order
     var order: Int {
         get { orderValue }
         set { orderValue = newValue }
     }
     // WorkoutSets
-    var workoutSets: [WorkoutSet] { workoutSetsValue.sorted { $0.order < $1.order} }
+    var workoutSets: [WorkoutSet] { (workoutSetsValue ?? []).sorted(byOrder: \.order) }
     // Status
     var status: Status { statusValue }
     // Locked
@@ -97,7 +98,7 @@ extension WorkoutExercise {
     }
 
     // Total Sets
-    var totalSets: Int { workoutSetsValue.count }
+    var totalSets: Int { workoutSetsValue?.count ?? 0 }
     // Completed Sets
     func getCountCompletedSets() -> Int {
         return countSetStatus(status: Status.complete)
@@ -128,8 +129,9 @@ extension WorkoutExercise {
     }
     // All Sets Complete
     func allSetsDone() -> Bool {
-        return !workoutSetsValue.isEmpty &&
-                workoutSetsValue.allSatisfy { workoutSet in
+        let sets = workoutSetsValue ?? []
+        return !sets.isEmpty &&
+                sets.allSatisfy { workoutSet in
                     workoutSet.status == .complete ||
                     workoutSet.status == .skipped
                 }
@@ -188,19 +190,19 @@ extension WorkoutExercise {
     }
     func completeAndCascade() {
         complete()
-        for workoutSet in self.workoutSetsValue {
+        for workoutSet in workoutSets {
             workoutSet.completeAndLock()
         }
     }
     func stopAndCascade() {
         stop()
-        for workoutSet in self.workoutSetsValue {
+        for workoutSet in workoutSets {
             workoutSet.stop()
         }
     }
     func skipAndCascade() {
         skip()
-        for workoutSet in self.workoutSetsValue {
+        for workoutSet in workoutSets {
             workoutSet.skip()
         }
     }
@@ -213,7 +215,7 @@ extension WorkoutExercise {
         }
         start()
 
-        for workoutSet in self.workoutSetsValue {
+        for workoutSet in workoutSets {
             workoutSet.start()
         }
     }
@@ -223,21 +225,21 @@ extension WorkoutExercise {
     ) -> WorkoutSet? {
         guard
             !lockedValue,
-            workoutSetsValue.count < Self.maxSets
+            totalSets < Self.maxSets
         else {
             Logger.workoutExercise.warning("Unable to add WorkoutSet to WorkoutExercise. Max sets exceeded or workoutExercise is locked.")
             return nil
         }
 
-        let nextOrder = workoutSetsValue.count
-        let lastSetWeight = (nextOrder == 0 ? nil : workoutSetsValue[nextOrder - 1].weightTenthsPounds)
+        let nextOrder = totalSets
+        let lastSetWeight = workoutSets.last?.weightTenthsPounds
         let newSet = WorkoutSet(
             order: nextOrder,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
         )
         newSet.start()
-        workoutSetsValue.append(newSet)
+        workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
         return newSet
     }
@@ -249,17 +251,17 @@ extension WorkoutExercise {
     ) -> WorkoutSet? {
         guard
             status == .planned,
-            workoutSetsValue.count < Self.maxSets
+            totalSets < Self.maxSets
         else {
             Logger.workoutExercise.warning("Unable to add planned WorkoutSet. Max sets exceeded or WorkoutExercise already started.")
             return nil
         }
         let newSet = WorkoutSet(
-            order: workoutSetsValue.count,
+            order: totalSets,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds
         )
-        workoutSetsValue.append(newSet)
+        workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
         return newSet
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
@@ -284,7 +286,7 @@ extension WorkoutExercise {
         case .continue:
             startAndCascade()
         case .reset:
-            workoutSetsValue.removeAll()
+            deleteAllSets()
             startAndCascade()
             for _ in 0..<Self.initialSets {
                 _ = addSet()
@@ -292,27 +294,40 @@ extension WorkoutExercise {
         case .skip:
             skipAndCascade()
         }
-        Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise.exerciseName)")
+        Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
-    func removeLastSet() -> WorkoutSet? {
-        guard !lockedValue else {
-            Logger.workoutExercise.warning("Cannot remove last WorkoutSet of locked WorkoutExercise.")
-            return nil
+    func removeLastSet() {
+        guard !lockedValue, let lastSet = workoutSets.last else {
+            Logger.workoutExercise.warning("Cannot remove last WorkoutSet of locked or empty WorkoutExercise.")
+            return
         }
-        Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise.exerciseName)")
-        return workoutSetsValue.popLast()
+        Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
+        workoutSetsValue?.removeAll { $0 === lastSet }
+        // Delete the row too, so it doesn't linger (or sync) as an orphan.
+        modelContext?.delete(lastSet)
+    }
+    private func deleteAllSets() {
+        let sets = workoutSets
+        workoutSetsValue = []
+        for workoutSet in sets {
+            modelContext?.delete(workoutSet)
+        }
     }
     func changeExercise(newExercise: Exercise) {
         guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot change Exercise of locked WorkoutExercise")
             return
         }
-        Logger.workoutExercise.info("Changing \(self.exercise.exerciseName) to \(newExercise.exerciseName) and resetting progression.")
+        Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
-        workoutSetsValue.removeAll()
+        deleteAllSets()
         for _ in 0..<Self.initialSets {
             _ = addSet()
         }
+    }
+    /// Points a row at the surviving copy of a duplicated catalog exercise. Logged sets are kept.
+    func replaceDuplicateExercise(with survivor: Exercise) {
+        exerciseValue = survivor
     }
     /// Copies a weight entered on `workoutSet` to every later set still being logged.
     /// Completed and skipped sets keep what was logged.

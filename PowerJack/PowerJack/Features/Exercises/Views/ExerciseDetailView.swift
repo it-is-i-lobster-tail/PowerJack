@@ -47,8 +47,8 @@ struct ExerciseDetailView: View {
                             }.joined(separator: ", "))
                         }
                         LabeledContent(
-                            "Fatigue",
-                            value: "\(exercise.fatigue.rawValue.localizedCapitalized) · \(exercise.restDuration.minuteSecondText) rest"
+                            "Fatigue Level",
+                            value: "\(exercise.fatigueLevel.name) · \(exercise.restDuration.minuteSecondText) rest"
                         )
                     }
                     Section {

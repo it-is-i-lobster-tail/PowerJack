@@ -27,7 +27,7 @@ struct ExercisePreviewStrip: View {
                         Button {
                             selectExercise(at: index)
                         } label: {
-                            Text(workoutExercises[index].exercise.exerciseName)
+                            Text(workoutExercises[index].exercise?.exerciseName ?? "")
                                 .font(selectedExerciseIndex == index ? .default : .caption2)
                                 .fontWeight(selectedExerciseIndex == index ? .medium : .thin)
                                 .foregroundStyle(selectedExerciseIndex == index ? .white : .primary)

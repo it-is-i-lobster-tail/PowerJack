@@ -9,16 +9,12 @@ import SwiftData
 import SwiftUI
 
 /// Sheets the workout presents for the selected exercise.
-private enum WorkoutSheet: Identifiable {
+private enum WorkoutSheet: Identifiable, Hashable {
     case feedback(WorkoutExercise)
     case checkIn(WorkoutExercise)
 
-    var id: String {
-        switch self {
-        case .feedback(let workoutExercise): "feedback-\(workoutExercise.persistentModelID.hashValue)"
-        case .checkIn(let workoutExercise): "checkIn-\(workoutExercise.persistentModelID.hashValue)"
-        }
-    }
+    // Models hash by their persistent ID, so each exercise gets its own sheet identity.
+    var id: Self { self }
 }
 
 struct WorkoutDetailView: View {
@@ -129,6 +125,8 @@ struct WorkoutDetailView: View {
                     }
                 }
             }
+            // The number pad covers the exercise strip instead of pushing it up.
+            .keyboardSlidesOver()
             .sheet(item: $presentedSheet) { sheet in
                 switch sheet {
                 case .feedback(let workoutExercise):

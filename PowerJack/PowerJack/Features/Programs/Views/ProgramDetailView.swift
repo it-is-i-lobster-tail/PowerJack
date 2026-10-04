@@ -68,7 +68,7 @@ struct ProgramDetailView: View {
                     )
                 // Focus Info
                 ProgramFocusInfo(
-                    focusMuscles: program.templateProgram.templateMuscleFocus,
+                    focusMuscles: program.templateMuscleFocus,
                     screenWidth: screenWidth * 0.9
                 )
                 .frame(width: screenWidth * 0.9,

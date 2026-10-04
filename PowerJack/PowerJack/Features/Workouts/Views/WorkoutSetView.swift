@@ -93,7 +93,7 @@ struct WorkoutSetView: View {
 
     private var plannedWeightPrompt: Text {
         guard let plannedWeight = workoutSet.weightInPoundsPlanned else {
-            return Text(repsOnly ? "BW" : "")
+            return Text("")
         }
 
         return Text(plannedWeight, format: .number)
@@ -121,19 +121,29 @@ struct WorkoutSetView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TextField(
-                    "Actual weight",
-                    text: $weightText,
-                    prompt: plannedWeightPrompt
-                )
-                .keyboardType(.decimalPad)
-                .disabled(!isEditable)
-                .multilineTextAlignment(.center)
-                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
-                .contentShape(.rect)
-                .onTapGesture { focus(.weight(workoutSet.id)) }
+                Group {
+                    if repsOnly {
+                        // Bodyweight sets log reps only, so the weight box just says so.
+                        Text("BW")
+                            .foregroundStyle(.secondary)
+                            .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                            .accessibilityValue("Bodyweight")
+                    } else {
+                        TextField(
+                            "Actual weight",
+                            text: $weightText,
+                            prompt: plannedWeightPrompt
+                        )
+                        .keyboardType(.decimalPad)
+                        .disabled(!isEditable)
+                        .multilineTextAlignment(.center)
+                        .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                        .contentShape(.rect)
+                        .onTapGesture { focus(.weight(workoutSet.id)) }
+                        .focused(focusedSetField, equals: .weight(workoutSet.id))
+                    }
+                }
                 .font(.default)
-                .focused(focusedSetField, equals: .weight(workoutSet.id))
                 .transition(
                     .scale(scale: 0.95, anchor: .center)
                     .combined(with: .opacity)

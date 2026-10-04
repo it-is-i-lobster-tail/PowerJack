@@ -24,13 +24,16 @@ enum ProgressionPlanner {
         let sourceWeek = weeks[weekIndex - 1]
         let olderWeeks = weeks[..<(weekIndex - 1)].reversed().prefix(2).map { $0 }
         let credits = muscleSetCredits(in: sourceWeek)
-        let focusMuscles = Set(program.templateProgram.templateMuscleFocus)
+        let focusMuscles = Set(program.templateMuscleFocus)
 
         for sourceWorkout in sourceWeek.workouts {
             guard let workout = week.addWorkout() else { continue }
 
             for sourceExercise in sourceWorkout.workoutExercises {
-                guard let workoutExercise = workout.addWorkoutExercise(exercise: sourceExercise.exercise) else {
+                guard
+                    let exercise = sourceExercise.exercise,
+                    let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
+                else {
                     continue
                 }
 
@@ -44,7 +47,7 @@ enum ProgressionPlanner {
                         twoWeeksAgo: matches.dropFirst().first.flatMap { $0 }.map {
                             history($0, programWeek: weekIndex - 2)
                         },
-                        exercise: info(sourceExercise.exercise),
+                        exercise: info(exercise),
                         focusMuscles: focusMuscles,
                         programLengthWeeks: program.programLengthWeeks,
                         currentWeekMuscleSetCredits: credits
@@ -71,8 +74,7 @@ enum ProgressionPlanner {
         for workout in week.workouts {
             for workoutExercise in workout.workoutExercises {
                 let completed = Double(workoutExercise.getCountCompletedSets())
-                guard completed > 0 else { continue }
-                let exercise = workoutExercise.exercise
+                guard completed > 0, let exercise = workoutExercise.exercise else { continue }
                 let perSet = ProgressionEngine.setCredits(
                     primary: exercise.primaryMuscleFocus,
                     secondary: exercise.secondaryMuscles

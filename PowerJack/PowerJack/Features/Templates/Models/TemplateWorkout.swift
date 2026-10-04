@@ -10,8 +10,10 @@ import SwiftData
 
 @Model
 final class TemplateWorkout {
-    var orderValue: Int
-    var templateExercisesValue: [TemplateExercise]
+    var orderValue: Int = 0
+    @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.templateWorkoutValue)
+    var templateExercisesValue: [TemplateExercise]? = []
+    var templateProgramValue: TemplateProgram?
 
     init(order: Int) {
         self.orderValue = order
@@ -26,7 +28,7 @@ extension TemplateWorkout {
     // Order
     var order: Int { orderValue }
     // Template Exercises
-    var templateExercises: [TemplateExercise] { templateExercisesValue.sorted { $0.order < $1.order } }
+    var templateExercises: [TemplateExercise] { (templateExercisesValue ?? []).sorted(byOrder: \.order) }
 }
 
 //
@@ -38,9 +40,9 @@ extension TemplateWorkout {
     func addTemplateExercise(exercise: Exercise) -> TemplateExercise {
         let newTemplateExercise = TemplateExercise(
             exercise: exercise,
-            order: templateExercisesValue.count
+            order: templateExercises.count
         )
-        templateExercisesValue.append(newTemplateExercise)
+        templateExercisesValue = (templateExercisesValue ?? []) + [newTemplateExercise]
         return newTemplateExercise
     }
     // Move TemplateExercises

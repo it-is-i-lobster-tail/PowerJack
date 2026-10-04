@@ -16,7 +16,7 @@ struct ProgramProgressGrid: View {
         let layoutWidth = positiveFinite(workableWidth)
         let layoutHeight = positiveFinite(workableHeight)
         let rows = max(1, program.programLengthWeeks + 1) // header + weeks
-        let columns = max(1, program.templateProgram.workoutsPerWeek)
+        let columns = max(1, program.workoutsPerWeek)
 
         let gridHorizontalSpacing = LayoutMetrics.compactSpacing
         let gridVerticalSpacing = LayoutMetrics.compactSpacing

@@ -14,22 +14,28 @@ let maxSecondaryMuscles: Int = 4
 @Model
 final class Exercise {
     var catalogID: String? = nil
-    var exerciseName: String
-    var exerciseEquipment: Equipment
-    var primaryMuscleFocus: Muscle
-    var secondaryMusclesValue: [Muscle]
-    var userCreatedValue: Bool
+    var exerciseName: String = ""
+    var exerciseEquipment: Equipment = Equipment.barbell
+    var primaryMuscleFocus: Muscle = Muscle.chest
+    var secondaryMusclesValue: [Muscle] = []
+    var userCreatedValue: Bool = false
+    // Rows that use this exercise. Kept so CloudKit has both sides of each link.
+    var templateExercisesValue: [TemplateExercise]? = []
+    var workoutExercisesValue: [WorkoutExercise]? = []
+    // Rows stored before this field existed read as the oldest, so catalog dedupe keeps them.
+    var createdAtValue: Date = Date.distantPast
     // Hypertrophy rep range used by the progression engine.
     var minRepsValue: Int = Exercise.defaultMinReps
     var maxRepsValue: Int = Exercise.defaultMaxReps
-    // Sets the rest between sets. The default lets older stores migrate.
-    var fatigueValue: Fatigue = Exercise.defaultFatigue
+    // Picks the rest between sets. The default lets older stores migrate.
+    @Attribute(originalName: "fatigueValue")
+    var fatigueLevelValue: FatigueLevel = Exercise.defaultFatigueLevel
 
     static let defaultMinReps = 8
     static let defaultMaxReps = 12
     // No rep value above this can be saved anywhere in the app.
     static let maxRepsAllowed = 30
-    static let defaultFatigue = Fatigue.medium
+    static let defaultFatigueLevel = FatigueLevel.moderate
 
     init(
         exerciseName: String,
@@ -39,7 +45,7 @@ final class Exercise {
         userCreated: Bool = false,
         minReps: Int = Exercise.defaultMinReps,
         maxReps: Int = Exercise.defaultMaxReps,
-        fatigue: Fatigue = Exercise.defaultFatigue
+        fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel
     ) {
         self.exerciseName = exerciseName
         self.exerciseEquipment = exerciseEquipment
@@ -48,7 +54,8 @@ final class Exercise {
         self.userCreatedValue = userCreated
         self.minRepsValue = minReps
         self.maxRepsValue = maxReps
-        self.fatigueValue = fatigue
+        self.fatigueLevelValue = fatigueLevel
+        self.createdAtValue = .now
     }
 }
 
@@ -75,10 +82,10 @@ extension Exercise {
     var repRange: ClosedRange<Int> { minReps...max(minReps, maxReps) }
     // Reps-only exercises never progress by load.
     var repsOnly: Bool { exerciseEquipment == .bodyweight }
-    // Fatigue
-    var fatigue: Fatigue {
-        get { fatigueValue }
-        set { fatigueValue = newValue }
+    // Fatigue level
+    var fatigueLevel: FatigueLevel {
+        get { fatigueLevelValue }
+        set { fatigueLevelValue = newValue }
     }
-    var restDuration: Duration { fatigue.restDuration }
+    var restDuration: Duration { fatigueLevel.restLength.duration }
 }

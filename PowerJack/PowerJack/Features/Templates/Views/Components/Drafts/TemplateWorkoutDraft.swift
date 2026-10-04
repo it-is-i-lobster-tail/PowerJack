@@ -26,9 +26,9 @@ struct TemplateWorkoutDraft: Identifiable {
         self.templateExerciseDraftsValue = []
         
         if let exercises = templateExercises {
-            for exercise in exercises {
+            for exercise in exercises.compactMap(\.exercise) {
                 addTemplateExerciseDraft(
-                    exercise: exercise.exercise
+                    exercise: exercise
                 )
             }
         }

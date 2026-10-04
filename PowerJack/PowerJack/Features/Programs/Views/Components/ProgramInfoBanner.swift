@@ -12,7 +12,7 @@ struct ProgramInfoBanner: View {
 
     var body: some View {
         VStack {
-            Text(program.templateProgram.templateName)
+            Text(program.templateName)
                 .font(.title2)
             HStack {
                 Text("\(program.percentFinished)% Finished")

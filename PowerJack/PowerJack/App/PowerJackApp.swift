@@ -12,23 +12,23 @@ import SwiftData
 
 @main
 struct PowerJackApp: App {
-    private let modelContainer: ModelContainer = {
-        do {
-            let container = try PowerJackSchema.makeModelContainer(
-                inMemory: ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-            )
-            try ExerciseCatalog.seed(in: container.mainContext)
-            try TemplateCatalog.seed(in: container.mainContext)
-            return container
-        } catch {
-            fatalError("Could not create PowerJack's model container: \(error)")
-        }
-    }()
+    /// Static so the Live Activity's check button, which runs outside any view, shares it.
+    static let store = PowerJackStore(inMemory: runsInMemory)
+    static var modelContainer: ModelContainer { store.container }
+
+    // Previews and unit tests never touch the real store or iCloud.
+    private static var runsInMemory: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" || environment["XCTestConfigurationFilePath"] != nil
+    }
 
     var body: some Scene {
         WindowGroup {
             PowerJackRootView()
+                // Switching iCloud Backup replaces the container, so rebuild every screen from it.
+                .id(ObjectIdentifier(Self.store.container))
+                .modelContainer(Self.store.container)
+                .environment(Self.store)
         }
-        .modelContainer(modelContainer)
     }
 }

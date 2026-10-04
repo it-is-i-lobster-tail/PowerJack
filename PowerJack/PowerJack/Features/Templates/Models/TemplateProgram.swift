@@ -11,10 +11,15 @@ import SwiftData
 @Model
 final class TemplateProgram {
     var catalogID: String? = nil
-    var templateName: String
-    var workoutsPerWeek: Int
-    var templateWorkoutsValue: [TemplateWorkout]
-    var templateMuscleFocusValue: [Muscle]
+    var templateName: String = ""
+    var workoutsPerWeek: Int = 0
+    @Relationship(deleteRule: .cascade, inverse: \TemplateWorkout.templateProgramValue)
+    var templateWorkoutsValue: [TemplateWorkout]? = []
+    var templateMuscleFocusValue: [Muscle] = []
+    // Programs started from this template. Kept so CloudKit has both sides of the link.
+    var programsValue: [Program]? = []
+    // Rows stored before this field existed read as the oldest, so catalog dedupe keeps them.
+    var createdAtValue: Date = Date.distantPast
 
     init(
         templateName: String,
@@ -25,6 +30,7 @@ final class TemplateProgram {
         self.workoutsPerWeek = max(0, workoutsPerWeek)
         self.templateWorkoutsValue = []
         self.templateMuscleFocusValue = templateMuscleFocus
+        self.createdAtValue = .now
     }
 }
 
@@ -33,7 +39,7 @@ final class TemplateProgram {
 //
 extension TemplateProgram {
     // Template Workouts
-    var templateWorkouts: [TemplateWorkout] { templateWorkoutsValue.sorted { $0.order < $1.order} }
+    var templateWorkouts: [TemplateWorkout] { (templateWorkoutsValue ?? []).sorted(byOrder: \.order) }
     // Template Muscle Focus
     var templateMuscleFocus: [Muscle] {
         get {
@@ -57,20 +63,19 @@ extension TemplateProgram {
     @discardableResult
     func addTemplateWorkout() -> TemplateWorkout {
         let new = TemplateWorkout(
-            order: templateWorkoutsValue.count
+            order: templateWorkouts.count
         )
-        templateWorkoutsValue.append(new)
+        templateWorkoutsValue = (templateWorkoutsValue ?? []) + [new]
         return new
     }
     
     func clearAllTemplateWorkoutsValue() -> Void {
         // Delete the old rows so rebuilding the workouts doesn't leave orphans behind.
-        for workout in templateWorkoutsValue {
-            for exercise in workout.templateExercisesValue {
-                modelContext?.delete(exercise)
-            }
+        // Deleting a workout cascades to its exercises.
+        let workouts = templateWorkouts
+        templateWorkoutsValue = []
+        for workout in workouts {
             modelContext?.delete(workout)
         }
-        templateWorkoutsValue.removeAll()
     }
 }

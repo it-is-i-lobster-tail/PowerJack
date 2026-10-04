@@ -183,11 +183,11 @@ struct ProgressionEngineTests {
         #expect(result.sets == [prescription(11, 1400), prescription(11, 1400)])
     }
 
-    @Test("Load is refused when 5 lb is more than 10% of the weight")
-    func loadRelativeJump() {
-        let result = next(current: history(sets: [(12, 400)]))
-        #expect(result.gate == .reps)
-        #expect(result.sets == [prescription(12, 400)])
+    @Test("Light weights still add 5 lb and keep the reps")
+    func loadLightWeight() {
+        let result = next(current: history(sets: [(12, 200), (11, 200)]))
+        #expect(result.gate == .load)
+        #expect(result.sets == [prescription(12, 250), prescription(11, 250)])
     }
 
     @Test("Reps-only exercises never add load")

@@ -42,9 +42,11 @@ struct PowerJackRootView: View {
     @State private var isShowingSettings = false
     // A new ID rebuilds the Templates tab, which returns it to its list.
     @State private var templatesRootID = UUID()
-    @Environment(\.colorScheme) private var colorScheme
+    // Measured height of the floating bar, reserved at the bottom of every tab.
+    @State private var bottomBarHeight: CGFloat = 0
 
     var body: some View {
+        // Standard tabs can't be swiped between, so only the picker below switches sections.
         TabView(selection: $selection) {
             Tab(value: MainBrowserOption.programs) {
                 // Programs gets its own navigation world.
@@ -52,29 +54,38 @@ struct PowerJackRootView: View {
                     ProgramListView()
                         .programRouteDestinations()
                 }
+                .toolbar(.hidden, for: .tabBar)
+                .powerJackTabPage(bottomBarHeight: bottomBarHeight)
             }
 
             Tab(value: MainBrowserOption.templates) {
                 TemplateProgramListView()
                     .id(templatesRootID)
+                    .toolbar(.hidden, for: .tabBar)
+                    .powerJackTabPage(bottomBarHeight: bottomBarHeight)
             }
         }
-        // Turns the tabs into horizontally swipeable pages.
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        // Paged tabs don't pass a live light/dark switch down to their pages, so rebuild them when it changes.
-        .id(colorScheme)
-        .safeAreaInset(edge: .bottom) {
+        // Tab pages don't inherit a safe-area inset set on the TabView,
+        // so the bar floats here and each tab page stops short of it.
+        .overlay(alignment: .bottom) {
             GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
-                HStack(spacing: LayoutMetrics.compactSpacing) {
+                // The switcher stays centered on screen; the gear sits apart at the leading edge.
+                SlidingGlassPicker(
+                    options: MainBrowserOption.allCases,
+                    selection: $selection,
+                    title: \.name,
+                    onTap: showList
+                )
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: .leading) {
                     SettingsButton { isShowingSettings = true }
-
-                    SlidingGlassPicker(
-                        options: MainBrowserOption.allCases,
-                        selection: $selection,
-                        title: \.name,
-                        onTap: showList
-                    )
                 }
+                .padding(.horizontal)
+            }
+            // A little breathing room between screen content and the bar.
+            .padding(.top, LayoutMetrics.compactSpacing)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                bottomBarHeight = height
             }
         }
         .restTimer(onOpenCurrentExercise: openCurrentExercise)

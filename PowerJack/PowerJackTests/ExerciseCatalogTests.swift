@@ -16,23 +16,23 @@ struct ExerciseCatalogTests {
             #expect(!entry.id.isEmpty)
             #expect(!exercise.userCreated)
             #expect(exercise.catalogID == entry.id)
-            #expect(exercise.fatigue == entry.fatigue)
+            #expect(exercise.fatigueLevel == entry.fatigueLevel)
             #expect(ExerciseDraft(exercise: exercise).canSave)
         }
     }
 
-    @Test("Catalog fatigue labels round borderline lifts up to the longer rest")
-    func catalogFatigue() {
-        let fatigueByID = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.fatigue) })
-        #expect(fatigueByID["barbell-back-squat"] == .heavy)
-        #expect(fatigueByID["leg-press"] == .heavy)
-        #expect(fatigueByID["barbell-hip-thrust"] == .heavy)
-        #expect(fatigueByID["push-up"] == .medium)
-        #expect(fatigueByID["lat-pulldown"] == .medium)
-        #expect(fatigueByID["dumbbell-curl"] == .light)
+    @Test("Catalog fatigue levels round borderline lifts up to the longer rest")
+    func catalogFatigueLevels() {
+        let fatigueByID = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.fatigueLevel) })
+        #expect(fatigueByID["barbell-back-squat"] == .high)
+        #expect(fatigueByID["leg-press"] == .high)
+        #expect(fatigueByID["barbell-hip-thrust"] == .high)
+        #expect(fatigueByID["push-up"] == .moderate)
+        #expect(fatigueByID["lat-pulldown"] == .moderate)
+        #expect(fatigueByID["dumbbell-curl"] == .low)
 
-        let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigue).mapValues(\.count)
-        #expect(counts == [.heavy: 10, .medium: 11, .light: 27])
+        let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
+        #expect(counts == [.high: 10, .moderate: 11, .low: 27])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
@@ -91,7 +91,7 @@ struct ExerciseCatalogTests {
             let originalName = exercise.exerciseName
             let originalSecondary = exercise.secondaryMuscles
             let originalRange = exercise.repRange
-            let originalFatigue = exercise.fatigue
+            let originalFatigue = exercise.fatigueLevel
             var draft = ExerciseDraft(exercise: exercise)
             draft.name = "Changed Exercise"
             draft.equipment = .cable
@@ -99,7 +99,7 @@ struct ExerciseCatalogTests {
             draft.secondaryMuscles = [.biceps]
             draft.minReps = 3
             draft.maxReps = 4
-            draft.fatigue = .light
+            draft.fatigueLevel = .low
             #expect(draft.canSave)
             #expect(!draft.apply(to: exercise))
             #expect(exercise.exerciseName == originalName)
@@ -107,7 +107,7 @@ struct ExerciseCatalogTests {
             #expect(exercise.primaryMuscleFocus == .chest)
             #expect(exercise.secondaryMuscles == originalSecondary)
             #expect(exercise.repRange == originalRange)
-            #expect(exercise.fatigue == originalFatigue)
+            #expect(exercise.fatigueLevel == originalFatigue)
         }
     }
 
@@ -140,22 +140,22 @@ struct ExerciseCatalogTests {
             userCreated: true,
             minReps: 3,
             maxReps: 5,
-            fatigue: .light
+            fatigueLevel: .low
         )
         context.insert(stale)
         context.insert(custom)
         try context.save()
-        // Rows saved before fatigue existed migrate to the default.
-        #expect(stale.fatigue == Exercise.defaultFatigue)
+        // Rows saved before fatigue levels existed migrate to the default.
+        #expect(stale.fatigueLevel == Exercise.defaultFatigueLevel)
 
         try ExerciseCatalog.seed(in: context)
 
         #expect(stale.repRange == entry.minReps...entry.maxReps)
         #expect(Set(stale.secondaryMuscles) == Set(entry.secondaryMuscles))
-        #expect(stale.fatigue == entry.fatigue)
-        #expect(stale.fatigue == .heavy)
+        #expect(stale.fatigueLevel == entry.fatigueLevel)
+        #expect(stale.fatigueLevel == .high)
         #expect(stale.exerciseName == "Renamed Bench")
         #expect(custom.repRange == 3...5)
-        #expect(custom.fatigue == .light)
+        #expect(custom.fatigueLevel == .low)
     }
 }

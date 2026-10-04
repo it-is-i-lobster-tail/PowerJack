@@ -56,7 +56,12 @@ final class PreviewRenderingTests: XCTestCase {
                 workoutExercise: progression.checkInExercise,
                 onResolved: {}
             ).modelContainer(progression.container))),
-            ("Settings", AnyView(SettingsView())),
+            ("Settings", AnyView(SettingsView().environment(PowerJackStore(inMemory: true)))),
+            ("Rest Between Sets", AnyView(NavigationStack { RestBetweenSetsView() })),
+            ("Workout Summary", AnyView(ExerciseSummaryView(
+                setCounts: scenario.weekOneWorkouts[0].completedSetsByMuscle,
+                onContinue: {}
+            ))),
             ("Rest Island", AnyView(RestIslandHost(
                 rest: try XCTUnwrap(scenario.weekOneWorkouts[1].currentRest)
             ))),

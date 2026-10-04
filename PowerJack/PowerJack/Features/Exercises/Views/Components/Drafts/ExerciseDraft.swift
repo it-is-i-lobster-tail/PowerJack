@@ -14,7 +14,7 @@ struct ExerciseDraft {
     var secondaryMuscles: [Muscle] = []
     var minReps: Int = Exercise.defaultMinReps
     var maxReps: Int = Exercise.defaultMaxReps
-    var fatigue: Fatigue = Exercise.defaultFatigue
+    var fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel
 
     static let repLimits = 1...Exercise.maxRepsAllowed
 
@@ -27,7 +27,7 @@ struct ExerciseDraft {
         secondaryMuscles = exercise.secondaryMusclesValue
         minReps = exercise.minReps
         maxReps = exercise.maxReps
-        fatigue = exercise.fatigue
+        fatigueLevel = exercise.fatigueLevel
     }
 
     private var trimmedName: String {
@@ -74,7 +74,7 @@ struct ExerciseDraft {
             userCreated: userCreated,
             minReps: minReps,
             maxReps: maxReps,
-            fatigue: fatigue
+            fatigueLevel: fatigueLevel
         )
     }
 
@@ -93,7 +93,7 @@ struct ExerciseDraft {
         exercise.secondaryMuscles = secondaryMuscles
         exercise.minReps = minReps
         exercise.maxReps = maxReps
-        exercise.fatigue = fatigue
+        exercise.fatigueLevel = fatigueLevel
         return true
     }
 }

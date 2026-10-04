@@ -11,11 +11,14 @@ import OSLog
 
 @Model
 final class Program {
-    var programLengthWeeksValue: Int
-    var statusValue: Status
-    var templateProgramValue: TemplateProgram
-    var programWeeksValue: [ProgramWeek]
-    var lockedValue: Bool
+    // Defaults and optional relationships keep the model CloudKit-ready.
+    var programLengthWeeksValue: Int = 1
+    var statusValue: Status = Status.planned
+    @Relationship(deleteRule: .nullify, inverse: \TemplateProgram.programsValue)
+    var templateProgramValue: TemplateProgram?
+    @Relationship(deleteRule: .cascade, inverse: \ProgramWeek.programValue)
+    var programWeeksValue: [ProgramWeek]? = []
+    var lockedValue: Bool = false
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -40,19 +43,22 @@ final class Program {
     }
 
     private func setupInitialProgramWeek() {
-        guard let firstWeek = programWeeksValue.first else {
+        guard let firstWeek = programWeeks.first else {
             Logger.program.warning("Cannot set up initial ProgramWeek because Program has no weeks.")
             return
         }
 
-        for templateWorkout in templateProgramValue.templateWorkouts {
+        for templateWorkout in templateProgram?.templateWorkouts ?? [] {
             guard let newWorkout = firstWeek.addWorkout() else {
                 Logger.program.warning("Unable to add Workout to initial ProgramWeek.")
                 continue
             }
 
             for templateExercise in templateWorkout.templateExercises {
-                guard let newWorkoutExercise = newWorkout.addWorkoutExercise(exercise: templateExercise.exercise) else {
+                guard
+                    let exercise = templateExercise.exercise,
+                    let newWorkoutExercise = newWorkout.addWorkoutExercise(exercise: exercise)
+                else {
                     Logger.program.warning("Unable to add WorkoutExercise to an initial ProgramWeek's Workout.")
                     continue
                 }
@@ -74,9 +80,9 @@ extension Program {
     // Program Length
     var programLengthWeeks: Int { programLengthWeeksValue }
     // Program Weeks
-    var programWeeks: [ProgramWeek] { programWeeksValue.sorted { $0.order < $1.order }}
-    // Template Program
-    var templateProgram: TemplateProgram { templateProgramValue }
+    var programWeeks: [ProgramWeek] { (programWeeksValue ?? []).sorted(byOrder: \.order) }
+    // Template Program. Optional because a synced Program can arrive before its template.
+    var templateProgram: TemplateProgram? { templateProgramValue }
 }
 
 extension Program: StatusProviding {}
@@ -95,7 +101,12 @@ extension Program {
         return workouts
     }
 
-    var totalWorkouts: Int { programLengthWeeks * templateProgram.workoutsPerWeek }
+    var totalWorkouts: Int { programLengthWeeks * workoutsPerWeek }
+
+    // Template details, with safe fallbacks while a synced template is still arriving.
+    var templateName: String { templateProgram?.templateName ?? "Program" }
+    var workoutsPerWeek: Int { templateProgram?.workoutsPerWeek ?? 0 }
+    var templateMuscleFocus: [Muscle] { templateProgram?.templateMuscleFocus ?? [] }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
@@ -225,7 +236,7 @@ extension Program {
             Logger.program.warning("Program status must be 'complete' before running completeAndCascade")
             return
         }
-        for programWeek in programWeeksValue {
+        for programWeek in programWeeks {
             programWeek.completeAndCascade()
         }
     }
@@ -234,7 +245,7 @@ extension Program {
             Logger.program.warning("Program status must be 'stopped' before running stopAndCascade")
             return
         }
-        for programWeek in programWeeksValue {
+        for programWeek in programWeeks {
             programWeek.stopAndCascade()
         }
     }
@@ -246,17 +257,19 @@ extension Program {
             Logger.program.warning("Unable to add ProgramWeek. Max Weeks exceeded or Program is locked.")
             return nil
         }
-        let newProgramWeek = ProgramWeek(order: programWeeksValue.count)
-        programWeeksValue.append(newProgramWeek)
+        let newProgramWeek = ProgramWeek(order: programWeeks.count)
+        programWeeksValue = (programWeeksValue ?? []) + [newProgramWeek]
         Logger.program.info("New ProgramWeek added to Program")
         return newProgramWeek
     }
-    func removeLastProgramWeek() -> ProgramWeek? {
-        guard !lockedValue else {
-            Logger.program.warning("Cannot remove last ProgramWeek of locked Program.")
-            return nil
+    func removeLastProgramWeek() {
+        guard !lockedValue, let lastWeek = programWeeks.last else {
+            Logger.program.warning("Cannot remove last ProgramWeek of locked or empty Program.")
+            return
         }
         Logger.program.info("Removing last ProgramWeek from Program")
-        return programWeeksValue.popLast()
+        programWeeksValue?.removeAll { $0 === lastWeek }
+        // Delete the row too, so it doesn't linger (or sync) as an orphan.
+        modelContext?.delete(lastWeek)
     }
 }

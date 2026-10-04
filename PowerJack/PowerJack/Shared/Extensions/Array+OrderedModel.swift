@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import SwiftUI
 
 protocol OrderedModel: AnyObject {
@@ -21,6 +22,20 @@ extension Array where Element: OrderedModel {
 
         for (index, item) in enumerated() {
             item.order = index
+        }
+    }
+}
+
+extension Sequence where Element: PersistentModel {
+    /// Sorts by `order`. Ties fall back to the model's identity so the list stays stable
+    /// when two devices reorder the same children at once.
+    func sorted(byOrder order: (Element) -> Int) -> [Element] {
+        sorted { lhs, rhs in
+            let lhsOrder = order(lhs)
+            let rhsOrder = order(rhs)
+            return lhsOrder != rhsOrder
+                ? lhsOrder < rhsOrder
+                : lhs.persistentModelID < rhs.persistentModelID
         }
     }
 }

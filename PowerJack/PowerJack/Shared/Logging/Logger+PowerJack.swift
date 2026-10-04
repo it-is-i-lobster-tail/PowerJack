@@ -17,5 +17,6 @@ extension Logger {
     static let programWeek = Logger(subsystem: subsystem, category: "ProgramWeek")
     static let ui = Logger(subsystem: subsystem, category: "UI")
     static let persistence = Logger(subsystem: subsystem, category: "Persistence")
+    static let sync = Logger(subsystem: subsystem, category: "Sync")
     static let restTimer = Logger(subsystem: subsystem, category: "RestTimer")
 }

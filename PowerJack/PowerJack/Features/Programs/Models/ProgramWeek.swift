@@ -10,11 +10,13 @@ import SwiftData
 import OSLog
 
 @Model
-final class ProgramWeek{
-    var orderValue: Int
-    var workoutsValue: [Workout]
-    var lockedValue: Bool
-    var statusValue: Status
+final class ProgramWeek {
+    var orderValue: Int = 0
+    @Relationship(deleteRule: .cascade, inverse: \Workout.programWeekValue)
+    var workoutsValue: [Workout]? = []
+    var lockedValue: Bool = false
+    var statusValue: Status = Status.planned
+    var programValue: Program?
 
     init(order: Int) {
         self.orderValue = order
@@ -31,7 +33,7 @@ extension ProgramWeek {
     // Order
     var order: Int { orderValue }
     // Workouts
-    var workouts: [Workout] { workoutsValue.sorted {$0.order < $1.order} }
+    var workouts: [Workout] { (workoutsValue ?? []).sorted(byOrder: \.order) }
     // Lock
     var locked: Bool { self.lockedValue }
     // Status
@@ -49,9 +51,9 @@ extension ProgramWeek {
         }
         Logger.programWeek.debug("Adding Workout to ProgramWeek")
         let newWorkout = Workout(
-            order: workoutsValue.count
+            order: workouts.count
         )
-        workoutsValue.append(newWorkout)
+        workoutsValue = (workoutsValue ?? []) + [newWorkout]
         return newWorkout
     }
 

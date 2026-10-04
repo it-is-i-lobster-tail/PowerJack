@@ -53,8 +53,9 @@ enum LevelOfPain: Int, Codable, CaseIterable, Identifiable, ScaleSelectorOption 
 
 @Model
 final class ExerciseFeedback {
-    private var levelOfEffortValue: LevelOfEffort
-    private var levelOfPainValue: LevelOfPain
+    private var levelOfEffortValue: LevelOfEffort = LevelOfEffort.none
+    private var levelOfPainValue: LevelOfPain = LevelOfPain.none
+    var workoutExerciseValue: WorkoutExercise?
 
     init(levelOfEffort: LevelOfEffort, levelOfPain: LevelOfPain) {
         self.levelOfEffortValue = levelOfEffort

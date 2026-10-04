@@ -145,7 +145,7 @@ extension TemplateProgramDraft {
     }
 
     private static func workoutLayout(of templateProgram: TemplateProgram) -> [[PersistentIdentifier]] {
-        templateProgram.templateWorkouts.map { $0.templateExercises.map(\.exercise.persistentModelID) }
+        templateProgram.templateWorkouts.map { $0.templateExercises.compactMap(\.exercise?.persistentModelID) }
     }
 }
 

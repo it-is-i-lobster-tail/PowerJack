@@ -81,8 +81,8 @@ struct ExerciseForm: View {
                 height: boxHeight
             )
 
-            ExerciseFatigueField(
-                fatigue: $draft.fatigue,
+            ExerciseFatigueLevelField(
+                fatigueLevel: $draft.fatigueLevel,
                 height: boxHeight
             )
 
@@ -137,21 +137,21 @@ private struct ExerciseRepRangeField: View {
     }
 }
 
-private struct ExerciseFatigueField: View {
-    @Binding var fatigue: Fatigue
+private struct ExerciseFatigueLevelField: View {
+    @Binding var fatigueLevel: FatigueLevel
     let height: CGFloat
 
     var body: some View {
         VStack(spacing: LayoutMetrics.compactSpacing) {
             FormFieldLabel(
                 systemImage: "timer",
-                title: "Fatigue",
-                detail: "\(fatigue.restDuration.minuteSecondText) rest between sets"
+                title: "Fatigue Level",
+                detail: "\(fatigueLevel.restLength.name) rest · \(fatigueLevel.restLength.duration.minuteSecondText) between sets"
             )
-            Picker("Fatigue", selection: $fatigue) {
-                ForEach(Fatigue.allCases) { fatigue in
-                    Text(fatigue.rawValue.capitalized)
-                        .tag(fatigue)
+            Picker("Fatigue Level", selection: $fatigueLevel) {
+                ForEach(FatigueLevel.allCases) { fatigueLevel in
+                    Text(fatigueLevel.name)
+                        .tag(fatigueLevel)
                 }
             }
             .pickerStyle(.segmented)

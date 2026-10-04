@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Explain only by default.** Do not write, edit, create, delete, move, or patch any file unless the current user message explicitly authorizes that file change.
 - Requests for guidance, discussion, examples, or phrases like "let's rework this" are **not** permission to edit. Answer with explanation and illustrative code instead.
+- **Required simulator check.** Before handing off any UI, layout, navigation or text-input change, run the bottom bar and number pad check in AGENTS.md on the simulator (light and dark) and run `KeyboardLayoutTests`.
 - `.agents/skills/coach/SKILL.md` defines a "coach" mode (teach, don't implement; prefer official Apple docs) for learning/understanding questions.
 
 ## Project
@@ -53,7 +54,7 @@ No linter or formatter is configured.
 - To-many relationships are stored unordered. Each child has an `order` Int, and the public accessor returns the children **sorted by `order`**. `Array.moveAndReorder` (`Shared/Extensions/Array+OrderedModel.swift`) rewrites the `order` values after a drag-reorder.
 - Lifecycle uses `Status` (`planned/active/complete/skipped/stopped`) plus a `locked` flag. Mutations go through guarded methods (`start()`, `complete()`, `stop()`, `skip()`, `add…()`) that refuse invalid transitions and log through `Logger.<category>` (`Shared/Logging/Logger+PowerJack.swift`) instead of throwing. `…AndCascade()` variants push a transition down the tree.
 - `Workout` is inverted: it starts `locked = true` while planned, and `start()` unlocks it. Structural edits like `addWorkoutExercise` are only allowed while it is still locked (planned).
-- `StatusProviding` + `Collection.active` (`Shared/Extensions/Collection+Active.swift`) find the single active element. It asserts if there's more than one.
+- `StatusProviding` + `Collection.active` (`Shared/Extensions/Collection+Active.swift`) find the single active element. If sync ever produces more than one, it logs a warning and returns the first.
 
 ### Draft pattern for create/edit forms
 Forms never bind to `@Model` objects directly. Each editable model has a value-type `…Draft` struct in `Views/Components/Drafts/`:

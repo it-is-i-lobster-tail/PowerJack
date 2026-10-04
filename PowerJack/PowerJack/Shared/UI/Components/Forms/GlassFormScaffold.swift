@@ -53,6 +53,7 @@ struct GlassFormScaffold<Fields: View, Footer: View>: View {
         .navigationBarTitleDisplayMode(.inline)
         .padding(.vertical, LayoutMetrics.sectionSpacing)
         .background(Color(uiColor: .systemBackground))
+        .keyboardSlidesOver()
     }
 }
 

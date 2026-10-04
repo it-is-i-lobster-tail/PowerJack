@@ -13,10 +13,12 @@ import OSLog
 
 @Model
 final class Workout {
-    private var orderValue: Int
-    private var workoutExercisesValue: [WorkoutExercise]
-    private var statusValue: Status
-    private var lockedValue: Bool
+    private var orderValue: Int = 0
+    @Relationship(deleteRule: .cascade, inverse: \WorkoutExercise.workoutValue)
+    private var workoutExercisesValue: [WorkoutExercise]? = []
+    private var statusValue: Status = Status.planned
+    private var lockedValue: Bool = true
+    var programWeekValue: ProgramWeek?
 
     init(
         order: Int
@@ -35,7 +37,7 @@ extension Workout {
     // Order
     var order: Int { orderValue}
     // Workout Exercises
-    var workoutExercises: [WorkoutExercise] { workoutExercisesValue.sorted {$0.order < $1.order} }
+    var workoutExercises: [WorkoutExercise] { (workoutExercisesValue ?? []).sorted(byOrder: \.order) }
     // Status
     var status: Status { statusValue }
     // Locked
@@ -48,7 +50,7 @@ extension Workout {
 extension Workout {
     func countSetStatus(status: Status) -> Int {
         var c: Int = 0
-        for workout in self.workoutExercisesValue {
+        for workout in workoutExercises {
             c = c + workout.countSetStatus(status: status)
         }
         return c
@@ -57,7 +59,7 @@ extension Workout {
     // Total Sets
     var totalSets: Int {
         var c: Int = 0
-        for workout in self.workoutExercisesValue {
+        for workout in workoutExercises {
             c = c + workout.totalSets
         }
         return c
@@ -88,7 +90,7 @@ extension Workout {
     }
 
     var allExercisesFinished: Bool {
-        workoutExercisesValue.allSatisfy { $0.isFinished && !$0.needsFeedback }
+        workoutExercises.allSatisfy { $0.isFinished && !$0.needsFeedback }
     }
 
     var isFinished: Bool {
@@ -150,19 +152,19 @@ extension Workout {
     }
     func completeAndCascade() {
         complete()
-        for workoutExercise in workoutExercisesValue {
+        for workoutExercise in workoutExercises {
             workoutExercise.completeAndCascade()
         }
     }
     func stopAndCascade() {
         stop()
-        for workoutExercise in workoutExercisesValue {
+        for workoutExercise in workoutExercises {
             workoutExercise.stopAndCascade()
         }
     }
     func skipAndCascade() {
         skip()
-        for workoutExercise in workoutExercisesValue {
+        for workoutExercise in workoutExercises {
             workoutExercise.skipAndCascade()
         }
     }
@@ -183,13 +185,17 @@ extension Workout {
             exercise: exercise,
             order: workoutExercises.count
         )
-        workoutExercisesValue.append(newWorkoutExercise)
+        workoutExercisesValue = (workoutExercisesValue ?? []) + [newWorkoutExercise]
         Logger.workout.debug("Added new WorkoutExercise to Workout")
         return newWorkoutExercise
     }
-    func removeWorkoutExercise(index: Int) -> WorkoutExercise? {
-        guard workoutExercisesValue.indices.contains(index) else { return nil }
-        return workoutExercisesValue.remove(at: index)
+    func removeWorkoutExercise(index: Int) {
+        let exercises = workoutExercises
+        guard exercises.indices.contains(index) else { return }
+        let removed = exercises[index]
+        workoutExercisesValue?.removeAll { $0 === removed }
+        // Delete the row too, so it doesn't linger (or sync) as an orphan.
+        modelContext?.delete(removed)
     }
     // Move WorkoutExercises
     func moveWorkoutExercises(from source: IndexSet, to destination: Int) {

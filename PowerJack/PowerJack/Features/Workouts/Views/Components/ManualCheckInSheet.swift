@@ -27,7 +27,7 @@ struct ManualCheckInSheet: View {
                         .foregroundStyle(.orange)
                     Text("Check In")
                         .font(.title)
-                    Text("Last time \(workoutExercise.exercise.exerciseName) caused \(painLabel) pain. How do you want to continue?")
+                    Text("Last time \(workoutExercise.exercise?.exerciseName ?? "this exercise") caused \(painLabel) pain. How do you want to continue?")
                         .font(.caption)
                         .multilineTextAlignment(.center)
                 }

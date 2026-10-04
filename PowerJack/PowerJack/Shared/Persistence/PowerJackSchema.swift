@@ -21,11 +21,14 @@ enum PowerJackSchema {
         TemplateExercise.self,
     ])
 
-    static func makeModelContainer(inMemory: Bool = false) throws -> ModelContainer {
+    /// The user's private iCloud database. Only they can read it.
+    static let cloudKitContainerID = "iCloud.com.stanleycloud.PowerJack"
+
+    static func makeModelContainer(inMemory: Bool = false, syncsWithICloud: Bool = false) throws -> ModelContainer {
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory,
-            cloudKitDatabase: .none
+            cloudKitDatabase: syncsWithICloud && !inMemory ? .private(cloudKitContainerID) : .none
         )
 
         return try ModelContainer(

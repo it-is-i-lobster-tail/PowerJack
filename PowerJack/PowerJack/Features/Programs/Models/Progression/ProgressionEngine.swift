@@ -75,7 +75,6 @@ struct Prescription: Equatable {
 
 enum ProgressionEngine {
     static let loadIncrementTenthsPounds = 50
-    static let maxRelativeLoadJump = 0.1
     static let loadReadyRepFraction = 0.85
     static let weeklyMuscleSetCap = 25.0
     static let primaryMuscleSetCredit = 1.0
@@ -155,8 +154,7 @@ enum ProgressionEngine {
         let loadReadyReps = Int((loadReadyRepFraction * Double(exercise.maxReps)).rounded(.up))
         let canIncreaseLoad = !exercise.repsOnly && completed.allSatisfy { set in
             guard let weight = set.weight, weight > 0 else { return false }
-            return set.reps >= loadReadyReps &&
-                Double(loadIncrementTenthsPounds) / Double(weight) <= maxRelativeLoadJump
+            return set.reps >= loadReadyReps
         }
 
         if canIncreaseLoad {

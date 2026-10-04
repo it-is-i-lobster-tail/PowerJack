@@ -18,10 +18,10 @@ struct WorkoutExerciseView: View {
     var body: some View {
         VStack {
             VStack(alignment: .center) {
-                Text(workoutExercise.exercise.exerciseName)
+                Text(workoutExercise.exercise?.exerciseName ?? "")
                     .font(.title)
                     .foregroundStyle(.primary)
-                Text(workoutExercise.exercise.exerciseEquipment.rawValue.localizedCapitalized)
+                Text(workoutExercise.exercise?.exerciseEquipment.rawValue.localizedCapitalized ?? "")
                     .font(.default)
                     .foregroundStyle(.primary)
                 if workoutExercise.checkInPending {
@@ -36,7 +36,7 @@ struct WorkoutExerciseView: View {
                     WorkoutSetView(
                         focusedSetField: focusedSetField,
                         workoutSet: workoutSet,
-                        repsOnly: workoutExercise.exercise.repsOnly,
+                        repsOnly: workoutExercise.exercise?.repsOnly ?? false,
                         isLastSet: index == workoutExercise.workoutSets.count - 1,
                         onWeightChange: { weight in
                             workoutExercise.applyWeight(weight, after: workoutSet)

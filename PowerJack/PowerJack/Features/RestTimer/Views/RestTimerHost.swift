@@ -2,7 +2,7 @@
 //  RestTimerHost.swift
 //  PowerJack
 //
-//  Shows the active workout's rest in the in-app island and keeps the Live Activity in step.
+//  Shows the active workout's rest in the in-app island and keeps the Live Activity on its current set.
 //
 
 import SwiftData
@@ -41,14 +41,12 @@ private struct RestTimerHost: ViewModifier {
 
     private var workoutTitle: String? {
         guard let activeProgram, let workout else { return nil }
-        let day = "Day \(workout.order + 1)"
-        guard let week = activeProgram.weekNumber(containing: workout) else { return day }
-        return "\(day) · Week \(week)"
+        return activeProgram.activityTitle(for: workout)
     }
 
     private var liveActivityInput: LiveActivityInput {
         LiveActivityInput(
-            rest: rest,
+            state: workout?.activityState(),
             workoutTitle: workoutTitle,
             isEnabled: showsLiveActivity,
             isAppActive: scenePhase == .active
@@ -108,16 +106,7 @@ private struct RestTimerHost: ViewModifier {
 
     private func syncLiveActivity(_ input: LiveActivityInput) async {
         await RestLiveActivityController.sync(
-            rest: input.rest,
-            workoutTitle: input.workoutTitle,
-            isEnabled: input.isEnabled
-        )
-        // Ends the activity when its "Start set" window runs out, if the app is still running.
-        guard let rest = input.rest else { return }
-        try? await Task.sleep(for: .seconds(max(0, rest.expiresAt.timeIntervalSinceNow)))
-        guard !Task.isCancelled else { return }
-        await RestLiveActivityController.sync(
-            rest: input.rest,
+            state: input.state,
             workoutTitle: input.workoutTitle,
             isEnabled: input.isEnabled
         )
@@ -125,9 +114,9 @@ private struct RestTimerHost: ViewModifier {
 }
 
 /// Everything the Live Activity depends on. Coming back to the foreground re-syncs it,
-/// which retries a start that failed in the background and ends an expired activity.
+/// which retries a start that failed in the background.
 private struct LiveActivityInput: Equatable {
-    let rest: RestPeriod?
+    let state: WorkoutActivityState?
     let workoutTitle: String?
     let isEnabled: Bool
     let isAppActive: Bool

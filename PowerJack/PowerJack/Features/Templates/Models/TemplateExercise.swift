@@ -10,8 +10,10 @@ import SwiftData
 
 @Model
 final class TemplateExercise {
-    var exerciseValue: Exercise
-    var orderValue: Int
+    @Relationship(deleteRule: .nullify, inverse: \Exercise.templateExercisesValue)
+    var exerciseValue: Exercise?
+    var orderValue: Int = 0
+    var templateWorkoutValue: TemplateWorkout?
 
     init(exercise: Exercise, order: Int) {
         self.exerciseValue = exercise
@@ -23,8 +25,8 @@ final class TemplateExercise {
 // Public Accessors
 //
 extension TemplateExercise {
-    // Exercise
-    var exercise: Exercise {
+    // Exercise. Optional because a synced row can arrive before its exercise.
+    var exercise: Exercise? {
         get {
             exerciseValue
         }

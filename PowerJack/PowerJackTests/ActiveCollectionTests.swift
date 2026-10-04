@@ -52,6 +52,14 @@ struct ActiveCollectionTests {
         #expect(programSlice.active === activeProgram)
     }
 
+    @Test("Two active programs, as sync can produce, return the first instead of crashing")
+    func twoActiveProgramsReturnFirst() {
+        let first = makeProgram(status: .active)
+        let programs = [first, makeProgram(status: .active)]
+
+        #expect(programs.active === first)
+    }
+
     private func makeProgram(status: Status) -> Program {
         let templateProgram = TemplateProgram(
             templateName: "Test Program",

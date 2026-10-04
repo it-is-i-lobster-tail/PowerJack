@@ -11,15 +11,16 @@ import OSLog
 
 @Model
 final class WorkoutSet {
-    private var orderValue: Int
+    private var orderValue: Int = 0
     private var repsValue: Int?
     private var repsPlannedValue: Int?
     private var weightTenthsPoundsValue: Int?
     private var weightTenthsPoundsPlannedValue: Int?
-    private var statusValue: Status
-    private var lockedValue: Bool
+    private var statusValue: Status = Status.planned
+    private var lockedValue: Bool = false
     // Starts the rest timer. Cleared when the set is reopened.
     private var completedAtValue: Date? = nil
+    var workoutExerciseValue: WorkoutExercise?
 
     init(
         order: Int,
@@ -131,9 +132,11 @@ extension WorkoutSet {
             return Double(weightTenthsPoundsPlannedValue) / 10.0
         }
         set {
-            guard status == .active else { return }
+            guard status == .planned else { return }
             if let newValue, newValue > 0 {
-                weightTenthsPlannedPounds = Int(newValue * 10)
+                weightTenthsPlannedPounds = Int((newValue * 10).rounded())
+            } else {
+                weightTenthsPlannedPounds = nil
             }
         }
     }
