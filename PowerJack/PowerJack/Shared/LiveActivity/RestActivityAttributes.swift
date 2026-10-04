@@ -21,32 +21,41 @@ nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
     static let currentExerciseURL = URL(string: "powerjack://workout/current")!
 }
 
-/// The set to do next and, between sets of an exercise, the rest before it.
+/// Every set of the current exercise and, between sets, the rest before the next one.
 nonisolated struct WorkoutActivityState: Codable, Hashable {
     var exerciseName: String
-    /// `order` of the set's exercise and of the set, so a check completes the set that was shown.
+    /// `order` of the set's exercise and of the current set, so a check completes the set that was shown.
     var exerciseOrder: Int
     var setOrder: Int
-    var setCount: Int
-    /// `nil` when there is no target yet, e.g. in week 1 or for a newly added exercise.
-    var targetReps: Int?
-    var targetWeightTenthsPounds: Int?
+    var sets: [ActivitySet]
     var repsOnly: Bool
-    /// The set can be checked off at its target without opening the app.
+    /// The current set can be checked off at its target without opening the app.
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
 
-    var setText: String { "Set \(setOrder + 1) of \(setCount)" }
+    var setText: String { "Set \(setOrder + 1) of \(sets.count)" }
+}
 
-    var targetRepsText: String {
-        targetReps.map(String.init) ?? "–"
+/// One set as the Live Activity shows it: what was logged once done, its target until then.
+nonisolated struct ActivitySet: Codable, Hashable {
+    enum Progress: String, Codable {
+        case done, skipped, current, upcoming
     }
 
-    var targetWeightText: String {
+    var progress: Progress
+    /// `nil` when there is nothing to show yet, e.g. no target in week 1.
+    var reps: Int?
+    var weightTenthsPounds: Int?
+
+    var repsText: String {
+        reps.map(String.init) ?? "–"
+    }
+
+    func weightText(repsOnly: Bool) -> String {
         if repsOnly { return "BW" }
-        guard let targetWeightTenthsPounds else { return "–" }
-        let pounds = Double(targetWeightTenthsPounds) / 10
+        guard let weightTenthsPounds else { return "–" }
+        let pounds = Double(weightTenthsPounds) / 10
         return pounds.formatted(.number.precision(.fractionLength(0...1)))
     }
 }

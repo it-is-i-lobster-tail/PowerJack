@@ -86,21 +86,27 @@ struct RestTimerTests {
         #expect(current.workoutSet.order == 0)
     }
 
-    @Test("The Live Activity shows the current set's target, with or without a rest")
+    @Test("The Live Activity shows every set, the current one's target, with or without a rest")
     func activityState() throws {
         let workout = try makeWorkout([(.high, 2)])
 
         let fresh = try #require(workout.activityState(at: start))
         #expect(fresh.exerciseName == "Exercise 1")
         #expect(fresh.setText == "Set 1 of 2")
-        #expect(fresh.targetWeightText == "225")
-        #expect(fresh.targetRepsText == "8")
+        #expect(fresh.sets.map(\.progress) == [.current, .upcoming])
+        #expect(fresh.sets[0].weightText(repsOnly: false) == "225")
+        #expect(fresh.sets[0].repsText == "8")
         #expect(fresh.canCompleteAtTarget)
         #expect(fresh.rest == nil)
 
-        workout.workoutExercises[0].workoutSets[0].complete(at: start)
+        let firstSet = workout.workoutExercises[0].workoutSets[0]
+        firstSet.reps = 9
+        firstSet.complete(at: start)
         let resting = try #require(workout.activityState(at: start))
         #expect(resting.setOrder == 1)
+        #expect(resting.sets.map(\.progress) == [.done, .current])
+        // Done sets show what was logged, not the target.
+        #expect(resting.sets[0].repsText == "9")
         #expect(resting.rest == start...start.addingTimeInterval(180))
         // Once the rest runs out the set stays up without a timer.
         #expect(workout.activityState(at: start.addingTimeInterval(180))?.rest == nil)
@@ -124,8 +130,8 @@ struct RestTimerTests {
         workout.startAndCascade()
 
         let state = try #require(workout.activityState(at: start))
-        #expect(state.targetWeightText == "–")
-        #expect(state.targetRepsText == "–")
+        #expect(state.sets[0].weightText(repsOnly: false) == "–")
+        #expect(state.sets[0].repsText == "–")
         #expect(!state.canCompleteAtTarget)
         #expect(!workout.completeCurrentSetAtTarget(exerciseOrder: 0, setOrder: 0))
     }

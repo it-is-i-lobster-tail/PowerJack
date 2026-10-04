@@ -116,7 +116,7 @@ private struct WorkoutLockScreenView: View {
                 RestStatus(phase: phase)
                     .font(phase == .ready
                           ? .subheadline.weight(.semibold)
-                          : .system(size: 36, weight: .semibold, design: .rounded))
+                          : .system(size: 30, weight: .semibold, design: .rounded))
                     .frame(maxWidth: 120, alignment: .trailing)
             }
 
@@ -144,16 +144,18 @@ private struct SetHeading: View {
     }
 }
 
-/// The set's target weight and reps, and the check that logs it at exactly that target.
+/// Every set of the exercise side by side, the current one highlighted,
+/// and the check that logs the current set at exactly its target.
 private struct SetTargets: View {
     let state: WorkoutActivityState
 
     var body: some View {
-        HStack(spacing: 24) {
-            TargetValue(label: "Weight", value: state.targetWeightText)
-            TargetValue(label: "Reps", value: state.targetRepsText)
+        HStack(spacing: 6) {
+            ForEach(Array(state.sets.enumerated()), id: \.offset) { index, activitySet in
+                SetChip(number: index + 1, activitySet: activitySet, repsOnly: state.repsOnly)
+            }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
 
             if state.canCompleteAtTarget {
                 Button(intent: CompleteSetIntent(exerciseOrder: state.exerciseOrder, setOrder: state.setOrder)) {
@@ -167,23 +169,55 @@ private struct SetTargets: View {
                 .accessibilityLabel("Complete set at target")
             }
         }
-        .frame(minHeight: 44)
     }
 }
 
-private struct TargetValue: View {
-    let label: String
-    let value: String
+/// One set: its number, then weight and reps. Done sets show what was logged, the rest their target.
+private struct SetChip: View {
+    let number: Int
+    let activitySet: ActivitySet
+    let repsOnly: Bool
+
+    private var isCurrent: Bool { activitySet.progress == .current }
+    private var isFinished: Bool { activitySet.progress == .done || activitySet.progress == .skipped }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
+        VStack(spacing: 1) {
+            HStack(spacing: 2) {
+                Text("\(number)")
+                switch activitySet.progress {
+                case .done:
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.green)
+                case .skipped:
+                    Image(systemName: "forward.fill")
+                default:
+                    EmptyView()
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+            Text(activitySet.weightText(repsOnly: repsOnly))
+                .font(.subheadline.weight(.semibold))
+            Text("× \(activitySet.repsText)")
+                .font(.caption)
         }
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: 58)
+        .padding(.vertical, 5)
+        .background {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(0.16))
+                    .strokeBorder(.white.opacity(0.5), lineWidth: 1)
+            }
+        }
+        .opacity(isFinished ? 0.55 : 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }
 
@@ -259,9 +293,12 @@ private extension WorkoutActivityState {
         exerciseName: "Barbell Back Squat",
         exerciseOrder: 0,
         setOrder: 1,
-        setCount: 3,
-        targetReps: 8,
-        targetWeightTenthsPounds: 2250,
+        sets: [
+            ActivitySet(progress: .done, reps: 9, weightTenthsPounds: 2250),
+            ActivitySet(progress: .current, reps: 8, weightTenthsPounds: 2250),
+            ActivitySet(progress: .upcoming, reps: 8, weightTenthsPounds: 2250),
+            ActivitySet(progress: .upcoming, reps: 7, weightTenthsPounds: 2300),
+        ],
         repsOnly: false,
         canCompleteAtTarget: true,
         rest: .now ... .now.addingTimeInterval(180)
@@ -271,9 +308,10 @@ private extension WorkoutActivityState {
         exerciseName: "Barbell Back Squat",
         exerciseOrder: 0,
         setOrder: 0,
-        setCount: 2,
-        targetReps: nil,
-        targetWeightTenthsPounds: nil,
+        sets: [
+            ActivitySet(progress: .current, reps: nil, weightTenthsPounds: nil),
+            ActivitySet(progress: .upcoming, reps: nil, weightTenthsPounds: nil),
+        ],
         repsOnly: false,
         canCompleteAtTarget: false,
         rest: nil

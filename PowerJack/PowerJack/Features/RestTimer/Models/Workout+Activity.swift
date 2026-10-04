@@ -19,15 +19,14 @@ extension Workout {
         }
 
         let workoutSet = current.workoutSet
+        let repsOnly = exercise.repsOnly
         return WorkoutActivityState(
             exerciseName: exercise.exerciseName,
             exerciseOrder: current.workoutExercise.order,
             setOrder: workoutSet.order,
-            setCount: current.workoutExercise.workoutSets.count,
-            targetReps: workoutSet.repsPlanned,
-            targetWeightTenthsPounds: exercise.repsOnly ? nil : workoutSet.weightTenthsPlannedPounds,
-            repsOnly: exercise.repsOnly,
-            canCompleteAtTarget: workoutSet.canCompleteAtTarget(repsOnly: exercise.repsOnly),
+            sets: current.workoutExercise.workoutSets.map { $0.activitySet(isCurrent: $0 === workoutSet, repsOnly: repsOnly) },
+            repsOnly: repsOnly,
+            canCompleteAtTarget: workoutSet.canCompleteAtTarget(repsOnly: repsOnly),
             rest: currentRest.flatMap { $0.isResting(at: now) ? $0.interval : nil }
         )
     }
@@ -48,6 +47,21 @@ extension Workout {
 }
 
 extension WorkoutSet {
+    /// What was logged once the set is done, its target until then.
+    func activitySet(isCurrent: Bool, repsOnly: Bool) -> ActivitySet {
+        let progress: ActivitySet.Progress = switch status {
+        case .complete: .done
+        case .skipped, .stopped: .skipped
+        default: isCurrent ? .current : .upcoming
+        }
+        let isLogged = progress == .done
+        return ActivitySet(
+            progress: progress,
+            reps: isLogged ? reps : repsPlanned,
+            weightTenthsPounds: repsOnly ? nil : (isLogged ? weightTenthsPounds : weightTenthsPlannedPounds)
+        )
+    }
+
     /// Has a target to log (reps, plus weight unless reps only) and nothing different typed in yet.
     func canCompleteAtTarget(repsOnly: Bool) -> Bool {
         guard status == .active, !locked, let repsPlanned else { return false }
