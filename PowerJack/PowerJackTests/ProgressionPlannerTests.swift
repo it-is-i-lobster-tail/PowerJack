@@ -19,10 +19,10 @@ struct ProgressionPlannerTests {
         let program = try makeProgram(weeks: 4, focus: [.chest])
         try finishWeeks(2, of: program)
 
-        let sets = try #require(program.nextWorkout?.workoutExercises.first).workoutSets
+        let sets = try #require(program.nextWorkout?.workoutExercises.first).workingSets
         #expect(program.weekNumber(containing: try #require(program.nextWorkout)) == 3)
         #expect(sets.count == 3)
-        #expect(sets.last?.repsPlanned == nil)
+        #expect(sets.last?.repsPlanned == 6)
         #expect(sets.last?.weightTenthsPlannedPounds == 1000)
     }
 
@@ -30,10 +30,10 @@ struct ProgressionPlannerTests {
     func nonFocusVolumeNeedsThreeWeeks() throws {
         let program = try makeProgram(weeks: 6, focus: [.back])
         try finishWeeks(2, of: program)
-        #expect(try #require(program.nextWorkout?.workoutExercises.first).workoutSets.count == 2)
+        #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.count == 2)
 
         try finishWeeks(1, of: program)
-        #expect(try #require(program.nextWorkout?.workoutExercises.first).workoutSets.count == 3)
+        #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.count == 3)
     }
 
     @Test("A swapped exercise starts its history over")
@@ -48,7 +48,7 @@ struct ProgressionPlannerTests {
         weekTwo.workoutExercises.first?.changeExercise(newExercise: swap)
         try finishWeeks(1, of: program)
 
-        let sets = try #require(program.nextWorkout?.workoutExercises.first).workoutSets
+        let sets = try #require(program.nextWorkout?.workoutExercises.first).workingSets
         #expect(program.nextWorkout?.workoutExercises.first?.exercise === swap)
         #expect(sets.count == 2)
     }

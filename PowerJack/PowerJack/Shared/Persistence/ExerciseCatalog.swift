@@ -6,8 +6,6 @@ enum ExerciseCatalog {
         let name: String
         let equipment: Equipment
         let primaryMuscle: Muscle
-        let minReps: Int
-        let maxReps: Int
         let fatigueLevel: FatigueLevel
         let secondaryMuscles: [Muscle]
 
@@ -16,8 +14,6 @@ enum ExerciseCatalog {
             _ name: String,
             _ equipment: Equipment,
             _ primaryMuscle: Muscle,
-            _ minReps: Int,
-            _ maxReps: Int,
             _ fatigueLevel: FatigueLevel,
             _ secondaryMuscles: [Muscle] = []
         ) {
@@ -25,11 +21,12 @@ enum ExerciseCatalog {
             self.name = name
             self.equipment = equipment
             self.primaryMuscle = primaryMuscle
-            self.minReps = minReps
-            self.maxReps = maxReps
             self.fatigueLevel = fatigueLevel
             self.secondaryMuscles = secondaryMuscles
         }
+
+        var minReps: Int { Exercise.defaultMinReps }
+        var maxReps: Int { fatigueLevel.defaultMaxReps }
 
         func makeExercise() -> Exercise {
             let exercise = Exercise(
@@ -38,8 +35,6 @@ enum ExerciseCatalog {
                 primaryMuscleFocus: primaryMuscle,
                 secondaryMuscles: secondaryMuscles,
                 userCreated: false,
-                minReps: minReps,
-                maxReps: maxReps,
                 fatigueLevel: fatigueLevel
             )
             exercise.catalogID = id
@@ -65,57 +60,58 @@ enum ExerciseCatalog {
     }
 
     // IDs are permanent: changing a display name must not create another exercise.
-    // Rep ranges and secondary muscles come from the original PowerJack reference catalog.
+    // Secondary muscles come from the original PowerJack reference catalog.
+    // Rep ranges are the defaults: 5 reps up to the fatigue level's max.
     // Borderline fatigue levels round up: too much rest beats too little.
     static let entries: [Entry] = [
-        Entry("barbell-bench-press", "Barbell Bench Press", .barbell, .chest, 5, 12, .high, [.triceps, .shoulders]),
-        Entry("incline-barbell-bench-press", "Incline Barbell Bench Press", .barbell, .chest, 6, 12, .high, [.triceps, .shoulders]),
-        Entry("dumbbell-bench-press", "Dumbbell Bench Press", .dumbbell, .chest, 6, 12, .moderate, [.triceps, .shoulders]),
-        Entry("incline-dumbbell-bench-press", "Incline Dumbbell Bench Press", .dumbbell, .chest, 6, 12, .moderate, [.triceps, .shoulders]),
-        Entry("cable-chest-fly", "Cable Chest Fly", .cable, .chest, 10, 20, .low, [.shoulders]),
-        Entry("push-up", "Push Up", .bodyweight, .chest, 8, 25, .moderate, [.triceps, .shoulders, .abs]),
-        Entry("pull-up", "Pull Up", .bodyweight, .back, 5, 12, .moderate, [.biceps, .forearms, .abs]),
-        Entry("chin-up", "Chin Up", .bodyweight, .back, 5, 12, .moderate, [.biceps, .forearms, .abs]),
-        Entry("lat-pulldown", "Lat Pulldown", .cable, .back, 8, 15, .moderate, [.biceps, .forearms]),
-        Entry("seated-cable-row", "Seated Cable Row", .cable, .back, 8, 15, .moderate, [.biceps, .forearms]),
-        Entry("barbell-row", "Barbell Row", .barbell, .back, 6, 12, .high, [.biceps, .forearms, .abs]),
-        Entry("one-arm-dumbbell-row", "One Arm Dumbbell Row", .dumbbell, .back, 8, 15, .moderate, [.biceps, .forearms, .abs]),
-        Entry("barbell-deadlift", "Barbell Deadlift", .barbell, .back, 4, 8, .high, [.glutes, .hamstrings, .quads, .forearms]),
-        Entry("barbell-overhead-press", "Barbell Overhead Press", .barbell, .shoulders, 5, 10, .high, [.triceps, .abs]),
-        Entry("dumbbell-shoulder-press", "Dumbbell Shoulder Press", .dumbbell, .shoulders, 6, 12, .moderate, [.triceps, .abs]),
-        Entry("dumbbell-lateral-raise", "Dumbbell Lateral Raise", .dumbbell, .shoulders, 8, 20, .low),
-        Entry("cable-lateral-raise", "Cable Lateral Raise", .cable, .shoulders, 10, 25, .low),
-        Entry("dumbbell-reverse-fly", "Dumbbell Reverse Fly", .dumbbell, .shoulders, 10, 25, .low, [.back]),
-        Entry("cable-face-pull", "Cable Face Pull", .cable, .shoulders, 12, 25, .low, [.back]),
-        Entry("barbell-curl", "Barbell Curl", .barbell, .biceps, 8, 15, .low, [.forearms]),
-        Entry("dumbbell-curl", "Dumbbell Curl", .dumbbell, .biceps, 8, 15, .low, [.forearms]),
-        Entry("dumbbell-hammer-curl", "Dumbbell Hammer Curl", .dumbbell, .biceps, 8, 15, .low, [.forearms]),
-        Entry("cable-curl", "Cable Curl", .cable, .biceps, 10, 20, .low, [.forearms]),
-        Entry("cable-triceps-pushdown", "Cable Triceps Pushdown", .cable, .triceps, 10, 20, .low),
-        Entry("cable-overhead-extension", "Cable Overhead Extension", .cable, .triceps, 10, 20, .low, [.shoulders]),
-        Entry("dumbbell-triceps-extension", "Dumbbell Triceps Extension", .dumbbell, .triceps, 10, 20, .low, [.shoulders]),
-        Entry("barbell-skull-crusher", "Barbell Skull Crusher", .barbell, .triceps, 8, 15, .low, [.shoulders]),
-        Entry("barbell-back-squat", "Barbell Back Squat", .barbell, .quads, 6, 12, .high, [.glutes, .hamstrings, .abs]),
-        Entry("barbell-front-squat", "Barbell Front Squat", .barbell, .quads, 6, 12, .high, [.glutes, .abs]),
-        Entry("goblet-squat", "Goblet Squat", .kettlebell, .quads, 8, 15, .moderate, [.glutes, .abs]),
-        Entry("leg-press", "Leg Press", .legPress, .quads, 8, 15, .high, [.glutes, .hamstrings]),
-        Entry("leg-extension", "Leg Extension", .machine, .quads, 10, 20, .low),
-        Entry("barbell-romanian-deadlift", "Barbell Romanian Deadlift", .barbell, .hamstrings, 6, 12, .high, [.glutes, .back, .forearms]),
-        Entry("dumbbell-romanian-deadlift", "Dumbbell Romanian Deadlift", .dumbbell, .hamstrings, 8, 15, .moderate, [.glutes, .back, .forearms]),
-        Entry("seated-leg-curl", "Seated Leg Curl", .machine, .hamstrings, 10, 20, .low),
-        Entry("lying-leg-curl", "Lying Leg Curl", .machine, .hamstrings, 10, 20, .low),
-        Entry("barbell-hip-thrust", "Barbell Hip Thrust", .barbell, .glutes, 6, 12, .high, [.hamstrings, .abs]),
-        Entry("glute-bridge", "Glute Bridge", .bodyweight, .glutes, 10, 25, .low, [.hamstrings]),
-        Entry("cable-glute-kickback", "Cable Glute Kickback", .cable, .glutes, 12, 25, .low, [.hamstrings]),
-        Entry("standing-calf-raise", "Standing Calf Raise", .machine, .calves, 8, 20, .low),
-        Entry("seated-calf-raise", "Seated Calf Raise", .machine, .calves, 10, 25, .low),
-        Entry("crunch", "Crunch", .bodyweight, .abs, 10, 25, .low),
-        Entry("hanging-knee-raise", "Hanging Knee Raise", .bodyweight, .abs, 8, 20, .low, [.forearms]),
-        Entry("cable-crunch", "Cable Crunch", .cable, .abs, 10, 25, .low),
-        Entry("cable-woodchop", "Cable Woodchop", .cable, .obliques, 10, 20, .low, [.abs]),
-        Entry("side-plank", "Side Plank", .bodyweight, .obliques, 2, 12, .low, [.abs]),
-        Entry("dumbbell-wrist-curl", "Dumbbell Wrist Curl", .dumbbell, .forearms, 8, 20, .low),
-        Entry("dumbbell-reverse-wrist-curl", "Dumbbell Reverse Wrist Curl", .dumbbell, .forearms, 8, 20, .low),
+        Entry("barbell-bench-press", "Barbell Bench Press", .barbell, .chest, .high, [.triceps, .shoulders]),
+        Entry("incline-barbell-bench-press", "Incline Barbell Bench Press", .barbell, .chest, .high, [.triceps, .shoulders]),
+        Entry("dumbbell-bench-press", "Dumbbell Bench Press", .dumbbell, .chest, .moderate, [.triceps, .shoulders]),
+        Entry("incline-dumbbell-bench-press", "Incline Dumbbell Bench Press", .dumbbell, .chest, .moderate, [.triceps, .shoulders]),
+        Entry("cable-chest-fly", "Cable Chest Fly", .cable, .chest, .low, [.shoulders]),
+        Entry("push-up", "Push Up", .bodyweight, .chest, .moderate, [.triceps, .shoulders, .abs]),
+        Entry("pull-up", "Pull Up", .bodyweight, .back, .moderate, [.biceps, .forearms, .abs]),
+        Entry("chin-up", "Chin Up", .bodyweight, .back, .moderate, [.biceps, .forearms, .abs]),
+        Entry("lat-pulldown", "Lat Pulldown", .cable, .back, .moderate, [.biceps, .forearms]),
+        Entry("seated-cable-row", "Seated Cable Row", .cable, .back, .moderate, [.biceps, .forearms]),
+        Entry("barbell-row", "Barbell Row", .barbell, .back, .high, [.biceps, .forearms, .abs]),
+        Entry("one-arm-dumbbell-row", "One Arm Dumbbell Row", .dumbbell, .back, .moderate, [.biceps, .forearms, .abs]),
+        Entry("barbell-deadlift", "Barbell Deadlift", .barbell, .back, .high, [.glutes, .hamstrings, .quads, .forearms]),
+        Entry("barbell-overhead-press", "Barbell Overhead Press", .barbell, .shoulders, .high, [.triceps, .abs]),
+        Entry("dumbbell-shoulder-press", "Dumbbell Shoulder Press", .dumbbell, .shoulders, .moderate, [.triceps, .abs]),
+        Entry("dumbbell-lateral-raise", "Dumbbell Lateral Raise", .dumbbell, .shoulders, .low),
+        Entry("cable-lateral-raise", "Cable Lateral Raise", .cable, .shoulders, .low),
+        Entry("dumbbell-reverse-fly", "Dumbbell Reverse Fly", .dumbbell, .shoulders, .low, [.back]),
+        Entry("cable-face-pull", "Cable Face Pull", .cable, .shoulders, .low, [.back]),
+        Entry("barbell-curl", "Barbell Curl", .barbell, .biceps, .low, [.forearms]),
+        Entry("dumbbell-curl", "Dumbbell Curl", .dumbbell, .biceps, .low, [.forearms]),
+        Entry("dumbbell-hammer-curl", "Dumbbell Hammer Curl", .dumbbell, .biceps, .low, [.forearms]),
+        Entry("cable-curl", "Cable Curl", .cable, .biceps, .low, [.forearms]),
+        Entry("cable-triceps-pushdown", "Cable Triceps Pushdown", .cable, .triceps, .low),
+        Entry("cable-overhead-extension", "Cable Overhead Extension", .cable, .triceps, .low, [.shoulders]),
+        Entry("dumbbell-triceps-extension", "Dumbbell Triceps Extension", .dumbbell, .triceps, .low, [.shoulders]),
+        Entry("barbell-skull-crusher", "Barbell Skull Crusher", .barbell, .triceps, .low, [.shoulders]),
+        Entry("barbell-back-squat", "Barbell Back Squat", .barbell, .quads, .high, [.glutes, .hamstrings, .abs]),
+        Entry("barbell-front-squat", "Barbell Front Squat", .barbell, .quads, .high, [.glutes, .abs]),
+        Entry("goblet-squat", "Goblet Squat", .kettlebell, .quads, .moderate, [.glutes, .abs]),
+        Entry("leg-press", "Leg Press", .legPress, .quads, .high, [.glutes, .hamstrings]),
+        Entry("leg-extension", "Leg Extension", .machine, .quads, .low),
+        Entry("barbell-romanian-deadlift", "Barbell Romanian Deadlift", .barbell, .hamstrings, .high, [.glutes, .back, .forearms]),
+        Entry("dumbbell-romanian-deadlift", "Dumbbell Romanian Deadlift", .dumbbell, .hamstrings, .moderate, [.glutes, .back, .forearms]),
+        Entry("seated-leg-curl", "Seated Leg Curl", .machine, .hamstrings, .low),
+        Entry("lying-leg-curl", "Lying Leg Curl", .machine, .hamstrings, .low),
+        Entry("barbell-hip-thrust", "Barbell Hip Thrust", .barbell, .glutes, .high, [.hamstrings, .abs]),
+        Entry("glute-bridge", "Glute Bridge", .bodyweight, .glutes, .low, [.hamstrings]),
+        Entry("cable-glute-kickback", "Cable Glute Kickback", .cable, .glutes, .low, [.hamstrings]),
+        Entry("standing-calf-raise", "Standing Calf Raise", .machine, .calves, .low),
+        Entry("seated-calf-raise", "Seated Calf Raise", .machine, .calves, .low),
+        Entry("crunch", "Crunch", .bodyweight, .abs, .low),
+        Entry("hanging-knee-raise", "Hanging Knee Raise", .bodyweight, .abs, .low, [.forearms]),
+        Entry("cable-crunch", "Cable Crunch", .cable, .abs, .low),
+        Entry("cable-woodchop", "Cable Woodchop", .cable, .obliques, .low, [.abs]),
+        Entry("side-plank", "Side Plank", .bodyweight, .obliques, .low, [.abs]),
+        Entry("dumbbell-wrist-curl", "Dumbbell Wrist Curl", .dumbbell, .forearms, .low),
+        Entry("dumbbell-reverse-wrist-curl", "Dumbbell Reverse Wrist Curl", .dumbbell, .forearms, .low),
     ]
 
     @MainActor

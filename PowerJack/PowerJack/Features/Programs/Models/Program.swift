@@ -63,6 +63,7 @@ final class Program {
                     continue
                 }
 
+                newWorkoutExercise.addWarmupSets()
                 for _ in 0..<Self.initialWeekSets {
                     _ = newWorkoutExercise.addSet()
                 }
@@ -226,9 +227,7 @@ extension Program {
             Logger.program.info("Program finished")
             return nil
         }
-        if next.status == .planned {
-            next.startAndCascade()
-        }
+        // The next workout waits for the user to tap Start Workout.
         return next
     }
     func completeAndCascade() {
@@ -271,5 +270,13 @@ extension Program {
         programWeeksValue?.removeAll { $0 === lastWeek }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(lastWeek)
+    }
+    /// Deletes the program and its weeks, workouts and sets. The active program can't be deleted.
+    func delete() {
+        guard status != .active else {
+            Logger.program.warning("Cannot delete the active Program.")
+            return
+        }
+        modelContext?.delete(self)
     }
 }

@@ -12,6 +12,8 @@ import OSLog
 @Model
 final class WorkoutSet {
     private var orderValue: Int = 0
+    // Stored as the raw string: SwiftData fails to cast a stored `SetType` back on read.
+    private var setTypeValue: String = SetType.working.rawValue
     private var repsValue: Int?
     private var repsPlannedValue: Int?
     private var weightTenthsPoundsValue: Int?
@@ -24,10 +26,12 @@ final class WorkoutSet {
 
     init(
         order: Int,
+        setType: SetType = .working,
         plannedReps: Int?,
         plannedWeightTenthsPounds: Int?,
     ) {
         self.orderValue = order
+        self.setTypeValue = setType.rawValue
         self.repsPlannedValue = plannedReps.flatMap { Self.isValidReps($0) ? $0 : nil }
         self.weightTenthsPoundsPlannedValue = plannedWeightTenthsPounds
         self.statusValue = .planned
@@ -41,6 +45,9 @@ final class WorkoutSet {
 extension WorkoutSet {
     // Order
     var order: Int { orderValue}
+    // Set Type
+    var setType: SetType { SetType(rawValue: setTypeValue) ?? .working }
+    var isWarmup: Bool { setType == .warmup }
     // Reps
     var reps: Int? {
         get { repsValue }

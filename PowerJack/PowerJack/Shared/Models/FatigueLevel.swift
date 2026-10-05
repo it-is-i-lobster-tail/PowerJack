@@ -31,4 +31,13 @@ enum FatigueLevel: String, Codable, CaseIterable, Identifiable {
         case .high: .long
         }
     }
+
+    /// Lower fatigue exercises are trained for more reps. Users can change it per exercise.
+    var defaultMaxReps: Int {
+        switch self {
+        case .low: 20
+        case .moderate: 15
+        case .high: 12
+        }
+    }
 }

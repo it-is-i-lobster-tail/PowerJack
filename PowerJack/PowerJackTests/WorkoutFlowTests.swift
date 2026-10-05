@@ -12,7 +12,7 @@ import Testing
 struct WorkoutFlowTests {
     /// Held by the suite instance so models stay valid for the whole test.
     private let container = PowerJackSeed.makeInMemoryContainer()
-    @Test("Finishing a workout starts the next workout in the week")
+    @Test("Finishing a workout moves on to the next workout in the week without starting it")
     func finishAdvancesWithinWeek() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 2)
         let first = try #require(program.nextWorkout)
@@ -23,7 +23,8 @@ struct WorkoutFlowTests {
 
         #expect(first.status == .complete)
         #expect(next === program.programWeeks[0].workouts[1])
-        #expect(next?.status == .active)
+        // It waits for Start Workout.
+        #expect(next?.status == .planned)
         #expect(program.programWeeks[1].workouts.isEmpty)
     }
 
@@ -41,11 +42,11 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[0].status == .complete)
         #expect(weekTwo.status == .active)
         #expect(next === weekTwo.workouts.first)
-        #expect(next.status == .active)
-        let sets = try #require(next.workoutExercises.first).workoutSets
+        #expect(next.status == .planned)
+        let sets = try #require(next.workoutExercises.first).workingSets
         #expect(sets.map(\.repsPlanned) == [11, 11])
         #expect(sets.map(\.weightTenthsPlannedPounds) == [1400, 1400])
-        #expect(sets.allSatisfy { $0.status == .active })
+        #expect(sets.allSatisfy { $0.status == .planned })
     }
 
     @Test("Severe pain holds the next exercise behind a check-in until resolved")
@@ -62,7 +63,7 @@ struct WorkoutFlowTests {
         #expect(exercise.checkInSourcePain == .severe)
         #expect(exercise.locked)
         #expect(exercise.status == .planned)
-        #expect(exercise.workoutSets.map(\.repsPlanned) == [10, 10])
+        #expect(exercise.workingSets.map(\.repsPlanned) == [10, 10])
         #expect(exercise.addSet() == nil)
         #expect(next.currentExerciseIndex == 0)
 
@@ -70,8 +71,9 @@ struct WorkoutFlowTests {
         #expect(exercise.checkIn == .resolved)
         #expect(!exercise.locked)
         #expect(exercise.status == .active)
-        #expect(exercise.workoutSets.count == WorkoutExercise.initialSets)
-        #expect(exercise.workoutSets.allSatisfy { $0.repsPlanned == nil && $0.status == .active })
+        #expect(exercise.workingSets.count == WorkoutExercise.initialSets)
+        #expect(exercise.warmupSets.count == WorkoutExercise.initialWarmupSets)
+        #expect(exercise.workingSets.allSatisfy { $0.repsPlanned == nil && $0.status == .active })
     }
 
     @Test("Resolving a check-in with continue keeps the held prescription")
@@ -85,7 +87,7 @@ struct WorkoutFlowTests {
         exercise.resolveCheckIn(.continue)
 
         #expect(exercise.status == .active)
-        #expect(exercise.workoutSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
         #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
@@ -159,7 +161,7 @@ struct WorkoutFlowTests {
         let exercise = try #require(workout.workoutExercises.first)
         _ = exercise.addSet()
         _ = exercise.addSet()
-        let sets = exercise.workoutSets
+        let sets = exercise.workingSets
         try #require(sets.count == 4)
 
         sets[0].weightTenthsPounds = 2000
@@ -184,14 +186,14 @@ struct WorkoutFlowTests {
     func seededWeekTwo() {
         let scenario = PowerJackSeed.weekTwoProgression()
         let week = scenario.weekTwoWorkouts
-        let bench = week[0].workoutExercises[0].workoutSets
-        let pullUp = week[1].workoutExercises[0].workoutSets
-        let pulldown = week[1].workoutExercises[1].workoutSets
+        let bench = week[0].workoutExercises[0].workingSets
+        let pullUp = week[1].workoutExercises[0].workingSets
+        let pulldown = week[1].workoutExercises[1].workingSets
 
         #expect(bench.map(\.weightTenthsPlannedPounds) == [1400, 1400])
         #expect(scenario.checkInExercise.checkInPending)
         #expect(pullUp.map(\.repsPlanned) == [9, 8])
-        #expect(pulldown.map(\.repsPlanned) == [10, 8])
+        #expect(pulldown.map(\.repsPlanned) == [10, 5])
         #expect(scenario.program.nextWorkout === week[0])
     }
 

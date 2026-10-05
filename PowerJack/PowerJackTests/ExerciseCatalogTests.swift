@@ -97,8 +97,8 @@ struct ExerciseCatalogTests {
             draft.equipment = .cable
             draft.primaryMuscle = .back
             draft.secondaryMuscles = [.biceps]
-            draft.minReps = 3
-            draft.maxReps = 4
+            draft.minReps = 6
+            draft.maxReps = 7
             draft.fatigueLevel = .low
             #expect(draft.canSave)
             #expect(!draft.apply(to: exercise))
@@ -111,12 +111,11 @@ struct ExerciseCatalogTests {
         }
     }
 
-    @Test("Catalog rep ranges stay within the app-wide limit")
+    @Test("Catalog exercises use 5 reps up to their fatigue level's default max")
     func catalogRepRanges() {
         for entry in ExerciseCatalog.entries {
-            #expect(entry.minReps >= 1, "\(entry.id)")
-            #expect(entry.maxReps <= Exercise.maxRepsAllowed, "\(entry.id)")
-            #expect(entry.minReps <= entry.maxReps, "\(entry.id)")
+            let exercise = entry.makeExercise()
+            #expect(exercise.repRange == 5...entry.fatigueLevel.defaultMaxReps, "\(entry.id)")
             #expect(!entry.secondaryMuscles.contains(entry.primaryMuscle), "\(entry.id)")
         }
     }
@@ -126,11 +125,12 @@ struct ExerciseCatalogTests {
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
         let context = container.mainContext
         let entry = ExerciseCatalog.entries[0]
-        // Simulates a row saved before rep ranges existed.
+        // Simulates a row saved by an older seed with a higher minimum.
         let stale = Exercise(
             exerciseName: "Renamed Bench",
             exerciseEquipment: entry.equipment,
-            primaryMuscleFocus: entry.primaryMuscle
+            primaryMuscleFocus: entry.primaryMuscle,
+            minReps: 8
         )
         stale.catalogID = entry.id
         let custom = Exercise(
@@ -151,6 +151,7 @@ struct ExerciseCatalogTests {
         try ExerciseCatalog.seed(in: context)
 
         #expect(stale.repRange == entry.minReps...entry.maxReps)
+        #expect(stale.minReps == 5)
         #expect(Set(stale.secondaryMuscles) == Set(entry.secondaryMuscles))
         #expect(stale.fatigueLevel == entry.fatigueLevel)
         #expect(stale.fatigueLevel == .high)

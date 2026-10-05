@@ -32,9 +32,18 @@ final class ProgramsRouter {
         path.append(.session(program))
     }
 
-    /// Opens straight into the active program's current workout, keeping the detail page underneath.
+    /// Opens the active program: straight into its workout if one is underway, otherwise its detail page.
     func restore(activeProgram: Program) {
-        path = [.detail(activeProgram), .session(activeProgram)]
+        if activeProgram.nextWorkout?.status == .active {
+            path = [.detail(activeProgram), .session(activeProgram)]
+        } else {
+            showDetailOnly(activeProgram)
+        }
+    }
+
+    /// Leaves just the program's detail page, where Start Workout begins the next workout.
+    func showDetailOnly(_ program: Program) {
+        path = [.detail(program)]
     }
 
     /// Opens the active program's workout on the exercise the user should be doing now.

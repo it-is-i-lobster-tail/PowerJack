@@ -29,7 +29,7 @@ struct WorkoutActionsMenu: View {
     private var canAddSet: Bool {
         guard let selectedWorkoutExercise else { return false }
 
-        return selectedWorkoutExercise.totalSets < WorkoutExercise.maxSets &&
+        return selectedWorkoutExercise.workingSets.count < WorkoutExercise.maxSets &&
             !selectedWorkoutExercise.locked
     }
 

@@ -269,8 +269,9 @@ struct ModelLifecycleTests {
 
         workoutExercise.changeExercise(newExercise: replacement)
         #expect(workoutExercise.exercise === replacement)
-        #expect(workoutExercise.totalSets == WorkoutExercise.initialSets)
-        #expect(workoutExercise.workoutSets.map(\.order) == [0, 1])
+        #expect(workoutExercise.warmupSets.count == WorkoutExercise.initialWarmupSets)
+        #expect(workoutExercise.workingSets.count == WorkoutExercise.initialSets)
+        #expect(workoutExercise.workoutSets.map(\.order) == [0, 1, 2, 3])
 
         workoutExercise.start()
         workoutExercise.complete()

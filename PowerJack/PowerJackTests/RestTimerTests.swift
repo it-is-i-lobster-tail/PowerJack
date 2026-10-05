@@ -115,6 +115,31 @@ struct RestTimerTests {
         #expect(workout.activityState(at: start) == nil)
     }
 
+    @Test("Warmups are labeled W1, W2 on the Live Activity and working sets count from 1")
+    func activityWarmupLabels() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(
+            exerciseName: "Squat",
+            exerciseEquipment: .barbell,
+            primaryMuscleFocus: .quads,
+            fatigueLevel: .moderate
+        )
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        container.mainContext.insert(workout)
+        workout.startAndCascade()
+
+        let warmingUp = try #require(workout.activityState(at: start))
+        #expect(warmingUp.setText == "Warmup 1 of 2")
+        #expect(warmingUp.sets.map(\.label) == ["W1", "W2", "1", "2"])
+
+        workoutExercise.warmupSets.forEach { $0.complete(at: start) }
+        #expect(workout.activityState(at: start)?.setText == "Set 1 of 2")
+    }
+
     @Test("Sets without a target show blanks and can't be checked from the Live Activity")
     func activityStateWithoutTarget() throws {
         let workout = Workout(order: 0)

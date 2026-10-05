@@ -79,6 +79,20 @@ struct SettingsView: View {
                         Text("Sign in to iCloud in iOS Settings to start backing up.")
                     }
                 }
+
+                Section("Legal") {
+                    NavigationLink {
+                        LegalDocumentView(document: .privacyPolicy)
+                    } label: {
+                        Label("Privacy Policy", systemImage: "hand.raised")
+                    }
+
+                    NavigationLink {
+                        LegalDocumentView(document: .termsAndConditions)
+                    } label: {
+                        Label("Terms and Conditions", systemImage: "doc.text")
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

@@ -10,11 +10,17 @@ import SwiftUI
 
 struct TemplateProgramListView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let onSelect: ((TemplateProgram) -> Void)?
 
-    @Query(sort: \TemplateProgram.templateName) private var templatePrograms: [TemplateProgram]
+    @Query(
+        filter: #Predicate<TemplateProgram> { !$0.hiddenValue },
+        sort: \TemplateProgram.templateName
+    ) private var templatePrograms: [TemplateProgram]
     @State private var selectedTemplate: TemplateProgram?
+    @State private var templatePendingDelete: TemplateProgram?
+    @State private var saveErrorMessage: String?
 
     init(
         onSelect: ((TemplateProgram) -> Void)? = nil
@@ -51,7 +57,16 @@ struct TemplateProgramListView: View {
                             .fill(.ultraThinMaterial)
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        // No destructive role: it removes the row before the user confirms.
+                        Button {
+                            templatePendingDelete = template
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .tint(.red)
+
                         Button {
                             select(template)
                         } label: {
@@ -60,6 +75,7 @@ struct TemplateProgramListView: View {
                         .tint(.blue)
                     }
                 }
+                .listRowSpacing(10)
                 .scrollContentBackground(.hidden)
                 .background(Color(uiColor: .systemBackground))
             } createDestination: {
@@ -70,6 +86,22 @@ struct TemplateProgramListView: View {
             .navigationDestination(item: $selectedTemplate) { template in
                 TemplateProgramDetailView(templateProgram: template)
             }
+            .alert(
+                "Delete “\(templatePendingDelete?.displayName ?? "")”?",
+                isPresented: Binding(
+                    get: { templatePendingDelete != nil },
+                    set: { if !$0 { templatePendingDelete = nil } }
+                ),
+                presenting: templatePendingDelete
+            ) { template in
+                Button("Delete", role: .destructive) {
+                    delete(template)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Programs you've already started from it won't change.")
+            }
+            .saveErrorAlert($saveErrorMessage)
         }
     }
 
@@ -77,6 +109,16 @@ struct TemplateProgramListView: View {
     private var visibleTemplates: [TemplateProgram] {
         guard onSelect != nil else { return templatePrograms }
         return templatePrograms.filter { !$0.draft }
+    }
+
+    private func delete(_ template: TemplateProgram) {
+        template.delete()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = "The template couldn't be deleted. Please try again."
+        }
     }
 
     private func select(_ template: TemplateProgram) {

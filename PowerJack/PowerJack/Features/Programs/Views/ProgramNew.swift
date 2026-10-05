@@ -85,7 +85,7 @@ struct ProgramNew: View {
         }
     }
 
-    /// Saves the program, makes it the active one and opens its first workout.
+    /// Saves the program, makes it the active one and opens its detail page.
     private func save() {
         guard let program = draft.makeProgram() else { return }
         let previousProgram = programs.active
@@ -102,7 +102,6 @@ struct ProgramNew: View {
             previousProgram.stopAndCascade()
         }
         program.start()
-        program.nextWorkout?.startAndCascade()
 
         do {
             try modelContext.save()
@@ -110,8 +109,8 @@ struct ProgramNew: View {
             saveErrorMessage = error.localizedDescription
             return
         }
-        // Replaces this form with the program and its first workout.
-        router.restore(activeProgram: program)
+        // Replaces this form with the program; Start Workout begins the first workout.
+        router.showDetailOnly(program)
     }
 }
 

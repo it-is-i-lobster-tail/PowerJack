@@ -60,7 +60,7 @@ struct ExerciseSummaryView: View {
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: onContinue) {
-                Text("Next Workout")
+                Text("Done")
                     .font(.title3)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }

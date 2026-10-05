@@ -51,7 +51,7 @@ extension PowerJackSeed {
                 // Pull up (reps only): +1 rep.
                 SeedLog(sets: [(8, nil), (7, nil)], effort: .challenge, pain: .mild),
                 // Lat pulldown: one set under minimum -> hold it at the minimum.
-                SeedLog(sets: [(10, 1200), (6, 1200)], effort: .veryHard, pain: .none),
+                SeedLog(sets: [(10, 1200), (4, 1200)], effort: .veryHard, pain: .none),
             ],
             [
                 // Lateral raise: moderate pain -> repeat.
@@ -65,7 +65,10 @@ extension PowerJackSeed {
         for (workout, dayLogs) in zip(weekOneWorkouts, logs) {
             workout.startAndCascade()
             for (workoutExercise, log) in zip(workout.workoutExercises, dayLogs) {
-                for (workoutSet, entry) in zip(workoutExercise.workoutSets, log.sets) {
+                for warmup in workoutExercise.warmupSets {
+                    warmup.complete()
+                }
+                for (workoutSet, entry) in zip(workoutExercise.workingSets, log.sets) {
                     workoutSet.reps = entry.reps
                     workoutSet.weightTenthsPounds = entry.weightTenthsPounds
                     workoutSet.complete()

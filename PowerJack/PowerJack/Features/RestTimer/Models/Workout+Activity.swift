@@ -18,13 +18,25 @@ extension Workout {
             return nil
         }
 
+        let workoutExercise = current.workoutExercise
         let workoutSet = current.workoutSet
         let repsOnly = exercise.repsOnly
+        let number = workoutExercise.number(of: workoutSet)
+        let setText = workoutSet.isWarmup
+            ? "Warmup \(number) of \(workoutExercise.warmupSets.count)"
+            : "Set \(number) of \(workoutExercise.workingSets.count)"
         return WorkoutActivityState(
             exerciseName: exercise.exerciseName,
-            exerciseOrder: current.workoutExercise.order,
+            setText: setText,
+            exerciseOrder: workoutExercise.order,
             setOrder: workoutSet.order,
-            sets: current.workoutExercise.workoutSets.map { $0.activitySet(isCurrent: $0 === workoutSet, repsOnly: repsOnly) },
+            sets: workoutExercise.workoutSets.map {
+                $0.activitySet(
+                    label: $0.isWarmup ? "W\(workoutExercise.number(of: $0))" : "\(workoutExercise.number(of: $0))",
+                    isCurrent: $0 === workoutSet,
+                    repsOnly: repsOnly
+                )
+            },
             repsOnly: repsOnly,
             canCompleteAtTarget: workoutSet.canCompleteAtTarget(repsOnly: repsOnly),
             rest: currentRest.flatMap { $0.isResting(at: now) ? $0.interval : nil }
@@ -48,7 +60,7 @@ extension Workout {
 
 extension WorkoutSet {
     /// What was logged once the set is done, its target until then.
-    func activitySet(isCurrent: Bool, repsOnly: Bool) -> ActivitySet {
+    func activitySet(label: String, isCurrent: Bool, repsOnly: Bool) -> ActivitySet {
         let progress: ActivitySet.Progress = switch status {
         case .complete: .done
         case .skipped, .stopped: .skipped
@@ -56,6 +68,7 @@ extension WorkoutSet {
         }
         let isLogged = progress == .done
         return ActivitySet(
+            label: label,
             progress: progress,
             reps: isLogged ? reps : repsPlanned,
             weightTenthsPounds: repsOnly ? nil : (isLogged ? weightTenthsPounds : weightTenthsPlannedPounds)

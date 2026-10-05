@@ -31,11 +31,13 @@ final class Exercise {
     @Attribute(originalName: "fatigueValue")
     var fatigueLevelValue: FatigueLevel = Exercise.defaultFatigueLevel
 
-    static let defaultMinReps = 8
-    static let defaultMaxReps = 12
+    static let defaultMinReps = 5
+    // No exercise can set a minimum rep target below this.
+    static let minRepsAllowed = 5
     // No rep value above this can be saved anywhere in the app.
     static let maxRepsAllowed = 30
     static let defaultFatigueLevel = FatigueLevel.moderate
+    static let defaultMaxReps = defaultFatigueLevel.defaultMaxReps
 
     init(
         exerciseName: String,
@@ -44,7 +46,7 @@ final class Exercise {
         secondaryMuscles: [Muscle] = [],
         userCreated: Bool = false,
         minReps: Int = Exercise.defaultMinReps,
-        maxReps: Int = Exercise.defaultMaxReps,
+        maxReps: Int? = nil,
         fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel
     ) {
         self.exerciseName = exerciseName
@@ -53,7 +55,7 @@ final class Exercise {
         self.secondaryMusclesValue = secondaryMuscles
         self.userCreatedValue = userCreated
         self.minRepsValue = minReps
-        self.maxRepsValue = maxReps
+        self.maxRepsValue = maxReps ?? fatigueLevel.defaultMaxReps
         self.fatigueLevelValue = fatigueLevel
         self.createdAtValue = .now
     }

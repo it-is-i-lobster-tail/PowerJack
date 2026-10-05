@@ -14,9 +14,15 @@ struct ExerciseDraft {
     var secondaryMuscles: [Muscle] = []
     var minReps: Int = Exercise.defaultMinReps
     var maxReps: Int = Exercise.defaultMaxReps
-    var fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel
+    var fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel {
+        didSet {
+            // Max reps follows the fatigue default until the user picks their own.
+            guard maxReps == oldValue.defaultMaxReps else { return }
+            maxReps = max(fatigueLevel.defaultMaxReps, minReps)
+        }
+    }
 
-    static let repLimits = 1...Exercise.maxRepsAllowed
+    static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
 
     init() {}
 

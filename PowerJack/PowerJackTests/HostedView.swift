@@ -117,6 +117,19 @@ final class HostedView {
         return true
     }
 
+    /// Scroll views whose content is wider than they are, so a sideways swipe scrolls them.
+    var horizontalScrollViews: [UIScrollView] {
+        func search(_ view: UIView) -> [UIScrollView] {
+            var found = view.subviews.flatMap(search)
+            if let scrollView = view as? UIScrollView,
+               scrollView.contentSize.width > scrollView.bounds.width + 1 {
+                found.append(scrollView)
+            }
+            return found
+        }
+        return search(window)
+    }
+
     /// Ends editing, like tapping outside the keyboard.
     func dismissKeyboard() async {
         window.endEditing(true)

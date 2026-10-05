@@ -11,6 +11,9 @@ import SwiftUI
 struct ProgramListView: View {
     @Query private var programs: [Program]
     @Environment(ProgramsRouter.self) private var router
+    @Environment(\.modelContext) private var modelContext
+    @State private var programPendingDelete: Program?
+    @State private var saveErrorMessage: String?
 
     private var activeProgram: Program? {
         programs.active
@@ -55,13 +58,51 @@ struct ProgramListView: View {
                     }
                 }
                 .listRowBackground(
-                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.ultraThinMaterial)
                 )
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    // No destructive role: it removes the row before the user confirms.
+                    Button {
+                        programPendingDelete = program
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .tint(program.status == .active ? .gray : .red)
+                    .disabled(program.status == .active)
+                }
             }
+            .listRowSpacing(10)
             .scrollContentBackground(.hidden)
             .background(Color(uiColor: .systemBackground))
+        }
+        .alert(
+            "Delete “\(programPendingDelete?.templateName ?? "")”?",
+            isPresented: Binding(
+                get: { programPendingDelete != nil },
+                set: { if !$0 { programPendingDelete = nil } }
+            ),
+            presenting: programPendingDelete
+        ) { program in
+            Button("Delete", role: .destructive) {
+                delete(program)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Its workouts and logged sets will be deleted too. This can't be undone.")
+        }
+        .saveErrorAlert($saveErrorMessage)
+    }
+
+    private func delete(_ program: Program) {
+        program.delete()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = "The program couldn't be deleted. Please try again."
         }
     }
 

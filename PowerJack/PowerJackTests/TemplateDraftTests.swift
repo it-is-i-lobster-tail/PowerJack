@@ -89,6 +89,24 @@ struct TemplateDraftTests {
         #expect(template.displayName == "Pull Days")
     }
 
+    @Test("Exercise rows that lost their exercise don't count, so the template is a draft")
+    func missingExercisesMakeADraft() throws {
+        let container = PowerJackSeed.makeInMemoryContainer()
+        let context = container.mainContext
+        let row = makeExercise()
+        context.insert(row)
+        let template = makeTemplate(exercise: row)
+        try context.insertAndSave(template)
+        #expect(!template.draft)
+
+        // Rows stay behind (nullify) but would build a program with no exercises.
+        context.delete(row)
+        try context.save()
+        #expect(template.templateWorkouts.allSatisfy { $0.templateExercises.count == 1 })
+        #expect(template.draft)
+        #expect(!ProgramDraft(programLengthWeeks: 4, templateProgram: template).canSave)
+    }
+
     @Test("Draft templates can't start a program")
     func draftTemplateCantStartProgram() {
         let template = makeTemplate(exercise: makeExercise())

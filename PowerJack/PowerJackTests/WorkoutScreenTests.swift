@@ -16,15 +16,23 @@ struct WorkoutScreenTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
     private let router = ProgramsRouter()
 
-    @Test("Logging every set asks for feedback, then shows the summary and the next workout")
+    @Test("Logging every set asks for feedback, then shows the summary and returns to the program")
     func logWorkoutThroughSummary() async throws {
         let program = try makeStartedProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        // Nothing starts on its own: this is the Start Workout tap.
+        #expect(workout.status == .planned)
+        workout.startAndCascade()
         let screen = try await HostedView(session(program))
         defer { screen.close() }
+        let exercise = try #require(workout.workoutExercises.first)
+        let sets = exercise.workingSets
 
-        let workout = try #require(program.nextWorkout)
-        #expect(workout.status == .active)
-        let sets = try #require(workout.workoutExercises.first).workoutSets
+        // Warmups are numbered on their own, so "Set 1" is the first working set.
+        #expect(await screen.type("45", into: "Warmup 1 weight"), "\(screen.labels)")
+        #expect(exercise.warmupSets.map(\.weightTenthsPounds) == [450, 450])
+        #expect(sets[0].weightTenthsPounds == nil)
+        exercise.warmupSets.forEach { $0.complete() }
 
         #expect(await screen.type("100", into: "Set 1 weight"), "\(screen.labels)")
         #expect(await screen.type("10", into: "Set 1 reps"))
@@ -49,9 +57,11 @@ struct WorkoutScreenTests {
         #expect(workout.status == .complete)
 
         #expect(screen.contains("Workout complete!"), "\(screen.labels)")
-        await screen.tap("Next Workout", settleFor: .milliseconds(800))
+        await screen.tap("Done", settleFor: .milliseconds(800))
+        #expect(router.path == [.detail(program)])
         let next = try #require(program.nextWorkout)
         #expect(next !== workout)
+        #expect(next.status == .planned)
         #expect(program.weekNumber(containing: next) == 2)
     }
 
@@ -62,6 +72,7 @@ struct WorkoutScreenTests {
         first.startAndCascade()
         log(first, pain: .severe)
         let next = try #require(program.finishWorkout(first))
+        next.startAndCascade()
         try container.mainContext.save()
 
         let screen = try await HostedView(session(program))
@@ -82,6 +93,7 @@ struct WorkoutScreenTests {
         first.startAndCascade()
         log(first, pain: .extreme)
         let next = try #require(program.finishWorkout(first))
+        next.startAndCascade()
         try container.mainContext.save()
 
         let screen = try await HostedView(session(program))

@@ -16,13 +16,13 @@ struct MuscleSetCount: Identifiable, Equatable {
 }
 
 extension Workout {
-    /// Completed sets per primary muscle, most sets first.
-    /// Muscles with no completed sets are left out.
+    /// Completed working sets per primary muscle, most sets first.
+    /// Warmups and muscles with no completed sets are left out.
     var completedSetsByMuscle: [MuscleSetCount] {
         var setsByMuscle: [Muscle: Int] = [:]
         for workoutExercise in workoutExercises {
             guard let muscle = workoutExercise.exercise?.primaryMuscleFocus else { continue }
-            setsByMuscle[muscle, default: 0] += workoutExercise.getCountCompletedSets()
+            setsByMuscle[muscle, default: 0] += workoutExercise.completedWorkingSets
         }
 
         return setsByMuscle

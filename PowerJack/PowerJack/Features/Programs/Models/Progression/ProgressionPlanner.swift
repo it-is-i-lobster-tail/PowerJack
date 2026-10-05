@@ -54,6 +54,16 @@ enum ProgressionPlanner {
                     )
                 )
 
+                // Warmups repeat what was logged last week. They never progress.
+                let sourceWarmups = sourceExercise.warmupSets
+                for index in 0..<WorkoutExercise.initialWarmupSets {
+                    let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
+                    workoutExercise.addPlannedSet(
+                        type: .warmup,
+                        plannedReps: warmup.flatMap { $0.reps ?? $0.repsPlanned },
+                        plannedWeightTenthsPounds: warmup.flatMap { $0.weightTenthsPounds ?? $0.weightTenthsPlannedPounds }
+                    )
+                }
                 for set in prescription.sets.prefix(WorkoutExercise.maxSets) {
                     workoutExercise.addPlannedSet(
                         plannedReps: set.plannedReps,
@@ -68,12 +78,12 @@ enum ProgressionPlanner {
         Logger.program.info("Built ProgramWeek \(weekIndex + 1) from week \(weekIndex)")
     }
 
-    /// Completed set credits per muscle for one week (primary 1, secondary 0.5).
+    /// Completed working set credits per muscle for one week (primary 1, secondary 0.5).
     static func muscleSetCredits(in week: ProgramWeek) -> [Muscle: Double] {
         var credits: [Muscle: Double] = [:]
         for workout in week.workouts {
             for workoutExercise in workout.workoutExercises {
-                let completed = Double(workoutExercise.getCountCompletedSets())
+                let completed = Double(workoutExercise.completedWorkingSets)
                 guard completed > 0, let exercise = workoutExercise.exercise else { continue }
                 let perSet = ProgressionEngine.setCredits(
                     primary: exercise.primaryMuscleFocus,
@@ -87,6 +97,7 @@ enum ProgressionPlanner {
         return credits
     }
 
+    /// Only working sets count toward progression.
     static func history(_ workoutExercise: WorkoutExercise, programWeek: Int) -> ProgressionHistory {
         ProgressionHistory(
             programWeek: programWeek,
@@ -95,7 +106,7 @@ enum ProgressionPlanner {
             effort: workoutExercise.feedback?.levelOfEffort,
             checkIn: workoutExercise.checkIn,
             checkInSourcePain: workoutExercise.checkInSourcePain,
-            sets: workoutExercise.workoutSets.map {
+            sets: workoutExercise.workingSets.map {
                 ProgressionSet(
                     plannedReps: $0.repsPlanned,
                     plannedWeightTenthsPounds: $0.weightTenthsPlannedPounds,

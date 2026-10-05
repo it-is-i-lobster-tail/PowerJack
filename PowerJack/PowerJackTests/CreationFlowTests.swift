@@ -45,7 +45,7 @@ struct CreationFlowTests {
         #expect(exercise.restDuration == .seconds(75))
     }
 
-    @Test("Exercise drafts cap rep ranges at 30 and keep min at or below max")
+    @Test("Exercise drafts keep rep ranges between 5 and 30 with min at or below max")
     func exerciseDraftRepRange() throws {
         var draft = ExerciseDraft()
         draft.name = "Cable Row"
@@ -53,13 +53,16 @@ struct CreationFlowTests {
         draft.primaryMuscle = .back
         #expect(draft.canSave)
         #expect(draft.minReps == Exercise.defaultMinReps && draft.maxReps == Exercise.defaultMaxReps)
+        #expect(draft.minReps == 5)
 
         draft.maxReps = 31
         #expect(!draft.canSave)
         draft.maxReps = 30
         #expect(draft.canSave)
-        draft.minReps = 0
+        draft.minReps = 4
         #expect(!draft.canSave)
+        draft.minReps = 5
+        #expect(draft.canSave)
         draft.minReps = 20
         draft.maxReps = 15
         #expect(!draft.canSave)
@@ -72,6 +75,34 @@ struct CreationFlowTests {
         draft.maxReps = 10
         #expect(draft.apply(to: exercise))
         #expect(exercise.repRange == 6...10)
+    }
+
+    @Test("Default max reps follow fatigue level until the user picks their own")
+    func exerciseDraftMaxRepsFollowFatigue() throws {
+        #expect(FatigueLevel.low.defaultMaxReps == 20)
+        #expect(FatigueLevel.moderate.defaultMaxReps == 15)
+        #expect(FatigueLevel.high.defaultMaxReps == 12)
+        #expect(Exercise(
+            exerciseName: "Squat", exerciseEquipment: .barbell, primaryMuscleFocus: .quads, fatigueLevel: .high
+        ).repRange == 5...12)
+
+        var draft = ExerciseDraft()
+        draft.name = "Cable Row"
+        draft.equipment = .cable
+        draft.primaryMuscle = .back
+        #expect(draft.fatigueLevel == .moderate && draft.maxReps == 15)
+
+        draft.fatigueLevel = .low
+        #expect(draft.maxReps == 20)
+        draft.fatigueLevel = .high
+        #expect(draft.maxReps == 12)
+
+        draft.maxReps = 14
+        draft.fatigueLevel = .low
+        #expect(draft.maxReps == 14)
+
+        let exercise = try #require(draft.makeExercise())
+        #expect(exercise.repRange == 5...14)
     }
 
     @Test("Template workout counts stay ordered and retain disabled days")
@@ -186,7 +217,7 @@ struct CreationFlowTests {
                 #expect(program.programWeeks.dropFirst().allSatisfy { $0.workouts.isEmpty })
                 #expect(program.programWeeks.first?.workouts.allSatisfy {
                     $0.workoutExercises.count == 1 &&
-                    $0.workoutExercises[0].workoutSets.count == 2
+                    $0.workoutExercises[0].workingSets.count == 2
                 } == true)
                 #expect(program.nextWorkout == nil)
                 program.start()

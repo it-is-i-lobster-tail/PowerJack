@@ -2,7 +2,8 @@
 //  ProgramSessionView.swift
 //  PowerJack
 //
-//  Runs a program workout-to-workout: shows the current workout and advances when it finishes.
+//  Runs the program's current workout. When it finishes (after its summary) or is skipped,
+//  it returns to the program's detail page, where Start Workout begins the next one.
 //
 
 import OSLog
@@ -42,38 +43,35 @@ struct ProgramSessionView: View {
         }
         .animation(.easeInOut(duration: 0.35), value: program.nextWorkout?.persistentModelID)
         .animation(.easeInOut(duration: 0.35), value: summary.isEmpty)
-        .onAppear(perform: startCurrentWorkout)
-    }
-
-    private func startCurrentWorkout() {
-        guard let workout = program.nextWorkout, workout.status == .planned else { return }
-        workout.startAndCascade()
-        save()
     }
 
     private func finish(_ workout: Workout) {
         let setCounts = workout.completedSetsByMuscle
-        let next = program.finishWorkout(workout)
+        program.finishWorkout(workout)
         save()
-        if !setCounts.isEmpty {
+        if setCounts.isEmpty {
+            leave()
+        } else {
             summary = setCounts
-        } else if next == nil {
-            router.popToRoot()
         }
     }
 
     private func continueAfterSummary() {
-        summary = []
-        if program.nextWorkout == nil {
-            router.popToRoot()
-        }
+        leave()
     }
 
     private func skip(_ workout: Workout) {
-        let next = program.skipWorkout(workout)
+        program.skipWorkout(workout)
         save()
-        if next == nil {
+        leave()
+    }
+
+    /// Back to the program's detail page, or the list once the program is complete.
+    private func leave() {
+        if program.nextWorkout == nil {
             router.popToRoot()
+        } else {
+            router.showDetailOnly(program)
         }
     }
 

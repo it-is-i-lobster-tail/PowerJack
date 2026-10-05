@@ -116,6 +116,28 @@ struct AppScreenTests {
         #expect(!screen.contains("Close"))
     }
 
+    @Test("Template builder days change by tap only, so row swipes never flip the day")
+    func templateBuilderDaysAreTapOnly() async throws {
+        let screen = try await HostedView(
+            NavigationStack { BuilderHost() }.modelContainer(container)
+        )
+        defer { screen.close() }
+
+        #expect(screen.horizontalScrollViews.isEmpty, "A sideways pager would steal the rows' swipe actions")
+
+        await screen.tap("Add", settleFor: .milliseconds(800))
+        let bench = try #require(screen.label(startingWith: "Barbell Bench Press"), "\(screen.labels)")
+        await screen.tap(bench, settleFor: .milliseconds(800))
+        #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+
+        await screen.tap("Day 2", settleFor: .milliseconds(600))
+        #expect(!screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(screen.horizontalScrollViews.isEmpty)
+
+        await screen.tap("Day 1", settleFor: .milliseconds(600))
+        #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+    }
+
     @Test("Browsing exercises opens the selected exercise's details")
     func browseExercises() async throws {
         let screen = try await HostedView(

@@ -26,6 +26,8 @@ struct WorkoutSetView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
+    /// 1-based position within the set's type, so working sets count from 1 after the warmups.
+    let number: Int
     let isLastSet: Bool
     let onWeightChange: (Int?) -> Void
     let onAutoComplete: () -> Void
@@ -40,6 +42,7 @@ struct WorkoutSetView: View {
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
+        number: Int? = nil,
         isLastSet: Bool = false,
         onWeightChange: @escaping (Int?) -> Void = { _ in },
         onAutoComplete: @escaping () -> Void = {}
@@ -47,6 +50,7 @@ struct WorkoutSetView: View {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
+        self.number = number ?? workoutSet.order + 1
         self.isLastSet = isLastSet
         self.onWeightChange = onWeightChange
         self.onAutoComplete = onAutoComplete
@@ -56,6 +60,15 @@ struct WorkoutSetView: View {
 
     private var repsIsFocused: Bool {
         focusedSetField.wrappedValue == .reps(workoutSet.id)
+    }
+
+    /// "W1" for warmups, "1" for working sets.
+    private var setLabel: String {
+        workoutSet.isWarmup ? "W\(number)" : "\(number)"
+    }
+
+    private var accessibilityName: String {
+        workoutSet.isWarmup ? "Warmup \(number)" : "Set \(number)"
     }
 
     private var weightIsFocused: Bool {
@@ -111,10 +124,10 @@ struct WorkoutSetView: View {
     var body: some View {
         GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
             HStack(alignment: .center, spacing: 6) {
-                Text(workoutSet.order + 1, format: .number)
+                Text(setLabel)
                     .frame(width: 28, alignment: .leading)
-                    .font(.title3)
-                    .foregroundStyle(.primary)
+                    .font(workoutSet.isWarmup ? .callout.weight(.semibold) : .title3)
+                    .foregroundStyle(workoutSet.isWarmup ? .secondary : .primary)
 
                 Text("Weight")
                     .frame(width: 43, alignment: .trailing)
@@ -152,7 +165,7 @@ struct WorkoutSetView: View {
                     .regular.tint(fieldTint(isFocused: weightIsFocused, isInvalid: false)),
                     in: .rect(cornerRadius: 26)
                 )
-                .accessibilityLabel("Set \(workoutSet.order + 1) weight")
+                .accessibilityLabel("\(accessibilityName) weight")
 
                 Text("Reps")
                     .frame(width: 30, alignment: .trailing)
@@ -181,7 +194,7 @@ struct WorkoutSetView: View {
                     .regular.tint(fieldTint(isFocused: repsIsFocused, isInvalid: repsInvalid)),
                     in: .rect(cornerRadius: 26)
                 )
-                .accessibilityLabel("Set \(workoutSet.order + 1) reps")
+                .accessibilityLabel("\(accessibilityName) reps")
 
                 Button(action: toggleCompletion) {
                     ZStack {
@@ -215,7 +228,7 @@ struct WorkoutSetView: View {
                 .buttonStyle(.plain)
                 .disabled(!canToggleCompletion)
                 .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
-                .accessibilityLabel("Set \(workoutSet.order + 1) complete")
+                .accessibilityLabel("\(accessibilityName) complete")
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)

@@ -20,6 +20,9 @@ final class TemplateProgram {
     var programsValue: [Program]? = []
     // Rows stored before this field existed read as the oldest, so catalog dedupe keeps them.
     var createdAtValue: Date = Date.distantPast
+    // Hidden from the template list but kept, so programs started from it keep their name and
+    // the catalog seed doesn't bring a deleted built-in template back.
+    var hiddenValue: Bool = false
 
     init(
         templateName: String,
@@ -60,7 +63,8 @@ extension TemplateProgram {
             name: templateName,
             muscleFocus: templateMuscleFocusValue,
             workoutsPerWeek: workoutsPerWeek,
-            exerciseCounts: templateWorkouts.map { $0.templateExercises.count }
+            // Rows whose exercise is missing (deleted, or not synced yet) don't count.
+            exerciseCounts: templateWorkouts.map { $0.templateExercises.compactMap(\.exercise).count }
         )
     }
     /// The name shown in lists, marked while the template is still a draft.
@@ -99,6 +103,15 @@ extension TemplateProgram {
         return new
     }
     
+    /// Removes the template from the list. It's only truly deleted when nothing still needs it.
+    func delete() {
+        guard catalogID == nil, (programsValue ?? []).isEmpty else {
+            hiddenValue = true
+            return
+        }
+        modelContext?.delete(self)
+    }
+
     func clearAllTemplateWorkoutsValue() -> Void {
         // Delete the old rows so rebuilding the workouts doesn't leave orphans behind.
         // Deleting a workout cascades to its exercises.

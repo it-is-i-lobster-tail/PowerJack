@@ -144,10 +144,10 @@ enum ProgressionEngine {
 
         if canAddSet, eligible(current), eligible(input.previous) {
             if isFocus {
-                return addVolumeSet(.focusVolume, completed)
+                return addVolumeSet(.focusVolume, completed, minReps: exercise.minReps)
             }
             if eligible(input.twoWeeksAgo) {
-                return addVolumeSet(.nonFocusVolume, completed)
+                return addVolumeSet(.nonFocusVolume, completed, minReps: exercise.minReps)
             }
         }
 
@@ -241,13 +241,15 @@ private extension ProgressionEngine {
             : carried
     }
 
-    static func addVolumeSet(_ gate: ProgressionGate, _ sets: [CompletedSet]) -> Prescription {
-        Prescription(
+    /// Repeats every set and adds one at the last set's weight, 3 reps lower (never below the minimum).
+    static func addVolumeSet(_ gate: ProgressionGate, _ sets: [CompletedSet], minReps: Int) -> Prescription {
+        let added = sets.last.map {
+            SetPrescription(plannedReps: max($0.reps - 3, minReps), plannedWeightTenthsPounds: $0.weight)
+        }
+        return Prescription(
             gate: gate,
             checkInSourcePain: nil,
-            sets: copyActual(sets) + [
-                SetPrescription(plannedReps: nil, plannedWeightTenthsPounds: sets.last?.weight),
-            ]
+            sets: copyActual(sets) + [added].compactMap { $0 }
         )
     }
 

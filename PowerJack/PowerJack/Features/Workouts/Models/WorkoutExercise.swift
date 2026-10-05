@@ -42,8 +42,10 @@ final class WorkoutExercise {
     private var checkInSourcePainValue: LevelOfPain?
     var workoutValue: Workout?
 
+    /// Working sets only. Warmups don't count toward this.
     static let maxSets = 5
     static let initialSets = 2
+    static let initialWarmupSets = 2
 
     init(
         exercise: Exercise,
@@ -70,6 +72,9 @@ extension WorkoutExercise {
     }
     // WorkoutSets
     var workoutSets: [WorkoutSet] { (workoutSetsValue ?? []).sorted(byOrder: \.order) }
+    // Warmups always come before working sets.
+    var warmupSets: [WorkoutSet] { workoutSets.filter(\.isWarmup) }
+    var workingSets: [WorkoutSet] { workoutSets.filter { !$0.isWarmup } }
     // Status
     var status: Status { statusValue }
     // Locked
@@ -103,6 +108,15 @@ extension WorkoutExercise {
     func getCountCompletedSets() -> Int {
         return countSetStatus(status: Status.complete)
     }
+    // Completed working sets. The only sets that count toward progression and the summary.
+    var completedWorkingSets: Int {
+        workingSets.count(where: { $0.status == .complete })
+    }
+    /// 1-based position within the set's own type, e.g. the first working set is 1 after two warmups.
+    func number(of workoutSet: WorkoutSet) -> Int {
+        let sameType = workoutSet.isWarmup ? warmupSets : workingSets
+        return (sameType.firstIndex { $0 === workoutSet } ?? 0) + 1
+    }
     // Planned Sets
     func getCountPlannedSets() -> Int {
         return countSetStatus(status: Status.planned)
@@ -125,7 +139,7 @@ extension WorkoutExercise {
         feedbackValue == nil &&
             (status == .active || status == .skipped) &&
             allSetsDone() &&
-            getCountCompletedSets() > 0
+            completedWorkingSets > 0
     }
     // All Sets Complete
     func allSetsDone() -> Bool {
@@ -220,21 +234,23 @@ extension WorkoutExercise {
         }
     }
     func addSet(
+        type: SetType = .working,
         plannedReps: Int? = nil,
         plannedWeightTenthsPounds: Int? = nil
     ) -> WorkoutSet? {
         guard
             !lockedValue,
-            totalSets < Self.maxSets
+            canAddSet(type: type)
         else {
             Logger.workoutExercise.warning("Unable to add WorkoutSet to WorkoutExercise. Max sets exceeded or workoutExercise is locked.")
             return nil
         }
 
         let nextOrder = totalSets
-        let lastSetWeight = workoutSets.last?.weightTenthsPounds
+        let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
         let newSet = WorkoutSet(
             order: nextOrder,
+            setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
         )
@@ -246,23 +262,38 @@ extension WorkoutExercise {
     /// Adds a set that stays planned until the workout starts. Used for generated weeks.
     @discardableResult
     func addPlannedSet(
+        type: SetType = .working,
         plannedReps: Int?,
         plannedWeightTenthsPounds: Int?
     ) -> WorkoutSet? {
         guard
             status == .planned,
-            totalSets < Self.maxSets
+            canAddSet(type: type)
         else {
             Logger.workoutExercise.warning("Unable to add planned WorkoutSet. Max sets exceeded or WorkoutExercise already started.")
             return nil
         }
         let newSet = WorkoutSet(
             order: totalSets,
+            setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds
         )
         workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
         return newSet
+    }
+    /// Adds the warmup sets every exercise starts with. Call before adding working sets.
+    func addWarmupSets() {
+        for _ in 0..<Self.initialWarmupSets {
+            _ = addSet(type: .warmup)
+        }
+    }
+    /// Warmups are capped and must come before any working set; working sets are capped at `maxSets`.
+    private func canAddSet(type: SetType) -> Bool {
+        switch type {
+        case .warmup: warmupSets.count < Self.initialWarmupSets && workingSets.isEmpty
+        case .working: workingSets.count < Self.maxSets
+        }
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
     func requireCheckIn(sourcePain: LevelOfPain) {
@@ -288,17 +319,16 @@ extension WorkoutExercise {
         case .reset:
             deleteAllSets()
             startAndCascade()
-            for _ in 0..<Self.initialSets {
-                _ = addSet()
-            }
+            addInitialSets()
         case .skip:
             skipAndCascade()
         }
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
+    /// Removes the last working set. Warmups stay.
     func removeLastSet() {
-        guard !lockedValue, let lastSet = workoutSets.last else {
-            Logger.workoutExercise.warning("Cannot remove last WorkoutSet of locked or empty WorkoutExercise.")
+        guard !lockedValue, let lastSet = workingSets.last else {
+            Logger.workoutExercise.warning("Cannot remove last working set of locked or empty WorkoutExercise.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
@@ -321,6 +351,10 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
         deleteAllSets()
+        addInitialSets()
+    }
+    private func addInitialSets() {
+        addWarmupSets()
         for _ in 0..<Self.initialSets {
             _ = addSet()
         }
@@ -329,11 +363,13 @@ extension WorkoutExercise {
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
     }
-    /// Copies a weight entered on `workoutSet` to every later set still being logged.
-    /// Completed and skipped sets keep what was logged.
+    /// Copies a weight entered on `workoutSet` to every later set of the same type still being logged.
+    /// Completed and skipped sets keep what was logged, and warmup weights never reach working sets.
     func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet) {
         guard let weightTenthsPounds else { return }
-        for laterSet in workoutSets where laterSet.order > workoutSet.order && laterSet.status == .active {
+        for laterSet in workoutSets where laterSet.order > workoutSet.order &&
+            laterSet.setType == workoutSet.setType &&
+            laterSet.status == .active {
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }

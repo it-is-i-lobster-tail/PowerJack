@@ -24,6 +24,8 @@ nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
 /// Every set of the current exercise and, between sets, the rest before the next one.
 nonisolated struct WorkoutActivityState: Codable, Hashable {
     var exerciseName: String
+    /// e.g. "Warmup 1 of 2" or "Set 2 of 3". Warmups are numbered apart from working sets, as in the app.
+    var setText: String
     /// `order` of the set's exercise and of the current set, so a check completes the set that was shown.
     var exerciseOrder: Int
     var setOrder: Int
@@ -33,8 +35,6 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
-
-    var setText: String { "Set \(setOrder + 1) of \(sets.count)" }
 }
 
 /// One set as the Live Activity shows it: what was logged once done, its target until then.
@@ -43,6 +43,8 @@ nonisolated struct ActivitySet: Codable, Hashable {
         case done, skipped, current, upcoming
     }
 
+    /// "W1" for a warmup, "1" for a working set.
+    var label: String
     var progress: Progress
     /// `nil` when there is nothing to show yet, e.g. no target in week 1.
     var reps: Int?

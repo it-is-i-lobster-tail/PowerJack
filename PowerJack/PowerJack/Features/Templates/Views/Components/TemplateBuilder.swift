@@ -40,18 +40,6 @@ struct TemplateBuilder: View {
         }
     }
     
-    private var selectionID: Binding<BrowserOption?> {
-        Binding(
-            get: {
-                selection
-            },
-            set: { newSelection in
-                guard let newSelection else { return }
-                selection = newSelection
-            }
-        )
-    }
-
     private func handleUpdateExercise(_: Exercise) {
         exerciseToEdit = nil
         isShowingWorkoutExerciseEditSheet = false
@@ -73,21 +61,13 @@ struct TemplateBuilder: View {
                 Divider()
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 0) {
-                        ForEach(options, id: \.self) {option in
-                            TemplateWorkoutBuilder(
-                                templateWorkoutDraft: $draft.templateWorkoutDraftsValue[option.index],
-                                handleEdit: handleShowEditExerciseSheet
-                            )
-                             .containerRelativeFrame(.horizontal)
-                             .id(option.id)
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-                .scrollPosition(id: selectionID)
+                // Days change only by tapping the picker. Horizontal swipes belong to
+                // the exercise rows, so swipe to edit or delete never flips the day.
+                TemplateWorkoutBuilder(
+                    templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
+                    handleEdit: handleShowEditExerciseSheet
+                )
+                .id(selection.id)
                 Spacer()
             }
         }

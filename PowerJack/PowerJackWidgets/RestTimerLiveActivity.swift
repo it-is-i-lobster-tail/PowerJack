@@ -151,8 +151,8 @@ private struct SetTargets: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(Array(state.sets.enumerated()), id: \.offset) { index, activitySet in
-                SetChip(number: index + 1, activitySet: activitySet, repsOnly: state.repsOnly)
+            ForEach(Array(state.sets.enumerated()), id: \.offset) { _, activitySet in
+                SetChip(activitySet: activitySet, repsOnly: state.repsOnly)
             }
 
             Spacer(minLength: 0)
@@ -172,9 +172,8 @@ private struct SetTargets: View {
     }
 }
 
-/// One set: its number, then weight and reps. Done sets show what was logged, the rest their target.
+/// One set: its label ("W1" for a warmup), then weight and reps. Done sets show what was logged, the rest their target.
 private struct SetChip: View {
-    let number: Int
     let activitySet: ActivitySet
     let repsOnly: Bool
 
@@ -184,7 +183,7 @@ private struct SetChip: View {
     var body: some View {
         VStack(spacing: 1) {
             HStack(spacing: 2) {
-                Text("\(number)")
+                Text(activitySet.label)
                 switch activitySet.progress {
                 case .done:
                     Image(systemName: "checkmark")
@@ -291,13 +290,14 @@ private extension RestActivityAttributes {
 private extension WorkoutActivityState {
     static let resting = WorkoutActivityState(
         exerciseName: "Barbell Back Squat",
+        setText: "Set 1 of 3",
         exerciseOrder: 0,
         setOrder: 1,
         sets: [
-            ActivitySet(progress: .done, reps: 9, weightTenthsPounds: 2250),
-            ActivitySet(progress: .current, reps: 8, weightTenthsPounds: 2250),
-            ActivitySet(progress: .upcoming, reps: 8, weightTenthsPounds: 2250),
-            ActivitySet(progress: .upcoming, reps: 7, weightTenthsPounds: 2300),
+            ActivitySet(label: "W1", progress: .done, reps: 9, weightTenthsPounds: 2250),
+            ActivitySet(label: "1", progress: .current, reps: 8, weightTenthsPounds: 2250),
+            ActivitySet(label: "2", progress: .upcoming, reps: 8, weightTenthsPounds: 2250),
+            ActivitySet(label: "3", progress: .upcoming, reps: 7, weightTenthsPounds: 2300),
         ],
         repsOnly: false,
         canCompleteAtTarget: true,
@@ -306,11 +306,12 @@ private extension WorkoutActivityState {
 
     static let firstWeek = WorkoutActivityState(
         exerciseName: "Barbell Back Squat",
+        setText: "Set 1 of 2",
         exerciseOrder: 0,
         setOrder: 0,
         sets: [
-            ActivitySet(progress: .current, reps: nil, weightTenthsPounds: nil),
-            ActivitySet(progress: .upcoming, reps: nil, weightTenthsPounds: nil),
+            ActivitySet(label: "1", progress: .current, reps: nil, weightTenthsPounds: nil),
+            ActivitySet(label: "2", progress: .upcoming, reps: nil, weightTenthsPounds: nil),
         ],
         repsOnly: false,
         canCompleteAtTarget: false,

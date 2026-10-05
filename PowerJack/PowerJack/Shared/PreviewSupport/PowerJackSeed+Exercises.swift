@@ -42,8 +42,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .barbell,
                 primaryMuscleFocus: .chest,
                 secondaryMuscles: [.triceps, .shoulders],
-                minReps: 5,
-                maxReps: 12,
                 fatigueLevel: .high
             ),
             Exercise(
@@ -51,8 +49,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .barbell,
                 primaryMuscleFocus: .quads,
                 secondaryMuscles: [.glutes, .hamstrings],
-                minReps: 6,
-                maxReps: 12,
                 fatigueLevel: .high
             ),
             Exercise(
@@ -60,8 +56,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .bodyweight,
                 primaryMuscleFocus: .back,
                 secondaryMuscles: [.biceps, .forearms],
-                minReps: 5,
-                maxReps: 12,
                 fatigueLevel: .moderate
             ),
             Exercise(
@@ -69,8 +63,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .cable,
                 primaryMuscleFocus: .back,
                 secondaryMuscles: [.biceps],
-                minReps: 8,
-                maxReps: 15,
                 fatigueLevel: .moderate
             ),
             Exercise(
@@ -78,8 +70,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .cable,
                 primaryMuscleFocus: .shoulders,
                 secondaryMuscles: [],
-                minReps: 10,
-                maxReps: 25,
                 fatigueLevel: .low
             ),
             Exercise(
@@ -87,8 +77,6 @@ extension PowerJackSeed {
                 exerciseEquipment: .legPress,
                 primaryMuscleFocus: .quads,
                 secondaryMuscles: [.glutes],
-                minReps: 8,
-                maxReps: 15,
                 fatigueLevel: .high
             ),
         ]

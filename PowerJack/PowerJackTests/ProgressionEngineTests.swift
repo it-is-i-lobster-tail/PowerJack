@@ -109,7 +109,28 @@ struct ProgressionEngineTests {
         )
         #expect(result.gate == .focusVolume)
         #expect(result.sets.count == 3)
-        #expect(result.sets.last == SetPrescription(plannedReps: nil, plannedWeightTenthsPounds: 1000))
+        #expect(result.sets.last == prescription(7, 1000))
+    }
+
+    @Test("An added set uses the last set's weight with 3 fewer reps")
+    func addedSetTargets() {
+        let result = next(
+            current: history(week: 2, sets: [(12, 1000), (11, 950)]),
+            previous: history(week: 1, sets: [(10, 1000), (10, 950)]),
+            focus: [.chest]
+        )
+        #expect(result.sets == [prescription(12, 1000), prescription(11, 950), prescription(8, 950)])
+    }
+
+    @Test("An added set never targets fewer reps than the exercise minimum")
+    func addedSetRespectsMinimum() {
+        let result = next(
+            current: history(week: 2, sets: [(8, 1000), (7, 1000)]),
+            previous: history(week: 1, sets: [(8, 1000), (7, 1000)]),
+            focus: [.chest]
+        )
+        #expect(result.gate == .focusVolume)
+        #expect(result.sets.last == prescription(6, 1000))
     }
 
     @Test("Non-focus muscles need three eligible weeks")
