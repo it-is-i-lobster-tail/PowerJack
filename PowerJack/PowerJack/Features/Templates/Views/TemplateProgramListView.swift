@@ -26,17 +26,17 @@ struct TemplateProgramListView: View {
         NavigationStack {
             AddableListScaffold(
                 navigationTitle: "My Templates",
-                isEmpty: templatePrograms.isEmpty,
+                isEmpty: visibleTemplates.isEmpty,
                 emptyTitle: "No templates",
                 emptySystemImage: "doc.on.doc"
             ) {
-                List(templatePrograms) { template in
+                List(visibleTemplates) { template in
                     Button {
                         select(template)
                     } label: {
                         VStack {
                             HStack {
-                                Text(template.templateName)
+                                Text(template.displayName)
                                 Spacer()
                             }
 
@@ -73,6 +73,12 @@ struct TemplateProgramListView: View {
         }
     }
 
+    /// Picking a template for a program hides drafts, since they can't start one.
+    private var visibleTemplates: [TemplateProgram] {
+        guard onSelect != nil else { return templatePrograms }
+        return templatePrograms.filter { !$0.draft }
+    }
+
     private func select(_ template: TemplateProgram) {
         guard let onSelect else {
             selectedTemplate = template
@@ -84,7 +90,7 @@ struct TemplateProgramListView: View {
     }
 
     private func handleNewTemplate(_ template: TemplateProgram) {
-        guard let onSelect else { return }
+        guard let onSelect, !template.draft else { return }
         onSelect(template)
         dismiss()
     }

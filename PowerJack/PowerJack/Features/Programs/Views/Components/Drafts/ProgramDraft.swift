@@ -19,12 +19,13 @@ struct ProgramDraft {
 
     var canSave: Bool {
         programLengthWeeks != nil &&
-        templateProgram != nil
+        templateProgram?.draft == false
     }
 
     func makeProgram() -> Program? {
         guard let programLengthWeeks,
-              let templateProgram
+              let templateProgram,
+              !templateProgram.draft
         else {
             return nil
         }

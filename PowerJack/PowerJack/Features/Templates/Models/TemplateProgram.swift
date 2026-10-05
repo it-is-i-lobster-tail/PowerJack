@@ -53,6 +53,36 @@ extension TemplateProgram {
             }
         }
     }
+    /// True until the template has a name, focus muscles, workouts per week and an exercise
+    /// on every day. Drafts are saved but can't start a program.
+    var draft: Bool {
+        Self.isDraft(
+            name: templateName,
+            muscleFocus: templateMuscleFocusValue,
+            workoutsPerWeek: workoutsPerWeek,
+            exerciseCounts: templateWorkouts.map { $0.templateExercises.count }
+        )
+    }
+    /// The name shown in lists, marked while the template is still a draft.
+    var displayName: String {
+        let trimmed = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Untitled" : trimmed
+        return draft ? "(Draft) \(name)" : name
+    }
+
+    /// The one draft rule, shared with `TemplateProgramDraft` so the form and the list agree.
+    static func isDraft(
+        name: String,
+        muscleFocus: [Muscle],
+        workoutsPerWeek: Int,
+        exerciseCounts: [Int]
+    ) -> Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        muscleFocus.isEmpty ||
+        workoutsPerWeek < 1 ||
+        exerciseCounts.count < workoutsPerWeek ||
+        exerciseCounts.prefix(workoutsPerWeek).contains(0)
+    }
 }
 
 //

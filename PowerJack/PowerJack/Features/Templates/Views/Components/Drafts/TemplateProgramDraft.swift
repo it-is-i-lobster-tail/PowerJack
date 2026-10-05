@@ -24,7 +24,8 @@ struct TemplateProgramDraft {
         templateProgram: TemplateProgram? = nil
     ) {
         self.templateName = templateProgram?.templateName ?? ""
-        self.workoutsPerWeekValue = templateProgram?.workoutsPerWeek ?? nil
+        // Drafts store 0 when no count was picked yet.
+        self.workoutsPerWeekValue = templateProgram.flatMap { $0.workoutsPerWeek > 0 ? $0.workoutsPerWeek : nil }
         self.templateMuscleFocusValue = templateProgram?.templateMuscleFocus ?? []
         self.templateWorkoutDraftsValue = []
         
@@ -48,11 +49,25 @@ struct TemplateProgramDraft {
         }
     }
 
+    /// Unfinished templates still save, as drafts. Only an empty form has nothing to keep.
     var canSave: Bool {
-        !trimmedName.isEmpty && trimmedName.count <= Self.maximumNameLength &&
-        workoutsPerWeek != nil &&
-        !templateMuscleFocus.isEmpty &&
-        templateWorkoutDrafts.allSatisfy(\.canSave)
+        trimmedName.count <= Self.maximumNameLength && hasContent
+    }
+
+    /// Matches `TemplateProgram.draft` for the template this would save.
+    var isDraft: Bool {
+        TemplateProgram.isDraft(
+            name: trimmedName,
+            muscleFocus: templateMuscleFocus,
+            workoutsPerWeek: workoutsPerWeek ?? 0,
+            exerciseCounts: templateWorkoutDrafts.map(\.templateExerciseDrafts.count)
+        )
+    }
+
+    private var hasContent: Bool {
+        !trimmedName.isEmpty ||
+        !templateMuscleFocus.isEmpty ||
+        workoutsPerWeek != nil
     }
 
     private var trimmedName: String {
@@ -60,61 +75,46 @@ struct TemplateProgramDraft {
     }
     
     func makeTemplate() -> TemplateProgram? {
-        guard
-            canSave
-        else {
-            return nil
-        }
+        guard canSave else { return nil }
 
-        if let workoutCount = workoutsPerWeek {
-            let newTemplateProgram = TemplateProgram(
-                templateName: trimmedName,
-                workoutsPerWeek: workoutCount,
-                templateMuscleFocus: templateMuscleFocus
-            )
+        let newTemplateProgram = TemplateProgram(
+            templateName: trimmedName,
+            workoutsPerWeek: workoutsPerWeek ?? 0,
+            templateMuscleFocus: templateMuscleFocus
+        )
 
-            for templateWorkoutDraft in templateWorkoutDrafts {
-                let newTemplateWorkout = newTemplateProgram.addTemplateWorkout()
-                for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
-                    newTemplateWorkout.addTemplateExercise(
-                        exercise: templateExerciseDraft.exercise
-                    )
-                }
+        for templateWorkoutDraft in templateWorkoutDrafts {
+            let newTemplateWorkout = newTemplateProgram.addTemplateWorkout()
+            for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
+                newTemplateWorkout.addTemplateExercise(
+                    exercise: templateExerciseDraft.exercise
+                )
             }
-            return newTemplateProgram
-        } else {
-            return nil
         }
+        return newTemplateProgram
     }
     
     @discardableResult
     func apply(to templateProgram: TemplateProgram) -> Bool {
-        guard canSave
-        else {
-            return false
-        }
-        
-        if let workoutCount = workoutsPerWeek {
-            templateProgram.templateName = trimmedName
-            templateProgram.workoutsPerWeek = workoutCount
-            templateProgram.templateMuscleFocus = templateMuscleFocus
-            // Rebuild the workouts only when their exercises changed, so renaming stays cheap.
-            guard workoutLayout != Self.workoutLayout(of: templateProgram) else { return true }
-            templateProgram.clearAllTemplateWorkoutsValue()
+        guard canSave else { return false }
 
-            for templateWorkoutDraft in templateWorkoutDrafts {
-                let newTemplateWorkout = templateProgram.addTemplateWorkout()
-                for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
-                    newTemplateWorkout.addTemplateExercise(
-                        exercise: templateExerciseDraft.exercise
-                    )
-                }
+        templateProgram.templateName = trimmedName
+        templateProgram.workoutsPerWeek = workoutsPerWeek ?? 0
+        templateProgram.templateMuscleFocus = templateMuscleFocus
+        // Rebuild the workouts only when their exercises changed, so renaming stays cheap.
+        guard workoutLayout != Self.workoutLayout(of: templateProgram) else { return true }
+        templateProgram.clearAllTemplateWorkoutsValue()
+
+        for templateWorkoutDraft in templateWorkoutDrafts {
+            let newTemplateWorkout = templateProgram.addTemplateWorkout()
+            for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
+                newTemplateWorkout.addTemplateExercise(
+                    exercise: templateExerciseDraft.exercise
+                )
             }
-            
-            return true
-        } else {
-            return false
         }
+
+        return true
     }
 }
 

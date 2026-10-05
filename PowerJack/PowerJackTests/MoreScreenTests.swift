@@ -54,9 +54,10 @@ struct MoreScreenTests {
         #expect(await screen.typeIntoFirstField("Push Day"), "\(screen.labels)")
         #expect(template.templateName == "Push Day")
 
-        // An invalid name isn't saved.
+        // A blank name still saves, and the template becomes a draft.
         await screen.typeIntoFirstField(" ")
-        #expect(template.templateName == "Push Day")
+        #expect(template.templateName == "")
+        #expect(template.draft)
     }
 
     @Test("Program detail starts the next workout and opens the session")

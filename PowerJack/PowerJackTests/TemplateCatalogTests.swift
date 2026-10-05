@@ -19,7 +19,8 @@ struct TemplateCatalogTests {
         #expect(Set(entries.map(\.id)).count == entries.count)
         for entry in entries {
             let template = try #require(entry.makeTemplate(exercisesByID: exercisesByID), "\(entry.id)")
-            #expect(TemplateProgramDraft(templateProgram: template).canSave, "\(entry.id)")
+            #expect(!template.draft, "\(entry.id)")
+            #expect(!TemplateProgramDraft(templateProgram: template).isDraft, "\(entry.id)")
             #expect(template.templateWorkouts.count == template.workoutsPerWeek)
         }
     }

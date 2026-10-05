@@ -36,7 +36,7 @@ struct TemplateProgramDetailView: View {
         .saveErrorAlert($saveErrorMessage)
     }
 
-    /// Changes that aren't valid yet (like an empty name) wait until they are.
+    /// Unfinished changes save too; the template stays a draft until it's complete.
     private func save() {
         guard draft.apply(to: templateProgram) else { return }
 

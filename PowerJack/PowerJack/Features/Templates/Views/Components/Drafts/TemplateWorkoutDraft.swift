@@ -33,10 +33,6 @@ struct TemplateWorkoutDraft: Identifiable {
             }
         }
     }
-
-    var canSave: Bool {
-        !templateExerciseDrafts.isEmpty || !enabled
-    }
 }
 
 //
