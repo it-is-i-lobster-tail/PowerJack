@@ -59,6 +59,28 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: "In-App Timer") == nil)
     }
 
+    @Test("Switching iCloud Backup keeps Settings open and the chosen section")
+    func iCloudSwitchKeepsPlace() async throws {
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: AppSettings.Key.iCloudBackup)
+        defer { defaults.set(saved, forKey: AppSettings.Key.iCloudBackup) }
+
+        // Wired like the app, so the new container reaches the screens.
+        let store = PowerJackStore(inMemory: true)
+        let screen = try await HostedView(PowerJackAppContent().environment(store))
+        defer { screen.close() }
+
+        await screen.tap("Templates", settleFor: .milliseconds(800))
+        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
+        await screen.tap(backup, settleFor: .milliseconds(800))
+        #expect(store.syncsWithICloud)
+        #expect(screen.label(startingWith: "iCloud Backup") != nil, "Settings closed: \(screen.labels)")
+
+        await screen.tap("Done", settleFor: .milliseconds(800))
+        #expect(screen.contains("My Templates"), "\(screen.labels)")
+    }
+
     @Test("Rest Between Sets opens a wheel that stays inside 0:30...5:00")
     func restBetweenSets() async throws {
         let defaults = UserDefaults.standard
