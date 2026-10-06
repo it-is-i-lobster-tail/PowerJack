@@ -102,6 +102,24 @@ struct AppScreenTests {
         #expect(screen.contains("My Programs"), "\(screen.labels)")
     }
 
+    @Test("Volume is empty until a workout is logged, then shows every muscle")
+    func volume() async throws {
+        let screen = try await HostedView(
+            PowerJackRootView()
+                .modelContainer(container)
+                .environment(PowerJackStore(inMemory: true))
+        )
+        defer { screen.close() }
+
+        await screen.tap("Volume", settleFor: .milliseconds(800))
+        #expect(screen.contains("No workouts yet"), "\(screen.labels)")
+
+        container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
+        await screen.settle(.milliseconds(800))
+        #expect(screen.contains("Chest"), "\(screen.labels)")
+        #expect(screen.contains("Hamstrings"), "\(screen.labels)")
+    }
+
     @Test("The template builder adds exercises from the catalog")
     func templateBuilderAddsExercise() async throws {
         let screen = try await HostedView(

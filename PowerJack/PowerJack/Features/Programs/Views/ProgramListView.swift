@@ -91,7 +91,7 @@ struct ProgramListView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("Its workouts and logged sets will be deleted too. This can't be undone.")
+            Text("Its workouts will be deleted, but your training history stays in Volume. This can't be undone.")
         }
         .saveErrorAlert($saveErrorMessage)
     }

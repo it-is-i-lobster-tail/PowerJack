@@ -19,6 +19,7 @@ enum PowerJackSchema {
         TemplateProgram.self,
         TemplateWorkout.self,
         TemplateExercise.self,
+        WorkoutLog.self,
     ])
 
     /// The user's private iCloud database. Only they can read it.

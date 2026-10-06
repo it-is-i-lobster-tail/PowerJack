@@ -191,9 +191,17 @@ extension Program {
             return nil
         }
         if workout.status == .active {
+            // Logged before the cascade, which marks any unfinished sets complete.
+            logSets(of: workout)
             workout.completeAndCascade()
         }
         return advance(after: workout)
+    }
+    /// Records the workout's sets in the training history, which outlives the program.
+    private func logSets(of workout: Workout) {
+        let setsByMuscle = workout.loggedSetsByMuscle
+        guard !setsByMuscle.isEmpty else { return }
+        modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle))
     }
     /// Skips `workout` and moves the program forward.
     @discardableResult

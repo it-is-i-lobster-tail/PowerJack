@@ -15,6 +15,7 @@ private enum MainBrowserOption:
 {
     case programs
     case templates
+    case volume
 
     var id: Self { self }
 
@@ -24,6 +25,8 @@ private enum MainBrowserOption:
             "Programs"
         case .templates:
             "Templates"
+        case .volume:
+            "Volume"
         }
     }
 }
@@ -32,10 +35,6 @@ struct PowerJackRootView: View {
     @Query private var programs: [Program]
 
     private var activeProgram: Program? { programs.active }
-    @State private var options: [MainBrowserOption] = [
-        MainBrowserOption.programs,
-        MainBrowserOption.templates
-    ]
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
@@ -64,22 +63,29 @@ struct PowerJackRootView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .powerJackTabPage(bottomBarHeight: bottomBarHeight)
             }
+
+            Tab(value: MainBrowserOption.volume) {
+                VolumeView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .powerJackTabPage(bottomBarHeight: bottomBarHeight)
+            }
         }
         // Tab pages don't inherit a safe-area inset set on the TabView,
         // so the bar floats here and each tab page stops short of it.
         .overlay(alignment: .bottom) {
             GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
-                // The switcher stays centered on screen; the gear sits apart at the leading edge.
-                SlidingGlassPicker(
-                    options: MainBrowserOption.allCases,
-                    selection: $selection,
-                    title: \.name,
-                    onTap: showList
-                )
-                .frame(maxWidth: .infinity)
-                .overlay(alignment: .leading) {
+                // The gear sits beside the switcher, apart enough that their glass doesn't merge.
+                HStack(spacing: LayoutMetrics.compactSpacing * 1.5) {
                     SettingsButton { isShowingSettings = true }
+
+                    SlidingGlassPicker(
+                        options: MainBrowserOption.allCases,
+                        selection: $selection,
+                        title: \.name,
+                        onTap: showList
+                    )
                 }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal)
             }
             // A little breathing room between screen content and the bar.
@@ -105,6 +111,8 @@ struct PowerJackRootView: View {
             router.popToRoot()
         case .templates:
             templatesRootID = UUID()
+        case .volume:
+            break
         }
     }
 
