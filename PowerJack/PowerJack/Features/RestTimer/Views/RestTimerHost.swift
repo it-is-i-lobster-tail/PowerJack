@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 
 extension View {
     /// Adds the rest timer for the active program's current workout.
@@ -33,6 +34,15 @@ private struct RestTimerHost: ViewModifier {
     private var activeProgram: Program? { programs.active }
     private var workout: Workout? { activeProgram?.nextWorkout }
     private var rest: RestPeriod? { workout?.currentRest }
+
+    private var restTimerHint: RestTimerHint? {
+        guard let activeProgram, let workout,
+              let occasion = HintOccasion(weekNumber: activeProgram.weekNumber(containing: workout), workout: workout)
+        else {
+            return nil
+        }
+        return RestTimerHint(occasion: occasion)
+    }
 
     private var islandRest: RestPeriod? {
         guard showsInAppTimer, let rest, !rest.isExpired(at: clock) else { return nil }
@@ -77,6 +87,7 @@ private struct RestTimerHost: ViewModifier {
                         isExpanded: $isExpanded,
                         onOpenExercise: onOpenCurrentExercise
                     )
+                    .popoverHint(restTimerHint)
                     .padding(.top, 4)
                     .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
                 }
@@ -84,6 +95,10 @@ private struct RestTimerHost: ViewModifier {
             .animation(.spring(duration: 0.45, bounce: 0.2), value: islandRest != nil)
             .onChange(of: islandRest == nil) { _, isHidden in
                 if isHidden { isExpanded = false }
+            }
+            // Tapping the island is the hint's whole lesson, so it's done after that.
+            .onChange(of: isExpanded) { _, expanded in
+                if expanded { restTimerHint?.invalidate(reason: .actionPerformed) }
             }
             .task(id: rest) { await refreshClock(for: rest) }
             .task(id: liveActivityInput) { await syncLiveActivity(liveActivityInput) }

@@ -15,6 +15,8 @@ struct SettingsView: View {
     private var showsInAppRestTimer = AppSettings.Default.inAppRestTimer
     @AppStorage(AppSettings.Key.restLiveActivity)
     private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
+    @AppStorage(AppSettings.Key.hints)
+    private var showsHints = AppSettings.Default.hints
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var iCloudAvailable = true
@@ -58,6 +60,19 @@ struct SettingsView: View {
                             title: "Rest Between Sets",
                             detail: "How long the timer counts down after each set, based on the exercise's fatigue level."
                         )
+                    }
+                }
+
+                Section {
+                    Toggle(isOn: $showsHints) {
+                        SettingsRowLabel(
+                            systemImage: "lightbulb",
+                            title: "Hints",
+                            detail: "Short tips during your first workouts."
+                        )
+                    }
+                    .onChange(of: showsHints) { _, isOn in
+                        Hints.isEnabled = isOn
                     }
                 }
 

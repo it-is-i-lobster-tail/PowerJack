@@ -12,6 +12,7 @@ struct WorkoutActionsMenu: View {
     let workout: Workout
     let selectedExerciseIndex: Int?
     @Binding var isShowingWorkoutExerciseSheet: Bool
+    let onEditExercise: (Exercise) -> Void
     var onSkipWorkout: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
@@ -65,6 +66,17 @@ struct WorkoutActionsMenu: View {
                     }
                 }
                 .disabled(!canModifySelectedExercise)
+
+                if let exercise = selectedWorkoutExercise.exercise {
+                    Button {
+                        onEditExercise(exercise)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "pencil")
+                            Text("Edit Exercise")
+                        }
+                    }
+                }
 
                 Button {
                     _ = selectedWorkoutExercise.removeLastSet()

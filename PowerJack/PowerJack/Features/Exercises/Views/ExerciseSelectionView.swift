@@ -64,14 +64,12 @@ struct ExerciseSelectionView: View {
                         onSelect: { selectOrEdit(exercise) }
                     )
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if exercise.userCreated {
-                            Button {
-                                edit(exercise)
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                            .tint(.blue)
+                        Button {
+                            edit(exercise)
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
                         }
+                        .tint(.blue)
                     }
                 }
             } createDestination: {

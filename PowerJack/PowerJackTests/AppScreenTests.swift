@@ -165,7 +165,7 @@ struct AppScreenTests {
 
         let curl = try #require(screen.label(startingWith: "Barbell Curl"), "\(screen.labels)")
         await screen.tap(curl, settleFor: .milliseconds(800))
-        #expect(screen.contains("This exercise is included with PowerJack and cannot be edited."), "\(screen.labels)")
+        #expect(screen.contains("Built-in exercises keep their name, equipment and muscles."), "\(screen.labels)")
     }
 
     @Test("Picking a template from the list opens it, and selection mode returns it")

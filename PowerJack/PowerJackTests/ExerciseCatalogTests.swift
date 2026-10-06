@@ -82,17 +82,16 @@ struct ExerciseCatalogTests {
         #expect(legacy.catalogID == nil && legacy.exerciseName == "Legacy Exercise")
     }
 
-    @Test("Exercise drafts refuse all changes to non-user-created exercises")
-    func readOnlyExercises() {
+    @Test("Built-in exercises only take rep range and fatigue edits")
+    func builtInExerciseEdits() {
         // The flag controls editing, including older records without a catalog ID.
         for exercise in [ExerciseCatalog.entries[0].makeExercise(), Exercise(
             exerciseName: "Legacy Exercise", exerciseEquipment: .barbell, primaryMuscleFocus: .chest
         )] {
             let originalName = exercise.exerciseName
             let originalSecondary = exercise.secondaryMuscles
-            let originalRange = exercise.repRange
-            let originalFatigue = exercise.fatigueLevel
             var draft = ExerciseDraft(exercise: exercise)
+            #expect(draft.isBuiltIn)
             draft.name = "Changed Exercise"
             draft.equipment = .cable
             draft.primaryMuscle = .back
@@ -100,15 +99,26 @@ struct ExerciseCatalogTests {
             draft.minReps = 6
             draft.maxReps = 7
             draft.fatigueLevel = .low
-            #expect(draft.canSave)
-            #expect(!draft.apply(to: exercise))
+            #expect(draft.apply(to: exercise))
             #expect(exercise.exerciseName == originalName)
             #expect(exercise.exerciseEquipment == .barbell)
             #expect(exercise.primaryMuscleFocus == .chest)
             #expect(exercise.secondaryMuscles == originalSecondary)
-            #expect(exercise.repRange == originalRange)
-            #expect(exercise.fatigueLevel == originalFatigue)
+            #expect(exercise.repRange == 6...7)
+            #expect(exercise.fatigueLevel == .low)
         }
+    }
+
+    @Test("Built-in exercises still refuse an invalid rep range")
+    func builtInInvalidRepRange() {
+        let exercise = ExerciseCatalog.entries[0].makeExercise()
+        let originalRange = exercise.repRange
+        var draft = ExerciseDraft(exercise: exercise)
+        draft.minReps = 12
+        draft.maxReps = 8
+        #expect(!draft.canSave)
+        #expect(!draft.apply(to: exercise))
+        #expect(exercise.repRange == originalRange)
     }
 
     @Test("Catalog exercises use 5 reps up to their fatigue level's default max")
@@ -120,43 +130,29 @@ struct ExerciseCatalogTests {
         }
     }
 
-    @Test("Seeding backfills progression data on existing catalog rows only")
+    @Test("Seeding keeps the user's rep range and fatigue on catalog rows")
     func backfill() throws {
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
         let context = container.mainContext
         let entry = ExerciseCatalog.entries[0]
-        // Simulates a row saved by an older seed with a higher minimum.
-        let stale = Exercise(
+        // A catalog row the user renamed and tuned, with stale secondary muscles.
+        let tuned = Exercise(
             exerciseName: "Renamed Bench",
             exerciseEquipment: entry.equipment,
             primaryMuscleFocus: entry.primaryMuscle,
-            minReps: 8
-        )
-        stale.catalogID = entry.id
-        let custom = Exercise(
-            exerciseName: "Custom",
-            exerciseEquipment: .cable,
-            primaryMuscleFocus: .back,
-            userCreated: true,
-            minReps: 3,
-            maxReps: 5,
+            minReps: 8,
+            maxReps: 12,
             fatigueLevel: .low
         )
-        context.insert(stale)
-        context.insert(custom)
+        tuned.catalogID = entry.id
+        context.insert(tuned)
         try context.save()
-        // Rows saved before fatigue levels existed migrate to the default.
-        #expect(stale.fatigueLevel == Exercise.defaultFatigueLevel)
 
         try ExerciseCatalog.seed(in: context)
 
-        #expect(stale.repRange == entry.minReps...entry.maxReps)
-        #expect(stale.minReps == 5)
-        #expect(Set(stale.secondaryMuscles) == Set(entry.secondaryMuscles))
-        #expect(stale.fatigueLevel == entry.fatigueLevel)
-        #expect(stale.fatigueLevel == .high)
-        #expect(stale.exerciseName == "Renamed Bench")
-        #expect(custom.repRange == 3...5)
-        #expect(custom.fatigueLevel == .low)
+        #expect(Set(tuned.secondaryMuscles) == Set(entry.secondaryMuscles))
+        #expect(tuned.exerciseName == "Renamed Bench")
+        #expect(tuned.repRange == 8...12)
+        #expect(tuned.fatigueLevel == .low)
     }
 }

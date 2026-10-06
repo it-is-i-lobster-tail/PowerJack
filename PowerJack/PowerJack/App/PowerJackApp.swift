@@ -22,6 +22,10 @@ struct PowerJackApp: App {
         return environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" || environment["XCTestConfigurationFilePath"] != nil
     }
 
+    init() {
+        Hints.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             PowerJackRootView()

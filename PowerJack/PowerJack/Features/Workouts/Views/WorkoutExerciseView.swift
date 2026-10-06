@@ -14,6 +14,13 @@ struct WorkoutExerciseView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
 
     @Bindable var workoutExercise: WorkoutExercise
+    @Environment(\.logSetHint) private var logSetHint
+
+    /// The hint only shows on the exercise the lifter starts with.
+    private var shownLogSetHint: LogSetHint? {
+        guard workoutExercise.workoutValue?.currentSet?.workoutExercise === workoutExercise else { return nil }
+        return logSetHint
+    }
 
     var body: some View {
         VStack {
@@ -29,6 +36,11 @@ struct WorkoutExerciseView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+            }
+
+            if let shownLogSetHint {
+                HintView(shownLogSetHint)
+                    .frame(width: screenWidth * 0.88)
             }
             List(Array(workoutExercise.workoutSets.enumerated()), id: \.element.id) { index, workoutSet in
                 let number = workoutExercise.number(of: workoutSet)

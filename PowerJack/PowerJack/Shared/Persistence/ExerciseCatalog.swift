@@ -41,20 +41,12 @@ enum ExerciseCatalog {
             return exercise
         }
 
-        /// Refreshes progression and rest data on an already-seeded catalog exercise.
-        /// Display fields are left alone so renamed rows stay renamed.
+        /// Refreshes secondary muscles on an already-seeded catalog exercise.
+        /// Display fields are left alone so renamed rows stay renamed, and rep range
+        /// and fatigue are left alone because the user can edit them.
         func backfill(_ exercise: Exercise) -> Bool {
-            guard exercise.minReps != minReps ||
-                    exercise.maxReps != maxReps ||
-                    exercise.secondaryMusclesValue != secondaryMuscles ||
-                    exercise.fatigueLevel != fatigueLevel
-            else {
-                return false
-            }
-            exercise.minReps = minReps
-            exercise.maxReps = maxReps
+            guard exercise.secondaryMusclesValue != secondaryMuscles else { return false }
             exercise.secondaryMuscles = secondaryMuscles
-            exercise.fatigueLevel = fatigueLevel
             return true
         }
     }

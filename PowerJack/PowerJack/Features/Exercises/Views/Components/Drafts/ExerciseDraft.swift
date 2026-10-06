@@ -21,6 +21,8 @@ struct ExerciseDraft {
             maxReps = max(fatigueLevel.defaultMaxReps, minReps)
         }
     }
+    // Built-in exercises keep their name, equipment and muscles. Only rep range and fatigue change.
+    private(set) var isBuiltIn = false
 
     static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
 
@@ -34,6 +36,7 @@ struct ExerciseDraft {
         minReps = exercise.minReps
         maxReps = exercise.maxReps
         fatigueLevel = exercise.fatigueLevel
+        isBuiltIn = !exercise.userCreated
     }
 
     private var trimmedName: String {
@@ -41,6 +44,7 @@ struct ExerciseDraft {
     }
 
     var canSave: Bool {
+        guard !isBuiltIn else { return repRangeIsValid }
         guard equipment != nil,
               let primaryMuscle
         else {
@@ -86,17 +90,15 @@ struct ExerciseDraft {
 
     @discardableResult
     func apply(to exercise: Exercise) -> Bool {
-        guard exercise.userCreated, canSave,
-              let equipment,
-              let primaryMuscle
-        else {
-            return false
-        }
+        guard canSave else { return false }
 
-        exercise.exerciseName = trimmedName
-        exercise.exerciseEquipment = equipment
-        exercise.primaryMuscleFocus = primaryMuscle
-        exercise.secondaryMuscles = secondaryMuscles
+        // Name, equipment and muscles only change on exercises the user created.
+        if exercise.userCreated, !isBuiltIn, let equipment, let primaryMuscle {
+            exercise.exerciseName = trimmedName
+            exercise.exerciseEquipment = equipment
+            exercise.primaryMuscleFocus = primaryMuscle
+            exercise.secondaryMuscles = secondaryMuscles
+        }
         exercise.minReps = minReps
         exercise.maxReps = maxReps
         exercise.fatigueLevel = fatigueLevel

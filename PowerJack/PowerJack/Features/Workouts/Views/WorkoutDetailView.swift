@@ -34,6 +34,7 @@ struct WorkoutDetailView: View {
     @State private var selectedExerciseIndex: Int?
     @State private var isShowingWorkoutExerciseSheet = false
     @State private var presentedSheet: WorkoutSheet?
+    @State private var exerciseToEdit: Exercise?
 
     init(
         workout: Workout,
@@ -57,6 +58,16 @@ struct WorkoutDetailView: View {
             return nil
         }
         return workout.workoutExercises[selectedExerciseIndex]
+    }
+
+    /// Until the first set is done, a hint explains how sets get logged.
+    private var logSetHint: LogSetHint? {
+        guard workout.getCountCompletedSets() == 0,
+              let occasion = HintOccasion(weekNumber: weekNumber, workout: workout)
+        else {
+            return nil
+        }
+        return LogSetHint(occasion: occasion)
     }
 
     private var weekLabel: String? {
@@ -85,6 +96,7 @@ struct WorkoutDetailView: View {
                     focusedSetField: $focusedSetField,
                     onExerciseSetsDone: handleSetsDone
                 )
+                .environment(\.logSetHint, logSetHint)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
@@ -107,6 +119,7 @@ struct WorkoutDetailView: View {
                             workout: workout,
                             selectedExerciseIndex: selectedExerciseIndex,
                             isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
+                            onEditExercise: editExercise,
                             onSkipWorkout: onSkipWorkout
                         )
                     }
@@ -123,6 +136,9 @@ struct WorkoutDetailView: View {
                         .presentationDetents([.large])
                         .presentationDragIndicator(.visible)
                     }
+                }
+                .navigationDestination(item: $exerciseToEdit) { exercise in
+                    ExerciseDetailView(exercise: exercise)
                 }
             }
             // The number pad covers the exercise strip instead of pushing it up.
@@ -155,6 +171,11 @@ struct WorkoutDetailView: View {
                 showCurrentExercise()
             }
         }
+    }
+
+    private func editExercise(_ exercise: Exercise) {
+        focusedSetField = nil
+        exerciseToEdit = exercise
     }
 
     /// Scrolls back to the exercise the user should be doing, e.g. after tapping the rest timer.

@@ -32,48 +32,52 @@ struct ExerciseForm: View {
             headerSystemImage: "dumbbell",
             headerTitle: editExistingExercise ? "Edit exercise" : "Create a new exercise"
         ) {
-            ValidatedNameField(
-                title: "Name",
-                prompt: "Exercise name",
-                maximumLength: maxExerciseNameLengthInput,
-                height: boxHeight,
-                text: $draft.name,
-                isFocused: $nameIsFocused
-            )
-
-            GlassPickerField(
-                selection: $draft.equipment,
-                options: Equipment.allCases.sorted { $0.rawValue < $1.rawValue },
-                height: boxHeight
-            ) {
-                FormFieldLabel(
-                    systemImage: "figure.cross.training",
-                    title: "Equipment",
-                    detail: "Select equipment"
+            // Built-in exercises show their name, equipment and muscles but keep them fixed.
+            Group {
+                ValidatedNameField(
+                    title: "Name",
+                    prompt: "Exercise name",
+                    maximumLength: maxExerciseNameLengthInput,
+                    height: boxHeight,
+                    text: $draft.name,
+                    isFocused: $nameIsFocused
                 )
-            } optionLabel: { equipment in
-                Text(equipment.rawValue.capitalized)
-            }
 
-            GlassPickerField(
-                selection: $draft.primaryMuscle,
-                options: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
-                height: boxHeight
-            ) {
-                FormFieldLabel(
-                    systemImage: "target",
-                    title: "Primary Muscle",
-                    detail: "Select primary muscle"
+                GlassPickerField(
+                    selection: $draft.equipment,
+                    options: Equipment.allCases.sorted { $0.rawValue < $1.rawValue },
+                    height: boxHeight
+                ) {
+                    FormFieldLabel(
+                        systemImage: "figure.cross.training",
+                        title: "Equipment",
+                        detail: "Select equipment"
+                    )
+                } optionLabel: { equipment in
+                    Text(equipment.rawValue.capitalized)
+                }
+
+                GlassPickerField(
+                    selection: $draft.primaryMuscle,
+                    options: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
+                    height: boxHeight
+                ) {
+                    FormFieldLabel(
+                        systemImage: "target",
+                        title: "Primary Muscle",
+                        detail: "Select primary muscle"
+                    )
+                } optionLabel: { muscle in
+                    Text(muscle.rawValue.capitalized)
+                }
+
+                SecondaryMuscleSelectionLink(
+                    boxHeight: boxHeight,
+                    selectedPrimaryMuscle: draft.primaryMuscle,
+                    selectedSecondaryMuscles: $draft.secondaryMuscles
                 )
-            } optionLabel: { muscle in
-                Text(muscle.rawValue.capitalized)
             }
-
-            SecondaryMuscleSelectionLink(
-                boxHeight: boxHeight,
-                selectedPrimaryMuscle: draft.primaryMuscle,
-                selectedSecondaryMuscles: $draft.secondaryMuscles
-            )
+            .disabled(draft.isBuiltIn)
 
             ExerciseRepRangeField(
                 minReps: $draft.minReps,
@@ -86,7 +90,7 @@ struct ExerciseForm: View {
                 height: boxHeight
             )
 
-            ExerciseFormNote()
+            ExerciseFormNote(isBuiltIn: draft.isBuiltIn)
         } footer: {
             FormSubmitButton(
                 title: "Save",
@@ -164,11 +168,15 @@ private struct ExerciseFatigueLevelField: View {
 }
 
 private struct ExerciseFormNote: View {
+    let isBuiltIn: Bool
+
     var body: some View {
         HStack {
             Image(systemName: "info.circle")
                 .foregroundStyle(.blue)
-            Text("You can edit these details at any time.")
+            Text(isBuiltIn
+                 ? "Built-in exercises keep their name, equipment and muscles."
+                 : "You can edit these details at any time.")
                 .font(.caption)
             Spacer()
         }

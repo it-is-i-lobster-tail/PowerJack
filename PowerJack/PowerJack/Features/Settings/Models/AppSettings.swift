@@ -11,11 +11,13 @@ enum AppSettings {
         static let inAppRestTimer = "settings.restTimer.inApp"
         static let restLiveActivity = "settings.restTimer.liveActivity"
         static let iCloudBackup = "settings.iCloudBackup"
+        static let hints = "settings.hints"
     }
 
     enum Default {
         static let inAppRestTimer = true
         static let restLiveActivity = true
         static let iCloudBackup = true
+        static let hints = true
     }
 }

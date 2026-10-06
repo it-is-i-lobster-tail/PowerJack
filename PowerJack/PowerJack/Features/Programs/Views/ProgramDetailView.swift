@@ -11,6 +11,17 @@ import SwiftData
 struct ProgramDetailView: View {
     @Bindable var program: Program
 
+    /// Before a week 1 workout starts, a hint explains how to pick its weights.
+    private var baselineHint: BaselineHint? {
+        guard let workout = program.nextWorkout, workout.status == .planned,
+              let occasion = HintOccasion(weekNumber: program.weekNumber(containing: workout), workout: workout),
+              occasion.isWeekOne
+        else {
+            return nil
+        }
+        return BaselineHint(occasion: occasion)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
@@ -86,6 +97,7 @@ struct ProgramDetailView: View {
                             program: program,
                             workout: nextWorkout
                         )
+                        .popoverHint(baselineHint, arrowEdge: .bottom)
                     } else {
                         EmptyStateView(
                             title: "No upcoming workouts",
