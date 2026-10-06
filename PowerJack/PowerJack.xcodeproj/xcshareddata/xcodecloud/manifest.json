@@ -1,0 +1,9 @@
+{
+  "id" : "885c39cb-a709-4357-ab96-a7cab3821723",
+  "targets" : [
+    {
+      "id" : "c74f9243-7ef0-498a-bad1-5d432e799caa",
+      "name" : "PowerJack"
+    }
+  ]
+}
