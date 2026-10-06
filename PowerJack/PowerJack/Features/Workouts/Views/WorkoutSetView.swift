@@ -24,6 +24,7 @@ struct WorkoutSetView: View {
     }
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.workoutIsReadOnly) private var isReadOnly
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
     /// 1-based position within the set's type, so working sets count from 1 after the warmups.
@@ -76,7 +77,7 @@ struct WorkoutSetView: View {
     }
 
     private var isEditable: Bool {
-        workoutSet.status == .active && !workoutSet.locked
+        !isReadOnly && workoutSet.status == .active && !workoutSet.locked
     }
 
     /// Reps above `Exercise.maxRepsAllowed` are shown as invalid and never saved.
@@ -91,7 +92,7 @@ struct WorkoutSetView: View {
 
     /// A set can only be checked off once its weight and reps are entered; a checked set can always be unchecked.
     private var canToggleCompletion: Bool {
-        guard !workoutSet.locked else { return false }
+        guard !isReadOnly, !workoutSet.locked else { return false }
         if workoutSet.status == .complete { return true }
         return isFullyLogged && !repsInvalid
     }

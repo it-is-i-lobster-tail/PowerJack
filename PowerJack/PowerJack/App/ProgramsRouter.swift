@@ -12,6 +12,7 @@ enum ProgramRoute: Hashable {
     case newProgram
     case detail(Program)
     case session(Program)
+    case completedWorkout(Program, Workout)
 }
 
 @Observable
@@ -30,6 +31,18 @@ final class ProgramsRouter {
 
     func showSession(_ program: Program) {
         path.append(.session(program))
+    }
+
+    /// Opens a workout from the progress grid: the active one resumes, a completed one opens read-only.
+    func showWorkout(_ workout: Workout, in program: Program) {
+        switch workout.status {
+        case .active:
+            showSession(program)
+        case .complete:
+            path.append(.completedWorkout(program, workout))
+        default:
+            break
+        }
     }
 
     /// Opens the active program: straight into its workout if one is underway, otherwise its detail page.
@@ -71,6 +84,13 @@ extension View {
                 ProgramDetailView(program: program)
             case .session(let program):
                 ProgramSessionView(program: program)
+            case .completedWorkout(let program, let workout):
+                WorkoutDetailView(
+                    workout: workout,
+                    weekNumber: program.weekNumber(containing: workout),
+                    weekCount: program.programLengthWeeks,
+                    isReadOnly: true
+                )
             }
         }
     }
