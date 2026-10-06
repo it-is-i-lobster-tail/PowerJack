@@ -32,13 +32,32 @@ private enum MainBrowserOption:
 }
 
 struct PowerJackRootView: View {
+    @Environment(\.modelContext) private var modelContext
+
+    // Kept out here so they survive the rebuild below.
+    @State private var selection: MainBrowserOption = MainBrowserOption.programs
+    @State private var isShowingSettings = false
+
+    var body: some View {
+        PowerJackScreens(selection: $selection, isShowingSettings: $isShowingSettings)
+            // Switching iCloud Backup replaces the container, so rebuild the screens from it.
+            // Settings and the chosen section stay put.
+            .id(ObjectIdentifier(modelContext.container))
+            .sheet(isPresented: $isShowingSettings) {
+                SettingsView()
+            }
+    }
+}
+
+private struct PowerJackScreens: View {
+    @Binding var selection: MainBrowserOption
+    @Binding var isShowingSettings: Bool
+
     @Query private var programs: [Program]
 
     private var activeProgram: Program? { programs.active }
-    @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
-    @State private var isShowingSettings = false
     // A new ID rebuilds the Templates tab, which returns it to its list.
     @State private var templatesRootID = UUID()
     // Measured height of the floating bar, reserved at the bottom of every tab.
@@ -99,9 +118,6 @@ struct PowerJackRootView: View {
         .powerJackKeyboardBehavior()
         .onAppear(perform: restoreActiveWorkout)
         .onOpenURL(perform: handleOpenURL)
-        .sheet(isPresented: $isShowingSettings) {
-            SettingsView()
-        }
     }
 
     /// Tapping a section always lands on its list, like a tab bar.
@@ -116,13 +132,12 @@ struct PowerJackRootView: View {
         }
     }
 
-    /// On launch, reopen the active program's current workout.
+    /// On launch, and after an iCloud Backup switch, reopen the active program's current workout.
     private func restoreActiveWorkout() {
         guard !didRestore else { return }
         didRestore = true
 
         guard let activeProgram, activeProgram.nextWorkout != nil else { return }
-        selection = .programs
         router.restore(activeProgram: activeProgram)
     }
 
