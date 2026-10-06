@@ -12,6 +12,8 @@ struct ProgramProgressGrid: View {
     let workableHeight: CGFloat
     let program: Program
 
+    @Environment(ProgramsRouter.self) private var router
+
     var body: some View {
         let layoutWidth = positiveFinite(workableWidth)
         let layoutHeight = positiveFinite(workableHeight)
@@ -60,7 +62,8 @@ struct ProgramProgressGrid: View {
                             columns: columns,
                             rowWidth: rowWidth,
                             cellHeight: cellHeight,
-                            dataCellWidth: dataCellWidth
+                            dataCellWidth: dataCellWidth,
+                            onSelectWorkout: { router.showWorkout($0, in: program) }
                         )
                     }
                 }

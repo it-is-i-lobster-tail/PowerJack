@@ -13,6 +13,7 @@ struct ProgramProgressWeekRow: View {
     let rowWidth: CGFloat
     let cellHeight: CGFloat
     let dataCellWidth: CGFloat
+    let onSelectWorkout: (Workout) -> Void
 
     var body: some View {
         GridRow {
@@ -37,12 +38,21 @@ struct ProgramProgressWeekRow: View {
                         : 0
                     let displayCompletedPercent: Int = Int((completedPercent * 100).rounded())
 
-                    ProgramProgressCell(
+                    let cell = ProgramProgressCell(
                         completedPercent: completedPercent,
                         displayCompletedPercent: displayCompletedPercent,
                         dataCellWidth: dataCellWidth,
                         cellHeight: cellHeight
                     )
+
+                    // Only the workout underway or one already completed has anything to show.
+                    if workout.status == .active || workout.status == .complete {
+                        Button { onSelectWorkout(workout) } label: { cell }
+                            .buttonStyle(.plain)
+                            .accessibilityHint(workout.status == .active ? "Resumes the workout" : "Shows the workout")
+                    } else {
+                        cell
+                    }
                 }
             }
         }

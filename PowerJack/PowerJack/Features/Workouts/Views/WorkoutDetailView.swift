@@ -17,6 +17,11 @@ private enum WorkoutSheet: Identifiable, Hashable {
     var id: Self { self }
 }
 
+extension EnvironmentValues {
+    /// Set by `WorkoutDetailView` when it shows a finished workout.
+    @Entry var workoutIsReadOnly = false
+}
+
 struct WorkoutDetailView: View {
     private static let headerControlHeight: CGFloat = 45
 
@@ -29,6 +34,8 @@ struct WorkoutDetailView: View {
     let weekCount: Int?
     let onWorkoutFinished: () -> Void
     let onSkipWorkout: (() -> Void)?
+    /// A finished workout opens read-only: nothing can be logged, changed or skipped.
+    let isReadOnly: Bool
 
     @FocusState private var focusedSetField: FocusedSetField?
     @State private var selectedExerciseIndex: Int?
@@ -41,14 +48,17 @@ struct WorkoutDetailView: View {
         weekNumber: Int? = nil,
         weekCount: Int? = nil,
         onWorkoutFinished: @escaping () -> Void = {},
-        onSkipWorkout: (() -> Void)? = nil
+        onSkipWorkout: (() -> Void)? = nil,
+        isReadOnly: Bool = false
     ) {
         self.workout = workout
         self.weekNumber = weekNumber
         self.weekCount = weekCount
         self.onWorkoutFinished = onWorkoutFinished
         self.onSkipWorkout = onSkipWorkout
-        _selectedExerciseIndex = State(initialValue: workout.currentExerciseIndex)
+        self.isReadOnly = isReadOnly
+        // A finished workout opens on its first exercise; a live one on where the user left off.
+        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : workout.currentExerciseIndex)
     }
 
     private var selectedWorkoutExercise: WorkoutExercise? {
@@ -62,7 +72,8 @@ struct WorkoutDetailView: View {
 
     /// Until the first set is done, a hint explains how sets get logged.
     private var logSetHint: LogSetHint? {
-        guard workout.getCountCompletedSets() == 0,
+        guard !isReadOnly,
+              workout.getCountCompletedSets() == 0,
               let occasion = HintOccasion(weekNumber: weekNumber, workout: workout)
         else {
             return nil
@@ -97,6 +108,7 @@ struct WorkoutDetailView: View {
                     onExerciseSetsDone: handleSetsDone
                 )
                 .environment(\.logSetHint, logSetHint)
+                .environment(\.workoutIsReadOnly, isReadOnly)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
@@ -114,14 +126,16 @@ struct WorkoutDetailView: View {
                         .glassEffect(.regular, in: .capsule)
                     }
 
-                    ToolbarItem(placement: .topBarTrailing) {
-                        WorkoutActionsMenu(
-                            workout: workout,
-                            selectedExerciseIndex: selectedExerciseIndex,
-                            isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
-                            onEditExercise: editExercise,
-                            onSkipWorkout: onSkipWorkout
-                        )
+                    if !isReadOnly {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            WorkoutActionsMenu(
+                                workout: workout,
+                                selectedExerciseIndex: selectedExerciseIndex,
+                                isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
+                                onEditExercise: editExercise,
+                                onSkipWorkout: onSkipWorkout
+                            )
+                        }
                     }
                 }
                 .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
@@ -188,7 +202,7 @@ struct WorkoutDetailView: View {
     /// Shows feedback or a manual check-in when the selected exercise is waiting on one.
     /// Runs on appear too, so a relaunch mid-feedback resumes where the user left off.
     private func presentSheetIfNeeded() {
-        guard presentedSheet == nil, let selectedWorkoutExercise else { return }
+        guard !isReadOnly, presentedSheet == nil, let selectedWorkoutExercise else { return }
 
         if selectedWorkoutExercise.needsFeedback {
             focusedSetField = nil
@@ -254,6 +268,19 @@ struct WorkoutDetailView: View {
             workout: scenario.weekTwoWorkouts[0],
             weekNumber: 2,
             weekCount: scenario.program.programLengthWeeks
+        )
+    }
+}
+
+#Preview("WorkoutDetailView - Read Only") {
+    let scenario = PowerJackSeed.weekTwoProgression()
+
+    NavigationPreviewHost(modelContainer: scenario.container) {
+        WorkoutDetailView(
+            workout: scenario.weekOneWorkouts[0],
+            weekNumber: 1,
+            weekCount: scenario.program.programLengthWeeks,
+            isReadOnly: true
         )
     }
 }
