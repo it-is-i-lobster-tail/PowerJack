@@ -95,6 +95,26 @@ struct MoreScreenTests {
         #expect(router.path.isEmpty)
     }
 
+    @Test("A workout in the progress grid opens only once it is underway or complete")
+    func routerShowsWorkout() throws {
+        let program = try makeProgram()
+        program.start()
+        let workout = try #require(program.nextWorkout)
+        let router = ProgramsRouter()
+
+        router.showWorkout(workout, in: program)
+        #expect(router.path.isEmpty)
+
+        workout.startAndCascade()
+        router.showWorkout(workout, in: program)
+        #expect(router.path == [.session(program)])
+
+        router.popToRoot()
+        program.finishWorkout(workout)
+        router.showWorkout(workout, in: program)
+        #expect(router.path == [.completedWorkout(program, workout)])
+    }
+
     @Test("The Live Activity's check button logs the current set at its target")
     func completeSetIntent() async throws {
         let defaults = UserDefaults.standard
