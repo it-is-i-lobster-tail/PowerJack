@@ -23,8 +23,6 @@ extension EnvironmentValues {
 }
 
 struct WorkoutDetailView: View {
-    private static let headerControlHeight: CGFloat = 45
-
     @Environment(\.modelContext) private var modelContext
     // Optional so the view still works outside the Programs navigation stack.
     @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
@@ -95,13 +93,8 @@ struct WorkoutDetailView: View {
             )
         } else {
             GeometryReader { geometry in
-                let screenWidth = geometry.size.width
-                let screenHeight = geometry.size.height
-                let contentHeight = max(0, screenHeight - Self.headerControlHeight)
-
                 WorkoutDetailContent(
-                    screenWidth: screenWidth,
-                    contentHeight: contentHeight,
+                    screenWidth: geometry.size.width,
                     workoutExercises: workout.workoutExercises,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
