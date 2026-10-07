@@ -57,6 +57,41 @@ struct WarmupSetTests {
         #expect(ProgressionPlanner.history(exercise, programWeek: 1).sets.count == 2)
     }
 
+    @Test("An exercise is finished once its working sets are done, warmups or not")
+    func warmupsAreOptional() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        log(exercise.workingSets, reps: 8, weightTenthsPounds: 1000)
+        #expect(exercise.allSetsDone())
+        #expect(exercise.needsFeedback)
+        #expect(workout.currentSet == nil)
+        #expect(workout.completedWorkingSets == workout.workingSetCount)
+
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        exercise.completeAndCascade()
+
+        #expect(exercise.status == .complete)
+        // Unlogged warmups are skipped, not recorded as done.
+        #expect(exercise.warmupSets.map(\.status) == [.skipped, .skipped])
+        #expect(exercise.workingSets.map(\.status) == [.complete, .complete])
+    }
+
+    @Test("Warmups alone don't finish an exercise")
+    func warmupsDontFinishExercise() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        log(exercise.warmupSets, reps: 5, weightTenthsPounds: 450)
+
+        #expect(!exercise.allSetsDone())
+        #expect(workout.completedWorkingSets == 0)
+    }
+
     @Test("A warmup weight only fills the next warmup")
     func warmupWeightStaysInWarmups() throws {
         let program = try makeProgram(weeks: 1)
