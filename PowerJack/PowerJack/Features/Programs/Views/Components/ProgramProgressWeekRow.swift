@@ -33,8 +33,8 @@ struct ProgramProgressWeekRow: View {
                 }
             } else {
                 ForEach(programWeek.workouts, id: \.self) { workout in
-                    let completedPercent: Double = workout.totalSets > 0
-                        ? min(1, max(0, Double(workout.getCountCompletedSets()) / Double(workout.totalSets)))
+                    let completedPercent: Double = workout.workingSetCount > 0
+                        ? min(1, max(0, Double(workout.completedWorkingSets) / Double(workout.workingSetCount)))
                         : 0
                     let displayCompletedPercent: Int = Int((completedPercent * 100).rounded())
 
