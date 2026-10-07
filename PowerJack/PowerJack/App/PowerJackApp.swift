@@ -28,11 +28,18 @@ struct PowerJackApp: App {
 
     var body: some Scene {
         WindowGroup {
-            PowerJackRootView()
-                // Switching iCloud Backup replaces the container, so rebuild every screen from it.
-                .id(ObjectIdentifier(Self.store.container))
-                .modelContainer(Self.store.container)
+            PowerJackAppContent()
                 .environment(Self.store)
         }
+    }
+}
+
+/// The app's screens on the store's current container, which changes with iCloud Backup.
+struct PowerJackAppContent: View {
+    @Environment(PowerJackStore.self) private var store
+
+    var body: some View {
+        PowerJackRootView()
+            .modelContainer(store.container)
     }
 }
