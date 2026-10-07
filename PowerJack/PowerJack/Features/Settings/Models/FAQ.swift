@@ -51,13 +51,13 @@ extension FAQ {
                 paragraphs: [
                     "Strength training is about how much force you can produce. Hypertrophy training is about building more muscle mass.",
                     "In general, a bigger muscle can produce more force. But strength can also go up without much new muscle, because strength is also a skill: how well your nervous system recruits and coordinates muscle for a specific lift.",
-                    "As a made-up illustration, a 225 lb bodybuilder might carry 10 lb of muscle on their chest but recruit it at only 50% efficiency. They would produce about the same force as a 180 lb powerlifter with 6 lb of chest muscle who, thanks to neural adaptation, recruits it far better.",
+                    "That's why new lifters often get much stronger in their first weeks, before their muscles have visibly grown, and why a smaller lifter who has practiced a lift for years can out-lift a bigger one who hasn't.",
                 ]
             ),
             Entry(
                 question: "What does strength training look like?",
                 paragraphs: [
-                    "Using your muscles close to their maximum force output. That usually means heavy weights for low reps, typically 1 to 5 per set at 80% or more of your one-rep max, often building in weight toward a heavy top set.",
+                    "Using your muscles close to their maximum force output. That usually means heavy weights, often 80% or more of your one-rep max, for low reps, traditionally 1 to 5 a set.",
                     "Heavy loads build strength best. Light and heavy loads build similar amounts of muscle, but heavy loads build more one-rep-max strength.",
                     "Strength is specific. You get strongest at the lifts, rep ranges and techniques you actually practice, so powerlifters train the squat, bench and deadlift themselves rather than only similar exercises.",
                     "Rest longer between heavy sets. Trained lifters who rested 3 minutes between sets gained more strength, and more muscle, than those who rested 1 minute.",
@@ -72,6 +72,10 @@ extension FAQ {
                     Source(
                         title: "Schoenfeld 2021: the repetition continuum",
                         url: URL(string: "https://doi.org/10.3390/sports9020032")!
+                    ),
+                    Source(
+                        title: "Currier 2023: loads and sets for strength",
+                        url: URL(string: "https://doi.org/10.1136/bjsports-2023-106807")!
                     ),
                     Source(
                         title: "Schoenfeld 2016: longer rest periods",
@@ -90,14 +94,11 @@ extension FAQ {
             Entry(
                 question: "What does hypertrophy training look like?",
                 paragraphs: [
-                    "Taking your muscles near failure. Muscle grows from sets anywhere between about 5 and 30 reps, as long as the sets are hard, and growth goes up with the number of hard sets you do for a muscle each week. Sets should end within about 5 reps of failure (0 to 5 RIR). The closer to failure you stop, the more growth each set gives, but the harder it is to recover from.",
+                    "Taking your muscles near failure. Muscle grows from sets anywhere between about 5 and 30 reps, as long as the sets are hard, and growth goes up with the number of hard sets you do for a muscle each week. Sets should end within about 5 reps of failure (0 to 5 RIR). Stopping closer to failure tends to give more growth per set, though exactly how much is uncertain, and it is harder to recover from.",
                     "It takes very little to maintain a muscle. Younger lifters have held on to their size for months with one hard set per exercise once a week, as long as the weight stayed heavy. Older lifters may need 2 to 3 sets, twice a week.",
-                    "Measurable growth typically starts around 4 sets a week, and from there each added set gives a bit less than the one before. In one analysis of many studies, average muscle growth was:",
-                    "• Fewer than 5 sets a week: about 5.4%",
-                    "• 5 to 9 sets a week: about 6.6%",
-                    "• 10 or more sets a week: about 9.8%",
-                    "Sets where a muscle only assists, like your biceps in a row, count for roughly half a set.",
-                    "These are averages. Your body might need more or less, and it depends on where you are in your lifting journey: advanced lifters put on mass more slowly. In one study, trained lifters were still growing on as many as 52 sets a week for their quads. The point of the numbers is to show diminishing returns: more sets keep adding growth, but each one adds less.",
+                    "Measurable growth typically starts around 4 sets a week. From there, more weekly sets generally mean more growth, but each added set gives less than the one before.",
+                    "When you count sets, work where a muscle only assists, like your biceps in a row, can be approximated as roughly half a set.",
+                    "These are averages. Your body might need more or less, and it depends on where you are in your lifting journey: advanced lifters put on mass more slowly. Very high volumes are not a shortcut: in one study, trained lifters who built up to 52 quad sets a week did not grow significantly more than lifters who stayed at 22.",
                 ],
                 sources: [
                     Source(
@@ -170,7 +171,7 @@ extension FAQ {
             Entry(
                 question: "So I'll lose weight lifting?",
                 paragraphs: [
-                    "You can't out-exercise a bad diet. On its own, lifting trims a little fat, about 1.5 percentage points of body fat on average across studies, but it won't move the scale much. Losing real weight comes down to what you eat.",
+                    "You can't out-exercise a bad diet. On its own, lifting trims a little fat, about 1.5 percentage points of body fat on average across studies, but it won't move the scale much. Substantial weight loss takes a sustained calorie deficit, and changing what you eat is usually the most practical way to create one.",
                     "Lifting while you diet helps you keep your muscle, so more of what you lose is fat.",
                 ],
                 sources: [
@@ -192,12 +193,16 @@ extension FAQ {
                         url: URL(string: "https://doi.org/10.1136/bjsports-2017-097608")!
                     ),
                     Source(
+                        title: "Nunes 2022: protein and lean mass",
+                        url: URL(string: "https://doi.org/10.1002/jcsm.12922")!
+                    ),
+                    Source(
                         title: "Tagawa 2022: protein and strength gains",
                         url: URL(string: "https://doi.org/10.1186/s40798-022-00508-w")!
                     ),
                     Source(
-                        title: "Helms 2014: protein while dieting lean",
-                        url: URL(string: "https://doi.org/10.1123/ijsnem.2013-0054")!
+                        title: "Refalo 2025: protein while dieting",
+                        url: URL(string: "https://doi.org/10.1519/SSC.0000000000000888")!
                     ),
                 ]
             ),
@@ -227,12 +232,16 @@ extension FAQ {
                 question: "Then beta-alanine is super important.",
                 paragraphs: [
                     "Not really. For many people it causes a harmless tingling of the skin, which people take as a sign that \"it's working\". The tingle is a side effect, not the benefit. Any benefit comes from taking it daily for weeks, not from the scoop before your workout.",
-                    "At best, it helps a little with hard efforts lasting about 1 to 4 minutes. Most sets in the gym are over well before that, and an effect on strength hasn't been established.",
+                    "At best, it helps a little with all-out efforts lasting roughly 1 to 10 minutes. Most sets in the gym are over well before that, and an effect on strength hasn't been established.",
                 ],
                 sources: [
                     Source(
                         title: "Trexler 2015: ISSN position stand on beta-alanine",
                         url: URL(string: "https://doi.org/10.1186/s12970-015-0090-y")!
+                    ),
+                    Source(
+                        title: "Georgiou 2024: beta-alanine and maximal efforts",
+                        url: URL(string: "https://doi.org/10.1123/ijsnem.2024-0027")!
                     ),
                 ]
             ),
@@ -240,7 +249,7 @@ extension FAQ {
                 question: "Then why do I lift so much better on pre-workout?",
                 paragraphs: [
                     "Caffeine. It gives a small but real boost to strength and power. High doses were on the Olympic banned list until 2004, and the NCAA still caps how much athletes can have in their system. In most pre-workouts, it's the ingredient doing the heavy lifting.",
-                    "We'll let you decide whether you need it. Caffeine lingers: a typical pre-workout serving (about 200 mg) can cut into your sleep even when you take it 13 hours before bed. And remember: gains don't happen in the gym, they happen while you recover, and sleep is a big part of that. In one study, a single night without sleep cut muscle protein synthesis by 18%.",
+                    "We'll let you decide whether you need it. Caffeine lingers: a typical pre-workout serving (about 200 mg) can cut into your sleep even when you take it 13 hours before bed. And remember: gains don't happen in the gym, they happen while you recover, and sleep is a big part of that. In one small study, a full night without sleep cut muscle protein synthesis by 18%.",
                 ],
                 sources: [
                     Source(
@@ -250,6 +259,10 @@ extension FAQ {
                     Source(
                         title: "USADA: caffeine's status in sport",
                         url: URL(string: "https://www.usada.org/spirit-of-sport/substance-profile-caffeine/")!
+                    ),
+                    Source(
+                        title: "NCAA: banned substances list",
+                        url: URL(string: "https://www.ncaa.org/sports/2015/6/10/ncaa-banned-substances.aspx")!
                     ),
                     Source(
                         title: "Gardiner 2023: caffeine and sleep",
