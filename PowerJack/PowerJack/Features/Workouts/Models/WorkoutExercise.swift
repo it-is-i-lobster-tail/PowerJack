@@ -141,14 +141,10 @@ extension WorkoutExercise {
             allSetsDone() &&
             completedWorkingSets > 0
     }
-    // All Sets Complete
+    // Every working set is complete or skipped. Warmups are optional and don't count.
     func allSetsDone() -> Bool {
-        let sets = workoutSetsValue ?? []
-        return !sets.isEmpty &&
-                sets.allSatisfy { workoutSet in
-                    workoutSet.status == .complete ||
-                    workoutSet.status == .skipped
-                }
+        let sets = workingSets
+        return !sets.isEmpty && sets.allSatisfy(\.isDone)
     }
 }
 
@@ -205,7 +201,12 @@ extension WorkoutExercise {
     func completeAndCascade() {
         complete()
         for workoutSet in workoutSets {
-            workoutSet.completeAndLock()
+            // A warmup left unlogged is skipped, not marked done.
+            if workoutSet.isWarmup && workoutSet.status == .active {
+                workoutSet.skip()
+            } else {
+                workoutSet.completeAndLock()
+            }
         }
     }
     func stopAndCascade() {

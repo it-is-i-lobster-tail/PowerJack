@@ -68,6 +68,13 @@ extension Workout {
     func getCountCompletedSets() -> Int {
         return countSetStatus(status: Status.complete)
     }
+    // Working sets only, for progress. Warmups are optional.
+    var workingSetCount: Int {
+        workoutExercises.reduce(0) { $0 + $1.workingSets.count }
+    }
+    var completedWorkingSets: Int {
+        workoutExercises.reduce(0) { $0 + $1.completedWorkingSets }
+    }
     // Planned Sets
     func getCountPlannedSets() -> Int {
         return countSetStatus(status: Status.planned)

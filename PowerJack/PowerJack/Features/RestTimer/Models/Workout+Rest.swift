@@ -13,7 +13,8 @@ extension Workout {
         guard status == .active else { return nil }
         let inProgress = latestCompletedSet.map { [$0.workoutExercise] } ?? []
 
-        for workoutExercise in inProgress + workoutExercises {
+        // Once its working sets are done, an exercise's leftover warmups aren't waiting.
+        for workoutExercise in inProgress + workoutExercises where !workoutExercise.allSetsDone() {
             if let workoutSet = workoutExercise.workoutSets.first(where: { $0.status == .active }) {
                 return (workoutExercise, workoutSet)
             }
