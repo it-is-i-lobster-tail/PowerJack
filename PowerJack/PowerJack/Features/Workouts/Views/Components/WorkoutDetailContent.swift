@@ -9,37 +9,29 @@ import SwiftUI
 
 struct WorkoutDetailContent: View {
     let screenWidth: CGFloat
-    let contentHeight: CGFloat
     let workoutExercises: [WorkoutExercise]
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
 
     var body: some View {
-        ZStack {
-            VStack {
-                WorkoutExercisePager(
-                    screenWidth: screenWidth,
-                    workoutExercises: workoutExercises ,
-                    onExerciseSetsDone: onExerciseSetsDone,
-                    selectedExerciseIndex: $selectedExerciseIndex,
-                    focusedSetField: focusedSetField
-                )
-                .frame(
-                    width: screenWidth,
-                    height: contentHeight * 0.85
-                )
+        // The sets take every point the exercise strip doesn't need.
+        VStack(spacing: 0) {
+            WorkoutExercisePager(
+                screenWidth: screenWidth,
+                workoutExercises: workoutExercises,
+                onExerciseSetsDone: onExerciseSetsDone,
+                selectedExerciseIndex: $selectedExerciseIndex,
+                focusedSetField: focusedSetField
+            )
+            .frame(maxHeight: .infinity)
 
-                ExercisePreviewStrip(
-                    workoutExercises: workoutExercises,
-                    screenWidth: screenWidth,
-                    selectedExerciseIndex: $selectedExerciseIndex
-                )
-                .frame(
-                    width: screenWidth,
-                    height: contentHeight * 0.1
-                )
-            }
+            ExercisePreviewStrip(
+                workoutExercises: workoutExercises,
+                screenWidth: screenWidth,
+                selectedExerciseIndex: $selectedExerciseIndex
+            )
         }
+        .frame(width: screenWidth)
     }
 }

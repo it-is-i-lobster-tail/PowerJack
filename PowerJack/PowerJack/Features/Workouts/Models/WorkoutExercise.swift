@@ -46,6 +46,7 @@ final class WorkoutExercise {
     static let maxSets = 5
     static let initialSets = 2
     static let initialWarmupSets = 2
+    static let maxWarmupSets = 4
 
     init(
         exercise: Exercise,
@@ -255,9 +256,19 @@ extension WorkoutExercise {
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
         )
         newSet.start()
-        workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
+        append(newSet)
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
         return newSet
+    }
+    /// Adds a warmup from the set menu. Turns warmups back on for the exercise.
+    @discardableResult
+    func addWarmupSet() -> WorkoutSet? {
+        guard !lockedValue else {
+            Logger.workoutExercise.warning("Cannot add a warmup to a locked WorkoutExercise.")
+            return nil
+        }
+        exercise?.warmupDisabled = false
+        return addSet(type: .warmup)
     }
     /// Adds a set that stays planned until the workout starts. Used for generated weeks.
     @discardableResult
@@ -279,8 +290,15 @@ extension WorkoutExercise {
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds
         )
-        workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
+        append(newSet)
         return newSet
+    }
+    /// Keeps warmups ahead of working sets, so a warmup added mid-exercise slots in before them.
+    private func append(_ newSet: WorkoutSet) {
+        workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
+        for (index, workoutSet) in (warmupSets + workingSets).enumerated() {
+            workoutSet.order = index
+        }
     }
     /// Adds the warmup sets every exercise starts with. Call before adding working sets.
     func addWarmupSets() {
@@ -288,11 +306,35 @@ extension WorkoutExercise {
             _ = addSet(type: .warmup)
         }
     }
-    /// Warmups are capped and must come before any working set; working sets are capped at `maxSets`.
+    /// Warmups are capped at `maxWarmupSets` and left out when the exercise has them disabled.
+    /// Working sets are capped at `maxSets`.
     private func canAddSet(type: SetType) -> Bool {
         switch type {
-        case .warmup: warmupSets.count < Self.initialWarmupSets && workingSets.isEmpty
+        case .warmup: warmupSets.count < Self.maxWarmupSets && exercise?.warmupDisabled != true
         case .working: workingSets.count < Self.maxSets
+        }
+    }
+    /// Skips the warmups still to do. Logged warmups keep what was logged.
+    func skipWarmups() {
+        guard !lockedValue else {
+            Logger.workoutExercise.warning("Cannot skip warmups of a locked WorkoutExercise.")
+            return
+        }
+        for warmup in warmupSets where !warmup.isDone {
+            warmup.skip()
+        }
+    }
+    /// Turns warmups off for this exercise and drops the ones not yet logged.
+    /// Later workouts with this exercise start on the working sets.
+    func disableWarmups() {
+        guard !lockedValue, let exercise else {
+            Logger.workoutExercise.warning("Cannot disable warmups of a locked WorkoutExercise.")
+            return
+        }
+        exercise.warmupDisabled = true
+        for warmup in warmupSets where !warmup.isDone {
+            workoutSetsValue?.removeAll { $0 === warmup }
+            modelContext?.delete(warmup)
         }
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
@@ -325,10 +367,10 @@ extension WorkoutExercise {
         }
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
-    /// Removes the last working set. Warmups stay.
-    func removeLastSet() {
-        guard !lockedValue, let lastSet = workingSets.last else {
-            Logger.workoutExercise.warning("Cannot remove last working set of locked or empty WorkoutExercise.")
+    /// Removes the last set of `type`. Sets of the other type stay.
+    func removeLastSet(type: SetType = .working) {
+        guard !lockedValue, let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
+            Logger.workoutExercise.warning("Cannot remove last set of locked or empty WorkoutExercise.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")

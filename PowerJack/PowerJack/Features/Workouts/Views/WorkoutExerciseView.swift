@@ -46,13 +46,10 @@ struct WorkoutExerciseView: View {
                 let number = workoutExercise.number(of: workoutSet)
 
                 VStack {
-                    // Each group of sets gets a small heading above its first set.
+                    // Each group of sets gets a heading and set menu above its first set.
                     if number == 1 {
-                        Text(workoutSet.isWarmup ? "Warmup" : "Working Sets")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                            .frame(width: screenWidth * 0.84, alignment: .leading)
+                        SetGroupHeader(workoutExercise: workoutExercise, setType: workoutSet.setType)
+                            .frame(width: screenWidth * 0.84)
                             .padding(.top, index == 0 ? 0 : LayoutMetrics.compactSpacing)
                     }
 

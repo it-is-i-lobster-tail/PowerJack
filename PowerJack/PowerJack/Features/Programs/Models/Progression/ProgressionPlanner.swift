@@ -54,9 +54,11 @@ enum ProgressionPlanner {
                     )
                 )
 
-                // Warmups repeat what was logged last week. They never progress.
+                // Warmups repeat what was logged last week, including how many. They never progress.
+                // Exercises with warmups disabled get none (see `WorkoutExercise.canAddSet`).
                 let sourceWarmups = sourceExercise.warmupSets
-                for index in 0..<WorkoutExercise.initialWarmupSets {
+                let warmupCount = sourceWarmups.isEmpty ? WorkoutExercise.initialWarmupSets : sourceWarmups.count
+                for index in 0..<warmupCount {
                     let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
                     workoutExercise.addPlannedSet(
                         type: .warmup,
