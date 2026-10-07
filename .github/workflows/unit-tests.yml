@@ -29,13 +29,32 @@ jobs:
           sudo xcode-select --switch "$XCODE_PATH"
           xcodebuild -version
 
+      # Runners sometimes start with no simulators listed, so create our own.
+      - name: Create simulator
+        run: |
+          runtime=$(xcrun simctl list runtimes --json | jq -r --arg device "$SIMULATOR" '
+            [.runtimes[]
+              | select(.platform == "iOS" and .isAvailable)
+              | select(any(.supportedDeviceTypes[]; .name == $device))]
+            | sort_by(.version | split(".") | map(tonumber))
+            | last | .identifier // empty')
+
+          if [ -z "$runtime" ]; then
+            echo "::error::No iOS runtime on this runner supports $SIMULATOR."
+            exit 1
+          fi
+
+          udid=$(xcrun simctl create "CI $SIMULATOR" "$SIMULATOR" "$runtime")
+          echo "Created $SIMULATOR on $runtime ($udid)"
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         run: |
           set -o pipefail
           xcodebuild test \
             -project PowerJack/PowerJack.xcodeproj \
             -scheme PowerJack \
-            -destination "platform=iOS Simulator,name=$SIMULATOR" \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -parallel-testing-enabled NO \
             -resultBundlePath TestResults.xcresult
 
