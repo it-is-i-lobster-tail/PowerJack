@@ -50,19 +50,19 @@ extension FAQ {
                 question: "What's the difference between hypertrophy and strength?",
                 paragraphs: [
                     "Strength training is about how much force you can produce. Hypertrophy training is about building more muscle mass.",
-                    "In general, more muscle means more motor units to recruit, and so more force. But strength can also go up without much new muscle, because strength is also a skill: how efficiently your nervous system fires to recruit muscle for a task.",
-                    "For example, a 225 lb bodybuilder might carry 10 lb of muscle on their chest but recruit it at only 50% efficiency. They would produce about the same force as a 180 lb powerlifter with 6 lb of chest muscle who, thanks to neural adaptation, recruits it far better.",
+                    "In general, a bigger muscle can produce more force. But strength can also go up without much new muscle, because strength is also a skill: how well your nervous system recruits and coordinates muscle for a specific lift.",
+                    "As a made-up illustration, a 225 lb bodybuilder might carry 10 lb of muscle on their chest but recruit it at only 50% efficiency. They would produce about the same force as a 180 lb powerlifter with 6 lb of chest muscle who, thanks to neural adaptation, recruits it far better.",
                 ]
             ),
             Entry(
                 question: "What does strength training look like?",
                 paragraphs: [
-                    "Using your muscles close to their maximum force output. That usually means lower reps, in the 2 to 8 range, with each set building in weight so the last set is the most force you can produce.",
+                    "Using your muscles close to their maximum force output. That usually means heavy weights for low reps, typically 1 to 5 per set at 80% or more of your one-rep max, often building in weight toward a heavy top set.",
                     "Heavy loads build strength best. Light and heavy loads build similar amounts of muscle, but heavy loads build more one-rep-max strength.",
                     "Strength is specific. You get strongest at the lifts, rep ranges and techniques you actually practice, so powerlifters train the squat, bench and deadlift themselves rather than only similar exercises.",
                     "Rest longer between heavy sets. Trained lifters who rested 3 minutes between sets gained more strength, and more muscle, than those who rested 1 minute.",
-                    "You don't have to grind to failure. How close you stop to failure has little effect on strength gains, while it matters more for muscle growth, so heavy sets can stop a few reps short.",
-                    "Practice the lift often. Training a lift more times per week tends to add strength, while for muscle growth the total number of hard sets matters more than how they are spread across the week.",
+                    "You don't have to grind to failure. How close you stop to failure has little effect on strength gains, while it matters more for muscle growth, so heavy sets can stop about 3 to 5 reps short.",
+                    "Practice the lift often. Training a lift more times per week tends to add strength, with diminishing returns, while for muscle growth the total number of hard sets matters more than how they are spread across the week.",
                 ],
                 sources: [
                     Source(
@@ -79,24 +79,25 @@ extension FAQ {
                     ),
                     Source(
                         title: "Robinson 2024: proximity to failure",
-                        url: URL(string: "https://www.fau.edu/newsdesk/articles/muscle-growth-strength-study")!
+                        url: URL(string: "https://doi.org/10.1007/s40279-024-02069-2")!
                     ),
                     Source(
-                        title: "Pelland: weekly volume and frequency",
-                        url: URL(string: "https://sportrxiv.org/index.php/server/preprint/view/460")!
+                        title: "Pelland 2026: weekly volume and frequency",
+                        url: URL(string: "https://doi.org/10.1007/s40279-025-02344-w")!
                     ),
                 ]
             ),
             Entry(
                 question: "What does hypertrophy training look like?",
                 paragraphs: [
-                    "Taking your muscles near failure. Muscle grows from sets anywhere between 5 and 30 reps, and growth goes up with the number of hard sets you do for a muscle each week. Sets should end with 2 to 5 reps in reserve (RIR).",
-                    "In general it takes only 2 to 3 sets a week to maintain a muscle. Growth typically starts around 4 sets a week, and from there each doubling of sets adds about half as much as the last. For example, for glutes:",
-                    "• 2 sets of squats: maintenance, no change",
-                    "• 4 sets of squats: 50% of potential growth",
-                    "• 8 sets of squats: 75% of potential growth",
-                    "• 16 sets of squats: 87.5% of potential growth",
-                    "These are averages. Your body might need more or less, and it depends on where you are in your lifting journey: advanced lifters put on mass more slowly. Some research suggests even 50 sets a week can still build muscle. The point of the example is to show diminishing returns.",
+                    "Taking your muscles near failure. Muscle grows from sets anywhere between about 5 and 30 reps, as long as the sets are hard, and growth goes up with the number of hard sets you do for a muscle each week. Sets should end within about 5 reps of failure (0 to 5 RIR). The closer to failure you stop, the more growth each set gives, but the harder it is to recover from.",
+                    "It takes very little to maintain a muscle. Younger lifters have held on to their size for months with one hard set per exercise once a week, as long as the weight stayed heavy. Older lifters may need 2 to 3 sets, twice a week.",
+                    "Measurable growth typically starts around 4 sets a week, and from there each added set gives a bit less than the one before. In one analysis of many studies, average muscle growth was:",
+                    "• Fewer than 5 sets a week: about 5.4%",
+                    "• 5 to 9 sets a week: about 6.6%",
+                    "• 10 or more sets a week: about 9.8%",
+                    "Sets where a muscle only assists, like your biceps in a row, count for roughly half a set.",
+                    "These are averages. Your body might need more or less, and it depends on where you are in your lifting journey: advanced lifters put on mass more slowly. In one study, trained lifters were still growing on as many as 52 sets a week for their quads. The point of the numbers is to show diminishing returns: more sets keep adding growth, but each one adds less.",
                 ],
                 sources: [
                     Source(
@@ -106,6 +107,22 @@ extension FAQ {
                     Source(
                         title: "Schoenfeld 2021: the repetition continuum",
                         url: URL(string: "https://doi.org/10.3390/sports9020032")!
+                    ),
+                    Source(
+                        title: "Robinson 2024: proximity to failure",
+                        url: URL(string: "https://doi.org/10.1007/s40279-024-02069-2")!
+                    ),
+                    Source(
+                        title: "Pelland 2026: weekly volume and frequency",
+                        url: URL(string: "https://doi.org/10.1007/s40279-025-02344-w")!
+                    ),
+                    Source(
+                        title: "Spiering 2021: the minimal dose to maintain",
+                        url: URL(string: "https://doi.org/10.1519/JSC.0000000000003964")!
+                    ),
+                    Source(
+                        title: "Enes 2024: very high weekly set counts",
+                        url: URL(string: "https://doi.org/10.1249/MSS.0000000000003317")!
                     ),
                 ]
             ),
@@ -119,7 +136,7 @@ extension FAQ {
             Entry(
                 question: "How important is form?",
                 paragraphs: [
-                    "Our philosophy is simple. Bad form recruits muscles you didn't intend to train (like swinging your hips to get the last rep of a curl) and raises your odds of injury. There is no place for bad form in the gym.",
+                    "Our philosophy is simple. Bad form recruits muscles you didn't intend to train (like swinging your hips to get the last rep of a curl) and can raise your odds of injury. There is no place for bad form in the gym.",
                 ]
             ),
             Entry(
@@ -153,46 +170,95 @@ extension FAQ {
             Entry(
                 question: "So I'll lose weight lifting?",
                 paragraphs: [
-                    "You can't out-exercise a bad diet. Lifting is not a valid approach to losing body fat.",
+                    "You can't out-exercise a bad diet. On its own, lifting trims a little fat, about 1.5 percentage points of body fat on average across studies, but it won't move the scale much. Losing real weight comes down to what you eat.",
+                    "Lifting while you diet helps you keep your muscle, so more of what you lose is fat.",
+                ],
+                sources: [
+                    Source(
+                        title: "Wewege 2022: resistance training and body fat",
+                        url: URL(string: "https://doi.org/10.1007/s40279-021-01562-2")!
+                    ),
                 ]
             ),
             Entry(
                 question: "I'm still going to eat lots of protein to get big.",
                 paragraphs: [
-                    "Cool. The old bro-science rule of 1 g of protein per pound of body weight a day is actually pretty close. About 0.7 g per pound a day is generally the sweet spot, going from 0.7 g to 1 g gives a modest boost, and beyond 1 g the benefit is little to none unless you have a specific short-term goal, like a bodybuilding show a few weeks out.",
-                    "Training for strength needs a little less than training for hypertrophy. About 0.6 g per pound a day is a good place to be.",
+                    "Cool. The old bro-science rule of 1 g of protein per pound of body weight a day is actually pretty close. On average, the benefit for muscle levels off around 0.7 g per pound (1.6 g/kg) a day. People vary, so 1 g per pound (2.2 g/kg) is a sensible upper end, and beyond that there is little evidence of extra muscle. The exception is dieting hard while already lean, like the weeks before a bodybuilding show, when more protein may help you hold on to muscle.",
+                    "Training for strength needs about the same. Strength gains level off around 0.7 g per pound (1.5 g/kg) a day.",
                 ],
                 sources: [
                     Source(
                         title: "Morton 2018: protein and muscle gains",
                         url: URL(string: "https://doi.org/10.1136/bjsports-2017-097608")!
                     ),
+                    Source(
+                        title: "Tagawa 2022: protein and strength gains",
+                        url: URL(string: "https://doi.org/10.1186/s40798-022-00508-w")!
+                    ),
+                    Source(
+                        title: "Helms 2014: protein while dieting lean",
+                        url: URL(string: "https://doi.org/10.1123/ijsnem.2013-0054")!
+                    ),
                 ]
             ),
             Entry(
                 question: "How important are supplements?",
                 paragraphs: [
-                    "They aren't. Get what you need from a rich diet.",
+                    "Mostly, they aren't. Get what you need from a rich diet.",
                 ]
             ),
             Entry(
                 question: "Well, creatine is good, right?",
                 paragraphs: [
-                    "Creatine monohydrate does help in the gym. With a daily dose, expect to gain maybe 5 to 10% more muscle mass over a given time.",
+                    "Creatine monohydrate does help in the gym. With a daily dose, lifters gain about 1 kg (2 lb) more lean mass on average than lifters training without it. Some of that is water held in the muscle: when muscle size is measured directly, the extra growth is real but small.",
+                ],
+                sources: [
+                    Source(
+                        title: "Delpino 2022: creatine and lean mass",
+                        url: URL(string: "https://doi.org/10.1016/j.nut.2022.111791")!
+                    ),
+                    Source(
+                        title: "Burke 2023: creatine and measured muscle size",
+                        url: URL(string: "https://doi.org/10.3390/nu15092116")!
+                    ),
                 ]
             ),
             Entry(
                 question: "Then beta-alanine is super important.",
                 paragraphs: [
-                    "Not really. It has a big psychological effect because, for most people, it causes a slight tingling of the skin, which people take as a sign that \"it's working\". That's placebo.",
-                    "At best, it might help a little with high-intensity efforts lasting about 30 seconds to 5 minutes. That isn't lifting weights.",
+                    "Not really. For many people it causes a harmless tingling of the skin, which people take as a sign that \"it's working\". The tingle is a side effect, not the benefit. Any benefit comes from taking it daily for weeks, not from the scoop before your workout.",
+                    "At best, it helps a little with hard efforts lasting about 1 to 4 minutes. Most sets in the gym are over well before that, and an effect on strength hasn't been established.",
+                ],
+                sources: [
+                    Source(
+                        title: "Trexler 2015: ISSN position stand on beta-alanine",
+                        url: URL(string: "https://doi.org/10.1186/s12970-015-0090-y")!
+                    ),
                 ]
             ),
             Entry(
                 question: "Then why do I lift so much better on pre-workout?",
                 paragraphs: [
-                    "Caffeine. There's a reason some lifting competitions restrict caffeine on the day of an event. Caffeine is basically the only supplement that will make you lift harder.",
-                    "We'll let you decide whether you need it. Depending on when you train, caffeine can hurt your sleep, and remember: gains don't happen in the gym, they happen while you sleep.",
+                    "Caffeine. It gives a small but real boost to strength and power. High doses were on the Olympic banned list until 2004, and the NCAA still caps how much athletes can have in their system. In most pre-workouts, it's the ingredient doing the heavy lifting.",
+                    "We'll let you decide whether you need it. Caffeine lingers: a typical pre-workout serving (about 200 mg) can cut into your sleep even when you take it 13 hours before bed. And remember: gains don't happen in the gym, they happen while you recover, and sleep is a big part of that. In one study, a single night without sleep cut muscle protein synthesis by 18%.",
+                ],
+                sources: [
+                    Source(
+                        title: "Grgic 2018: caffeine, strength and power",
+                        url: URL(string: "https://doi.org/10.1186/s12970-018-0216-0")!
+                    ),
+                    Source(
+                        title: "USADA: caffeine's status in sport",
+                        url: URL(string: "https://www.usada.org/spirit-of-sport/substance-profile-caffeine/")!
+                    ),
+                    Source(
+                        title: "Gardiner 2023: caffeine and sleep",
+                        url: URL(string: "https://doi.org/10.1016/j.smrv.2023.101764")!
+                    ),
+                    Source(
+                        title: "Lamon 2021: sleep loss and muscle protein synthesis",
+                        url: URL(string: "https://doi.org/10.14814/phy2.14660")!
+                    ),
                 ]
             ),
         ]),
