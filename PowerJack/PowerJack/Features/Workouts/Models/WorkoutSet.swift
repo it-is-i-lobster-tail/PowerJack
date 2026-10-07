@@ -44,7 +44,10 @@ final class WorkoutSet {
 //
 extension WorkoutSet {
     // Order
-    var order: Int { orderValue}
+    var order: Int {
+        get { orderValue }
+        set { orderValue = newValue }
+    }
     // Set Type
     var setType: SetType { SetType(rawValue: setTypeValue) ?? .working }
     var isWarmup: Bool { setType == .warmup }

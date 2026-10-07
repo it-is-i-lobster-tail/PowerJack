@@ -80,11 +80,81 @@ struct WarmupSetTests {
 
         while exercise.addSet() != nil {}
         #expect(exercise.workingSets.count == WorkoutExercise.maxSets)
-        #expect(exercise.addSet(type: .warmup) == nil)
 
         for _ in 0..<(WorkoutExercise.maxSets + 1) { exercise.removeLastSet() }
         #expect(exercise.workingSets.isEmpty)
         #expect(exercise.warmupSets.count == WorkoutExercise.initialWarmupSets)
+    }
+
+    @Test("A warmup added mid-exercise slots in ahead of the working sets, up to the cap")
+    func addWarmupAfterWorkingSets() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        while exercise.addWarmupSet() != nil {}
+
+        #expect(exercise.warmupSets.count == WorkoutExercise.maxWarmupSets)
+        #expect(exercise.workoutSets.map(\.setType) == [.warmup, .warmup, .warmup, .warmup, .working, .working])
+        #expect(exercise.workoutSets.map(\.order) == Array(0..<6))
+
+        exercise.removeLastSet(type: .warmup)
+        #expect(exercise.warmupSets.count == WorkoutExercise.maxWarmupSets - 1)
+        #expect(exercise.workingSets.count == WorkoutExercise.initialSets)
+    }
+
+    @Test("Skip Warmup skips only the warmups still to do")
+    func skipWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        log([exercise.warmupSets[0]], reps: 5, weightTenthsPounds: 450)
+
+        exercise.skipWarmups()
+
+        #expect(exercise.warmupSets.map(\.status) == [.complete, .skipped])
+        #expect(exercise.workingSets.allSatisfy { $0.status == .active })
+    }
+
+    @Test("Disabling warmups drops the unlogged ones here and in later weeks, until one is added back")
+    func disableWarmups() throws {
+        let program = try makeProgram(weeks: 3)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        log([exercise.warmupSets[0]], reps: 5, weightTenthsPounds: 450)
+
+        exercise.disableWarmups()
+        #expect(exercise.exercise?.warmupDisabled == true)
+        #expect(exercise.warmupSets.count == 1)
+        #expect(exercise.addSet(type: .warmup) == nil)
+
+        log(exercise.workingSets, reps: 10, weightTenthsPounds: 1350)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        let weekTwo = try #require(program.finishWorkout(workout))
+        let next = try #require(weekTwo.workoutExercises.first)
+        #expect(next.warmupSets.isEmpty)
+
+        weekTwo.startAndCascade()
+        #expect(next.addWarmupSet() != nil)
+        #expect(next.exercise?.warmupDisabled == false)
+    }
+
+    @Test("Next week repeats how many warmups were done")
+    func warmupCountCarriesOver() throws {
+        let program = try makeProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addWarmupSet()
+        log(exercise.workoutSets, reps: 8, weightTenthsPounds: 1000)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+
+        let next = try #require(program.finishWorkout(workout)?.workoutExercises.first)
+
+        #expect(next.warmupSets.count == 3)
     }
 
     // MARK: Helpers
