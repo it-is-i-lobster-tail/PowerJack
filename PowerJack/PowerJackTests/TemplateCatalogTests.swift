@@ -23,6 +23,11 @@ struct TemplateCatalogTests {
             #expect(!TemplateProgramDraft(templateProgram: template).isDraft, "\(entry.id)")
             #expect(template.templateWorkouts.count == template.workoutsPerWeek)
         }
+
+        // Every template should run in a small gym without machines.
+        let equipment = entries.flatMap(\.workouts).joined().compactMap { exercisesByID[$0]?.exerciseEquipment }
+        #expect(!equipment.contains(.machine))
+        #expect(!equipment.contains(.legPress))
     }
 
     @Test("Seeding saves every template once and keeps user edits")
@@ -33,7 +38,7 @@ struct TemplateCatalogTests {
         try TemplateCatalog.seed(in: context)
 
         let seeded = try context.fetch(FetchDescriptor<TemplateProgram>())
-        #expect(Set(seeded.map(\.templateName)) == ["Beach Body Builder", "Leg Blaster", "Dad Bod Try Hard", "Bro Split"])
+        #expect(Set(seeded.map(\.templateName)) == Set(TemplateCatalog.entries.map(\.name)))
         let edited = try #require(seeded.first)
         edited.templateName = "My Split"
         try context.save()
