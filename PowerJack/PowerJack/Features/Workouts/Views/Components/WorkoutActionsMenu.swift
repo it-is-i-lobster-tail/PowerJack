@@ -27,13 +27,6 @@ struct WorkoutActionsMenu: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
-    private var canAddSet: Bool {
-        guard let selectedWorkoutExercise else { return false }
-
-        return selectedWorkoutExercise.workingSets.count < WorkoutExercise.maxSets &&
-            !selectedWorkoutExercise.locked
-    }
-
     private var canModifySelectedExercise: Bool {
         guard let selectedWorkoutExercise else { return false }
         return !selectedWorkoutExercise.locked
@@ -46,17 +39,6 @@ struct WorkoutActionsMenu: View {
     var body: some View {
         Menu {
             if let selectedWorkoutExercise {
-                Button {
-                    _ = selectedWorkoutExercise.addSet()
-                    try? modelContext.save()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Add Set")
-                    }
-                }
-                .disabled(!canAddSet)
-
                 Button {
                     isShowingWorkoutExerciseSheet.toggle()
                 } label: {
@@ -77,17 +59,6 @@ struct WorkoutActionsMenu: View {
                         }
                     }
                 }
-
-                Button {
-                    _ = selectedWorkoutExercise.removeLastSet()
-                    try? modelContext.save()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                        Text("Remove Last Set")
-                    }
-                }
-                .disabled(!canModifySelectedExercise)
 
                 Divider()
 

@@ -30,6 +30,8 @@ final class Exercise {
     // Picks the rest between sets. The default lets older stores migrate.
     @Attribute(originalName: "fatigueValue")
     var fatigueLevelValue: FatigueLevel = Exercise.defaultFatigueLevel
+    // Turned on from a workout's warmup menu. Workouts then start on the working sets.
+    var warmupDisabledValue: Bool = false
 
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
@@ -90,4 +92,9 @@ extension Exercise {
         set { fatigueLevelValue = newValue }
     }
     var restDuration: Duration { fatigueLevel.restLength.duration }
+    // Warmups
+    var warmupDisabled: Bool {
+        get { warmupDisabledValue }
+        set { warmupDisabledValue = newValue }
+    }
 }
