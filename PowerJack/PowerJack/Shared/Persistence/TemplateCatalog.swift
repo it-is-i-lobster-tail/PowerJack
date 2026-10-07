@@ -39,7 +39,7 @@ enum TemplateCatalog {
     static let entries: [Entry] = [
         Entry(
             id: "full-body-2x",
-            name: "Minimum Effective Dose",
+            name: "Full Body",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
                 ["barbell-back-squat", "barbell-bench-press", "barbell-row", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
@@ -61,7 +61,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "push-pull-legs-3x",
-            name: "The Classic Three",
+            name: "Push, Pull, Legs",
             muscleFocus: [.chest, .back, .hamstrings, .triceps],
             workouts: [
                 // Push
