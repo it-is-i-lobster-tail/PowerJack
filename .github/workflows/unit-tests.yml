@@ -1,0 +1,97 @@
+name: Unit tests
+
+# Pull requests run against GitHub's synthetic merge ref.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: unit-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  XCODE_PATH: /Applications/Xcode_26.6.app
+  SIMULATOR: iPhone 17 Pro
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select --switch "$XCODE_PATH"
+          xcodebuild -version
+
+      # Runners sometimes start with no simulators listed, so create our own.
+      - name: Create simulator
+        run: |
+          runtime=$(xcrun simctl list runtimes --json | jq -r --arg device "$SIMULATOR" '
+            [.runtimes[]
+              | select(.platform == "iOS" and .isAvailable)
+              | select(any(.supportedDeviceTypes[]; .name == $device))]
+            | sort_by(.version | split(".") | map(tonumber))
+            | last | .identifier // empty')
+
+          if [ -z "$runtime" ]; then
+            echo "::error::No iOS runtime on this runner supports $SIMULATOR."
+            exit 1
+          fi
+
+          udid=$(xcrun simctl create "CI $SIMULATOR" "$SIMULATOR" "$runtime")
+          echo "Created $SIMULATOR on $runtime ($udid)"
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project PowerJack/PowerJack.xcodeproj \
+            -scheme PowerJack \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath TestResults.xcresult
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: TestResults.xcresult
+
+  # Each merge to main raises the patch version (0.1.0 -> 0.1.1) and commits it
+  # back, so Archive builds from main carry the next version. A push that
+  # already changes MARKETING_VERSION keeps the version it set.
+  bump-version:
+    name: Bump patch version
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Bump patch version
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if git diff "$BEFORE" HEAD -- PowerJack/PowerJack.xcodeproj/project.pbxproj | grep -q '^+.*MARKETING_VERSION'; then
+            echo "This push sets the version itself, so it is left as is."
+            exit 0
+          fi
+
+          version=$(scripts/bump-patch-version.sh)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump version to $version"
+          git push

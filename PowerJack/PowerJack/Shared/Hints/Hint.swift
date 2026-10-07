@@ -25,6 +25,10 @@ nonisolated protocol Hint: Tip {
 nonisolated extension Hint {
     var occasion: HintOccasion? { nil }
     var extraRules: [Rule] { [] }
+    // Xcode 26 doesn't pick up TipKit's own defaults through this nonisolated protocol.
+    var image: Image? { nil }
+    var actions: [Action] { [] }
+    var options: [any TipOption] { [] }
 
     var id: String {
         guard let occasion else { return "\(Self.self)" }
