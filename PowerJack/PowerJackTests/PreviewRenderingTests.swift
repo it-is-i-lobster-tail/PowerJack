@@ -58,6 +58,7 @@ final class PreviewRenderingTests: XCTestCase {
             ).modelContainer(progression.container))),
             ("Settings", AnyView(SettingsView().environment(PowerJackStore(inMemory: true)))),
             ("Rest Between Sets", AnyView(NavigationStack { RestBetweenSetsView() })),
+            ("FAQ", AnyView(NavigationStack { FAQView() })),
             ("Workout Summary", AnyView(ExerciseSummaryView(
                 setCounts: scenario.weekOneWorkouts[0].completedSetsByMuscle,
                 onContinue: {}
