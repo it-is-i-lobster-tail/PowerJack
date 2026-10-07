@@ -39,7 +39,7 @@ enum TemplateCatalog {
     static let entries: [Entry] = [
         Entry(
             id: "full-body-2x",
-            name: "Full Body",
+            name: "Minimum Effective Dose",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
                 ["barbell-back-squat", "barbell-bench-press", "barbell-row", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
@@ -48,7 +48,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "upper-lower-upper",
-            name: "Upper Lower Upper",
+            name: "Upper Hand",
             muscleFocus: [.chest, .back, .shoulders, .biceps],
             workouts: [
                 // Upper
@@ -61,7 +61,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "push-pull-legs-3x",
-            name: "Push Pull Legs",
+            name: "The Classic Three",
             muscleFocus: [.chest, .back, .hamstrings, .triceps],
             workouts: [
                 // Push
@@ -74,7 +74,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "upper-lower-4x",
-            name: "Upper Lower",
+            name: "Four on the Floor",
             muscleFocus: [.back, .shoulders, .quads, .glutes],
             workouts: [
                 // Upper
@@ -89,7 +89,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "lower-upper-lower",
-            name: "Lower Upper Lower",
+            name: "Leg Day Loyalist",
             muscleFocus: [.quads, .glutes, .hamstrings, .abs],
             workouts: [
                 // Lower
@@ -102,7 +102,7 @@ enum TemplateCatalog {
         ),
         Entry(
             id: "upper-lower-5x",
-            name: "Upper Lower Plus",
+            name: "High Five",
             muscleFocus: [.chest, .back, .biceps, .triceps],
             workouts: [
                 // Upper
