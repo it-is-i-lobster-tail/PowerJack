@@ -34,57 +34,87 @@ enum TemplateCatalog {
     }
 
     // IDs are permanent: changing a display name must not create another template.
+    // Lifts stick to barbells, dumbbells, cables and bodyweight so a small gym can run every template.
+    // Programs start each exercise at 2 sets, so most muscles get 3 to 5 exercises a week to grow into.
     static let entries: [Entry] = [
         Entry(
-            id: "upper-body-builder",
-            name: "Beach Body Builder",
-            muscleFocus: [.chest, .back, .biceps, .triceps],
-            workouts: [
-                // Chest & back
-                ["barbell-bench-press", "barbell-row", "incline-dumbbell-bench-press", "lat-pulldown", "cable-chest-fly", "cable-face-pull"],
-                // Arms
-                ["barbell-curl", "barbell-skull-crusher", "dumbbell-hammer-curl", "cable-triceps-pushdown", "cable-curl", "cable-overhead-extension"],
-                // Back & chest
-                ["pull-up", "incline-barbell-bench-press", "seated-cable-row", "dumbbell-bench-press", "one-arm-dumbbell-row", "dumbbell-lateral-raise"],
-                // Arms & shoulders
-                ["chin-up", "dumbbell-shoulder-press", "dumbbell-curl", "dumbbell-triceps-extension", "cable-lateral-raise", "dumbbell-reverse-fly"],
-            ]
-        ),
-        Entry(
-            id: "leg-blaster",
-            name: "Leg Blaster",
-            muscleFocus: [.quads, .hamstrings, .glutes, .abs],
-            workouts: [
-                // Quads
-                ["barbell-back-squat", "leg-press", "leg-extension", "lying-leg-curl", "cable-crunch"],
-                // Hamstrings & glutes
-                ["barbell-romanian-deadlift", "barbell-hip-thrust", "seated-leg-curl", "leg-press", "hanging-knee-raise"],
-                // Quads
-                ["barbell-front-squat", "goblet-squat", "leg-extension", "seated-leg-curl", "cable-woodchop"],
-                // Hamstrings & glutes
-                ["barbell-deadlift", "dumbbell-romanian-deadlift", "lying-leg-curl", "cable-glute-kickback", "cable-crunch"],
-            ]
-        ),
-        Entry(
-            id: "full-body",
-            name: "Dad Bod Try Hard",
+            id: "full-body-2x",
+            name: "Full Body",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "barbell-romanian-deadlift", "dumbbell-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
-                ["leg-press", "incline-dumbbell-bench-press", "pull-up", "lying-leg-curl", "dumbbell-shoulder-press", "dumbbell-hammer-curl", "cable-overhead-extension"],
+                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
+                ["barbell-romanian-deadlift", "dumbbell-bulgarian-split-squat", "incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-hammer-curl", "cable-overhead-extension"],
             ]
         ),
         Entry(
-            id: "push-pull-legs",
-            name: "Bro Split",
-            muscleFocus: [.chest, .back, .quads, .shoulders],
+            id: "upper-lower-upper",
+            name: "Upper Hand",
+            muscleFocus: [.chest, .back, .shoulders, .biceps],
+            workouts: [
+                // Upper
+                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
+                // Lower
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch"],
+                // Upper
+                ["incline-dumbbell-bench-press", "pull-up", "one-arm-dumbbell-row", "cable-chest-fly", "dumbbell-lateral-raise", "cable-face-pull", "dumbbell-curl"],
+            ]
+        ),
+        Entry(
+            id: "push-pull-legs-3x",
+            name: "Push, Pull, Legs",
+            muscleFocus: [.chest, .back, .hamstrings, .triceps],
             workouts: [
                 // Push
-                ["barbell-bench-press", "barbell-overhead-press", "incline-dumbbell-bench-press", "cable-lateral-raise", "cable-chest-fly", "cable-triceps-pushdown", "cable-overhead-extension"],
+                ["barbell-bench-press", "incline-dumbbell-bench-press", "dumbbell-shoulder-press", "cable-chest-fly", "cable-lateral-raise", "cable-triceps-pushdown", "cable-overhead-extension"],
                 // Pull
-                ["pull-up", "barbell-row", "seated-cable-row", "cable-face-pull", "barbell-curl", "dumbbell-hammer-curl"],
+                ["barbell-row", "lat-pulldown", "seated-cable-row", "cable-face-pull", "barbell-curl", "dumbbell-hammer-curl"],
                 // Legs
-                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-press", "lying-leg-curl", "leg-extension", "standing-calf-raise"],
+                ["barbell-romanian-deadlift", "barbell-back-squat", "dumbbell-bulgarian-split-squat", "cable-pull-through", "dumbbell-calf-raise", "hanging-knee-raise"],
+            ]
+        ),
+        Entry(
+            id: "upper-lower-4x",
+            name: "Four on the Floor",
+            muscleFocus: [.back, .shoulders, .quads, .glutes],
+            workouts: [
+                // Upper
+                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
+                // Lower
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-glute-kickback", "dumbbell-calf-raise", "cable-crunch"],
+                // Upper
+                ["pull-up", "incline-dumbbell-bench-press", "one-arm-dumbbell-row", "dumbbell-lateral-raise", "cable-face-pull", "dumbbell-curl", "dumbbell-triceps-extension"],
+                // Lower
+                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "cable-pull-through", "dumbbell-calf-raise"],
+            ]
+        ),
+        Entry(
+            id: "lower-upper-lower",
+            name: "Leg Day Loyalist",
+            muscleFocus: [.quads, .glutes, .hamstrings, .abs],
+            workouts: [
+                // Lower
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch", "cable-woodchop"],
+                // Upper
+                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
+                // Lower
+                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "dumbbell-calf-raise", "hanging-knee-raise", "side-plank"],
+            ]
+        ),
+        Entry(
+            id: "upper-lower-5x",
+            name: "High Five",
+            muscleFocus: [.chest, .back, .biceps, .triceps],
+            workouts: [
+                // Upper
+                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
+                // Lower
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch"],
+                // Upper
+                ["incline-dumbbell-bench-press", "pull-up", "seated-cable-row", "cable-chest-fly", "dumbbell-lateral-raise", "dumbbell-hammer-curl", "cable-overhead-extension"],
+                // Lower
+                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "dumbbell-calf-raise", "hanging-knee-raise"],
+                // Upper
+                ["dumbbell-bench-press", "chin-up", "one-arm-dumbbell-row", "cable-face-pull", "dumbbell-curl", "barbell-skull-crusher", "dumbbell-triceps-extension"],
             ]
         ),
     ]
