@@ -95,6 +95,18 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("FAQ") {
+                    NavigationLink {
+                        FAQView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "questionmark.circle",
+                            title: "Questions and Answers",
+                            detail: "Why PowerJack, how to train for size and strength, and what really helps."
+                        )
+                    }
+                }
+
                 Section("Legal") {
                     NavigationLink {
                         LegalDocumentView(document: .privacyPolicy)
