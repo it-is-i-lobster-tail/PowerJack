@@ -71,7 +71,7 @@ struct WorkoutExerciseView: View {
                         warmupGroup
                     }
 
-                    groupHeader(.working)
+                    groupHeader(.working, isDone: workoutExercise.allSetsDone())
                     setRows(workoutExercise.workingSets)
                         .padding(.top, LayoutMetrics.compactSpacing)
                 }
@@ -90,7 +90,12 @@ struct WorkoutExerciseView: View {
 
     private var warmupGroup: some View {
         VStack(spacing: 0) {
-            groupHeader(.warmup, isDone: warmupsChecked)
+            // Once every warmup is done, tapping WARMUP shows or hides them.
+            groupHeader(
+                .warmup,
+                isDone: warmupsChecked,
+                onTitleTap: warmupTitleTap
+            )
 
             // Full width and clipped, so the sets slide up under the heading as the group closes.
             VStack(spacing: 0) {
@@ -105,8 +110,12 @@ struct WorkoutExerciseView: View {
         }
     }
 
-    private func groupHeader(_ setType: SetType, isDone: Bool = false) -> some View {
-        SetGroupHeader(workoutExercise: workoutExercise, setType: setType, isDone: isDone)
+    private func groupHeader(
+        _ setType: SetType,
+        isDone: Bool = false,
+        onTitleTap: (() -> Void)? = nil
+    ) -> some View {
+        SetGroupHeader(workoutExercise: workoutExercise, setType: setType, isDone: isDone, onTitleTap: onTitleTap)
             .frame(width: screenWidth * 0.84)
     }
 
@@ -143,6 +152,17 @@ struct WorkoutExerciseView: View {
             // A warmup added back mid-animation keeps the group open and unchecked.
             guard workoutExercise.warmupsDone else { return }
             withAnimation { warmupsChecked = true }
+        }
+    }
+
+    private var warmupTitleTap: (() -> Void)? {
+        workoutExercise.warmupsDone ? { toggleWarmups() } : nil
+    }
+
+    /// Opens or closes finished warmups with the same animation as the automatic collapse.
+    private func toggleWarmups() {
+        withAnimation(.easeInOut(duration: Self.warmupCollapseDuration)) {
+            warmupsCollapsed.toggle()
         }
     }
 

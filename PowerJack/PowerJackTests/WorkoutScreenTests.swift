@@ -75,18 +75,39 @@ struct WorkoutScreenTests {
         let exercise = try #require(workout.workoutExercises.first)
 
         #expect(screen.contains("Warmup 1 weight"), "\(screen.labels)")
-        #expect(!screen.contains("Warmup done"))
+        #expect(!hasLabel(containing: "Warmup done", in: screen))
 
         exercise.skipWarmups()
         await screen.settle(.milliseconds(1200))
         #expect(!screen.contains("Warmup 1 weight"), "\(screen.labels)")
-        #expect(screen.contains("Warmup done"), "\(screen.labels)")
+        #expect(hasLabel(containing: "Warmup done", in: screen), "\(screen.labels)")
         #expect(screen.contains("Set 1 weight"))
+
+        // Tapping WARMUP shows the finished warmups again, and tapping it again hides them.
+        let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
+        await screen.tap(title, settleFor: .milliseconds(800))
+        #expect(screen.contains("Warmup 1 weight"), "\(screen.labels)")
+        await screen.tap(title, settleFor: .milliseconds(800))
+        #expect(!screen.contains("Warmup 1 weight"), "\(screen.labels)")
 
         exercise.disableWarmups()
         await screen.settle()
         #expect(!screen.contains("Warmup options"), "\(screen.labels)")
-        #expect(!screen.contains("Warmup done"))
+        #expect(!hasLabel(containing: "Warmup done", in: screen))
+
+        // Working sets get the same check once they're all done.
+        #expect(!hasLabel(containing: "Working Sets done", in: screen))
+        for set in exercise.workingSets {
+            set.reps = 8
+            set.weightTenthsPounds = 1000
+            set.complete()
+        }
+        await screen.settle(.milliseconds(800))
+        #expect(hasLabel(containing: "Working Sets done", in: screen), "\(screen.labels)")
+    }
+
+    private func hasLabel(containing text: String, in screen: HostedView) -> Bool {
+        screen.labels.contains { $0.contains(text) }
     }
 
     @Test("A severe-pain exercise opens the check-in, and continue keeps the held sets")

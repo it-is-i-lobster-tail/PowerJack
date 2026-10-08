@@ -12,8 +12,10 @@ import SwiftUI
 struct SetGroupHeader: View {
     let workoutExercise: WorkoutExercise
     let setType: SetType
-    /// Shows the green check once a collapsed group is done.
+    /// Shows the green check once every set in the group is done.
     var isDone = false
+    /// Makes the title tappable, e.g. to show or hide finished warmups.
+    var onTitleTap: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.workoutIsReadOnly) private var isReadOnly
@@ -23,18 +25,12 @@ struct SetGroupHeader: View {
 
     var body: some View {
         HStack {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            // Sized to the title so the heading keeps its height when the check appears.
-            if isDone {
-                Image(systemName: "checkmark")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.green)
-                    .transition(.symbolEffect(.drawOn, options: .speed(2.2)))
-                    .accessibilityLabel("\(title) done")
+            if let onTitleTap {
+                Button(action: onTitleTap) { titleLabel }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows or hides the sets")
+            } else {
+                titleLabel
             }
 
             Spacer()
@@ -55,6 +51,29 @@ struct SetGroupHeader: View {
             }
         }
         .padding(.vertical, LayoutMetrics.compactSpacing / 2)
+    }
+
+    private var titleLabel: some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            // Sized to the title so the heading keeps its height when the check appears.
+            if isDone {
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.green)
+                    .transition(.symbolEffect(.drawOn, options: .speed(2.2)))
+                    .accessibilityLabel("\(title) done")
+            }
+        }
+        // Draws the check in when a group finishes, whatever finished it.
+        .animation(.default, value: isDone)
+        // The whole heading height is tappable, not just the glyphs.
+        .frame(minHeight: 36)
+        .contentShape(.rect)
     }
 
     @ViewBuilder
