@@ -191,9 +191,23 @@ private struct ExerciseRestField: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            card(scrollProxy: proxy)
+        }
+    }
+
+    private static let cardID = "restBetweenSets"
+
+    private func card(scrollProxy: ScrollViewProxy) -> some View {
         VStack(spacing: 0) {
             Button {
-                withAnimation(.snappy) { isExpanded.toggle() }
+                withAnimation(.snappy) {
+                    isExpanded.toggle()
+                } completion: {
+                    // The card sits near the bottom of the form, so bring the opened wheel into view.
+                    guard isExpanded else { return }
+                    withAnimation(.snappy) { scrollProxy.scrollTo(Self.cardID, anchor: .bottom) }
+                }
             } label: {
                 HStack(spacing: 12) {
                     FormFieldLabel(systemImage: "timer", title: "Rest Between Sets", detail: detail)
@@ -236,6 +250,7 @@ private struct ExerciseRestField: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .tint(.blue)
                 .controlSize(.large)
                 .padding(.bottom, LayoutMetrics.sectionSpacing)
             }
@@ -243,6 +258,7 @@ private struct ExerciseRestField: View {
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .frame(maxWidth: .infinity)
         .powerJackGlassCard(interactive: true)
+        .id(Self.cardID)
     }
 }
 
