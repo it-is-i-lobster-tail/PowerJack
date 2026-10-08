@@ -65,6 +65,30 @@ struct WorkoutScreenTests {
         #expect(program.weekNumber(containing: next) == 2)
     }
 
+    @Test("Finished warmups fold away and check off their heading; disabled ones disappear")
+    func warmupsCollapse() async throws {
+        let program = try makeStartedProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let screen = try await HostedView(session(program))
+        defer { screen.close() }
+        let exercise = try #require(workout.workoutExercises.first)
+
+        #expect(screen.contains("Warmup 1 weight"), "\(screen.labels)")
+        #expect(!screen.contains("Warmup done"))
+
+        exercise.skipWarmups()
+        await screen.settle(.milliseconds(1200))
+        #expect(!screen.contains("Warmup 1 weight"), "\(screen.labels)")
+        #expect(screen.contains("Warmup done"), "\(screen.labels)")
+        #expect(screen.contains("Set 1 weight"))
+
+        exercise.disableWarmups()
+        await screen.settle()
+        #expect(!screen.contains("Warmup options"), "\(screen.labels)")
+        #expect(!screen.contains("Warmup done"))
+    }
+
     @Test("A severe-pain exercise opens the check-in, and continue keeps the held sets")
     func checkInSheet() async throws {
         let program = try makeStartedProgram(weeks: 2)
