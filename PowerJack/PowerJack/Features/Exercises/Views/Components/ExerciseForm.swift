@@ -87,7 +87,12 @@ struct ExerciseForm: View {
 
             ExerciseFatigueLevelField(
                 fatigueLevel: $draft.fatigueLevel,
+                height: boxHeight
+            )
+
+            ExerciseRestField(
                 customRestTime: $draft.customRestTime,
+                fatigueLevel: draft.fatigueLevel,
                 fatigueRestTime: draft.fatigueRestTime,
                 height: boxHeight
             )
@@ -145,23 +150,14 @@ private struct ExerciseRepRangeField: View {
 
 private struct ExerciseFatigueLevelField: View {
     @Binding var fatigueLevel: FatigueLevel
-    @Binding var customRestTime: Int?
-    let fatigueRestTime: Int
     let height: CGFloat
-
-    private var restDetail: LocalizedStringKey {
-        if let customRestTime {
-            return "Custom rest · \(Duration.seconds(customRestTime).minuteSecondText) between sets"
-        }
-        return "\(fatigueLevel.restLength.name) rest · \(fatigueLevel.restLength.duration.minuteSecondText) between sets"
-    }
 
     var body: some View {
         VStack(spacing: LayoutMetrics.compactSpacing) {
             FormFieldLabel(
-                systemImage: "timer",
+                systemImage: "bolt.heart",
                 title: "Fatigue Level",
-                detail: restDetail
+                detail: "\(fatigueLevel.restLength.name) rest · \(fatigueLevel.restLength.duration.minuteSecondText)"
             )
             Picker("Fatigue Level", selection: $fatigueLevel) {
                 ForEach(FatigueLevel.allCases) { fatigueLevel in
@@ -170,10 +166,6 @@ private struct ExerciseFatigueLevelField: View {
                 }
             }
             .pickerStyle(.segmented)
-            ExerciseCustomRestRow(
-                customRestTime: $customRestTime,
-                fatigueRestTime: fatigueRestTime
-            )
         }
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .padding(.vertical, LayoutMetrics.compactSpacing)
@@ -182,38 +174,75 @@ private struct ExerciseFatigueLevelField: View {
     }
 }
 
-/// Replaces the fatigue level's rest with a time of the user's own. Clearing it goes back to the fatigue level.
-private struct ExerciseCustomRestRow: View {
+/// Shows the rest this exercise uses. Tapping opens a wheel; turning it sets a custom rest,
+/// and the reset button goes back to the fatigue level's rest.
+private struct ExerciseRestField: View {
     @Binding var customRestTime: Int?
+    let fatigueLevel: FatigueLevel
     let fatigueRestTime: Int
+    let height: CGFloat
+
+    @State private var isExpanded = false
+
+    private var restTime: Int { customRestTime ?? fatigueRestTime }
+
+    private var detail: LocalizedStringKey {
+        customRestTime == nil ? "From fatigue level" : "Custom for this exercise"
+    }
 
     var body: some View {
-        HStack {
-            if let customRestTime {
-                Button("Clear Custom Rest", systemImage: "xmark.circle.fill") {
-                    withAnimation(.snappy) { self.customRestTime = nil }
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.snappy) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    FormFieldLabel(systemImage: "timer", title: "Rest Between Sets", detail: detail)
+                    Text(Duration.seconds(restTime).minuteSecondText)
+                        .font(.title2.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(customRestTime == nil ? Color.primary : Color.accentColor)
+                        .contentTransition(.numericText())
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
-                .labelStyle(.iconOnly)
-                .foregroundStyle(.secondary)
-                .buttonStyle(.plain)
-                Stepper(
-                    "Custom \(Duration.seconds(customRestTime).minuteSecondText)",
-                    value: Binding(
-                        get: { self.customRestTime ?? fatigueRestTime },
-                        set: { self.customRestTime = $0 }
-                    ),
-                    in: ExerciseDraft.restLimits,
-                    step: ExerciseDraft.restStep
+                .frame(minHeight: height)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(Duration.seconds(restTime).minuteSecondText)
+            .accessibilityHint(isExpanded ? "Hides the rest picker" : "Shows the rest picker")
+
+            if isExpanded {
+                MinuteSecondWheel(
+                    seconds: Binding(
+                        get: { restTime },
+                        set: { customRestTime = $0 }
+                    )
                 )
-                .monospacedDigit()
-            } else {
-                Button("Set Custom Rest", systemImage: "plus.circle") {
-                    withAnimation(.snappy) { customRestTime = fatigueRestTime }
+                .frame(height: 150)
+            }
+
+            if customRestTime != nil {
+                Button {
+                    withAnimation(.snappy) { customRestTime = nil }
+                } label: {
+                    Label(
+                        "Reset to \(fatigueLevel.name) · \(Duration.seconds(fatigueRestTime).minuteSecondText)",
+                        systemImage: "arrow.counterclockwise"
+                    )
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity)
                 }
-                Spacer()
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .padding(.bottom, LayoutMetrics.sectionSpacing)
             }
         }
-        .font(.caption)
+        .padding(.horizontal, LayoutMetrics.sectionSpacing)
+        .frame(maxWidth: .infinity)
+        .powerJackGlassCard(interactive: true)
     }
 }
 
