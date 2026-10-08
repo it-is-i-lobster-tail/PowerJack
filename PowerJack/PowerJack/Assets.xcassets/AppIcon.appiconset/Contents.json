@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "IconComposerFavCon-iOS-Default-1024@1x.png",
+      "filename" : "AppIcon.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
