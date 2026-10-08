@@ -12,6 +12,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
     let isEmpty: Bool
     let emptyTitle: LocalizedStringKey
     let emptySystemImage: String
+    let hint: (any Hint)?
 
     private let content: () -> Content
     private let createDestination: () -> CreateDestination
@@ -24,6 +25,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
         isEmpty: Bool,
         emptyTitle: LocalizedStringKey,
         emptySystemImage: String,
+        hint: (any Hint)? = nil,
         @ViewBuilder content: @escaping () -> Content,
         @ViewBuilder createDestination: @escaping () -> CreateDestination
     ) {
@@ -31,6 +33,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
         self.isEmpty = isEmpty
         self.emptyTitle = emptyTitle
         self.emptySystemImage = emptySystemImage
+        self.hint = hint
         self.content = content
         self.createDestination = createDestination
         self.onAdd = nil
@@ -38,6 +41,13 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
 
     var body: some View {
         content()
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let hint {
+                    HintView(hint)
+                        .padding(.horizontal)
+                        .padding(.bottom, LayoutMetrics.compactSpacing)
+                }
+            }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $isCreating) {
@@ -77,6 +87,7 @@ extension AddableListScaffold where CreateDestination == EmptyView {
         isEmpty: Bool,
         emptyTitle: LocalizedStringKey,
         emptySystemImage: String,
+        hint: (any Hint)? = nil,
         onAdd: @escaping () -> Void,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -84,6 +95,7 @@ extension AddableListScaffold where CreateDestination == EmptyView {
         self.isEmpty = isEmpty
         self.emptyTitle = emptyTitle
         self.emptySystemImage = emptySystemImage
+        self.hint = hint
         self.content = content
         self.createDestination = { EmptyView() }
         self.onAdd = onAdd

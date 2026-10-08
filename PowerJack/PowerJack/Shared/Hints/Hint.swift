@@ -7,6 +7,8 @@
 //  To add a hint:
 //  1. Declare it next to its feature: `struct MyHint: Hint { var title: Text { Text("…") } }`.
 //  2. Show it with `.popoverHint(MyHint())` on the control it explains, or `HintView(MyHint())` inline.
+//     Inside a glass container, mark the control with `.hintAnchor("id")` and call
+//     `.popoverHints(["id": MyHint()])` outside the container instead.
 //  3. Call `MyHint().invalidate(reason: .actionPerformed)` once the lifter has done what it teaches.
 //  Each hint shows until it's closed or invalidated. Give it an `occasion` to show it again later.
 //
@@ -57,16 +59,57 @@ nonisolated enum Hints {
 extension View {
     /// Points a hint at this view. The screen stays usable while it shows, so it never blocks a tap.
     func popoverHint(_ hint: (any Hint)?, arrowEdge: Edge = .top) -> some View {
-        popoverTip(hint, arrowEdge: arrowEdge)
-            .tipBackgroundInteraction(.enabled)
+        background {
+            Color.clear
+                .popoverTip(hint, arrowEdge: arrowEdge)
+                .tipBackgroundInteraction(.enabled)
+                // A new hint replaces the popover; otherwise the old one's text stays on screen.
+                .id(hint?.id)
+        }
+    }
+}
+
+extension View {
+    /// Marks this view so `popoverHints(_:)` on an outer view can point a hint at it.
+    /// Use it inside a `GlassEffectContainer`, where popovers don't present.
+    func hintAnchor(_ id: String) -> some View {
+        anchorPreference(key: HintAnchorKey.self, value: .bounds) { [id: $0] }
+    }
+
+    /// Points each hint at the view inside this one marked with the same `hintAnchor(_:)` ID.
+    func popoverHints(_ hints: [String: (any Hint)?], arrowEdge: Edge = .top) -> some View {
+        overlayPreferenceValue(HintAnchorKey.self) { anchors in
+            GeometryReader { proxy in
+                ForEach(hints.keys.sorted(), id: \.self) { id in
+                    if let hint = hints[id] ?? nil, let anchor = anchors[id] {
+                        let frame = proxy[anchor]
+                        Color.clear
+                            .frame(width: frame.width, height: frame.height)
+                            // Before position, so the popover points at the anchor, not the whole overlay.
+                            .popoverHint(hint, arrowEdge: arrowEdge)
+                            .position(x: frame.midX, y: frame.midY)
+                    }
+                }
+            }
+            // Taps go through to the marked view underneath.
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+private struct HintAnchorKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 
 /// A hint shown inline, taking up space in the layout.
-struct HintView<Content: Hint>: View {
-    let hint: Content
+struct HintView: View {
+    let hint: any Hint
 
-    init(_ hint: Content) {
+    init(_ hint: any Hint) {
         self.hint = hint
     }
 
