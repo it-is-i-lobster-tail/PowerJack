@@ -153,7 +153,7 @@ struct AppScreenTests {
         let bench = try #require(screen.label(startingWith: "Barbell Bench Press"), "\(screen.labels)")
         await screen.tap(bench, settleFor: .milliseconds(800))
         #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
-        #expect(!screen.contains("Close"))
+        #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
     }
 
     @Test("Template builder days change by tap only, so row swipes never flip the day")
