@@ -51,6 +51,8 @@ struct SlidingGlassPicker<Option: Identifiable & Hashable>: View {
                         }
                 }
                 .buttonStyle(.plain)
+                // Lets an outer view point a hint at this option.
+                .hintAnchor(String(describing: option.id))
             }
         }
         .padding(4)

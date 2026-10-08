@@ -37,7 +37,8 @@ private struct RestTimerHost: ViewModifier {
 
     private var restTimerHint: RestTimerHint? {
         guard let activeProgram, let workout,
-              let occasion = HintOccasion(weekNumber: activeProgram.weekNumber(containing: workout), workout: workout)
+              let occasion = HintOccasion(weekNumber: activeProgram.weekNumber(containing: workout), workout: workout),
+              occasion.showsWorkoutBasics
         else {
             return nil
         }

@@ -11,15 +11,19 @@ import SwiftData
 struct ProgramDetailView: View {
     @Bindable var program: Program
 
-    /// Before a week 1 workout starts, a hint explains how to pick its weights.
-    private var baselineHint: BaselineHint? {
+    /// Each early workout gets its own hint above Start Workout, shown until it starts.
+    private var startWorkoutHint: (any Hint)? {
         guard let workout = program.nextWorkout, workout.status == .planned,
-              let occasion = HintOccasion(weekNumber: program.weekNumber(containing: workout), workout: workout),
-              occasion.isWeekOne
+              let occasion = HintOccasion(weekNumber: program.weekNumber(containing: workout), workout: workout)
         else {
             return nil
         }
-        return BaselineHint(occasion: occasion)
+        switch occasion {
+        case .weekOneDayOne, .weekOneDayTwo: return BaselineHint(occasion: occasion)
+        case .weekTwoDayOne: return SwapExerciseHint()
+        case .weekTwoDayTwo: return RestSettingsHint()
+        case .weekThreeDayOne: return EditExercisesHint()
+        }
     }
 
     var body: some View {
@@ -97,7 +101,7 @@ struct ProgramDetailView: View {
                             program: program,
                             workout: nextWorkout
                         )
-                        .popoverHint(baselineHint, arrowEdge: .bottom)
+                        .popoverHint(startWorkoutHint, arrowEdge: .bottom)
                     } else {
                         EmptyStateView(
                             title: "No upcoming workouts",

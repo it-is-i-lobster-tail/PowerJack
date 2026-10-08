@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 
 struct TemplateProgramListView: View {
     @Environment(\.dismiss) private var dismiss
@@ -34,7 +35,9 @@ struct TemplateProgramListView: View {
                 navigationTitle: "My Templates",
                 isEmpty: visibleTemplates.isEmpty,
                 emptyTitle: "No templates",
-                emptySystemImage: "doc.on.doc"
+                emptySystemImage: "doc.on.doc",
+                // Picking a template for a new program is no place for the intro.
+                hint: onSelect == nil ? TemplatesHint() : nil
             ) {
                 List(visibleTemplates) { template in
                     Button {
@@ -123,6 +126,7 @@ struct TemplateProgramListView: View {
 
     private func select(_ template: TemplateProgram) {
         guard let onSelect else {
+            TemplatesHint().invalidate(reason: .actionPerformed)
             selectedTemplate = template
             return
         }
