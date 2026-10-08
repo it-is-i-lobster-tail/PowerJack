@@ -33,14 +33,10 @@ struct ProgramProgressWeekRow: View {
                 }
             } else {
                 ForEach(programWeek.workouts, id: \.self) { workout in
-                    let completedPercent: Double = workout.workingSetCount > 0
-                        ? min(1, max(0, Double(workout.completedWorkingSets) / Double(workout.workingSetCount)))
-                        : 0
-                    let displayCompletedPercent: Int = Int((completedPercent * 100).rounded())
-
+                    let progress = workout.setProgress
                     let cell = ProgramProgressCell(
-                        completedPercent: completedPercent,
-                        displayCompletedPercent: displayCompletedPercent,
+                        completedFraction: progress.completed,
+                        skippedFraction: progress.skipped,
                         dataCellWidth: dataCellWidth,
                         cellHeight: cellHeight
                     )
@@ -88,10 +84,15 @@ private struct ProgramProgressPlaceholderCell: View {
 }
 
 private struct ProgramProgressCell: View {
-    let completedPercent: Double
-    let displayCompletedPercent: Int
+    let completedFraction: Double
+    let skippedFraction: Double
     let dataCellWidth: CGFloat
     let cellHeight: CGFloat
+
+    // Completed fills from the bottom in blue, skipped stacks on top in grey, and the rest stays empty.
+    private var completedTop: Double { min(1, max(0, completedFraction)) }
+    private var resolvedTop: Double { min(1, max(completedTop, completedFraction + skippedFraction)) }
+    private var displayPercent: Int { Int((resolvedTop * 100).rounded()) }
 
     var body: some View {
         ZStack {
@@ -99,17 +100,19 @@ private struct ProgramProgressCell: View {
                 .fill(
                     LinearGradient(
                         stops: [
-                            .init(color: .green.opacity(VisualOpacity.light), location: 0),
-                            .init(color: .green.opacity(VisualOpacity.light), location: completedPercent),
-                            .init(color: .gray.opacity(VisualOpacity.light), location: completedPercent),
-                            .init(color: .gray.opacity(VisualOpacity.light), location: 1)
+                            .init(color: .blue.opacity(VisualOpacity.light), location: 0),
+                            .init(color: .blue.opacity(VisualOpacity.light), location: completedTop),
+                            .init(color: .gray.opacity(VisualOpacity.light), location: completedTop),
+                            .init(color: .gray.opacity(VisualOpacity.light), location: resolvedTop),
+                            .init(color: .clear, location: resolvedTop),
+                            .init(color: .clear, location: 1)
                         ],
                         startPoint: .bottom,
                         endPoint: .top
                     )
                 )
 
-            Text("\(displayCompletedPercent)%")
+            Text("\(displayPercent)%")
         }
         .frame(
             width: dataCellWidth,
