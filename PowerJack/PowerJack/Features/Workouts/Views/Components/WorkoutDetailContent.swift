@@ -15,8 +15,8 @@ struct WorkoutDetailContent: View {
     let onExerciseSetsDone: (WorkoutExercise) -> Void
 
     var body: some View {
-        // The sets take every point the exercise strip doesn't need.
-        VStack(spacing: 0) {
+        // The sets take every point the exercise strip doesn't need, less a gap above the strip.
+        VStack(spacing: LayoutMetrics.compactSpacing) {
             WorkoutExercisePager(
                 screenWidth: screenWidth,
                 workoutExercises: workoutExercises,

@@ -12,6 +12,8 @@ import SwiftUI
 struct SetGroupHeader: View {
     let workoutExercise: WorkoutExercise
     let setType: SetType
+    /// Shows the green check once a collapsed group is done.
+    var isDone = false
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.workoutIsReadOnly) private var isReadOnly
@@ -25,6 +27,15 @@ struct SetGroupHeader: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
+
+            // Sized to the title so the heading keeps its height when the check appears.
+            if isDone {
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.green)
+                    .transition(.symbolEffect(.drawOn, options: .speed(2.2)))
+                    .accessibilityLabel("\(title) done")
+            }
 
             Spacer()
 
@@ -61,7 +72,7 @@ struct SetGroupHeader: View {
         Divider()
 
         Button("Disable Warmup for Exercise", systemImage: "nosign") {
-            update { workoutExercise.disableWarmups() }
+            withAnimation { update { workoutExercise.disableWarmups() } }
         }
         .disabled(isLocked)
 
@@ -82,14 +93,6 @@ struct SetGroupHeader: View {
             update { workoutExercise.removeLastSet() }
         }
         .disabled(isLocked || workoutExercise.workingSets.isEmpty)
-
-        // With no warmups there's no warmup heading, so they're added back from here.
-        if workoutExercise.warmupSets.isEmpty {
-            Button("Add Warmup Set", systemImage: "flame") {
-                update { _ = workoutExercise.addWarmupSet() }
-            }
-            .disabled(isLocked)
-        }
 
         Divider()
 

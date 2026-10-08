@@ -131,8 +131,9 @@ struct WarmupSetTests {
         while exercise.addWarmupSet() != nil {}
 
         #expect(exercise.warmupSets.count == WorkoutExercise.maxWarmupSets)
-        #expect(exercise.workoutSets.map(\.setType) == [.warmup, .warmup, .warmup, .warmup, .working, .working])
-        #expect(exercise.workoutSets.map(\.order) == Array(0..<6))
+        #expect(WorkoutExercise.maxWarmupSets == 3)
+        #expect(exercise.workoutSets.map(\.setType) == [.warmup, .warmup, .warmup, .working, .working])
+        #expect(exercise.workoutSets.map(\.order) == Array(0..<5))
 
         exercise.removeLastSet(type: .warmup)
         #expect(exercise.warmupSets.count == WorkoutExercise.maxWarmupSets - 1)
@@ -175,6 +176,42 @@ struct WarmupSetTests {
         weekTwo.startAndCascade()
         #expect(next.addWarmupSet() != nil)
         #expect(next.exercise?.warmupDisabled == false)
+    }
+
+    @Test("Disabled warmups are hidden, even logged ones, until Enable Warmup brings them back")
+    func enableWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        log([exercise.warmupSets[0]], reps: 5, weightTenthsPounds: 450)
+
+        exercise.disableWarmups()
+        #expect(!exercise.showsWarmups)
+        #expect(exercise.warmupSets.count == 1)
+
+        exercise.enableWarmups()
+        #expect(exercise.showsWarmups)
+        #expect(exercise.exercise?.warmupDisabled == false)
+        #expect(exercise.warmupSets.map(\.status) == [.complete, .active])
+        #expect(exercise.workoutSets.map(\.setType) == [.warmup, .warmup, .working, .working])
+    }
+
+    @Test("Warmups count as done once each is complete or skipped")
+    func warmupsDone() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        log([exercise.warmupSets[0]], reps: 5, weightTenthsPounds: 450)
+        #expect(!exercise.warmupsDone)
+
+        exercise.skipWarmups()
+        #expect(exercise.warmupsDone)
+
+        _ = exercise.addWarmupSet()
+        #expect(!exercise.warmupsDone)
     }
 
     @Test("Next week repeats how many warmups were done")
