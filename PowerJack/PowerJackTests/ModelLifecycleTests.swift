@@ -490,7 +490,7 @@ struct ModelLifecycleTests {
 
     // MARK: Program
 
-    @Test("Program totals and template fallbacks")
+    @Test("Program totals and their own copy of template details")
     func programDerivedValues() throws {
         let program = try makeProgram(weeks: 4, workouts: 3)
         #expect(program.totalWorkouts == 12)
@@ -500,11 +500,20 @@ struct ModelLifecycleTests {
         #expect(program.templateMuscleFocus == [.chest])
         #expect(program.nextWorkout == nil)
 
-        // A synced program can arrive before its template.
+        // The program keeps its own copy, so losing the template changes nothing.
         program.templateProgramValue = nil
+        #expect(program.templateName == "Test")
+        #expect(program.workoutsPerWeek == 3)
+        #expect(program.totalWorkouts == 12)
+        #expect(program.templateMuscleFocus == [.chest])
+
+        // A program saved before the copy existed, synced before its template, falls back to week 1.
+        program.workoutsPerWeekValue = 0
+        program.templateNameValue = ""
+        program.templateMuscleFocusValue = []
         #expect(program.templateName == "Program")
-        #expect(program.workoutsPerWeek == 0)
-        #expect(program.totalWorkouts == 0)
+        #expect(program.workoutsPerWeek == 3)
+        #expect(program.totalWorkouts == 12)
         #expect(program.percentFinished == 0)
         #expect(program.templateMuscleFocus.isEmpty)
     }
