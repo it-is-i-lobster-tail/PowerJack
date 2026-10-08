@@ -29,7 +29,7 @@ struct WorkoutExercisePager: View {
                 }
             }
             .scrollTargetLayout()
-            .padding(.top, 40)
+            .padding(.top, LayoutMetrics.compactSpacing)
         }
         .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
         .scrollPosition(id: $selectedExerciseIndex)

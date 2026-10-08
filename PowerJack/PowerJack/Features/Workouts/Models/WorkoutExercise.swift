@@ -46,7 +46,7 @@ final class WorkoutExercise {
     static let maxSets = 5
     static let initialSets = 2
     static let initialWarmupSets = 2
-    static let maxWarmupSets = 4
+    static let maxWarmupSets = 3
 
     init(
         exercise: Exercise,
@@ -145,6 +145,15 @@ extension WorkoutExercise {
     // Every working set is complete or skipped. Warmups are optional and don't count.
     func allSetsDone() -> Bool {
         let sets = workingSets
+        return !sets.isEmpty && sets.allSatisfy(\.isDone)
+    }
+    /// Disabled warmups stay out of sight, even ones logged before they were turned off.
+    var showsWarmups: Bool {
+        exercise?.warmupDisabled != true && !warmupSets.isEmpty
+    }
+    /// Every warmup is complete or skipped.
+    var warmupsDone: Bool {
+        let sets = warmupSets
         return !sets.isEmpty && sets.allSatisfy(\.isDone)
     }
 }
@@ -337,6 +346,15 @@ extension WorkoutExercise {
             workoutSetsValue?.removeAll { $0 === warmup }
             modelContext?.delete(warmup)
         }
+    }
+    /// Turns warmups back on for this exercise and tops them up to the usual starting count.
+    func enableWarmups() {
+        guard !lockedValue, let exercise else {
+            Logger.workoutExercise.warning("Cannot enable warmups of a locked WorkoutExercise.")
+            return
+        }
+        exercise.warmupDisabled = false
+        while warmupSets.count < Self.initialWarmupSets, addSet(type: .warmup) != nil {}
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
     func requireCheckIn(sourcePain: LevelOfPain) {
