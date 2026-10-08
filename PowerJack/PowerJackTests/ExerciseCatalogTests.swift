@@ -46,7 +46,7 @@ struct ExerciseCatalogTests {
 
         // A new context proves that seeding explicitly saved the inserts.
         let stored = try ModelContext(container).fetch(FetchDescriptor<Exercise>())
-        #expect(stored.count == 48)
+        #expect(stored.count == ExerciseCatalog.entries.count)
         #expect(Set(stored.map(\.persistentModelID)) == originalIDs)
         #expect(Set(stored.compactMap(\.catalogID)) == Set(ExerciseCatalog.entries.map(\.id)))
         #expect(stored.allSatisfy { !$0.userCreated })
@@ -73,7 +73,8 @@ struct ExerciseCatalogTests {
 
         try ExerciseCatalog.seed(in: context)
         try ExerciseCatalog.seed(in: context)
-        #expect(try context.fetchCount(FetchDescriptor<Exercise>()) == 50)
+        // The renamed catalog entry is kept, and the custom and legacy exercises are extra.
+        #expect(try context.fetchCount(FetchDescriptor<Exercise>()) == ExerciseCatalog.entries.count + 2)
         #expect(existing.exerciseName == "Existing Catalog Name")
         #expect(existing.persistentModelID == existingID)
         #expect(custom.userCreated && custom.catalogID == nil)

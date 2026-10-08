@@ -60,6 +60,22 @@ struct WorkoutActionsMenu: View {
                     }
                 }
 
+                // Hidden warmups come back from here, since their heading and menu are gone.
+                if !selectedWorkoutExercise.showsWarmups {
+                    Button {
+                        withAnimation {
+                            selectedWorkoutExercise.enableWarmups()
+                            try? modelContext.save()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame")
+                            Text("Enable Warmup")
+                        }
+                    }
+                    .disabled(!canModifySelectedExercise)
+                }
+
                 Divider()
 
                 Button {
