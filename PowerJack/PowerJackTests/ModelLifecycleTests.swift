@@ -182,6 +182,7 @@ struct ModelLifecycleTests {
     @Test("Adding sets copies the last weight and stops at the max")
     func exerciseAddSet() {
         let workoutExercise = makeWorkoutExercise()
+        workoutExercise.start()
         let first = workoutExercise.addSet()
         first?.weightTenthsPounds = 1350
         let second = workoutExercise.addSet()
@@ -193,6 +194,17 @@ struct ModelLifecycleTests {
         while workoutExercise.addSet() != nil {}
         #expect(workoutExercise.totalSets == WorkoutExercise.maxSets)
         #expect(workoutExercise.addPlannedSet(plannedReps: 8, plannedWeightTenthsPounds: nil) == nil)
+    }
+
+    @Test("Sets added before the exercise starts stay planned until it starts")
+    func exerciseAddSetBeforeStart() {
+        let workoutExercise = makeWorkoutExercise()
+        workoutExercise.addWarmupSets()
+        _ = workoutExercise.addSet()
+        #expect(workoutExercise.workoutSets.allSatisfy { $0.status == .planned })
+
+        workoutExercise.startAndCascade()
+        #expect(workoutExercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
     @Test("Planned sets can only be added before the exercise starts")
@@ -332,6 +344,7 @@ struct ModelLifecycleTests {
     @Test("A nil weight is never copied to later sets")
     func exerciseApplyNilWeight() throws {
         let workoutExercise = makeWorkoutExercise()
+        workoutExercise.start()
         let first = try #require(workoutExercise.addSet())
         let second = try #require(workoutExercise.addSet())
         second.weightTenthsPounds = 800
