@@ -203,7 +203,8 @@ extension Program {
         guard !setsByMuscle.isEmpty else { return }
         modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle))
     }
-    /// Skips `workout` and moves the program forward.
+    /// Skips the rest of `workout` and moves the program forward.
+    /// Completed sets stay completed and count toward history; only unfinished sets are skipped.
     @discardableResult
     func skipWorkout(_ workout: Workout) -> Workout? {
         guard status == .active else {
@@ -213,6 +214,9 @@ extension Program {
         if workout.status == .planned {
             // Planned workouts are locked; starting unlocks them so they can be skipped.
             workout.startAndCascade()
+        }
+        if workout.status == .active {
+            logSets(of: workout)
         }
         workout.skipAndCascade()
         return advance(after: workout)
