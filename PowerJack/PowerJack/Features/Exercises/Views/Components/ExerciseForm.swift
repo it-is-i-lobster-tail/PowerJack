@@ -87,6 +87,8 @@ struct ExerciseForm: View {
 
             ExerciseFatigueLevelField(
                 fatigueLevel: $draft.fatigueLevel,
+                customRestTime: $draft.customRestTime,
+                fatigueRestTime: draft.fatigueRestTime,
                 height: boxHeight
             )
 
@@ -143,14 +145,23 @@ private struct ExerciseRepRangeField: View {
 
 private struct ExerciseFatigueLevelField: View {
     @Binding var fatigueLevel: FatigueLevel
+    @Binding var customRestTime: Int?
+    let fatigueRestTime: Int
     let height: CGFloat
+
+    private var restDetail: LocalizedStringKey {
+        if let customRestTime {
+            return "Custom rest · \(Duration.seconds(customRestTime).minuteSecondText) between sets"
+        }
+        return "\(fatigueLevel.restLength.name) rest · \(fatigueLevel.restLength.duration.minuteSecondText) between sets"
+    }
 
     var body: some View {
         VStack(spacing: LayoutMetrics.compactSpacing) {
             FormFieldLabel(
                 systemImage: "timer",
                 title: "Fatigue Level",
-                detail: "\(fatigueLevel.restLength.name) rest · \(fatigueLevel.restLength.duration.minuteSecondText) between sets"
+                detail: restDetail
             )
             Picker("Fatigue Level", selection: $fatigueLevel) {
                 ForEach(FatigueLevel.allCases) { fatigueLevel in
@@ -159,11 +170,50 @@ private struct ExerciseFatigueLevelField: View {
                 }
             }
             .pickerStyle(.segmented)
+            ExerciseCustomRestRow(
+                customRestTime: $customRestTime,
+                fatigueRestTime: fatigueRestTime
+            )
         }
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .padding(.vertical, LayoutMetrics.compactSpacing)
         .frame(maxWidth: .infinity, minHeight: height)
         .powerJackGlassCard(interactive: true)
+    }
+}
+
+/// Replaces the fatigue level's rest with a time of the user's own. Clearing it goes back to the fatigue level.
+private struct ExerciseCustomRestRow: View {
+    @Binding var customRestTime: Int?
+    let fatigueRestTime: Int
+
+    var body: some View {
+        HStack {
+            if let customRestTime {
+                Button("Clear Custom Rest", systemImage: "xmark.circle.fill") {
+                    withAnimation(.snappy) { self.customRestTime = nil }
+                }
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                Stepper(
+                    "Custom \(Duration.seconds(customRestTime).minuteSecondText)",
+                    value: Binding(
+                        get: { self.customRestTime ?? fatigueRestTime },
+                        set: { self.customRestTime = $0 }
+                    ),
+                    in: ExerciseDraft.restLimits,
+                    step: ExerciseDraft.restStep
+                )
+                .monospacedDigit()
+            } else {
+                Button("Set Custom Rest", systemImage: "plus.circle") {
+                    withAnimation(.snappy) { customRestTime = fatigueRestTime }
+                }
+                Spacer()
+            }
+        }
+        .font(.caption)
     }
 }
 
