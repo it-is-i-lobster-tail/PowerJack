@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 
 struct TemplateBuilder: View {
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +47,7 @@ struct TemplateBuilder: View {
     }
     
     private func handleShowEditExerciseSheet(exercise: Exercise) {
+        TemplateBuilderHint().invalidate(reason: .actionPerformed)
         exerciseToEdit = exercise
     }
 
@@ -60,6 +62,9 @@ struct TemplateBuilder: View {
                 
                 Divider()
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
+
+                HintView(TemplateBuilderHint())
+                    .padding(.horizontal)
 
                 // Days change only by tapping the picker. Horizontal swipes belong to
                 // the exercise rows, so swipe to edit or delete never flips the day.
@@ -92,6 +97,7 @@ struct TemplateBuilder: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    TemplateBuilderHint().invalidate(reason: .actionPerformed)
                     isShowingWorkoutExerciseSheet = true
                 } label: {
                     HStack {

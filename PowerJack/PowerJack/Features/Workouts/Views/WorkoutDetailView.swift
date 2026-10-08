@@ -72,7 +72,8 @@ struct WorkoutDetailView: View {
     private var logSetHint: LogSetHint? {
         guard !isReadOnly,
               workout.getCountCompletedSets() == 0,
-              let occasion = HintOccasion(weekNumber: weekNumber, workout: workout)
+              let occasion = HintOccasion(weekNumber: weekNumber, workout: workout),
+              occasion.showsWorkoutBasics
         else {
             return nil
         }

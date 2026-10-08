@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 
 private enum MainBrowserOption:
     CaseIterable,
@@ -56,6 +57,12 @@ private struct PowerJackScreens: View {
     @Query private var programs: [Program]
 
     private var activeProgram: Program? { programs.active }
+
+    /// Welcomes a new lifter toward Templates.
+    private var welcomeHint: WelcomeHint? {
+        programs.isEmpty ? WelcomeHint() : nil
+    }
+
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
     // A new ID rebuilds the Templates tab, which returns it to its list.
@@ -107,6 +114,8 @@ private struct PowerJackScreens: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal)
             }
+            // Popovers can't present from inside the glass container, so they attach out here.
+            .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
             // A little breathing room between screen content and the bar.
             .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
@@ -124,8 +133,10 @@ private struct PowerJackScreens: View {
     private func showList(of option: MainBrowserOption) {
         switch option {
         case .programs:
+            ProgramsHint.opened.sendDonation()
             router.popToRoot()
         case .templates:
+            WelcomeHint().invalidate(reason: .actionPerformed)
             templatesRootID = UUID()
         case .volume:
             break

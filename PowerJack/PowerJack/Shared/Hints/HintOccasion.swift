@@ -2,17 +2,19 @@
 //  HintOccasion.swift
 //  PowerJack
 //
-//  The workouts that repeat a hint, so it gets seen more than once.
+//  The workouts that show a hint, so hints arrive as the lifter gets to them.
 //
 
 import Foundation
 
-/// Days 1 and 2 of week 1, then day 1 of week 2. Once the lifter moves past that,
-/// no workout is an occasion again, so later programs stay quiet.
+/// The early workouts of the lifter's first program. Once the lifter moves past
+/// week 3, day 1, no workout is an occasion again, so later programs stay quiet.
 nonisolated enum HintOccasion: String {
     case weekOneDayOne
     case weekOneDayTwo
     case weekTwoDayOne
+    case weekTwoDayTwo
+    case weekThreeDayOne
 
     private static let finishedKey = "hints.workoutOccasionsFinished"
 
@@ -24,20 +26,19 @@ nonisolated enum HintOccasion: String {
         case (1, 0): self = .weekOneDayOne
         case (1, 1): self = .weekOneDayTwo
         case (2, 0): self = .weekTwoDayOne
+        case (2, 1): self = .weekTwoDayTwo
+        case (3, 0): self = .weekThreeDayOne
         default: return nil
         }
     }
 
-    var isWeekOne: Bool { self != .weekTwoDayOne }
+    /// The workouts that repeat how logging sets and resting work, so it sinks in.
+    var showsWorkoutBasics: Bool { [.weekOneDayOne, .weekOneDayTwo, .weekTwoDayOne].contains(self) }
 
-    /// Starting any later workout ends the occasions for good.
+    /// Starting a workout after week 3, day 1 ends the occasions for good.
     @MainActor
     static func workoutStarted(weekNumber: Int?, workout: Workout) {
-        guard let weekNumber, weekNumber >= 2,
-              HintOccasion(weekNumber: weekNumber, workout: workout) == nil
-        else {
-            return
-        }
+        guard let weekNumber, weekNumber > 3 || (weekNumber == 3 && workout.order > 0) else { return }
         UserDefaults.standard.set(true, forKey: finishedKey)
     }
 }
