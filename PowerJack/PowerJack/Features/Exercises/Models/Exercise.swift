@@ -30,6 +30,8 @@ final class Exercise {
     // Picks the rest between sets. The default lets older stores migrate.
     @Attribute(originalName: "fatigueValue")
     var fatigueLevelValue: FatigueLevel = Exercise.defaultFatigueLevel
+    // Seconds of rest that replace the fatigue level's rest. Nil uses the fatigue level.
+    var customRestTimeValue: Int? = nil
     // Turned on from a workout's warmup menu. Workouts then start on the working sets.
     var warmupDisabledValue: Bool = false
 
@@ -91,7 +93,11 @@ extension Exercise {
         get { fatigueLevelValue }
         set { fatigueLevelValue = newValue }
     }
-    var restDuration: Duration { fatigueLevel.restLength.duration }
+    var customRestTime: Int? {
+        get { customRestTimeValue }
+        set { customRestTimeValue = newValue }
+    }
+    var restDuration: Duration { customRestTime.map { .seconds($0) } ?? fatigueLevel.restLength.duration }
     // Warmups
     var warmupDisabled: Bool {
         get { warmupDisabledValue }

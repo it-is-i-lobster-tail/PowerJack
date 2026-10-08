@@ -105,6 +105,35 @@ struct CreationFlowTests {
         #expect(exercise.repRange == 5...14)
     }
 
+    @Test("A custom rest time replaces the fatigue rest until it's cleared, on built-in exercises too")
+    func exerciseCustomRestTime() throws {
+        let exercise = Exercise(exerciseName: "Squat", exerciseEquipment: .barbell, primaryMuscleFocus: .quads)
+        #expect(!exercise.userCreated)
+        #expect(exercise.customRestTime == nil)
+        #expect(exercise.restDuration == exercise.fatigueLevel.restLength.duration)
+
+        var draft = ExerciseDraft(exercise: exercise)
+        draft.customRestTime = 200
+        #expect(draft.apply(to: exercise))
+        #expect(exercise.restDuration == .seconds(200))
+        #expect(ExerciseDraft(exercise: exercise).customRestTime == 200)
+
+        draft.customRestTime = ExerciseDraft.restLimits.upperBound + 1
+        #expect(!draft.canSave)
+
+        draft.customRestTime = nil
+        #expect(draft.apply(to: exercise))
+        #expect(exercise.customRestTime == nil)
+        #expect(exercise.restDuration == exercise.fatigueLevel.restLength.duration)
+
+        var newDraft = ExerciseDraft()
+        newDraft.name = "Cable Row"
+        newDraft.equipment = .cable
+        newDraft.primaryMuscle = .back
+        newDraft.customRestTime = 90
+        #expect(try #require(newDraft.makeExercise()).restDuration == .seconds(90))
+    }
+
     @Test("Template workout counts stay ordered and retain disabled days")
     func templateWorkoutCountSynchronization() {
         var draft = TemplateProgramDraft()

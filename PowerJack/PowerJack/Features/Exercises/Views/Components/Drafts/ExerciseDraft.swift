@@ -21,10 +21,15 @@ struct ExerciseDraft {
             maxReps = max(fatigueLevel.defaultMaxReps, minReps)
         }
     }
-    // Built-in exercises keep their name, equipment and muscles. Only rep range and fatigue change.
+    // Seconds of rest that replace the fatigue level's rest. Nil uses the fatigue level.
+    var customRestTime: Int?
+    // Built-in exercises keep their name, equipment and muscles. Only rep range, fatigue and rest change.
     private(set) var isBuiltIn = false
 
     static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
+    static let restLimits = Int(RestLength.range.lowerBound.components.seconds)
+        ... Int(RestLength.range.upperBound.components.seconds)
+    static let restStep = 15
 
     init() {}
 
@@ -36,6 +41,7 @@ struct ExerciseDraft {
         minReps = exercise.minReps
         maxReps = exercise.maxReps
         fatigueLevel = exercise.fatigueLevel
+        customRestTime = exercise.customRestTime
         isBuiltIn = !exercise.userCreated
     }
 
@@ -44,7 +50,7 @@ struct ExerciseDraft {
     }
 
     var canSave: Bool {
-        guard !isBuiltIn else { return repRangeIsValid }
+        guard !isBuiltIn else { return repRangeIsValid && restIsValid }
         guard equipment != nil,
               let primaryMuscle
         else {
@@ -54,13 +60,23 @@ struct ExerciseDraft {
         return (4...maxExerciseNameLengthInput).contains(trimmedName.count) &&
             secondaryMuscles.count <= maxSecondaryMuscles &&
             !secondaryMuscles.contains(primaryMuscle) &&
-            repRangeIsValid
+            repRangeIsValid &&
+            restIsValid
     }
 
     var repRangeIsValid: Bool {
         Self.repLimits.contains(minReps) &&
             Self.repLimits.contains(maxReps) &&
             minReps <= maxReps
+    }
+
+    var restIsValid: Bool {
+        customRestTime.map(Self.restLimits.contains) ?? true
+    }
+
+    /// The rest the fatigue level gives, used as the starting point for a custom rest.
+    var fatigueRestTime: Int {
+        Int(fatigueLevel.restLength.duration.components.seconds)
     }
 
     mutating func removePrimaryFromSecondary() {
@@ -76,7 +92,7 @@ struct ExerciseDraft {
             return nil
         }
 
-        return Exercise(
+        let exercise = Exercise(
             exerciseName: trimmedName,
             exerciseEquipment: equipment,
             primaryMuscleFocus: primaryMuscle,
@@ -86,6 +102,8 @@ struct ExerciseDraft {
             maxReps: maxReps,
             fatigueLevel: fatigueLevel
         )
+        exercise.customRestTime = customRestTime
+        return exercise
     }
 
     @discardableResult
@@ -102,6 +120,7 @@ struct ExerciseDraft {
         exercise.minReps = minReps
         exercise.maxReps = maxReps
         exercise.fatigueLevel = fatigueLevel
+        exercise.customRestTime = customRestTime
         return true
     }
 }
