@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 
 struct ProgramListView: View {
     @Query private var programs: [Program]
@@ -44,7 +45,8 @@ struct ProgramListView: View {
             isEmpty: programs.isEmpty,
             emptyTitle: "No programs",
             emptySystemImage: "list.bullet.rectangle",
-            onAdd: router.showNewProgram
+            hint: ProgramsHint(),
+            onAdd: addProgram
         ) {
             List(displayedPrograms) { program in
                 Button {
@@ -106,7 +108,13 @@ struct ProgramListView: View {
         }
     }
 
+    private func addProgram() {
+        ProgramsHint().invalidate(reason: .actionPerformed)
+        router.showNewProgram()
+    }
+
     private func select(_ program: Program) {
+        ProgramsHint().invalidate(reason: .actionPerformed)
         router.showDetail(program)
     }
 }
