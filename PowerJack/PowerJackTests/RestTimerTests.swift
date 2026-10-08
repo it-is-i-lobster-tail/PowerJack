@@ -194,8 +194,9 @@ struct RestTimerTests {
         #expect(done.currentRest == nil)
 
         let planned = try makeWorkout([(.moderate, 2)], started: false)
+        // Sets of a workout that hasn't started can't be logged yet.
         planned.workoutExercises[0].workoutSets[0].complete(at: start)
-        #expect(planned.workoutExercises[0].workoutSets[0].completedAt == start)
+        #expect(planned.workoutExercises[0].workoutSets[0].status == .planned)
         #expect(planned.currentRest == nil)
     }
 
