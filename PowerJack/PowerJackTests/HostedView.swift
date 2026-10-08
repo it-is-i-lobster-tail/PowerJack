@@ -40,6 +40,17 @@ final class HostedView {
         window.layoutIfNeeded()
     }
 
+    /// Settles until `condition` holds or `timeout` passes, for animations that run slower on CI.
+    @discardableResult
+    func waitUntil(timeout: Duration = .seconds(3), _ condition: () -> Bool) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while !condition() {
+            guard ContinuousClock.now < deadline else { return false }
+            await settle(.milliseconds(100))
+        }
+        return true
+    }
+
     /// Every accessibility label currently in this view's window, including presented sheets.
     var labels: [String] {
         elements().compactMap { $0.accessibilityLabel }
