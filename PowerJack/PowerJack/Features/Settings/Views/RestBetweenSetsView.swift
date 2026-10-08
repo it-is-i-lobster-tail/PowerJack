@@ -75,7 +75,8 @@ private struct RestLengthRow: View {
 }
 
 /// Minutes in steps of 1 and seconds in steps of 5, held inside `RestLength.range`.
-private struct MinuteSecondWheel: View {
+/// Also used for an exercise's custom rest.
+struct MinuteSecondWheel: View {
     @Binding var seconds: Int
 
     private static let range = Int(RestLength.range.lowerBound.components.seconds)
