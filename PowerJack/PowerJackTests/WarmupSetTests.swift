@@ -154,6 +154,77 @@ struct WarmupSetTests {
         #expect(exercise.workingSets.allSatisfy { $0.status == .active })
     }
 
+    @Test("Completing the first working set skips the warmups still to do and moves on to Set 2")
+    func firstWorkingSetSkipsWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        let working = exercise.workingSets
+
+        working[0].reps = 8
+        working[0].weightTenthsPounds = 1000
+        exercise.completeSet(working[0])
+
+        #expect(exercise.warmupSets.map(\.status) == [.skipped, .skipped])
+        #expect(workout.currentSet?.workoutSet === working[1])
+        #expect(workout.currentRest != nil)
+    }
+
+    @Test("A logged warmup keeps its log when the first working set skips the rest")
+    func firstWorkingSetKeepsLoggedWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        log([exercise.warmupSets[0]], reps: 5, weightTenthsPounds: 450)
+
+        exercise.completeSet(exercise.workingSets[0])
+
+        #expect(exercise.warmupSets.map(\.status) == [.complete, .skipped])
+        #expect(exercise.warmupSets[0].reps == 5)
+    }
+
+    @Test("Starting to log a working set leaves the warmups waiting")
+    func editingWorkingSetKeepsWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        exercise.workingSets[0].reps = 8
+        exercise.workingSets[0].weightTenthsPounds = 1000
+
+        #expect(exercise.warmupSets.map(\.status) == [.active, .active])
+        #expect(workout.currentSet?.workoutSet === exercise.warmupSets[0])
+    }
+
+    @Test("Completing a warmup leaves the other warmups waiting")
+    func completingWarmupKeepsWarmups() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        exercise.completeSet(exercise.warmupSets[0])
+
+        #expect(exercise.warmupSets.map(\.status) == [.complete, .active])
+    }
+
+    @Test("A warmup added after the first working set isn't skipped by later working sets")
+    func laterWorkingSetKeepsAddedWarmup() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        exercise.completeSet(exercise.workingSets[0])
+
+        let added = try #require(exercise.addWarmupSet())
+        exercise.completeSet(exercise.workingSets[1])
+
+        #expect(added.status == .active)
+    }
+
     @Test("Disabling warmups drops the unlogged ones here and in later weeks, until one is added back")
     func disableWarmups() throws {
         let program = try makeProgram(weeks: 3)

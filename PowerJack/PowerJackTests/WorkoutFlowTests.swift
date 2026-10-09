@@ -195,6 +195,85 @@ struct WorkoutFlowTests {
         #expect(next.checkInSourcePain == .severe)
     }
 
+    @Test("Skipping a workout with a pending check-in keeps the check-in for the next week")
+    func skippedWorkoutKeepsCheckIn() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        #expect(try #require(weekTwo.workoutExercises.first).checkInPending)
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+        let exercise = try #require(weekThree.workoutExercises.first)
+
+        #expect(weekThree === program.programWeeks[2].workouts.first)
+        #expect(exercise.checkInPending)
+        #expect(exercise.checkInSourcePain == .severe)
+        #expect(exercise.locked)
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+    }
+
+    @Test("A check-in reaches past several skipped workouts to the last completed one")
+    func checkInSurvivesRepeatedSkips() throws {
+        let program = try makeStartedProgram(weeks: 4, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .extreme)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        let weekFour = try #require(program.skipWorkout(weekThree))
+        let exercise = try #require(weekFour.workoutExercises.first)
+
+        #expect(exercise.checkInPending)
+        #expect(exercise.checkInSourcePain == .extreme)
+    }
+
+    @Test("Answering a check-in and then skipping the workout asks again next week")
+    func answeredThenSkippedCheckInRepeats() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        try #require(weekTwo.workoutExercises.first).resolveCheckIn(.continue)
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        #expect(try #require(weekThree.workoutExercises.first).checkInPending)
+    }
+
+    @Test("Completing the exercise after a check-in uses its own pain next week")
+    func completedAfterCheckInClears() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        try #require(weekTwo.workoutExercises.first).resolveCheckIn(.continue)
+        log(weekTwo, reps: 10, weightTenthsPounds: 1000)
+
+        let weekThree = try #require(program.finishWorkout(weekTwo))
+
+        #expect(!(try #require(weekThree.workoutExercises.first).checkInPending))
+    }
+
+    @Test("Skipping a workout without earlier pain needs no check-in")
+    func skippedWorkoutWithoutPain() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        #expect(!(try #require(weekThree.workoutExercises.first).checkInPending))
+    }
+
     @Test("Finishing the last workout of the last week completes the program")
     func finishingProgram() throws {
         let program = try makeStartedProgram(weeks: 1, workouts: 1)
