@@ -43,8 +43,9 @@ extension Workout {
             startedAt: latest.completedAt,
             endsAt: latest.completedAt.addingTimeInterval(exercise.restDuration.timeInterval),
             exerciseName: exercise.exerciseName,
-            setNumber: nextSet.order + 1,
-            setCount: sets.count,
+            setNumber: current.workoutExercise.number(of: nextSet),
+            setCount: current.workoutExercise.count(sameTypeAs: nextSet),
+            isWarmup: nextSet.isWarmup,
             reps: nextSet.repsPlanned ?? nextSet.reps,
             weightTenthsPounds: exercise.repsOnly ? nil : weight
         )

@@ -21,13 +21,9 @@ extension Workout {
         let workoutExercise = current.workoutExercise
         let workoutSet = current.workoutSet
         let repsOnly = exercise.repsOnly
-        let number = workoutExercise.number(of: workoutSet)
-        let setText = workoutSet.isWarmup
-            ? "Warmup \(number) of \(workoutExercise.warmupSets.count)"
-            : "Set \(number) of \(workoutExercise.workingSets.count)"
         return WorkoutActivityState(
             exerciseName: exercise.exerciseName,
-            setText: setText,
+            setText: workoutExercise.setText(for: workoutSet),
             exerciseOrder: workoutExercise.order,
             setOrder: workoutSet.order,
             sets: workoutExercise.workoutSets.map {
