@@ -116,9 +116,9 @@ struct SetGroupHeader: View {
         Divider()
 
         Button("Skip Remaining Sets", systemImage: "forward") {
-            update { workoutExercise.skipAndCascade() }
+            update { workoutExercise.skipRemainingSets() }
         }
-        .disabled(isLocked)
+        .disabled(isLocked || workoutExercise.allSetsDone())
     }
 
     private func update(_ change: () -> Void) {

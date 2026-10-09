@@ -10,6 +10,8 @@ import SwiftUI
 struct ExercisePreviewStrip: View {
     let workoutExercises: [WorkoutExercise]
     let screenWidth: CGFloat
+    /// Adds a Review card after the last exercise.
+    var showsReview = false
     private static let visibleCards: CGFloat = 3
     private static let edgeMargin: CGFloat = 16
 
@@ -24,24 +26,16 @@ struct ExercisePreviewStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: spacing) {
                     ForEach(workoutExercises.indices, id: \.self) { index in
-                        Button {
-                            selectExercise(at: index)
-                        } label: {
-                            Text(workoutExercises[index].exercise?.exerciseName ?? "")
-                                .font(selectedExerciseIndex == index ? .default : .caption2)
-                                .fontWeight(selectedExerciseIndex == index ? .medium : .thin)
-                                .foregroundStyle(selectedExerciseIndex == index ? .white : .primary)
-                                .frame(width: cardWidth, height: 54)
-                                .background(
-                                    RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
-                                        .fill(
-                                            selectedExerciseIndex == index
-                                                ? Color.accentColor
-                                                : Color.gray.opacity(VisualOpacity.subtle)
-                                        )
-                                )
-                        }
-                        .id(index)
+                        card(
+                            workoutExercises[index].exercise?.exerciseName ?? "",
+                            index: index,
+                            isDone: workoutExercises[index].isDone,
+                            width: cardWidth
+                        )
+                    }
+
+                    if showsReview {
+                        card("Review", index: workoutExercises.count, isDone: false, width: cardWidth)
                     }
                 }
                 .scrollTargetLayout()
@@ -62,6 +56,33 @@ struct ExercisePreviewStrip: View {
             }
         }
         .frame(height: 75)
+    }
+
+    /// Selected is solid blue, done exercises are tinted blue, the rest stay plain.
+    private func card(_ title: String, index: Int, isDone: Bool, width: CGFloat) -> some View {
+        let isSelected = selectedExerciseIndex == index
+
+        return Button {
+            selectExercise(at: index)
+        } label: {
+            Text(title)
+                .font(isSelected ? .default : .caption2)
+                .fontWeight(isSelected ? .medium : .thin)
+                .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
+                .frame(width: width, height: 54)
+                .background(
+                    RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
+                        .fill(
+                            isSelected
+                                ? Color.accentColor
+                                : isDone
+                                    ? Color.accentColor.opacity(VisualOpacity.light)
+                                    : Color.gray.opacity(VisualOpacity.subtle)
+                        )
+                )
+        }
+        .accessibilityValue(isDone ? "Done" : "")
+        .id(index)
     }
 
     private func selectExercise(at index: Int) {

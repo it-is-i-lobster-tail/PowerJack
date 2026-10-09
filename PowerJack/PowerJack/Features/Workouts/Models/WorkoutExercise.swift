@@ -155,6 +155,11 @@ extension WorkoutExercise {
     var isFinished: Bool {
         status == .complete || status == .skipped || status == .stopped
     }
+    /// Every working set is done and rated, or the exercise was skipped. It stays open until the workout finishes,
+    /// so the lifter can still go back and add a set.
+    var isDone: Bool {
+        isFinished || (allSetsDone() && !needsFeedback)
+    }
     // Every set is logged but the user has not rated the exercise yet.
     var needsFeedback: Bool {
         feedbackValue == nil &&
@@ -238,6 +243,8 @@ extension WorkoutExercise {
                 workoutSet.completeAndLock()
             }
         }
+        // An exercise skipped mid-workout stays open until the workout ends, then locks with it.
+        lockedValue = true
     }
     func stopAndCascade() {
         stop()
@@ -277,6 +284,10 @@ extension WorkoutExercise {
             return nil
         }
 
+        // One more set after "Skip Remaining Sets" puts the exercise back in progress.
+        if statusValue == .skipped {
+            statusValue = .active
+        }
         let nextOrder = totalSets
         let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
         let newSet = WorkoutSet(
@@ -367,6 +378,18 @@ extension WorkoutExercise {
         }
         for warmup in warmupSets where !warmup.isDone {
             warmup.skip()
+        }
+    }
+    /// Skips the sets still to do. Unlike `skip()`, the exercise stays open until the workout finishes,
+    /// so a set can still be added back.
+    func skipRemainingSets() {
+        guard !lockedValue, status == .active || status == .skipped else {
+            Logger.workoutExercise.warning("Cannot skip the remaining sets of a locked or planned WorkoutExercise.")
+            return
+        }
+        statusValue = Status.skipped
+        for workoutSet in workoutSets where !workoutSet.isDone {
+            workoutSet.skip()
         }
     }
     /// Turns warmups off for this exercise on this program day and drops the ones not yet logged.
@@ -501,7 +524,7 @@ extension WorkoutExercise {
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }
-    /// Feedback is recorded once every set is done, even after "Skip Remaining Sets" locked the exercise.
+    /// Feedback is recorded once every set is done, including after "Skip Remaining Sets".
     func addFeedback(feedback: ExerciseFeedback) {
         guard allSetsDone(), status == .active || status == .skipped else {
             Logger.workoutExercise.debug("Cannot add feedback before every set is done")
