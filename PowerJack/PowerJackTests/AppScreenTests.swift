@@ -209,6 +209,22 @@ struct AppScreenTests {
         #expect(picked.template?.templateName == name)
     }
 
+    @Test("New Template has no Save button and saves as soon as the user types")
+    func newTemplateAutosaves() async throws {
+        let screen = try await HostedView(
+            NavigationPreviewHost(modelContainer: container) { TemplateProgramNew() }
+        )
+        defer { screen.close() }
+        #expect(!screen.contains("Save"), "\(screen.labels)")
+
+        #expect(await screen.typeIntoFirstField("Legs"))
+        await screen.settle()
+        let saved = try container.mainContext.fetch(FetchDescriptor<TemplateProgram>(
+            predicate: #Predicate { $0.templateName == "Legs" }
+        ))
+        #expect(saved.count == 1)
+    }
+
     @Test("New Program picks a template from the sheet")
     func newProgramTemplate() async throws {
         let screen = try await HostedView(
