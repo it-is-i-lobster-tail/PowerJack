@@ -411,6 +411,9 @@ extension WorkoutExercise {
         }
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
+        // A check-in belongs to the exercise that caused the pain, not to its replacement.
+        checkInValue = .none
+        checkInSourcePainValue = nil
         deleteAllSets()
         addInitialSets()
     }
