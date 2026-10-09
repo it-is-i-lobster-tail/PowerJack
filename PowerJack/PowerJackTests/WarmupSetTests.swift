@@ -117,8 +117,86 @@ struct WarmupSetTests {
         #expect(exercise.workingSets.count == WorkoutExercise.maxSets)
 
         for _ in 0..<(WorkoutExercise.maxSets + 1) { exercise.removeLastSet() }
-        #expect(exercise.workingSets.isEmpty)
+        #expect(exercise.workingSets.count == WorkoutExercise.minSets)
         #expect(exercise.warmupSets.count == WorkoutExercise.initialWarmupSets)
+    }
+
+    @Test("The last working set can't be removed")
+    func lastWorkingSetStays() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addWarmupSet()
+        #expect(exercise.warmupSets.count == 3)
+        #expect(exercise.workingSets.count == 2)
+
+        #expect(exercise.canRemoveSet(type: .working))
+        exercise.removeLastSet()
+        #expect(exercise.workingSets.count == 1)
+
+        #expect(!exercise.canRemoveSet(type: .working))
+        exercise.removeLastSet()
+        #expect(exercise.workingSets.count == 1)
+        #expect(exercise.warmupSets.count == 3)
+    }
+
+    @Test("Removing every warmup turns them off, and Enable Warmup brings back the same count")
+    func removeAllWarmupsThenEnable() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addWarmupSet()
+
+        for _ in 0..<3 {
+            #expect(exercise.canRemoveSet(type: .warmup))
+            exercise.removeLastSet(type: .warmup)
+        }
+        #expect(exercise.warmupSets.isEmpty)
+        #expect(!exercise.canRemoveSet(type: .warmup))
+        #expect(exercise.warmupsDisabled == true)
+        #expect(!exercise.showsWarmups)
+        #expect(exercise.workingSets.count == WorkoutExercise.initialSets)
+
+        exercise.enableWarmups()
+        #expect(exercise.warmupSets.count == 3)
+        #expect(exercise.warmupsDisabled == false)
+        #expect(exercise.workoutSets.map(\.setType) == [.warmup, .warmup, .warmup, .working, .working])
+    }
+
+    @Test("Disabling after removing some warmups still restores the count from before")
+    func removeSomeThenDisableRestoresOriginalCount() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addWarmupSet()
+
+        exercise.removeLastSet(type: .warmup)
+        exercise.disableWarmups()
+        #expect(exercise.warmupSets.isEmpty)
+
+        exercise.enableWarmups()
+        #expect(exercise.warmupSets.count == 3)
+    }
+
+    @Test("Adding a warmup back resets what Enable Warmup restores")
+    func addingWarmupForgetsRestoreCount() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        // Down to one from the starting two, then up to three.
+        exercise.removeLastSet(type: .warmup)
+        _ = exercise.addWarmupSet()
+        _ = exercise.addWarmupSet()
+        for _ in 0..<3 { exercise.removeLastSet(type: .warmup) }
+        #expect(exercise.warmupSets.isEmpty)
+
+        exercise.enableWarmups()
+        #expect(exercise.warmupSets.count == 3)
     }
 
     @Test("A warmup added mid-exercise slots in ahead of the working sets, up to the cap")
@@ -247,6 +325,25 @@ struct WarmupSetTests {
         weekTwo.startAndCascade()
         #expect(next.addWarmupSet() != nil)
         #expect(!next.warmupsDisabled)
+    }
+
+    @Test("Enable Warmup adds two when the exercise has no warmups to bring back")
+    func enableWarmupsWithNoneBefore() throws {
+        let program = try makeProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addWarmupSet()
+        exercise.disableWarmups()
+        log(exercise.workingSets, reps: 10, weightTenthsPounds: 1350)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        let weekTwo = try #require(program.finishWorkout(workout))
+        let next = try #require(weekTwo.workoutExercises.first)
+        #expect(next.warmupSets.isEmpty)
+
+        weekTwo.startAndCascade()
+        next.enableWarmups()
+        #expect(next.warmupSets.count == WorkoutExercise.initialWarmupSets)
     }
 
     @Test("Disabled warmups are hidden, even logged ones, until Enable Warmup brings them back")
