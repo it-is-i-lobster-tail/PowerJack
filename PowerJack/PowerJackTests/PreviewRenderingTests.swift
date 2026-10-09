@@ -28,7 +28,7 @@ final class PreviewRenderingTests: XCTestCase {
             ("Templates - Loaded", AnyView(TemplateProgramListView().modelContainer(scenario.container))),
             ("Templates - Empty", AnyView(TemplateProgramListView().modelContainer(empty))),
             ("Template Detail", navigation(TemplateProgramDetailView(templateProgram: scenario.templateProgram))),
-            ("New Template", navigation(TemplateProgramNew(onSave: { _ in }))),
+            ("New Template", navigation(TemplateProgramNew())),
             ("Template Builder", navigation(BuilderHost())),
             ("Exercises - Change", AnyView(ExerciseSelectionView(navigationTitle: "Change Exercise", onSelect: { _ in }).modelContainer(scenario.container))),
             ("Exercises - Browse", AnyView(ExerciseSelectionView(navigationTitle: "Select Exercise").modelContainer(scenario.container))),
