@@ -108,6 +108,12 @@ enum ExerciseCatalog {
         Entry("side-plank", "Side Plank", .bodyweight, .obliques, .low, [.abs]),
         Entry("dumbbell-wrist-curl", "Dumbbell Wrist Curl", .dumbbell, .forearms, .low),
         Entry("dumbbell-reverse-wrist-curl", "Dumbbell Reverse Wrist Curl", .dumbbell, .forearms, .low),
+        // Added for the home and small gym templates. Smith machine lifts use `.machine`.
+        Entry("dumbbell-goblet-squat", "Dumbbell Goblet Squat", .dumbbell, .quads, .moderate, [.glutes, .abs]),
+        Entry("sliding-leg-curl", "Sliding Leg Curl", .bodyweight, .hamstrings, .low),
+        Entry("smith-machine-squat", "Smith Machine Squat", .machine, .quads, .high, [.glutes, .abs]),
+        Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .high, [.abs]),
+        Entry("cable-hip-abduction", "Cable Hip Abduction", .cable, .glutes, .low),
     ]
 
     @MainActor
