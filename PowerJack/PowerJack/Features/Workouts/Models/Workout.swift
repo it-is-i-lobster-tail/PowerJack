@@ -103,12 +103,19 @@ extension Workout {
     /// Derived from stored state so it survives relaunches.
     var currentExerciseIndex: Int {
         let exercises = workoutExercises
-        return exercises.firstIndex { !$0.isFinished || $0.needsFeedback }
+        return exercises.firstIndex { !$0.isDone }
             ?? max(0, exercises.count - 1)
     }
 
     var allExercisesFinished: Bool {
-        workoutExercises.allSatisfy { $0.isFinished && !$0.needsFeedback }
+        workoutExercises.allSatisfy(\.isDone)
+    }
+
+    /// Working sets not yet logged or skipped, shown before the workout is finished.
+    var remainingWorkingSets: Int {
+        workoutExercises.reduce(0) { count, workoutExercise in
+            count + workoutExercise.workingSets.count { !$0.isDone }
+        }
     }
 
     var isFinished: Bool {
@@ -193,6 +200,12 @@ extension Workout {
             workoutExercise.startAndCascade()
         }
 
+    }
+    /// Skips every set still to do, so finishing never marks an unlogged set complete.
+    func skipRemainingSets() {
+        for workoutExercise in workoutExercises where !workoutExercise.allSetsDone() {
+            workoutExercise.skipRemainingSets()
+        }
     }
     func addWorkoutExercise(exercise: Exercise) -> WorkoutExercise? {
         guard locked else {

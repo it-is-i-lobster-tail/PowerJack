@@ -16,7 +16,7 @@ struct WorkoutScreenTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
     private let router = ProgramsRouter()
 
-    @Test("Logging every set asks for feedback, then shows the summary and returns to the program")
+    @Test("Logging every set asks for feedback, then Review, then the summary and back to the program")
     func logWorkoutThroughSummary() async throws {
         let program = try makeStartedProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
@@ -54,7 +54,14 @@ struct WorkoutScreenTests {
         #expect(screen.contains("Exercise Feedback"), "\(screen.labels)")
         await screen.tap(scaleLabel(LevelOfEffort.challenge))
         await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(800))
+
+        // Rating the last exercise opens Review; only Finish Workout ends the workout.
+        #expect(workout.status == .active)
+        #expect(!exercise.locked)
+        #expect(screen.contains("Finish Workout"), "\(screen.labels)")
+        await screen.tap("Finish Workout", settleFor: .milliseconds(800))
         #expect(workout.status == .complete)
+        #expect(exercise.locked)
 
         #expect(screen.contains("Workout complete!"), "\(screen.labels)")
         await screen.tap("Done", settleFor: .milliseconds(800))
