@@ -29,7 +29,6 @@ struct ExerciseDraft {
     static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
     static let restLimits = Int(RestLength.range.lowerBound.components.seconds)
         ... Int(RestLength.range.upperBound.components.seconds)
-    static let restStep = 15
 
     init() {}
 

@@ -13,9 +13,11 @@ nonisolated struct RestPeriod: Codable, Hashable {
     var startedAt: Date
     var endsAt: Date
     var exerciseName: String
-    /// 1-based position of the next set within its exercise.
+    /// 1-based position of the next set among its exercise's warmups or working sets.
     var setNumber: Int
+    /// How many warmups or working sets the exercise has, whichever the next set is.
     var setCount: Int
+    var isWarmup = false
     /// `nil` means the set is open ended (2 reps in reserve).
     var reps: Int?
     /// `nil` for bodyweight sets or when no weight is known yet.
@@ -43,7 +45,9 @@ nonisolated struct RestPeriod: Codable, Hashable {
 
     // MARK: Display
 
-    var setText: String { "Set \(setNumber) of \(setCount)" }
+    var setText: String {
+        WorkoutActivityState.setText(number: setNumber, count: setCount, isWarmup: isWarmup)
+    }
 
     /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", or "12 reps".
     var prescriptionText: String {
