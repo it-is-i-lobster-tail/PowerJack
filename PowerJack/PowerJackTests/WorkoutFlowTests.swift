@@ -135,6 +135,66 @@ struct WorkoutFlowTests {
         #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
+    @Test("A replacement exercise drops the check-in of the exercise it replaced")
+    func replacementDropsCheckIn() throws {
+        let program = try makeStartedProgram(weeks: 2, workouts: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        log(workout, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(workout))
+        weekTwo.startAndCascade()
+        let exercise = try #require(weekTwo.workoutExercises.first)
+        exercise.resolveCheckIn(.continue)
+
+        exercise.changeExercise(newExercise: makeOverheadPress())
+
+        #expect(exercise.exercise?.exerciseName == "Overhead Press")
+        #expect(exercise.checkIn == ManualCheckIn.none)
+        #expect(exercise.checkInSourcePain == nil)
+        #expect(!exercise.checkInPending)
+    }
+
+    @Test("Skipping a replacement doesn't carry the replaced exercise's check-in into next week")
+    func skippedReplacementDoesNotCarryCheckIn() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        let exercise = try #require(weekTwo.workoutExercises.first)
+        exercise.resolveCheckIn(.continue)
+        let overheadPress = makeOverheadPress()
+        exercise.changeExercise(newExercise: overheadPress)
+
+        exercise.skipAndCascade()
+        let weekThree = try #require(program.finishWorkout(weekTwo))
+
+        let next = try #require(weekThree.workoutExercises.first)
+        #expect(next.exercise === overheadPress)
+        #expect(!next.checkInPending)
+        #expect(next.checkInSourcePain == nil)
+    }
+
+    @Test("The exercise that caused severe pain still gets its check-in next week")
+    func originalExerciseKeepsCheckIn() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        let exercise = try #require(weekTwo.workoutExercises.first)
+        exercise.resolveCheckIn(.skip)
+
+        let weekThree = try #require(program.finishWorkout(weekTwo))
+
+        let next = try #require(weekThree.workoutExercises.first)
+        #expect(next.exercise?.exerciseName == "Bench")
+        #expect(next.checkInPending)
+        #expect(next.checkInSourcePain == .severe)
+    }
+
     @Test("Skipping a workout with a pending check-in keeps the check-in for the next week")
     func skippedWorkoutKeepsCheckIn() throws {
         let program = try makeStartedProgram(weeks: 3, workouts: 1)
@@ -391,6 +451,18 @@ struct WorkoutFlowTests {
 
     private func sets(of workout: Workout) -> [WorkoutSet] {
         workout.workoutExercises.flatMap(\.workoutSets)
+    }
+
+    private func makeOverheadPress() -> Exercise {
+        let exercise = Exercise(
+            exerciseName: "Overhead Press",
+            exerciseEquipment: .barbell,
+            primaryMuscleFocus: .shoulders,
+            minReps: 6,
+            maxReps: 12
+        )
+        container.mainContext.insert(exercise)
+        return exercise
     }
 
     private func log(
