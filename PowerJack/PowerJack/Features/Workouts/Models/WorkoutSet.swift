@@ -83,7 +83,7 @@ extension WorkoutSet {
         set {
             guard status == .active else { return }
 
-            if let newValue, newValue > 0 {
+            if let newValue, Self.isValidWeightTenthsPounds(newValue) {
                 weightTenthsPoundsValue = newValue
             } else {
                 weightTenthsPoundsValue = nil
@@ -114,9 +114,18 @@ extension WorkoutSet {
 // Derived Values
 //
 extension WorkoutSet {
-    /// Reps above `Exercise.maxRepsAllowed` can never be saved.
+    /// The most reps a set can log.
+    static let maxReps = 50
+    /// The heaviest weight a set can log, in pounds.
+    static let maxWeightPounds = 1000
+
+    /// Reps above `maxReps` can never be saved.
     static func isValidReps(_ reps: Int) -> Bool {
-        (1...Exercise.maxRepsAllowed).contains(reps)
+        (1...maxReps).contains(reps)
+    }
+    /// Weights above `maxWeightPounds` can never be logged.
+    static func isValidWeightTenthsPounds(_ weightTenthsPounds: Int) -> Bool {
+        (1...maxWeightPounds * 10).contains(weightTenthsPounds)
     }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }

@@ -40,6 +40,8 @@ final class WorkoutExercise {
     private var feedbackValue: ExerciseFeedback?
     private var checkInValue: ManualCheckIn = ManualCheckIn.none
     private var checkInSourcePainValue: LevelOfPain?
+    // Turned on from the warmup menu. Only this exercise on this program day starts on its working sets.
+    private var warmupsDisabledValue: Bool = false
     // How many warmups Enable Warmup brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
     var workoutValue: Workout?
@@ -89,6 +91,8 @@ extension WorkoutExercise {
     // Manual Check-In
     var checkIn: ManualCheckIn { checkInValue }
     var checkInSourcePain: LevelOfPain? { checkInSourcePainValue }
+    // Warmups
+    var warmupsDisabled: Bool { warmupsDisabledValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -122,6 +126,18 @@ extension WorkoutExercise {
         let sameType = workoutSet.isWarmup ? warmupSets : workingSets
         return (sameType.firstIndex { $0 === workoutSet } ?? 0) + 1
     }
+    /// How many warmups the exercise has for a warmup, or working sets for a working set.
+    func count(sameTypeAs workoutSet: WorkoutSet) -> Int {
+        workoutSet.isWarmup ? warmupSets.count : workingSets.count
+    }
+    /// "Warmup 1 of 2" or "Set 1 of 2", counting warmups and working sets apart.
+    func setText(for workoutSet: WorkoutSet) -> String {
+        WorkoutActivityState.setText(
+            number: number(of: workoutSet),
+            count: count(sameTypeAs: workoutSet),
+            isWarmup: workoutSet.isWarmup
+        )
+    }
     // Planned Sets
     func getCountPlannedSets() -> Int {
         return countSetStatus(status: Status.planned)
@@ -153,7 +169,7 @@ extension WorkoutExercise {
     }
     /// Disabled warmups stay out of sight, even ones logged before they were turned off.
     var showsWarmups: Bool {
-        exercise?.warmupDisabled != true && !warmupSets.isEmpty
+        !warmupsDisabledValue && !warmupSets.isEmpty
     }
     /// Every warmup is complete or skipped.
     var warmupsDone: Bool {
@@ -269,19 +285,22 @@ extension WorkoutExercise {
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
         )
-        newSet.start()
+        // Sets of an upcoming workout stay planned until the workout starts.
+        if status != .planned {
+            newSet.start()
+        }
         append(newSet)
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
         return newSet
     }
-    /// Adds a warmup from the set menu. Turns warmups back on for the exercise.
+    /// Adds a warmup from the set menu. Turns warmups back on for this exercise on this day.
     @discardableResult
     func addWarmupSet() -> WorkoutSet? {
         guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot add a warmup to a locked WorkoutExercise.")
             return nil
         }
-        exercise?.warmupDisabled = false
+        warmupsDisabledValue = false
         warmupRestoreCountValue = nil
         return addSet(type: .warmup)
     }
@@ -321,13 +340,24 @@ extension WorkoutExercise {
             _ = addSet(type: .warmup)
         }
     }
-    /// Warmups are capped at `maxWarmupSets` and left out when the exercise has them disabled.
+    /// Warmups are capped at `maxWarmupSets` and left out while they're disabled.
     /// Working sets are capped at `maxSets`.
     private func canAddSet(type: SetType) -> Bool {
         switch type {
-        case .warmup: warmupSets.count < Self.maxWarmupSets && exercise?.warmupDisabled != true
+        case .warmup: warmupSets.count < Self.maxWarmupSets && !warmupsDisabledValue
         case .working: workingSets.count < Self.maxSets
         }
+    }
+    /// Completes one of this exercise's sets. Completing the first working set skips the warmups
+    /// still to do, so the workout moves on to the next working set instead of back to them.
+    func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
+        workoutSet.complete(at: date)
+        guard
+            !workoutSet.isWarmup,
+            workoutSet.status == .complete,
+            completedWorkingSets == 1
+        else { return }
+        skipWarmups()
     }
     /// Skips the warmups still to do. Logged warmups keep what was logged.
     func skipWarmups() {
@@ -339,28 +369,28 @@ extension WorkoutExercise {
             warmup.skip()
         }
     }
-    /// Turns warmups off for this exercise and drops the ones not yet logged.
-    /// Later workouts with this exercise start on the working sets.
+    /// Turns warmups off for this exercise on this program day and drops the ones not yet logged.
+    /// The same day in later weeks starts on the working sets. Other days keep their warmups.
     func disableWarmups() {
-        guard !lockedValue, let exercise else {
+        guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot disable warmups of a locked WorkoutExercise.")
             return
         }
         rememberWarmupCount()
-        exercise.warmupDisabled = true
+        warmupsDisabledValue = true
         for warmup in warmupSets where !warmup.isDone {
             workoutSetsValue?.removeAll { $0 === warmup }
             modelContext?.delete(warmup)
         }
     }
-    /// Turns warmups back on for this exercise and brings back as many as there were before they
-    /// were removed or disabled, or the usual starting count if there were none.
+    /// Turns warmups back on for this exercise on this day and brings back as many as there were
+    /// before they were removed or disabled, or the usual starting count if there were none.
     func enableWarmups() {
-        guard !lockedValue, let exercise else {
+        guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot enable warmups of a locked WorkoutExercise.")
             return
         }
-        exercise.warmupDisabled = false
+        warmupsDisabledValue = false
         let count = warmupRestoreCountValue ?? Self.initialWarmupSets
         warmupRestoreCountValue = nil
         while warmupSets.count < count, addSet(type: .warmup) != nil {}
@@ -370,6 +400,10 @@ extension WorkoutExercise {
         if warmupRestoreCountValue == nil, !warmupSets.isEmpty {
             warmupRestoreCountValue = warmupSets.count
         }
+    }
+    /// Carries a day's disabled warmups into the same day of a newly built week. Call before adding sets.
+    func inheritWarmupsDisabled(from source: WorkoutExercise) {
+        warmupsDisabledValue = source.warmupsDisabledValue
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
     func requireCheckIn(sourcePain: LevelOfPain) {
@@ -421,7 +455,7 @@ extension WorkoutExercise {
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(lastSet)
         if type == .warmup, warmupSets.isEmpty {
-            exercise?.warmupDisabled = true
+            warmupsDisabledValue = true
         }
     }
     private func deleteAllSets() {
@@ -438,6 +472,9 @@ extension WorkoutExercise {
         }
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
         exerciseValue = newExercise
+        // A replacement is a new exercise, so it starts with warmups again.
+        warmupsDisabledValue = false
+        warmupRestoreCountValue = nil
         deleteAllSets()
         addInitialSets()
     }
