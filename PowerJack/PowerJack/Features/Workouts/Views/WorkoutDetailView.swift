@@ -56,7 +56,16 @@ struct WorkoutDetailView: View {
         self.onSkipWorkout = onSkipWorkout
         self.isReadOnly = isReadOnly
         // A finished workout opens on its first exercise; a live one on where the user left off.
-        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : workout.currentExerciseIndex)
+        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : Self.nextIndex(in: workout))
+    }
+
+    /// The first exercise still waiting, or the Review page once every exercise is done.
+    private static func nextIndex(in workout: Workout) -> Int {
+        workout.allExercisesFinished ? workout.workoutExercises.count : workout.currentExerciseIndex
+    }
+
+    private var isOnReview: Bool {
+        !isReadOnly && selectedExerciseIndex == workout.workoutExercises.count
     }
 
     private var selectedWorkoutExercise: WorkoutExercise? {
@@ -99,7 +108,13 @@ struct WorkoutDetailView: View {
                     workoutExercises: workout.workoutExercises,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
-                    onExerciseSetsDone: handleSetsDone
+                    onExerciseSetsDone: handleSetsDone,
+                    review: isReadOnly ? nil : WorkoutReviewView(
+                        workout: workout,
+                        onSelectExercise: selectExercise,
+                        onSkipRemainingSets: skipRemainingSets,
+                        onFinish: finishWorkout
+                    )
                 )
                 .environment(\.logSetHint, logSetHint)
                 .environment(\.workoutIsReadOnly, isReadOnly)
@@ -189,8 +204,31 @@ struct WorkoutDetailView: View {
     /// Scrolls back to the exercise the user should be doing, e.g. after tapping the rest timer.
     private func showCurrentExercise() {
         withAnimation(.easeInOut(duration: 0.325)) {
-            selectedExerciseIndex = workout.currentExerciseIndex
+            selectedExerciseIndex = Self.nextIndex(in: workout)
         }
+    }
+
+    private func selectExercise(_ index: Int) {
+        withAnimation(.easeInOut(duration: 0.325)) {
+            selectedExerciseIndex = index
+        }
+    }
+
+    /// Skipped from the Review page, which stays put; feedback still opens if sets were logged.
+    private func skipRemainingSets(_ workoutExercise: WorkoutExercise) {
+        workoutExercise.skipRemainingSets()
+        save()
+        if workoutExercise.needsFeedback, presentedSheet == nil {
+            presentedSheet = .feedback(workoutExercise)
+        }
+    }
+
+    /// Only the Finish Workout button ends the workout. Anything still unlogged is skipped.
+    private func finishWorkout() {
+        focusedSetField = nil
+        workout.skipRemainingSets()
+        save()
+        onWorkoutFinished()
     }
 
     /// Shows feedback or a manual check-in when the selected exercise is waiting on one.
@@ -211,29 +249,28 @@ struct WorkoutDetailView: View {
         save()
         if workoutExercise.needsFeedback {
             focusedSetField = nil
-            presentedSheet = .feedback(workoutExercise)
-        } else if workoutExercise.isFinished {
+            if presentedSheet == nil {
+                presentedSheet = .feedback(workoutExercise)
+            }
+        } else if workoutExercise.isDone {
             advance()
         }
     }
 
     private func handleCheckInResolved(_ workoutExercise: WorkoutExercise) {
         save()
-        if workoutExercise.isFinished {
+        if workoutExercise.isDone {
             advance()
         }
     }
 
-    /// Moves to the next unfinished exercise, or finishes the workout.
+    /// Moves to the next unfinished exercise, or the Review page once every exercise is done.
+    /// Changes made from the Review page keep the user there.
     private func advance() {
-        guard !workout.allExercisesFinished else {
-            focusedSetField = nil
-            onWorkoutFinished()
-            return
-        }
-
+        guard !isOnReview else { return }
+        focusedSetField = nil
         withAnimation(.easeInOut(duration: 0.325)) {
-            selectedExerciseIndex = workout.currentExerciseIndex
+            selectedExerciseIndex = Self.nextIndex(in: workout)
         }
     }
 
