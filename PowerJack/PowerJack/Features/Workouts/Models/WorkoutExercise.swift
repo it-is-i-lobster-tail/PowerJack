@@ -343,6 +343,17 @@ extension WorkoutExercise {
         case .working: workingSets.count < Self.maxSets
         }
     }
+    /// Completes one of this exercise's sets. Completing the first working set skips the warmups
+    /// still to do, so the workout moves on to the next working set instead of back to them.
+    func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
+        workoutSet.complete(at: date)
+        guard
+            !workoutSet.isWarmup,
+            workoutSet.status == .complete,
+            completedWorkingSets == 1
+        else { return }
+        skipWarmups()
+    }
     /// Skips the warmups still to do. Logged warmups keep what was logged.
     func skipWarmups() {
         guard !lockedValue else {
