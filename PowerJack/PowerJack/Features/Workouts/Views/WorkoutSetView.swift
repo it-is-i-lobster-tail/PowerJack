@@ -331,7 +331,11 @@ struct WorkoutSetView: View {
     }
 
     private func completeSet() {
-        workoutSet.complete()
+        if let workoutExercise = workoutSet.workoutExerciseValue {
+            workoutExercise.completeSet(workoutSet)
+        } else {
+            workoutSet.complete()
+        }
         try? modelContext.save()
     }
 
