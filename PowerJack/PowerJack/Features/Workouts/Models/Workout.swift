@@ -75,6 +75,17 @@ extension Workout {
     var completedWorkingSets: Int {
         workoutExercises.reduce(0) { $0 + $1.completedWorkingSets }
     }
+    var skippedWorkingSets: Int {
+        // A skipped workout counts every set it never finished.
+        if status == .skipped { return workingSetCount - completedWorkingSets }
+        return workoutExercises.reduce(0) { $0 + $1.workingSets.count(where: { $0.status == .skipped }) }
+    }
+    /// Share of working sets completed and skipped. Both count as resolved.
+    var setProgress: (completed: Double, skipped: Double) {
+        let total = workingSetCount
+        guard total > 0 else { return (0, status == .skipped ? 1 : 0) }
+        return (Double(completedWorkingSets) / Double(total), Double(skippedWorkingSets) / Double(total))
+    }
     // Planned Sets
     func getCountPlannedSets() -> Int {
         return countSetStatus(status: Status.planned)

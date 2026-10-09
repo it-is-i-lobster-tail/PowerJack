@@ -140,6 +140,40 @@ struct RestTimerTests {
         #expect(workout.activityState(at: start)?.setText == "Set 1 of 2")
     }
 
+    @Test("The rest island and Live Activity count warmups and working sets apart")
+    func restSetLabelsAfterWarmups() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(
+            exerciseName: "Squat",
+            exerciseEquipment: .barbell,
+            primaryMuscleFocus: .quads,
+            fatigueLevel: .moderate
+        )
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        container.mainContext.insert(workout)
+        workout.startAndCascade()
+        let warmups = workoutExercise.warmupSets
+        let workingSets = workoutExercise.workingSets
+
+        warmups[0].complete(at: start)
+        #expect(workout.currentRest?.setText == "Warmup 2 of 2")
+        #expect(workout.activityState(at: start)?.setText == "Warmup 2 of 2")
+
+        warmups[1].complete(at: start.addingTimeInterval(60))
+        let firstWorkingRest = try #require(workout.currentRest)
+        #expect(firstWorkingRest.setText == "Set 1 of 2")
+        #expect(firstWorkingRest.detailText == "Set 1 of 2 · 8 reps × 225 lb")
+        #expect(workout.activityState(at: start)?.setText == "Set 1 of 2")
+
+        workingSets[0].complete(at: start.addingTimeInterval(120))
+        #expect(workout.currentRest?.setText == "Set 2 of 2")
+        #expect(workout.activityState(at: start)?.setText == "Set 2 of 2")
+    }
+
     @Test("Sets without a target show blanks and can't be checked from the Live Activity")
     func activityStateWithoutTarget() throws {
         let workout = Workout(order: 0)
@@ -194,8 +228,9 @@ struct RestTimerTests {
         #expect(done.currentRest == nil)
 
         let planned = try makeWorkout([(.moderate, 2)], started: false)
+        // Sets of a workout that hasn't started can't be logged yet.
         planned.workoutExercises[0].workoutSets[0].complete(at: start)
-        #expect(planned.workoutExercises[0].workoutSets[0].completedAt == start)
+        #expect(planned.workoutExercises[0].workoutSets[0].status == .planned)
         #expect(planned.currentRest == nil)
     }
 
