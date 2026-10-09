@@ -54,10 +54,9 @@ struct MoreScreenTests {
         #expect(await screen.typeIntoFirstField("Push Day"), "\(screen.labels)")
         #expect(template.templateName == "Push Day")
 
-        // A blank name still saves, and the template becomes a draft.
+        // A blank name still saves, as "New".
         await screen.typeIntoFirstField(" ")
-        #expect(template.templateName == "")
-        #expect(template.draft)
+        #expect(template.templateName == TemplateProgramDraft.defaultName)
     }
 
     @Test("Program detail starts the next workout and opens the session")
