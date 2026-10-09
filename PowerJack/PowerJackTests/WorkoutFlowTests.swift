@@ -28,6 +28,50 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[1].workouts.isEmpty)
     }
 
+    @Test("A new program's later workouts keep their sets planned until each one starts")
+    func upcomingWorkoutSetsStayPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        #expect(!dayTwo.workoutExercises.isEmpty)
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .planned })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        dayOne.startAndCascade()
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .active })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        log(dayOne, reps: 10, weightTenthsPounds: 1000)
+        _ = program.finishWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .active })
+    }
+
+    @Test("Replacing an exercise in an upcoming workout keeps its new sets planned")
+    func replacingUpcomingExerciseKeepsSetsPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        dayOne.startAndCascade()
+        let replacement = Exercise(
+            exerciseName: "Row",
+            exerciseEquipment: .cable,
+            primaryMuscleFocus: .back
+        )
+        container.mainContext.insert(replacement)
+
+        let upcoming = try #require(dayTwo.workoutExercises.first)
+        upcoming.changeExercise(newExercise: replacement)
+        #expect(upcoming.exercise === replacement)
+        #expect(upcoming.workingSets.count == WorkoutExercise.initialSets)
+        #expect(upcoming.workoutSets.allSatisfy { $0.status == .planned })
+
+        // Replacing an exercise in the workout being done gives sets ready to log.
+        let current = try #require(dayOne.workoutExercises.first)
+        current.changeExercise(newExercise: replacement)
+        #expect(current.workoutSets.allSatisfy { $0.status == .active })
+    }
+
     @Test("Finishing a week builds the next week with progressed prescriptions")
     func finishWeekBuildsProgression() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
@@ -264,6 +308,10 @@ struct WorkoutFlowTests {
         try context.insertAndSave(program)
         program.start()
         return program
+    }
+
+    private func sets(of workout: Workout) -> [WorkoutSet] {
+        workout.workoutExercises.flatMap(\.workoutSets)
     }
 
     private func log(
