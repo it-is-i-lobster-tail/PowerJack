@@ -114,6 +114,42 @@ struct WorkoutFlowTests {
         #expect(next === program.programWeeks[0].workouts[1])
     }
 
+    @Test("Completed and skipped working sets both count toward workout progress")
+    func progressCountsSkippedSets() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 1, exercisesPerWorkout: 5)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let sets = workout.workoutExercises.flatMap(\.workingSets)
+        #expect(sets.count == 10)
+        #expect(workout.setProgress == (0, 0))
+
+        for set in sets.prefix(8) {
+            set.reps = 10
+            set.weightTenthsPounds = 1000
+            set.complete()
+        }
+        for set in sets.suffix(2) {
+            set.skip()
+        }
+
+        #expect(workout.completedWorkingSets == 8)
+        #expect(workout.skippedWorkingSets == 2)
+        #expect(workout.setProgress == (0.8, 0.2))
+    }
+
+    @Test("A skipped workout is fully resolved and entirely skipped")
+    func skippedWorkoutProgress() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 2)
+        let first = program.programWeeks[0].workouts[0]
+
+        program.skipWorkout(first)
+
+        #expect(first.skippedWorkingSets == first.workingSetCount)
+        #expect(first.setProgress == (0, 1))
+        // The next workout has not been touched.
+        #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
+    }
+
     @Test("Current workout and exercise are restored from persisted state")
     func restoreFromStore() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 2, exercisesPerWorkout: 2)
