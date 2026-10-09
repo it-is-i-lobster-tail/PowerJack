@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 struct TemplateProgramDraft {
-    static let maximumNameLength = 30
+    static let maximumNameLength = 50
     static let minimumWorkoutsPerWeek = 2
     static let maximumWorkoutsPerWeek = 6
     static let maximumFocusMuscles = 4

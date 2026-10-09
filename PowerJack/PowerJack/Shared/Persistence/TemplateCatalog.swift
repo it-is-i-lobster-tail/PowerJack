@@ -34,87 +34,121 @@ enum TemplateCatalog {
     }
 
     // IDs are permanent: changing a display name must not create another template.
-    // Lifts stick to barbells, dumbbells, cables and bodyweight so a small gym can run every template.
+    // Each name says the gym it needs: Home (dumbbells, or a barbell and rack), Small Gym
+    // (Smith machine, dumbbells and cables) or Full Gym. Workouts are in order, one per day.
     // Programs start each exercise at 2 sets, so most muscles get 3 to 5 exercises a week to grow into.
     static let entries: [Entry] = [
         Entry(
-            id: "full-body-2x",
-            name: "Full Body",
+            id: "home-whole-body-essentials-2x",
+            name: "Home Whole Body Essentials",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
-                ["barbell-romanian-deadlift", "dumbbell-bulgarian-split-squat", "incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-hammer-curl", "cable-overhead-extension"],
+                ["dumbbell-goblet-squat", "dumbbell-bench-press", "one-arm-dumbbell-row", "dumbbell-romanian-deadlift", "dumbbell-calf-raise"],
+                ["dumbbell-goblet-squat", "push-up", "one-arm-dumbbell-row", "sliding-leg-curl", "crunch"],
             ]
         ),
         Entry(
-            id: "upper-lower-upper",
-            name: "Upper Hand",
-            muscleFocus: [.chest, .back, .shoulders, .biceps],
+            id: "small-gym-whole-body-essentials-2x",
+            name: "Small Gym Whole Body Essentials",
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                // Upper
-                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
-                // Lower
-                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch"],
-                // Upper
-                ["incline-dumbbell-bench-press", "pull-up", "one-arm-dumbbell-row", "cable-chest-fly", "dumbbell-lateral-raise", "cable-face-pull", "dumbbell-curl"],
+                ["smith-machine-squat", "dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "dumbbell-calf-raise"],
+                ["smith-machine-squat", "dumbbell-romanian-deadlift", "incline-dumbbell-bench-press", "lat-pulldown", "cable-crunch"],
             ]
         ),
         Entry(
-            id: "push-pull-legs-3x",
-            name: "Push, Pull, Legs",
-            muscleFocus: [.chest, .back, .hamstrings, .triceps],
+            id: "full-gym-legs-core-focus-2x",
+            name: "Full Gym Legs & Core Focus",
+            muscleFocus: [.quads, .hamstrings, .abs, .obliques],
             workouts: [
-                // Push
-                ["barbell-bench-press", "incline-dumbbell-bench-press", "dumbbell-shoulder-press", "cable-chest-fly", "cable-lateral-raise", "cable-triceps-pushdown", "cable-overhead-extension"],
-                // Pull
-                ["barbell-row", "lat-pulldown", "seated-cable-row", "cable-face-pull", "barbell-curl", "dumbbell-hammer-curl"],
-                // Legs
-                ["barbell-romanian-deadlift", "barbell-back-squat", "dumbbell-bulgarian-split-squat", "cable-pull-through", "dumbbell-calf-raise", "hanging-knee-raise"],
+                ["leg-press", "seated-leg-curl", "standing-calf-raise", "dumbbell-bench-press", "seated-cable-row", "cable-crunch"],
+                ["dumbbell-romanian-deadlift", "leg-extension", "standing-calf-raise", "incline-dumbbell-bench-press", "lat-pulldown", "cable-woodchop"],
             ]
         ),
         Entry(
-            id: "upper-lower-4x",
-            name: "Four on the Floor",
-            muscleFocus: [.back, .shoulders, .quads, .glutes],
+            id: "home-whole-body-muscle-builder-3x",
+            name: "Home Whole Body Muscle Builder",
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                // Upper
-                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
-                // Lower
-                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-glute-kickback", "dumbbell-calf-raise", "cable-crunch"],
-                // Upper
-                ["pull-up", "incline-dumbbell-bench-press", "one-arm-dumbbell-row", "dumbbell-lateral-raise", "cable-face-pull", "dumbbell-curl", "dumbbell-triceps-extension"],
-                // Lower
-                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "cable-pull-through", "dumbbell-calf-raise"],
+                ["barbell-back-squat", "barbell-bench-press", "one-arm-dumbbell-row", "sliding-leg-curl", "dumbbell-lateral-raise"],
+                ["barbell-romanian-deadlift", "dumbbell-shoulder-press", "pull-up", "dumbbell-goblet-squat", "dumbbell-calf-raise", "crunch"],
+                ["dumbbell-goblet-squat", "incline-dumbbell-bench-press", "one-arm-dumbbell-row", "sliding-leg-curl", "dumbbell-curl", "dumbbell-triceps-extension"],
             ]
         ),
         Entry(
-            id: "lower-upper-lower",
-            name: "Leg Day Loyalist",
-            muscleFocus: [.quads, .glutes, .hamstrings, .abs],
+            id: "small-gym-whole-body-muscle-builder-3x",
+            name: "Small Gym Whole Body Muscle Builder",
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                // Lower
-                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch", "cable-woodchop"],
-                // Upper
-                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
-                // Lower
-                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "dumbbell-calf-raise", "hanging-knee-raise", "side-plank"],
+                ["smith-machine-squat", "dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "dumbbell-lateral-raise"],
+                ["dumbbell-romanian-deadlift", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-curl", "cable-crunch", "dumbbell-calf-raise"],
+                ["smith-machine-squat", "incline-dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "cable-overhead-extension", "dumbbell-calf-raise"],
             ]
         ),
         Entry(
-            id: "upper-lower-5x",
-            name: "High Five",
+            id: "full-gym-arms-focus-3x",
+            name: "Full Gym Arms Focus",
+            muscleFocus: [.biceps, .triceps],
+            workouts: [
+                ["dumbbell-curl", "cable-overhead-extension", "dumbbell-bench-press", "seated-cable-row", "seated-leg-curl", "dumbbell-lateral-raise"],
+                ["leg-press", "dumbbell-romanian-deadlift", "dumbbell-shoulder-press", "standing-calf-raise", "cable-crunch"],
+                ["dumbbell-hammer-curl", "cable-triceps-pushdown", "incline-dumbbell-bench-press", "lat-pulldown", "leg-press", "dumbbell-reverse-fly"],
+            ]
+        ),
+        Entry(
+            id: "full-gym-chest-back-core-focus-3x",
+            name: "Full Gym Chest, Back & Core Focus",
+            muscleFocus: [.chest, .back, .abs, .obliques],
+            workouts: [
+                ["dumbbell-bench-press", "seated-cable-row", "leg-press", "standing-calf-raise", "cable-crunch"],
+                ["lat-pulldown", "incline-dumbbell-bench-press", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "cable-woodchop"],
+                ["seated-cable-row", "cable-chest-fly", "leg-extension", "seated-leg-curl", "hanging-knee-raise"],
+            ]
+        ),
+        Entry(
+            id: "full-gym-whole-body-muscle-builder-4x",
+            name: "Full Gym Whole Body Muscle Builder",
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
+            workouts: [
+                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
+                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
+                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
+            ]
+        ),
+        Entry(
+            id: "small-gym-glutes-shoulders-focus-4x",
+            name: "Small Gym Glutes & Shoulders Focus",
+            muscleFocus: [.glutes, .shoulders],
+            workouts: [
+                ["smith-machine-squat", "dumbbell-romanian-deadlift", "smith-machine-hip-thrust", "dumbbell-calf-raise", "cable-crunch"],
+                ["incline-dumbbell-bench-press", "seated-cable-row", "dumbbell-shoulder-press", "dumbbell-lateral-raise", "dumbbell-curl", "cable-overhead-extension"],
+                ["smith-machine-hip-thrust", "dumbbell-bulgarian-split-squat", "sliding-leg-curl", "cable-hip-abduction", "dumbbell-calf-raise"],
+                ["lat-pulldown", "dumbbell-bench-press", "dumbbell-reverse-fly", "cable-lateral-raise", "cable-triceps-pushdown", "cable-hip-abduction"],
+            ]
+        ),
+        Entry(
+            id: "full-gym-upper-body-specialization-5x",
+            name: "Full Gym Upper Body Specialization",
             muscleFocus: [.chest, .back, .biceps, .triceps],
             workouts: [
-                // Upper
-                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-lateral-raise", "barbell-curl", "cable-triceps-pushdown"],
-                // Lower
-                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "cable-pull-through", "dumbbell-calf-raise", "cable-crunch"],
-                // Upper
-                ["incline-dumbbell-bench-press", "pull-up", "seated-cable-row", "cable-chest-fly", "dumbbell-lateral-raise", "dumbbell-hammer-curl", "cable-overhead-extension"],
-                // Lower
-                ["barbell-hip-thrust", "dumbbell-bulgarian-split-squat", "dumbbell-romanian-deadlift", "goblet-squat", "dumbbell-calf-raise", "hanging-knee-raise"],
-                // Upper
-                ["dumbbell-bench-press", "chin-up", "one-arm-dumbbell-row", "cable-face-pull", "dumbbell-curl", "barbell-skull-crusher", "dumbbell-triceps-extension"],
+                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
+                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
+                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
+                ["cable-chest-fly", "seated-cable-row", "dumbbell-lateral-raise", "dumbbell-curl", "cable-overhead-extension"],
+            ]
+        ),
+        Entry(
+            id: "full-gym-glute-specialization-5x",
+            name: "Full Gym Glute Specialization",
+            muscleFocus: [.glutes],
+            workouts: [
+                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
+                ["barbell-hip-thrust", "cable-glute-kickback", "cable-hip-abduction", "dumbbell-lateral-raise", "cable-crunch"],
+                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
+                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
             ]
         ),
     ]

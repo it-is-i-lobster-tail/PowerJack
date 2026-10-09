@@ -22,12 +22,34 @@ struct TemplateCatalogTests {
             #expect(!template.draft, "\(entry.id)")
             #expect(!TemplateProgramDraft(templateProgram: template).isDraft, "\(entry.id)")
             #expect(template.templateWorkouts.count == template.workoutsPerWeek)
+            #expect((1...TemplateProgramDraft.maximumFocusMuscles).contains(entry.muscleFocus.count), "\(entry.id)")
+            // Names are kept whole and stay editable.
+            #expect(TemplateProgramDraft(templateProgram: template).canSave, "\(entry.id)")
+            #expect(template.templateName == entry.name, "\(entry.id)")
+            // Workouts and exercises keep the catalog's order.
+            let storedIDs = template.templateWorkouts.map { $0.templateExercises.compactMap(\.exercise?.catalogID) }
+            #expect(storedIDs == entry.workouts, "\(entry.id)")
         }
+    }
 
-        // Every template should run in a small gym without machines.
-        let equipment = entries.flatMap(\.workouts).joined().compactMap { exercisesByID[$0]?.exerciseEquipment }
-        #expect(!equipment.contains(.machine))
-        #expect(!equipment.contains(.legPress))
+    @Test("The catalog ships the eleven starter templates in order")
+    func catalogContents() {
+        let entries = TemplateCatalog.entries
+        #expect(entries.map(\.id) == [
+            "home-whole-body-essentials-2x",
+            "small-gym-whole-body-essentials-2x",
+            "full-gym-legs-core-focus-2x",
+            "home-whole-body-muscle-builder-3x",
+            "small-gym-whole-body-muscle-builder-3x",
+            "full-gym-arms-focus-3x",
+            "full-gym-chest-back-core-focus-3x",
+            "full-gym-whole-body-muscle-builder-4x",
+            "small-gym-glutes-shoulders-focus-4x",
+            "full-gym-upper-body-specialization-5x",
+            "full-gym-glute-specialization-5x",
+        ])
+        #expect(entries.map(\.workouts.count) == [2, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5])
+        #expect(entries.allSatisfy { $0.name.count <= TemplateProgramDraft.maximumNameLength })
     }
 
     @Test("Seeding saves every template once and keeps user edits")
