@@ -17,11 +17,11 @@ struct ModelLifecycleTests {
 
     // MARK: WorkoutSet
 
-    @Test("Planned reps outside 1...30 are dropped when a set is created")
+    @Test("Planned reps outside 1...50 are dropped when a set is created")
     func setInitDropsInvalidPlannedReps() {
         #expect(WorkoutSet(order: 0, plannedReps: 0, plannedWeightTenthsPounds: nil).repsPlanned == nil)
-        #expect(WorkoutSet(order: 0, plannedReps: 31, plannedWeightTenthsPounds: nil).repsPlanned == nil)
-        #expect(WorkoutSet(order: 0, plannedReps: 30, plannedWeightTenthsPounds: nil).repsPlanned == 30)
+        #expect(WorkoutSet(order: 0, plannedReps: 51, plannedWeightTenthsPounds: nil).repsPlanned == nil)
+        #expect(WorkoutSet(order: 0, plannedReps: 50, plannedWeightTenthsPounds: nil).repsPlanned == 50)
     }
 
     @Test("Logged values only change while a set is active")
