@@ -16,6 +16,7 @@ struct WorkoutActionsMenu: View {
     var onSkipWorkout: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
+    @State private var isConfirmingSkipWorkout = false
 
     private var selectedWorkoutExercise: WorkoutExercise? {
         guard let selectedExerciseIndex,
@@ -92,12 +93,7 @@ struct WorkoutActionsMenu: View {
             }
 
             Button {
-                if let onSkipWorkout {
-                    onSkipWorkout()
-                } else {
-                    workout.skipAndCascade()
-                    try? modelContext.save()
-                }
+                isConfirmingSkipWorkout = true
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "forward.end")
@@ -107,6 +103,25 @@ struct WorkoutActionsMenu: View {
             .disabled(!canSkipWorkout)
         } label: {
             Image(systemName: "ellipsis")
+        }
+        .confirmationDialog(
+            "Skip the rest of this workout?",
+            isPresented: $isConfirmingSkipWorkout,
+            titleVisibility: .visible
+        ) {
+            Button("Skip Workout", role: .destructive, action: skipWorkout)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Sets you've finished stay logged. The rest are skipped.")
+        }
+    }
+
+    private func skipWorkout() {
+        if let onSkipWorkout {
+            onSkipWorkout()
+        } else {
+            workout.skipAndCascade()
+            try? modelContext.save()
         }
     }
 }

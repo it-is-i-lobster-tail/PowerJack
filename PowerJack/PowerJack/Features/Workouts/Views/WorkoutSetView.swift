@@ -80,7 +80,7 @@ struct WorkoutSetView: View {
         !isReadOnly && workoutSet.status == .active && !workoutSet.locked
     }
 
-    /// Reps above `Exercise.maxRepsAllowed` are shown as invalid and never saved.
+    /// Zero reps are shown as invalid and never saved.
     private var repsInvalid: Bool {
         guard let reps = Int(repsText) else { return false }
         return !WorkoutSet.isValidReps(reps)
@@ -236,11 +236,11 @@ struct WorkoutSetView: View {
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
         }
-        .onChange(of: repsText) { _, newValue in
-            updateReps(from: newValue)
+        .onChange(of: repsText) { oldValue, newValue in
+            updateReps(from: newValue, previous: oldValue)
         }
-        .onChange(of: weightText) { _, newValue in
-            updateWeight(from: newValue)
+        .onChange(of: weightText) { oldValue, newValue in
+            updateWeight(from: newValue, previous: oldValue)
         }
         .onChange(of: workoutSet.reps) { _, newValue in
             // Keep text in sync when the model changes elsewhere, e.g. completing with planned values.
@@ -272,22 +272,27 @@ struct WorkoutSetView: View {
             : .gray.opacity(VisualOpacity.subtle)
     }
 
-    private func updateReps(from text: String) {
+    private func updateReps(from text: String, previous: String) {
         guard isEditable else { return }
-        let digits = text.filter(\.isNumber)
-        if digits != text {
-            repsText = digits
+        let allowed = Self.repsInput(text, previous: previous)
+        if allowed != text {
+            repsText = allowed
             return
         }
-        // Invalid (e.g. > 30) reps are stored as nil so they can never be saved.
-        let newValue = Int(digits)
+        // Zero reps are stored as nil so they can never be saved.
+        let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
         autoCompleteArmed = true
         workoutSet.reps = newValue
     }
 
-    private func updateWeight(from text: String) {
+    private func updateWeight(from text: String, previous: String) {
         guard isEditable else { return }
+        let allowed = Self.weightInput(text, previous: previous)
+        if allowed != text {
+            weightText = allowed
+            return
+        }
         let newValue = parsedWeight(text)
         guard newValue != workoutSet.weightInPounds else { return }
         autoCompleteArmed = true
@@ -299,6 +304,29 @@ struct WorkoutSetView: View {
         let normalized = text.replacingOccurrences(of: ",", with: ".")
         guard let value = Double(normalized), value > 0 else { return nil }
         return value
+    }
+
+    /// Keeps typed reps to whole numbers from 0 to `WorkoutSet.maxReps`; anything else keeps `previous`.
+    static func repsInput(_ text: String, previous: String) -> String {
+        let digits = text.filter(\.isNumber)
+        guard !digits.isEmpty else { return "" }
+        guard digits.count <= String(WorkoutSet.maxReps).count,
+              let reps = Int(digits), reps <= WorkoutSet.maxReps
+        else { return previous }
+        return digits
+    }
+
+    /// Keeps typed weight from 0 to `WorkoutSet.maxWeightPounds`, to a tenth of a pound; anything else keeps `previous`.
+    static func weightInput(_ text: String, previous: String) -> String {
+        let parts = text.split(omittingEmptySubsequences: false) { $0 == "." || $0 == "," }
+        guard parts.count <= 2,
+              parts.allSatisfy({ $0.allSatisfy(\.isNumber) }),
+              parts[0].count <= String(WorkoutSet.maxWeightPounds).count,
+              parts.count == 1 || parts[1].count <= 1
+        else { return previous }
+
+        let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
+        return value <= Double(WorkoutSet.maxWeightPounds) ? text : previous
     }
 
     /// `task(id:)` restarts on every edit, so this only fires once typing pauses.
@@ -331,7 +359,11 @@ struct WorkoutSetView: View {
     }
 
     private func completeSet() {
-        workoutSet.complete()
+        if let workoutExercise = workoutSet.workoutExerciseValue {
+            workoutExercise.completeSet(workoutSet)
+        } else {
+            workoutSet.complete()
+        }
         try? modelContext.save()
     }
 

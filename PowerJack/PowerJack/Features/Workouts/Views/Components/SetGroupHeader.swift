@@ -86,7 +86,7 @@ struct SetGroupHeader: View {
         Button("Remove Warmup Set", systemImage: "minus") {
             update { workoutExercise.removeLastSet(type: .warmup) }
         }
-        .disabled(isLocked || workoutExercise.warmupSets.isEmpty)
+        .disabled(!workoutExercise.canRemoveSet(type: .warmup))
 
         Divider()
 
@@ -111,7 +111,7 @@ struct SetGroupHeader: View {
         Button("Remove Last Set", systemImage: "minus") {
             update { workoutExercise.removeLastSet() }
         }
-        .disabled(isLocked || workoutExercise.workingSets.isEmpty)
+        .disabled(!workoutExercise.canRemoveSet(type: .working))
 
         Divider()
 
