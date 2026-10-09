@@ -1,0 +1,59 @@
+name: App Store
+
+# Each push to production submits the TestFlight build of production's version
+# for App Store review, then tags that version. Main uploads every version to
+# TestFlight first, so production only promotes a build testers already have.
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: app-store
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit for review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read version
+        run: |
+          version=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' PowerJack/PowerJack.xcodeproj/project.pbxproj | sort -u)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Submitting $version"
+
+      - name: Install fastlane
+        run: sudo gem install fastlane --no-document
+
+      - name: Submit for review
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          jq -n --arg id "$ASC_KEY_ID" --arg issuer "$ASC_ISSUER_ID" --arg key "$ASC_KEY_P8" \
+            '{key_id: $id, issuer_id: $issuer, key: $key}' > "$RUNNER_TEMP/asc-key.json"
+
+          fastlane run deliver \
+            api_key_path:"$RUNNER_TEMP/asc-key.json" \
+            app_identifier:com.stanleycloud.PowerJackv1 \
+            app_version:"$VERSION" \
+            skip_binary_upload:true \
+            skip_metadata:true \
+            skip_screenshots:true \
+            submit_for_review:true \
+            automatic_release:true \
+            run_precheck_before_submit:false \
+            force:true
+
+      - name: Tag version
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
