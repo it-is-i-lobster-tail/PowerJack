@@ -19,6 +19,11 @@ final class Program {
     @Relationship(deleteRule: .cascade, inverse: \ProgramWeek.programValue)
     var programWeeksValue: [ProgramWeek]? = []
     var lockedValue: Bool = false
+    // Copied from the template at creation, so later template edits can't change a running
+    // program. Rows saved before these existed read 0 / "" / [] and fall back (see below).
+    var workoutsPerWeekValue: Int = 0
+    var templateNameValue: String = ""
+    var templateMuscleFocusValue: [Muscle] = []
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -30,6 +35,9 @@ final class Program {
         )
         self.statusValue = .planned
         self.templateProgramValue = templateProgram
+        self.workoutsPerWeekValue = templateProgram.workoutsPerWeek
+        self.templateNameValue = templateProgram.templateName
+        self.templateMuscleFocusValue = templateProgram.templateMuscleFocus
         self.programWeeksValue = []
         self.lockedValue = false
         buildInitialProgramWeeks()
@@ -104,10 +112,21 @@ extension Program {
 
     var totalWorkouts: Int { programLengthWeeks * workoutsPerWeek }
 
-    // Template details, with safe fallbacks while a synced template is still arriving.
-    var templateName: String { templateProgram?.templateName ?? "Program" }
-    var workoutsPerWeek: Int { templateProgram?.workoutsPerWeek ?? 0 }
-    var templateMuscleFocus: [Muscle] { templateProgram?.templateMuscleFocus ?? [] }
+    // The program's own copy of its template's details. Programs saved before the copy existed
+    // fall back to week 1, which was built from the template, and then to the template itself.
+    var templateName: String {
+        if !templateNameValue.isEmpty { return templateNameValue }
+        return templateProgram?.templateName ?? "Program"
+    }
+    var workoutsPerWeek: Int {
+        if workoutsPerWeekValue > 0 { return workoutsPerWeekValue }
+        if let weekOne = programWeeks.first, !weekOne.workouts.isEmpty { return weekOne.workouts.count }
+        return templateProgram?.workoutsPerWeek ?? 0
+    }
+    var templateMuscleFocus: [Muscle] {
+        if !templateMuscleFocusValue.isEmpty { return templateMuscleFocusValue }
+        return templateProgram?.templateMuscleFocus ?? []
+    }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
