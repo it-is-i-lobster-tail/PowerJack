@@ -61,10 +61,8 @@ struct Feedback: View {
             levelOfEffort: levelOfEffort,
             levelOfPain: levelOfPain
         )
+        // The exercise stays open, so the lifter can still add a set before finishing the workout.
         workoutExercise.addFeedback(feedback: newFeedback)
-        if workoutExercise.status == .active {
-            workoutExercise.completeAndCascade()
-        }
         try? modelContext.save()
         dismiss()
         onFinished()

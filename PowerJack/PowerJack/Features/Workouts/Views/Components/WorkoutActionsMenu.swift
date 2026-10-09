@@ -47,7 +47,8 @@ struct WorkoutActionsMenu: View {
                         Text("Change Exercise")
                     }
                 }
-                .disabled(!canModifySelectedExercise)
+                // Changing a finished exercise would throw away its logged sets.
+                .disabled(!canModifySelectedExercise || selectedWorkoutExercise.isDone)
 
                 if let exercise = selectedWorkoutExercise.exercise {
                     Button {
@@ -79,7 +80,7 @@ struct WorkoutActionsMenu: View {
                 Divider()
 
                 Button {
-                    selectedWorkoutExercise.skipAndCascade()
+                    selectedWorkoutExercise.skipRemainingSets()
                     try? modelContext.save()
                 } label: {
                     HStack(spacing: 4) {
@@ -87,7 +88,7 @@ struct WorkoutActionsMenu: View {
                         Text("Skip Remaining Sets")
                     }
                 }
-                .disabled(!canModifySelectedExercise)
+                .disabled(!canModifySelectedExercise || selectedWorkoutExercise.allSetsDone())
             }
 
             Button {

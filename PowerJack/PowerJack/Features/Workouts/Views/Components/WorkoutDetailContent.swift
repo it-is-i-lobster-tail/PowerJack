@@ -13,6 +13,7 @@ struct WorkoutDetailContent: View {
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
+    var review: WorkoutReviewView? = nil
 
     var body: some View {
         // The sets take every point the exercise strip doesn't need, less a gap above the strip.
@@ -22,13 +23,15 @@ struct WorkoutDetailContent: View {
                 workoutExercises: workoutExercises,
                 onExerciseSetsDone: onExerciseSetsDone,
                 selectedExerciseIndex: $selectedExerciseIndex,
-                focusedSetField: focusedSetField
+                focusedSetField: focusedSetField,
+                review: review
             )
             .frame(maxHeight: .infinity)
 
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
+                showsReview: review != nil,
                 selectedExerciseIndex: $selectedExerciseIndex
             )
         }
