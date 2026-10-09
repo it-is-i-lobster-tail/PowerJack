@@ -118,6 +118,18 @@ extension WorkoutExercise {
         let sameType = workoutSet.isWarmup ? warmupSets : workingSets
         return (sameType.firstIndex { $0 === workoutSet } ?? 0) + 1
     }
+    /// How many warmups the exercise has for a warmup, or working sets for a working set.
+    func count(sameTypeAs workoutSet: WorkoutSet) -> Int {
+        workoutSet.isWarmup ? warmupSets.count : workingSets.count
+    }
+    /// "Warmup 1 of 2" or "Set 1 of 2", counting warmups and working sets apart.
+    func setText(for workoutSet: WorkoutSet) -> String {
+        WorkoutActivityState.setText(
+            number: number(of: workoutSet),
+            count: count(sameTypeAs: workoutSet),
+            isWarmup: workoutSet.isWarmup
+        )
+    }
     // Planned Sets
     func getCountPlannedSets() -> Int {
         return countSetStatus(status: Status.planned)
