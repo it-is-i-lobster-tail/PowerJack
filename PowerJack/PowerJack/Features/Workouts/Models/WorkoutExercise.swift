@@ -42,6 +42,8 @@ final class WorkoutExercise {
     private var checkInSourcePainValue: LevelOfPain?
     // Turned on from the warmup menu. Only this exercise on this program day starts on its working sets.
     private var warmupsDisabledValue: Bool = false
+    // How many warmups Enable Warmup brings back. Set when the user starts removing them.
+    private var warmupRestoreCountValue: Int?
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -49,6 +51,8 @@ final class WorkoutExercise {
     static let initialSets = 2
     static let initialWarmupSets = 2
     static let maxWarmupSets = 3
+    /// Working sets can't go below this. Warmups can all be removed, which turns them off.
+    static let minSets = 1
 
     init(
         exercise: Exercise,
@@ -297,6 +301,7 @@ extension WorkoutExercise {
             return nil
         }
         warmupsDisabledValue = false
+        warmupRestoreCountValue = nil
         return addSet(type: .warmup)
     }
     /// Adds a set that stays planned until the workout starts. Used for generated weeks.
@@ -371,20 +376,30 @@ extension WorkoutExercise {
             Logger.workoutExercise.warning("Cannot disable warmups of a locked WorkoutExercise.")
             return
         }
+        rememberWarmupCount()
         warmupsDisabledValue = true
         for warmup in warmupSets where !warmup.isDone {
             workoutSetsValue?.removeAll { $0 === warmup }
             modelContext?.delete(warmup)
         }
     }
-    /// Turns warmups back on for this exercise on this day and tops them up to the usual starting count.
+    /// Turns warmups back on for this exercise on this day and brings back as many as there were
+    /// before they were removed or disabled, or the usual starting count if there were none.
     func enableWarmups() {
         guard !lockedValue else {
             Logger.workoutExercise.warning("Cannot enable warmups of a locked WorkoutExercise.")
             return
         }
         warmupsDisabledValue = false
-        while warmupSets.count < Self.initialWarmupSets, addSet(type: .warmup) != nil {}
+        let count = warmupRestoreCountValue ?? Self.initialWarmupSets
+        warmupRestoreCountValue = nil
+        while warmupSets.count < count, addSet(type: .warmup) != nil {}
+    }
+    /// Keeps the count from before the first removal, so removing warmups one by one restores them all.
+    private func rememberWarmupCount() {
+        if warmupRestoreCountValue == nil, !warmupSets.isEmpty {
+            warmupRestoreCountValue = warmupSets.count
+        }
     }
     /// Carries a day's disabled warmups into the same day of a newly built week. Call before adding sets.
     func inheritWarmupsDisabled(from source: WorkoutExercise) {
@@ -420,16 +435,28 @@ extension WorkoutExercise {
         }
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
+    /// At least one working set always stays. Every warmup can go.
+    func canRemoveSet(type: SetType) -> Bool {
+        switch type {
+        case .warmup: !lockedValue && !warmupSets.isEmpty
+        case .working: !lockedValue && workingSets.count > Self.minSets
+        }
+    }
     /// Removes the last set of `type`. Sets of the other type stay.
+    /// Removing the last warmup turns warmups off, and Enable Warmup brings them all back.
     func removeLastSet(type: SetType = .working) {
-        guard !lockedValue, let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
-            Logger.workoutExercise.warning("Cannot remove last set of locked or empty WorkoutExercise.")
+        guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
+            Logger.workoutExercise.warning("Cannot remove a set from a locked WorkoutExercise, or its last working set.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
+        if type == .warmup { rememberWarmupCount() }
         workoutSetsValue?.removeAll { $0 === lastSet }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(lastSet)
+        if type == .warmup, warmupSets.isEmpty {
+            warmupsDisabledValue = true
+        }
     }
     private func deleteAllSets() {
         let sets = workoutSets
@@ -447,6 +474,7 @@ extension WorkoutExercise {
         exerciseValue = newExercise
         // A replacement is a new exercise, so it starts with warmups again.
         warmupsDisabledValue = false
+        warmupRestoreCountValue = nil
         // A check-in belongs to the exercise that caused the pain, not to its replacement.
         checkInValue = .none
         checkInSourcePainValue = nil
