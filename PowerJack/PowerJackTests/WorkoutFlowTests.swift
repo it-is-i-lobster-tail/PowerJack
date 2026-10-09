@@ -222,14 +222,14 @@ struct WorkoutFlowTests {
         #expect(reloaded.weekNumber(containing: restoredWorkout) == 1)
     }
 
-    @Test("Logged reps above 30 are never saved")
+    @Test("Logged reps above 50 are never saved")
     func repsCap() throws {
-        let set = WorkoutSet(order: 0, plannedReps: 31, plannedWeightTenthsPounds: nil)
+        let set = WorkoutSet(order: 0, plannedReps: 51, plannedWeightTenthsPounds: nil)
         #expect(set.repsPlanned == nil)
         set.start()
-        set.reps = 30
-        #expect(set.reps == 30)
-        set.reps = 31
+        set.reps = 50
+        #expect(set.reps == 50)
+        set.reps = 51
         #expect(set.reps == nil)
     }
 
