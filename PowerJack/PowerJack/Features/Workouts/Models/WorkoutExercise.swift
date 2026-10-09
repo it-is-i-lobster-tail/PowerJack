@@ -447,6 +447,9 @@ extension WorkoutExercise {
         exerciseValue = newExercise
         // A replacement is a new exercise, so it starts with warmups again.
         warmupsDisabledValue = false
+        // A check-in belongs to the exercise that caused the pain, not to its replacement.
+        checkInValue = .none
+        checkInSourcePainValue = nil
         deleteAllSets()
         addInitialSets()
     }
