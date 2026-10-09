@@ -14,6 +14,8 @@ struct TemplateProgramDraft {
     static let minimumWorkoutsPerWeek = 2
     static let maximumWorkoutsPerWeek = 6
     static let maximumFocusMuscles = 4
+    /// Saved in place of an empty name, so an unnamed template still has one.
+    static let defaultName = "New"
 
     var templateName: String
     var workoutsPerWeekValue: Int?
@@ -57,7 +59,7 @@ struct TemplateProgramDraft {
     /// Matches `TemplateProgram.draft` for the template this would save.
     var isDraft: Bool {
         TemplateProgram.isDraft(
-            name: trimmedName,
+            name: savedName,
             muscleFocus: templateMuscleFocus,
             workoutsPerWeek: workoutsPerWeek ?? 0,
             exerciseCounts: templateWorkoutDrafts.map(\.templateExerciseDrafts.count)
@@ -73,12 +75,16 @@ struct TemplateProgramDraft {
     private var trimmedName: String {
         templateName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    private var savedName: String {
+        trimmedName.isEmpty ? Self.defaultName : trimmedName
+    }
     
     func makeTemplate() -> TemplateProgram? {
         guard canSave else { return nil }
 
         let newTemplateProgram = TemplateProgram(
-            templateName: trimmedName,
+            templateName: savedName,
             workoutsPerWeek: workoutsPerWeek ?? 0,
             templateMuscleFocus: templateMuscleFocus
         )
@@ -94,11 +100,30 @@ struct TemplateProgramDraft {
         return newTemplateProgram
     }
     
+    /// Inserts and saves a new template. A new "New" replaces the old one, so unnamed
+    /// templates don't pile up.
+    func insertNewTemplate(into context: ModelContext) throws -> TemplateProgram? {
+        guard let newTemplateProgram = makeTemplate() else { return nil }
+
+        if newTemplateProgram.templateName == Self.defaultName {
+            let name = Self.defaultName
+            let replaced = try context.fetch(FetchDescriptor<TemplateProgram>(
+                predicate: #Predicate { $0.templateName == name && !$0.hiddenValue }
+            ))
+            for templateProgram in replaced where templateProgram.catalogID == nil {
+                templateProgram.delete()
+            }
+        }
+
+        try context.insertAndSave(newTemplateProgram)
+        return newTemplateProgram
+    }
+
     @discardableResult
     func apply(to templateProgram: TemplateProgram) -> Bool {
         guard canSave else { return false }
 
-        templateProgram.templateName = trimmedName
+        templateProgram.templateName = savedName
         templateProgram.workoutsPerWeek = workoutsPerWeek ?? 0
         templateProgram.templateMuscleFocus = templateMuscleFocus
         // Rebuild the workouts only when their exercises changed, so renaming stays cheap.

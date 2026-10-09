@@ -28,6 +28,50 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[1].workouts.isEmpty)
     }
 
+    @Test("A new program's later workouts keep their sets planned until each one starts")
+    func upcomingWorkoutSetsStayPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        #expect(!dayTwo.workoutExercises.isEmpty)
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .planned })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        dayOne.startAndCascade()
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .active })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        log(dayOne, reps: 10, weightTenthsPounds: 1000)
+        _ = program.finishWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .active })
+    }
+
+    @Test("Replacing an exercise in an upcoming workout keeps its new sets planned")
+    func replacingUpcomingExerciseKeepsSetsPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        dayOne.startAndCascade()
+        let replacement = Exercise(
+            exerciseName: "Row",
+            exerciseEquipment: .cable,
+            primaryMuscleFocus: .back
+        )
+        container.mainContext.insert(replacement)
+
+        let upcoming = try #require(dayTwo.workoutExercises.first)
+        upcoming.changeExercise(newExercise: replacement)
+        #expect(upcoming.exercise === replacement)
+        #expect(upcoming.workingSets.count == WorkoutExercise.initialSets)
+        #expect(upcoming.workoutSets.allSatisfy { $0.status == .planned })
+
+        // Replacing an exercise in the workout being done gives sets ready to log.
+        let current = try #require(dayOne.workoutExercises.first)
+        current.changeExercise(newExercise: replacement)
+        #expect(current.workoutSets.allSatisfy { $0.status == .active })
+    }
+
     @Test("Finishing a week builds the next week with progressed prescriptions")
     func finishWeekBuildsProgression() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
@@ -91,6 +135,85 @@ struct WorkoutFlowTests {
         #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
+    @Test("Skipping a workout with a pending check-in keeps the check-in for the next week")
+    func skippedWorkoutKeepsCheckIn() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        #expect(try #require(weekTwo.workoutExercises.first).checkInPending)
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+        let exercise = try #require(weekThree.workoutExercises.first)
+
+        #expect(weekThree === program.programWeeks[2].workouts.first)
+        #expect(exercise.checkInPending)
+        #expect(exercise.checkInSourcePain == .severe)
+        #expect(exercise.locked)
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+    }
+
+    @Test("A check-in reaches past several skipped workouts to the last completed one")
+    func checkInSurvivesRepeatedSkips() throws {
+        let program = try makeStartedProgram(weeks: 4, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .extreme)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        let weekFour = try #require(program.skipWorkout(weekThree))
+        let exercise = try #require(weekFour.workoutExercises.first)
+
+        #expect(exercise.checkInPending)
+        #expect(exercise.checkInSourcePain == .extreme)
+    }
+
+    @Test("Answering a check-in and then skipping the workout asks again next week")
+    func answeredThenSkippedCheckInRepeats() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        try #require(weekTwo.workoutExercises.first).resolveCheckIn(.continue)
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        #expect(try #require(weekThree.workoutExercises.first).checkInPending)
+    }
+
+    @Test("Completing the exercise after a check-in uses its own pain next week")
+    func completedAfterCheckInClears() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000, pain: .severe)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        weekTwo.startAndCascade()
+        try #require(weekTwo.workoutExercises.first).resolveCheckIn(.continue)
+        log(weekTwo, reps: 10, weightTenthsPounds: 1000)
+
+        let weekThree = try #require(program.finishWorkout(weekTwo))
+
+        #expect(!(try #require(weekThree.workoutExercises.first).checkInPending))
+    }
+
+    @Test("Skipping a workout without earlier pain needs no check-in")
+    func skippedWorkoutWithoutPain() throws {
+        let program = try makeStartedProgram(weeks: 3, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 10, weightTenthsPounds: 1000)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+
+        let weekThree = try #require(program.skipWorkout(weekTwo))
+
+        #expect(!(try #require(weekThree.workoutExercises.first).checkInPending))
+    }
+
     @Test("Finishing the last workout of the last week completes the program")
     func finishingProgram() throws {
         let program = try makeStartedProgram(weeks: 1, workouts: 1)
@@ -112,6 +235,42 @@ struct WorkoutFlowTests {
 
         #expect(first.status == .skipped)
         #expect(next === program.programWeeks[0].workouts[1])
+    }
+
+    @Test("Completed and skipped working sets both count toward workout progress")
+    func progressCountsSkippedSets() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 1, exercisesPerWorkout: 5)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let sets = workout.workoutExercises.flatMap(\.workingSets)
+        #expect(sets.count == 10)
+        #expect(workout.setProgress == (0, 0))
+
+        for set in sets.prefix(8) {
+            set.reps = 10
+            set.weightTenthsPounds = 1000
+            set.complete()
+        }
+        for set in sets.suffix(2) {
+            set.skip()
+        }
+
+        #expect(workout.completedWorkingSets == 8)
+        #expect(workout.skippedWorkingSets == 2)
+        #expect(workout.setProgress == (0.8, 0.2))
+    }
+
+    @Test("A skipped workout is fully resolved and entirely skipped")
+    func skippedWorkoutProgress() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 2)
+        let first = program.programWeeks[0].workouts[0]
+
+        program.skipWorkout(first)
+
+        #expect(first.skippedWorkingSets == first.workingSetCount)
+        #expect(first.setProgress == (0, 1))
+        // The next workout has not been touched.
+        #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
     }
 
     @Test("Current workout and exercise are restored from persisted state")
@@ -142,14 +301,14 @@ struct WorkoutFlowTests {
         #expect(reloaded.weekNumber(containing: restoredWorkout) == 1)
     }
 
-    @Test("Logged reps above 30 are never saved")
+    @Test("Logged reps above 50 are never saved")
     func repsCap() throws {
-        let set = WorkoutSet(order: 0, plannedReps: 31, plannedWeightTenthsPounds: nil)
+        let set = WorkoutSet(order: 0, plannedReps: 51, plannedWeightTenthsPounds: nil)
         #expect(set.repsPlanned == nil)
         set.start()
-        set.reps = 30
-        #expect(set.reps == 30)
-        set.reps = 31
+        set.reps = 50
+        #expect(set.reps == 50)
+        set.reps = 51
         #expect(set.reps == nil)
     }
 
@@ -228,6 +387,10 @@ struct WorkoutFlowTests {
         try context.insertAndSave(program)
         program.start()
         return program
+    }
+
+    private func sets(of workout: Workout) -> [WorkoutSet] {
+        workout.workoutExercises.flatMap(\.workoutSets)
     }
 
     private func log(

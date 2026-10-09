@@ -35,6 +35,11 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
+
+    /// "Warmup 1 of 2" or "Set 1 of 2". Shared with the in-app rest island so both read the same.
+    static func setText(number: Int, count: Int, isWarmup: Bool) -> String {
+        "\(isWarmup ? "Warmup" : "Set") \(number) of \(count)"
+    }
 }
 
 /// One set as the Live Activity shows it: what was logged once done, its target until then.
