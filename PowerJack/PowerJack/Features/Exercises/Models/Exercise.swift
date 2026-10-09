@@ -39,7 +39,7 @@ final class Exercise {
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
     static let minRepsAllowed = 5
-    // No rep value above this can be saved anywhere in the app.
+    // No exercise can set a maximum rep target above this.
     static let maxRepsAllowed = 30
     static let defaultFatigueLevel = FatigueLevel.moderate
     static let defaultMaxReps = defaultFatigueLevel.defaultMaxReps
