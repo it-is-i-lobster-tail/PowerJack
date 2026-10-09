@@ -182,6 +182,7 @@ struct ModelLifecycleTests {
     @Test("Adding sets copies the last weight and stops at the max")
     func exerciseAddSet() {
         let workoutExercise = makeWorkoutExercise()
+        workoutExercise.start()
         let first = workoutExercise.addSet()
         first?.weightTenthsPounds = 1350
         let second = workoutExercise.addSet()
@@ -193,6 +194,17 @@ struct ModelLifecycleTests {
         while workoutExercise.addSet() != nil {}
         #expect(workoutExercise.totalSets == WorkoutExercise.maxSets)
         #expect(workoutExercise.addPlannedSet(plannedReps: 8, plannedWeightTenthsPounds: nil) == nil)
+    }
+
+    @Test("Sets added before the exercise starts stay planned until it starts")
+    func exerciseAddSetBeforeStart() {
+        let workoutExercise = makeWorkoutExercise()
+        workoutExercise.addWarmupSets()
+        _ = workoutExercise.addSet()
+        #expect(workoutExercise.workoutSets.allSatisfy { $0.status == .planned })
+
+        workoutExercise.startAndCascade()
+        #expect(workoutExercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
     @Test("Planned sets can only be added before the exercise starts")
@@ -332,6 +344,7 @@ struct ModelLifecycleTests {
     @Test("A nil weight is never copied to later sets")
     func exerciseApplyNilWeight() throws {
         let workoutExercise = makeWorkoutExercise()
+        workoutExercise.start()
         let first = try #require(workoutExercise.addSet())
         let second = try #require(workoutExercise.addSet())
         second.weightTenthsPounds = 800
@@ -490,7 +503,7 @@ struct ModelLifecycleTests {
 
     // MARK: Program
 
-    @Test("Program totals and template fallbacks")
+    @Test("Program totals and their own copy of template details")
     func programDerivedValues() throws {
         let program = try makeProgram(weeks: 4, workouts: 3)
         #expect(program.totalWorkouts == 12)
@@ -500,11 +513,20 @@ struct ModelLifecycleTests {
         #expect(program.templateMuscleFocus == [.chest])
         #expect(program.nextWorkout == nil)
 
-        // A synced program can arrive before its template.
+        // The program keeps its own copy, so losing the template changes nothing.
         program.templateProgramValue = nil
+        #expect(program.templateName == "Test")
+        #expect(program.workoutsPerWeek == 3)
+        #expect(program.totalWorkouts == 12)
+        #expect(program.templateMuscleFocus == [.chest])
+
+        // A program saved before the copy existed, synced before its template, falls back to week 1.
+        program.workoutsPerWeekValue = 0
+        program.templateNameValue = ""
+        program.templateMuscleFocusValue = []
         #expect(program.templateName == "Program")
-        #expect(program.workoutsPerWeek == 0)
-        #expect(program.totalWorkouts == 0)
+        #expect(program.workoutsPerWeek == 3)
+        #expect(program.totalWorkouts == 12)
         #expect(program.percentFinished == 0)
         #expect(program.templateMuscleFocus.isEmpty)
     }

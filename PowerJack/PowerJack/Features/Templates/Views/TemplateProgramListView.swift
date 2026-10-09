@@ -82,9 +82,7 @@ struct TemplateProgramListView: View {
                 .scrollContentBackground(.hidden)
                 .background(Color(uiColor: .systemBackground))
             } createDestination: {
-                 TemplateProgramNew(
-                    onSave: handleNewTemplate
-                 )
+                TemplateProgramNew()
             }
             .navigationDestination(item: $selectedTemplate) { template in
                 TemplateProgramDetailView(templateProgram: template)
@@ -131,12 +129,6 @@ struct TemplateProgramListView: View {
             return
         }
 
-        onSelect(template)
-        dismiss()
-    }
-
-    private func handleNewTemplate(_ template: TemplateProgram) {
-        guard let onSelect, !template.draft else { return }
         onSelect(template)
         dismiss()
     }

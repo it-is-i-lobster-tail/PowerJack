@@ -28,6 +28,50 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[1].workouts.isEmpty)
     }
 
+    @Test("A new program's later workouts keep their sets planned until each one starts")
+    func upcomingWorkoutSetsStayPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        #expect(!dayTwo.workoutExercises.isEmpty)
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .planned })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        dayOne.startAndCascade()
+        #expect(sets(of: dayOne).allSatisfy { $0.status == .active })
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .planned })
+
+        log(dayOne, reps: 10, weightTenthsPounds: 1000)
+        _ = program.finishWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(sets(of: dayTwo).allSatisfy { $0.status == .active })
+    }
+
+    @Test("Replacing an exercise in an upcoming workout keeps its new sets planned")
+    func replacingUpcomingExerciseKeepsSetsPlanned() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        dayOne.startAndCascade()
+        let replacement = Exercise(
+            exerciseName: "Row",
+            exerciseEquipment: .cable,
+            primaryMuscleFocus: .back
+        )
+        container.mainContext.insert(replacement)
+
+        let upcoming = try #require(dayTwo.workoutExercises.first)
+        upcoming.changeExercise(newExercise: replacement)
+        #expect(upcoming.exercise === replacement)
+        #expect(upcoming.workingSets.count == WorkoutExercise.initialSets)
+        #expect(upcoming.workoutSets.allSatisfy { $0.status == .planned })
+
+        // Replacing an exercise in the workout being done gives sets ready to log.
+        let current = try #require(dayOne.workoutExercises.first)
+        current.changeExercise(newExercise: replacement)
+        #expect(current.workoutSets.allSatisfy { $0.status == .active })
+    }
+
     @Test("Finishing a week builds the next week with progressed prescriptions")
     func finishWeekBuildsProgression() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
@@ -112,6 +156,42 @@ struct WorkoutFlowTests {
 
         #expect(first.status == .skipped)
         #expect(next === program.programWeeks[0].workouts[1])
+    }
+
+    @Test("Completed and skipped working sets both count toward workout progress")
+    func progressCountsSkippedSets() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 1, exercisesPerWorkout: 5)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let sets = workout.workoutExercises.flatMap(\.workingSets)
+        #expect(sets.count == 10)
+        #expect(workout.setProgress == (0, 0))
+
+        for set in sets.prefix(8) {
+            set.reps = 10
+            set.weightTenthsPounds = 1000
+            set.complete()
+        }
+        for set in sets.suffix(2) {
+            set.skip()
+        }
+
+        #expect(workout.completedWorkingSets == 8)
+        #expect(workout.skippedWorkingSets == 2)
+        #expect(workout.setProgress == (0.8, 0.2))
+    }
+
+    @Test("A skipped workout is fully resolved and entirely skipped")
+    func skippedWorkoutProgress() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 2)
+        let first = program.programWeeks[0].workouts[0]
+
+        program.skipWorkout(first)
+
+        #expect(first.skippedWorkingSets == first.workingSetCount)
+        #expect(first.setProgress == (0, 1))
+        // The next workout has not been touched.
+        #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
     }
 
     @Test("Current workout and exercise are restored from persisted state")
@@ -228,6 +308,10 @@ struct WorkoutFlowTests {
         try context.insertAndSave(program)
         program.start()
         return program
+    }
+
+    private func sets(of workout: Workout) -> [WorkoutSet] {
+        workout.workoutExercises.flatMap(\.workoutSets)
     }
 
     private func log(
