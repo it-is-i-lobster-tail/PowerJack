@@ -27,7 +27,6 @@ struct TemplateProgramDetailView: View {
     var body: some View {
         TemplateForm(
             editExistingExercise: true,
-            onSave: nil,
             draft: $draft
         )
         .onChange(of: draft.snapshot) {

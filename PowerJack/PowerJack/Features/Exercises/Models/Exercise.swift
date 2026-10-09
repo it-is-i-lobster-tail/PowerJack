@@ -32,13 +32,14 @@ final class Exercise {
     var fatigueLevelValue: FatigueLevel = Exercise.defaultFatigueLevel
     // Seconds of rest that replace the fatigue level's rest. Nil uses the fatigue level.
     var customRestTimeValue: Int? = nil
-    // Turned on from a workout's warmup menu. Workouts then start on the working sets.
+    // No longer read: warmups are now turned off per program day (`WorkoutExercise.warmupsDisabled`).
+    // Kept so the synced CloudKit schema only ever grows.
     var warmupDisabledValue: Bool = false
 
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
     static let minRepsAllowed = 5
-    // No rep value above this can be saved anywhere in the app.
+    // No exercise can set a maximum rep target above this.
     static let maxRepsAllowed = 30
     static let defaultFatigueLevel = FatigueLevel.moderate
     static let defaultMaxReps = defaultFatigueLevel.defaultMaxReps
@@ -98,9 +99,4 @@ extension Exercise {
         set { customRestTimeValue = newValue }
     }
     var restDuration: Duration { customRestTime.map { .seconds($0) } ?? fatigueLevel.restLength.duration }
-    // Warmups
-    var warmupDisabled: Bool {
-        get { warmupDisabledValue }
-        set { warmupDisabledValue = newValue }
-    }
 }
