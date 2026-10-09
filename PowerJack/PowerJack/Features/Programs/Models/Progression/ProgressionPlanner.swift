@@ -73,7 +73,12 @@ enum ProgressionPlanner {
                         plannedWeightTenthsPounds: set.plannedWeightTenthsPounds
                     )
                 }
-                if let sourcePain = prescription.checkInSourcePain {
+                let checkInPain = prescription.checkInSourcePain ?? unresolvedCheckInPain(
+                    for: sourceExercise,
+                    in: sourceWorkout,
+                    earlierWeeks: weeks[..<(weekIndex - 1)].reversed()
+                )
+                if let sourcePain = checkInPain {
                     workoutExercise.requireCheckIn(sourcePain: sourcePain)
                 }
             }
@@ -129,6 +134,34 @@ enum ProgressionPlanner {
             secondaryMuscles: exercise.secondaryMuscles,
             repsOnly: exercise.repsOnly
         )
+    }
+
+    /// Severe pain from the last time this exercise was completed, when every run since was skipped.
+    /// Skipping a workout must not erase a check-in.
+    static func unresolvedCheckInPain(
+        for sourceExercise: WorkoutExercise,
+        in sourceWorkout: Workout,
+        earlierWeeks: some Sequence<ProgramWeek>
+    ) -> LevelOfPain? {
+        var candidate = sourceExercise
+        var olderWeeks = earlierWeeks.makeIterator()
+        while candidate.status != .complete {
+            guard
+                let week = olderWeeks.next(),
+                let older = matchingExercise(for: sourceExercise, in: sourceWorkout, week: week)
+            else {
+                return nil
+            }
+            candidate = older
+        }
+        guard
+            candidate !== sourceExercise,
+            let pain = candidate.feedback?.levelOfPain,
+            pain.rawValue >= LevelOfPain.severe.rawValue
+        else {
+            return nil
+        }
+        return pain
     }
 
     /// The same exercise at the same workout and exercise position in an earlier week.
