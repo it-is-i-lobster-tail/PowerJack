@@ -107,6 +107,55 @@ struct TemplateDraftTests {
         #expect(!ProgramDraft(programLengthWeeks: 4, templateProgram: template).canSave)
     }
 
+    @Test("A template saved without a name is called New")
+    func unnamedTemplateIsCalledNew() throws {
+        let container = PowerJackSeed.makeInMemoryContainer()
+        let context = container.mainContext
+
+        var draft = TemplateProgramDraft()
+        draft.workoutsPerWeek = 3
+        let template = try #require(try draft.insertNewTemplate(into: context))
+        #expect(template.templateName == TemplateProgramDraft.defaultName)
+        #expect(template.displayName == "(Draft) New")
+
+        // Clearing the name while editing falls back to New too.
+        var edit = TemplateProgramDraft(templateProgram: template)
+        edit.templateName = "Legs"
+        #expect(edit.apply(to: template))
+        edit.templateName = "  "
+        #expect(edit.apply(to: template))
+        #expect(template.templateName == "New")
+    }
+
+    @Test("A new New template replaces the old one, but other names are kept")
+    func newTemplateReplacesOldNew() throws {
+        let container = PowerJackSeed.makeInMemoryContainer()
+        let context = container.mainContext
+
+        var unnamed = TemplateProgramDraft()
+        unnamed.workoutsPerWeek = 2
+        let first = try #require(try unnamed.insertNewTemplate(into: context))
+
+        var named = TemplateProgramDraft()
+        named.templateName = "Push"
+        let push = try #require(try named.insertNewTemplate(into: context))
+
+        let second = try #require(try unnamed.insertNewTemplate(into: context))
+
+        let visible = try context.fetch(FetchDescriptor<TemplateProgram>(
+            predicate: #Predicate { !$0.hiddenValue }
+        ))
+        #expect(Set(visible.map(\.persistentModelID)) == [push.persistentModelID, second.persistentModelID])
+        #expect(first.modelContext == nil || first.hiddenValue)
+
+        // A second Push is the user's own name, so the first one stays.
+        _ = try named.insertNewTemplate(into: context)
+        let pushes = try context.fetch(FetchDescriptor<TemplateProgram>(
+            predicate: #Predicate { $0.templateName == "Push" }
+        ))
+        #expect(pushes.count == 2)
+    }
+
     @Test("Draft templates can't start a program")
     func draftTemplateCantStartProgram() {
         let template = makeTemplate(exercise: makeExercise())
