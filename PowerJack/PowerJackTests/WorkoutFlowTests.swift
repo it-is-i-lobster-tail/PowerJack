@@ -297,6 +297,46 @@ struct WorkoutFlowTests {
         #expect(next === program.programWeeks[0].workouts[1])
     }
 
+    @Test("Skipping the rest of a workout keeps finished sets and skips the others")
+    func skipRestOfWorkoutKeepsCompletedSets() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let workingSets = workout.workoutExercises.flatMap(\.workingSets)
+        let finished = workingSets.prefix(3)
+        for set in finished {
+            set.reps = 8
+            set.weightTenthsPounds = 1000
+            set.complete()
+        }
+
+        let next = program.skipWorkout(workout)
+
+        #expect(workout.status == .skipped)
+        #expect(finished.allSatisfy { $0.status == .complete && $0.reps == 8 && $0.weightTenthsPounds == 1000 })
+        #expect(workingSets.dropFirst(3).allSatisfy { $0.status == .skipped })
+        #expect(workout.workoutExercises.flatMap(\.warmupSets).allSatisfy { $0.status == .skipped })
+        #expect(workout.completedWorkingSets == 3)
+        #expect(next === program.programWeeks[0].workouts[1])
+
+        // The finished sets count toward training history.
+        let logs = try container.mainContext.fetch(FetchDescriptor<WorkoutLog>())
+        #expect(logs.count == 1)
+        #expect(logs.first?.sets(for: .chest) == 3)
+    }
+
+    @Test("Skipping a workout with nothing finished writes no history")
+    func skipUntouchedWorkoutLogsNothing() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+
+        program.skipWorkout(workout)
+
+        #expect(workout.workoutExercises.flatMap(\.workoutSets).allSatisfy { $0.status == .skipped })
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).isEmpty)
+    }
+
     @Test("Completed and skipped working sets both count toward workout progress")
     func progressCountsSkippedSets() throws {
         let program = try makeStartedProgram(weeks: 1, workouts: 1, exercisesPerWorkout: 5)
