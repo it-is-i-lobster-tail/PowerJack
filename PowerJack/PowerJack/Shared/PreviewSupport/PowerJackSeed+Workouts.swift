@@ -35,6 +35,8 @@ extension PowerJackSeed {
                     continue
                 }
 
+                // Seed sets are logged, so they start whatever the workout's status.
+                workoutSet.start()
                 workoutSet.reps = seedSet.actualReps
                 workoutSet.weightTenthsPounds = seedSet.actualWeightTenthsPounds
                 apply(seedSet.status, to: workoutSet)
