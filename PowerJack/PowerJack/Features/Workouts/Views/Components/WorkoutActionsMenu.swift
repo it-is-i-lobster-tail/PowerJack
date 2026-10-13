@@ -86,10 +86,12 @@ struct WorkoutActionsMenu: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "forward")
-                        Text("Skip Remaining Sets")
+                        Text("Skip Exercise")
                     }
                 }
                 .disabled(!canModifySelectedExercise || selectedWorkoutExercise.allSetsDone())
+
+                Divider()
             }
 
             Button {
