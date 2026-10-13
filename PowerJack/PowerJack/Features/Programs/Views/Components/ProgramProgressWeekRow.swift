@@ -13,12 +13,18 @@ struct ProgramProgressWeekRow: View {
     let rowWidth: CGFloat
     let cellHeight: CGFloat
     let dataCellWidth: CGFloat
+    let weekLabels: Namespace.ID
     let onSelectWorkout: (Workout) -> Void
 
     var body: some View {
         GridRow {
             Text("WK \(programWeek.order + 1)")
                 .font(.caption)
+                .fixedSize()
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                // The grid's current-week pill slides onto this label's frame.
+                .matchedGeometryEffect(id: programWeek.order + 1, in: weekLabels, isSource: true)
                 .frame(
                     width: rowWidth,
                     height: cellHeight
