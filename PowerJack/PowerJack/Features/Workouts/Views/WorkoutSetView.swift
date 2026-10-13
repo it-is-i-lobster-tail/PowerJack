@@ -14,14 +14,6 @@ struct WorkoutSetView: View {
     private static let fieldWidth = 76.0
     private static let fieldHeight = 44.0
     private static let animationDuration = 0.050
-    /// Pause after the last keystroke before a fully logged set completes itself.
-    static let autoCompleteDelay: Duration = .milliseconds(1200)
-    /// The last set waits longer so there's time to fix values before the exercise wraps up.
-    static let lastSetDelayMultiplier = 3
-
-    static func autoCompleteDelay(isLastSet: Bool) -> Duration {
-        isLastSet ? autoCompleteDelay * lastSetDelayMultiplier : autoCompleteDelay
-    }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.workoutIsReadOnly) private var isReadOnly
@@ -29,32 +21,24 @@ struct WorkoutSetView: View {
     let repsOnly: Bool
     /// 1-based position within the set's type, so working sets count from 1 after the warmups.
     let number: Int
-    let isLastSet: Bool
     let onWeightChange: (Int?) -> Void
-    let onAutoComplete: () -> Void
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
     @State private var weightText: String
-    // Only edits made in this view arm auto-completion, never initial or restored values.
-    @State private var autoCompleteArmed = false
 
     init(
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
-        isLastSet: Bool = false,
-        onWeightChange: @escaping (Int?) -> Void = { _ in },
-        onAutoComplete: @escaping () -> Void = {}
+        onWeightChange: @escaping (Int?) -> Void = { _ in }
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
         self.number = number ?? workoutSet.order + 1
-        self.isLastSet = isLastSet
         self.onWeightChange = onWeightChange
-        self.onAutoComplete = onAutoComplete
         _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
         _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightInPounds))
     }
@@ -111,15 +95,6 @@ struct WorkoutSetView: View {
         }
 
         return Text(plannedWeight, format: .number)
-    }
-
-    private struct AutoCompleteKey: Hashable {
-        let reps: Int?
-        let weight: Int?
-    }
-
-    private var autoCompleteKey: AutoCompleteKey {
-        AutoCompleteKey(reps: workoutSet.reps, weight: workoutSet.weightTenthsPounds)
     }
 
     var body: some View {
@@ -253,9 +228,6 @@ struct WorkoutSetView: View {
                 weightText = Self.text(forWeight: workoutSet.weightInPounds)
             }
         }
-        .task(id: autoCompleteKey) {
-            await autoCompleteAfterDebounce()
-        }
     }
 
     /// Lets a tap anywhere on a field's box focus it, not just on the text itself.
@@ -282,7 +254,6 @@ struct WorkoutSetView: View {
         // Zero reps are stored as nil so they can never be saved.
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
-        autoCompleteArmed = true
         workoutSet.reps = newValue
     }
 
@@ -295,7 +266,6 @@ struct WorkoutSetView: View {
         }
         let newValue = parsedWeight(text)
         guard newValue != workoutSet.weightInPounds else { return }
-        autoCompleteArmed = true
         workoutSet.weightInPounds = newValue
         onWeightChange(workoutSet.weightTenthsPounds)
     }
@@ -329,31 +299,12 @@ struct WorkoutSetView: View {
         return value <= Double(WorkoutSet.maxWeightPounds) ? text : previous
     }
 
-    /// `task(id:)` restarts on every edit, so this only fires once typing pauses.
-    private func autoCompleteAfterDebounce() async {
-        guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
-
-        do {
-            try await Task.sleep(for: Self.autoCompleteDelay(isLastSet: isLastSet))
-        } catch {
-            return
-        }
-
-        guard autoCompleteArmed, isEditable, isFullyLogged, !repsInvalid else { return }
-        autoCompleteArmed = false
-        withAnimation {
-            completeSet()
-        }
-        onAutoComplete()
-    }
-
     private func toggleCompletion() {
         if workoutSet.status != .complete {
             withAnimation {
                 completeSet()
             }
         } else {
-            autoCompleteArmed = false
             workoutSet.start()
         }
     }

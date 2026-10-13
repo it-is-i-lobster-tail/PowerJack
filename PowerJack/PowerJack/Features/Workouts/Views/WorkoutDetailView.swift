@@ -77,18 +77,6 @@ struct WorkoutDetailView: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
-    /// Until the first set is done, a hint explains how sets get logged.
-    private var logSetHint: LogSetHint? {
-        guard !isReadOnly,
-              workout.getCountCompletedSets() == 0,
-              let occasion = HintOccasion(weekNumber: weekNumber, workout: workout),
-              occasion.showsWorkoutBasics
-        else {
-            return nil
-        }
-        return LogSetHint(occasion: occasion)
-    }
-
     private var weekLabel: String? {
         guard let weekNumber else { return nil }
         guard let weekCount else { return "Week \(weekNumber)" }
@@ -116,7 +104,6 @@ struct WorkoutDetailView: View {
                         onFinish: finishWorkout
                     )
                 )
-                .environment(\.logSetHint, logSetHint)
                 .environment(\.workoutIsReadOnly, isReadOnly)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

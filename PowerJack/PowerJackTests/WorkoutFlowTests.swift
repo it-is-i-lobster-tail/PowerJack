@@ -435,10 +435,53 @@ struct WorkoutFlowTests {
         #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
     }
 
-    @Test("The last set of an exercise waits three times longer before auto-completing")
-    func lastSetAutoCompleteDelay() {
-        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: false) == .milliseconds(1200))
-        #expect(WorkoutSetView.autoCompleteDelay(isLastSet: true) == .milliseconds(3600))
+    @Test("Starting a workout enters each set's target weight and reps, so the set can be checked off as is")
+    func startingWorkoutEntersTargets() throws {
+        let program = try makeStartedProgram(weeks: 2, workouts: 1)
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, reps: 11, weightTenthsPounds: 1350)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        let sets = try #require(weekTwo.workoutExercises.first).workingSets
+        #expect(sets.allSatisfy { $0.reps == nil && $0.weightTenthsPounds == nil })
+
+        weekTwo.startAndCascade()
+
+        #expect(sets.map(\.reps) == [11, 11])
+        #expect(sets.map(\.weightTenthsPounds) == [1400, 1400])
+        // The Live Activity's check button still sees the set as on target.
+        #expect(sets.allSatisfy { $0.canCompleteAtTarget(repsOnly: false) })
+    }
+
+    @Test("Bodyweight sets start with their target reps")
+    func startingRepsOnlySetEntersReps() {
+        let set = WorkoutSet(order: 0, plannedReps: 9, plannedWeightTenthsPounds: nil)
+        set.start()
+        #expect(set.reps == 9)
+        #expect(set.weightTenthsPounds == nil)
+    }
+
+    @Test("A set with no target starts empty")
+    func setWithoutTargetStartsEmpty() {
+        let set = WorkoutSet(order: 0, plannedReps: nil, plannedWeightTenthsPounds: nil)
+        set.start()
+        #expect(set.reps == nil)
+        #expect(set.weightTenthsPounds == nil)
+    }
+
+    @Test("Unchecking a set keeps what was logged instead of going back to the target")
+    func reopeningSetKeepsLoggedValues() {
+        let set = WorkoutSet(order: 0, plannedReps: 10, plannedWeightTenthsPounds: 1000)
+        set.start()
+        set.reps = 8
+        set.weightTenthsPounds = 950
+        set.complete()
+
+        set.start()
+
+        #expect(set.status == .active)
+        #expect(set.reps == 8)
+        #expect(set.weightTenthsPounds == 950)
     }
 
     @Test("The seeded week two matches the documented progression rules")

@@ -18,7 +18,6 @@ struct WorkoutExerciseView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
 
     @Bindable var workoutExercise: WorkoutExercise
-    @Environment(\.logSetHint) private var logSetHint
 
     // Finished warmups fold away, then the heading gets a check.
     @State private var warmupsCollapsed: Bool
@@ -38,12 +37,6 @@ struct WorkoutExerciseView: View {
         _warmupsChecked = State(initialValue: workoutExercise.warmupsDone)
     }
 
-    /// The hint only shows on the exercise the lifter starts with.
-    private var shownLogSetHint: LogSetHint? {
-        guard workoutExercise.workoutValue?.currentSet?.workoutExercise === workoutExercise else { return nil }
-        return logSetHint
-    }
-
     var body: some View {
         VStack {
             VStack(alignment: .center) {
@@ -58,11 +51,6 @@ struct WorkoutExerciseView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-            }
-
-            if let shownLogSetHint {
-                HintView(shownLogSetHint)
-                    .frame(width: screenWidth * 0.88)
             }
 
             ScrollView {
@@ -127,12 +115,9 @@ struct WorkoutExerciseView: View {
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.exercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
-                    isLastSet: workoutSet === workoutExercise.workoutSets.last,
                     onWeightChange: { weight in
                         workoutExercise.applyWeight(weight, after: workoutSet)
-                    },
-                    // A finished set closes the keyboard; the next set waits for a tap.
-                    onAutoComplete: { focusedSetField.wrappedValue = nil }
+                    }
                 )
                 .frame(width: screenWidth * 0.88, height: 55)
 
