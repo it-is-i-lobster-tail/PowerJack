@@ -58,7 +58,8 @@ struct ModelLifecycleTests {
         let set = WorkoutSet(order: 0, plannedReps: nil, plannedWeightTenthsPounds: 1355)
         set.start()
 
-        #expect(set.weightInPounds == nil)
+        // Starting the set enters its target.
+        #expect(set.weightInPounds == 135.5)
         #expect(set.weightInPoundsPlanned == 135.5)
 
         set.weightInPounds = 102.46
