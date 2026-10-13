@@ -13,6 +13,14 @@ struct ProgramProgressGrid: View {
     let program: Program
 
     @Environment(ProgramsRouter.self) private var router
+    @Namespace private var weekLabels
+    /// Trails `currentWeek` so the pill can slide there each time the grid is shown.
+    @State private var highlightedWeek: Int?
+
+    /// The week of the workout to resume or start next. Nil unless the program is active.
+    private var currentWeek: Int? {
+        program.nextWorkout.flatMap { program.weekNumber(containing: $0) }
+    }
 
     var body: some View {
         let layoutWidth = positiveFinite(workableWidth)
@@ -36,6 +44,11 @@ struct ProgramProgressGrid: View {
 
         GlassEffectContainer(spacing: gridHorizontalSpacing) {
             ZStack {
+                if let highlightedWeek {
+                    CurrentWeekPill()
+                        .matchedGeometryEffect(id: highlightedWeek, in: weekLabels, isSource: false)
+                }
+
                 Grid(
                     horizontalSpacing: gridHorizontalSpacing,
                     verticalSpacing: gridVerticalSpacing
@@ -63,6 +76,7 @@ struct ProgramProgressGrid: View {
                             rowWidth: rowWidth,
                             cellHeight: cellHeight,
                             dataCellWidth: dataCellWidth,
+                            weekLabels: weekLabels,
                             onSelectWorkout: { router.showWorkout($0, in: program) }
                         )
                     }
@@ -76,10 +90,34 @@ struct ProgramProgressGrid: View {
             }
             .powerJackGlassPanel()
         }
+        .onAppear { slideHighlight(to: currentWeek, animated: highlightedWeek != nil) }
+        .onChange(of: currentWeek) { _, week in slideHighlight(to: week, animated: true) }
+    }
+
+    /// Builds speed slowly, then stops hard on the new week with no overshoot.
+    private func slideHighlight(to week: Int?, animated: Bool) {
+        guard week != highlightedWeek else { return }
+        guard animated, week != nil else {
+            highlightedWeek = week
+            return
+        }
+        withAnimation(.timingCurve(0.7, 0, 0.9, 0.4, duration: 0.55)) {
+            highlightedWeek = week
+        }
     }
 
     private func positiveFinite(_ value: CGFloat, fallback: CGFloat = 1) -> CGFloat {
         guard value.isFinite, value > 0 else { return fallback }
         return value
+    }
+}
+
+/// See-through green glass behind the current week's label.
+private struct CurrentWeekPill: View {
+    var body: some View {
+        Color.clear
+            .glassEffect(.clear.tint(.green.opacity(VisualOpacity.light)), in: .capsule)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
