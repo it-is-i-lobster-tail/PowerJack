@@ -24,7 +24,7 @@ struct ExercisePreviewStrip: View {
 
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: spacing) {
+                HStack(spacing: spacing) {
                     ForEach(workoutExercises.indices, id: \.self) { index in
                         card(
                             workoutExercises[index].exercise?.exerciseName ?? "",
@@ -42,9 +42,16 @@ struct ExercisePreviewStrip: View {
             }
             .contentMargins(.horizontal, Self.edgeMargin, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
-            .onAppear {
-                // Center the restored exercise when a workout reopens mid-way.
+            // Center the restored exercise when a workout reopens mid-way. This waits for the layout
+            // to settle: the edge margins land after onAppear and reset the strip to its start.
+            // The stack is not lazy, so every card exists to scroll to while the strip lays out.
+            .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
                 guard let selectedExerciseIndex else { return }
+                proxy.scrollTo(selectedExerciseIndex, anchor: .center)
+            }
+            // Quick taps can cut a scroll short. Once it stops, center the selected card.
+            .onScrollPhaseChange { oldPhase, newPhase in
+                guard oldPhase == .animating, newPhase == .idle, let selectedExerciseIndex else { return }
                 proxy.scrollTo(selectedExerciseIndex, anchor: .center)
             }
             .onChange(of: selectedExerciseIndex) { _, newValue in
@@ -56,6 +63,11 @@ struct ExercisePreviewStrip: View {
             }
         }
         .frame(height: 75)
+    }
+
+    /// Changes when the strip is laid out or resized, but not when it is scrolled.
+    private static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
+        [geometry.contentSize.width, geometry.containerSize.width, geometry.contentInsets.leading]
     }
 
     /// Selected is solid blue, done exercises are tinted blue, the rest stay plain.
