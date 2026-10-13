@@ -144,26 +144,9 @@ struct TemplateProgramDraft {
 }
 
 //
-// Change Tracking
+// Workout Layout
 //
 extension TemplateProgramDraft {
-    /// Everything the user can edit, so any change can trigger an autosave.
-    struct Snapshot: Equatable {
-        let name: String
-        let workoutsPerWeek: Int?
-        let focus: [Muscle]
-        let workoutLayout: [[PersistentIdentifier]]
-    }
-
-    var snapshot: Snapshot {
-        Snapshot(
-            name: templateName,
-            workoutsPerWeek: workoutsPerWeek,
-            focus: templateMuscleFocus,
-            workoutLayout: workoutLayout
-        )
-    }
-
     /// The exercises in each enabled workout, in order.
     private var workoutLayout: [[PersistentIdentifier]] {
         templateWorkoutDrafts.map { $0.templateExerciseDrafts.map(\.exercise.persistentModelID) }

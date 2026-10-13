@@ -17,13 +17,11 @@ struct TemplateProgramNew: View {
     @State private var saveErrorMessage: String?
 
     var body: some View {
+        // Saves on every edit, including ones made on the screens pushed from this form.
         TemplateForm(
             editExistingExercise: false,
-            draft: $draft
+            draft: $draft.onSet(save)
         )
-        .onChange(of: draft.snapshot) {
-            save()
-        }
         .saveErrorAlert($saveErrorMessage)
     }
 
