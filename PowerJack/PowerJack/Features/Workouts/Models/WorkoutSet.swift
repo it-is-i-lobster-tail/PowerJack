@@ -217,8 +217,14 @@ extension WorkoutSet {
             return
         }
 
+        let wasPlanned = status == .planned
         statusValue = Status.active
         completedAtValue = nil
+        // A set starts out holding its target, so the lifter only edits it when they go off plan.
+        if wasPlanned {
+            reps = reps ?? repsPlanned
+            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds
+        }
         Logger.workoutSet.debug("Starting WorkoutSet")
     }
 }

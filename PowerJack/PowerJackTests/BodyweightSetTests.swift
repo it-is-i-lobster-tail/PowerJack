@@ -25,10 +25,11 @@ struct BodyweightSetTests {
         #expect(await screen.type("50", into: "Set 1 weight") == false)
         #expect(workoutSet.weightTenthsPounds == nil)
 
-        #expect(await screen.type("12", into: "Set 1 reps"))
+        // The target reps are already entered, so the set checks off as is.
+        #expect(workoutSet.reps == 10)
         await screen.tap("Set 1 complete")
         #expect(workoutSet.status == .complete)
-        #expect(workoutSet.reps == 12)
+        #expect(workoutSet.reps == 10)
         #expect(workoutSet.weightTenthsPounds == nil)
     }
 
