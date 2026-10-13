@@ -8,7 +8,7 @@
 import SwiftData
 
 enum PowerJackSchema {
-    static let schema = Schema([
+    static let modelTypes: [any PersistentModel.Type] = [
         Program.self,
         ProgramWeek.self,
         Workout.self,
@@ -20,7 +20,9 @@ enum PowerJackSchema {
         TemplateWorkout.self,
         TemplateExercise.self,
         WorkoutLog.self,
-    ])
+    ]
+
+    static let schema = Schema(modelTypes)
 
     /// The user's private iCloud database. Only they can read it.
     static let cloudKitContainerID = "iCloud.com.stanleycloud.PowerJack"

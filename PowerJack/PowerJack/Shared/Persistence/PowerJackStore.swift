@@ -28,9 +28,15 @@ final class PowerJackStore {
         self.inMemory = inMemory
         let savedSetting = UserDefaults.standard.object(forKey: AppSettings.Key.iCloudBackup) as? Bool
         let syncs = !inMemory && (savedSetting ?? AppSettings.Default.iCloudBackup)
+        #if DEBUG
+        if !inMemory, CloudKitSchemaSetup.isRequested {
+            CloudKitSchemaSetup.run()
+        }
+        #endif
         syncsWithICloud = syncs
         container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncs)
         mergeDuplicatesAfterImports()
+        logSyncErrors()
     }
 
     func turnOnICloudBackup() {
@@ -74,6 +80,30 @@ final class PowerJackStore {
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
                 self?.mergeCatalogDuplicates()
             }
+        }
+    }
+
+    /// iCloud fails quietly, for example when a field is missing from the Production schema,
+    /// so log every failed sync to make it show up in Console.
+    private func logSyncErrors() {
+        Task {
+            for await notification in NotificationCenter.default.notifications(named: NSPersistentCloudKitContainer.eventChangedNotification) {
+                guard
+                    let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event,
+                    event.endDate != nil,
+                    let error = event.error
+                else { continue }
+                Logger.sync.error("iCloud \(Self.name(of: event.type), privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    private static func name(of eventType: NSPersistentCloudKitContainer.EventType) -> String {
+        switch eventType {
+        case .setup: "setup"
+        case .import: "download"
+        case .export: "upload"
+        @unknown default: "sync"
         }
     }
 
