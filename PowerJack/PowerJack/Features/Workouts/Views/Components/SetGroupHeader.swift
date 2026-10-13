@@ -115,7 +115,7 @@ struct SetGroupHeader: View {
 
         Divider()
 
-        Button("Skip Remaining Sets", systemImage: "forward") {
+        Button("Skip Exercise", systemImage: "forward") {
             update { workoutExercise.skipRemainingSets() }
         }
         .disabled(isLocked || workoutExercise.allSetsDone())

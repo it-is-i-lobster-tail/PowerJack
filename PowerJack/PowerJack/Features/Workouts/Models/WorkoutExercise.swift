@@ -284,7 +284,7 @@ extension WorkoutExercise {
             return nil
         }
 
-        // One more set after "Skip Remaining Sets" puts the exercise back in progress.
+        // One more set after "Skip Exercise" puts the exercise back in progress.
         if statusValue == .skipped {
             statusValue = .active
         }
@@ -524,7 +524,7 @@ extension WorkoutExercise {
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }
-    /// Feedback is recorded once every set is done, including after "Skip Remaining Sets".
+    /// Feedback is recorded once every set is done, including after "Skip Exercise".
     func addFeedback(feedback: ExerciseFeedback) {
         guard allSetsDone(), status == .active || status == .skipped else {
             Logger.workoutExercise.debug("Cannot add feedback before every set is done")
