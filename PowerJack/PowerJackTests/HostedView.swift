@@ -56,6 +56,16 @@ final class HostedView {
         elements().compactMap { $0.accessibilityLabel }
     }
 
+    /// Labels in every visible window of the scene, for menus, which open in a window of their own.
+    var labelsInAllWindows: [String] {
+        var found: [NSObject] = []
+        var visited = Set<ObjectIdentifier>()
+        for other in window.windowScene?.windows ?? [] where !other.isHidden {
+            collect(other, into: &found, visited: &visited)
+        }
+        return found.compactMap { $0.accessibilityLabel }
+    }
+
     func contains(_ label: String) -> Bool {
         labels.contains { $0 == label }
     }

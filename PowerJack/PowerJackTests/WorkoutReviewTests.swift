@@ -40,7 +40,7 @@ struct WorkoutReviewTests {
         #expect(exercise.isDone)
     }
 
-    @Test("Skip Remaining Sets leaves the exercise open, and adding a set brings it back")
+    @Test("Skip Exercise leaves the exercise open, and adding a set brings it back")
     func skipRemainingSetsStaysOpen() throws {
         let workout = try makeStartedWorkout(exercises: 1)
         let exercise = workout.workoutExercises[0]
@@ -59,6 +59,23 @@ struct WorkoutReviewTests {
         _ = try #require(exercise.addSet())
         #expect(exercise.status == .active)
         #expect(!exercise.isDone)
+    }
+
+    @Test("The workout menu names what each skip covers")
+    func skipLabelsNameTheirScope() async throws {
+        let program = try makeStartedProgram(exercises: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        try container.mainContext.save()
+
+        let screen = try await HostedView(session(program))
+        defer { screen.close() }
+
+        #expect(await screen.tap("More", settleFor: .milliseconds(800)), "\(screen.labels)")
+        let labels = screen.labelsInAllWindows
+        #expect(labels.contains("Skip Exercise"), "\(labels)")
+        #expect(labels.contains("Skip Workout"), "\(labels)")
+        #expect(!labels.contains("Skip Remaining Sets"), "\(labels)")
     }
 
     @Test("Finishing skips unlogged sets and locks every exercise")
