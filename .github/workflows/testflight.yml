@@ -1,0 +1,73 @@
+name: TestFlight
+
+# Runs after "Unit tests" passes on a push to main. By then the bump job has
+# raised the patch version, so main is archived as it is now and uploaded.
+on:
+  workflow_run:
+    workflows: [Unit tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+env:
+  XCODE_PATH: /Applications/Xcode_26.6.app
+  ARCHIVE_PATH: ${{ github.workspace }}/build/PowerJack.xcarchive
+  KEY_PATH: ${{ github.workspace }}/build/AuthKey.p8
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+
+jobs:
+  upload:
+    name: Upload to TestFlight
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Select Xcode
+        run: sudo xcode-select --switch "$XCODE_PATH"
+
+      - name: Write App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p build
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+
+      # The run number is the build number, so every upload is unique even
+      # when the version stays the same.
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project PowerJack/PowerJack.xcodeproj \
+            -scheme PowerJack \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+
+      - name: Upload
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist .github/ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
