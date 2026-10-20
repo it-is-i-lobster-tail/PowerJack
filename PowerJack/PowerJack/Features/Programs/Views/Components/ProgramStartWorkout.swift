@@ -9,8 +9,6 @@ import SwiftData
 import SwiftUI
 
 struct ProgramStartWorkout: View {
-    let screenWidth: CGFloat
-    let height: CGFloat
     let program: Program
     let workout: Workout
 
@@ -19,26 +17,11 @@ struct ProgramStartWorkout: View {
 
     var body: some View {
         Button(action: startWorkout) {
-            if workout.status == .active {
-                workoutNavigationLabel("Resume")
-            } else {
-                workoutNavigationLabel("Start Workout")
-            }
+            Text(workout.status == .active ? "Resume" : "Start Workout")
+                .font(.title3)
+                .frame(maxWidth: .infinity, minHeight: 40)
         }
         .buttonStyle(.glassProminent)
-        .frame(
-            width: screenWidth,
-            height: height
-        )
-    }
-
-    private func workoutNavigationLabel(_ label: String) -> some View {
-        Text(label)
-            .font(.title3)
-            .frame(
-                width: screenWidth * 0.8,
-                height: 48
-            )
     }
 
     private func startWorkout() {
