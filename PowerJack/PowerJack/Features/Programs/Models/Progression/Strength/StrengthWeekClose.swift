@@ -170,6 +170,8 @@ enum StrengthWeekClose {
 
         if week.kind == .deload {
             clock.weeksSinceDeload = 0
+            // Fatigue counts only weeks after the last deload, so RIR 0 weeks must run in a row again (10.1, 10.4).
+            clock.rir0Weeks = 0
             startBlock(&clock, flip: clock.lastDeloadPlanned, state: &state, keys: loadedKeys)
             state.clock = clock
             return

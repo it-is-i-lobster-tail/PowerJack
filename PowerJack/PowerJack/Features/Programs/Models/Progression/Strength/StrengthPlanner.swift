@@ -70,6 +70,11 @@ enum StrengthPlanner: WeekPlanner {
     @discardableResult
     private static func close(_ week: ProgramWeek, in program: Program, at now: Date) -> StrengthState {
         var state = StrengthLog.latestState(in: program.modelContext)
+        // A first week skipped before any workout of it started never took the clock's week, but it was that
+        // week all the same, so a deload that was due still counts as done (10.5).
+        if week.order == 0, !week.workouts.contains(where: isTrained) {
+            week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
+        }
         StrengthWeekClose.close(&state, week: closedWeek(week, at: now))
         program.modelContext?.insert(StrengthLog(date: now, state: state))
         return state
@@ -93,8 +98,8 @@ enum StrengthPlanner: WeekPlanner {
             StrengthPain.record(&state[slot.key].pain, session: session)
             if session.plan.kind == .returnWeek1, session.trained { returnBands[slot.key] = session.plan.returnBand }
         }
-        // A new program starts where the block clock left off.
-        if week.order == 0, !week.workouts.contains(where: { $0.status != .planned && $0 !== workout }) {
+        // A new program starts where the block clock left off, until something in its first week is trained.
+        if week.order == 0, !week.workouts.contains(where: { $0 !== workout && isTrained($0) }) {
             week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
         }
 
@@ -329,6 +334,11 @@ enum StrengthPlanner: WeekPlanner {
             pain: workoutExercise.feedback?.levelOfPain.rawValue,
             date: working.filter { $0.status == .complete }.compactMap(\.completedAt).max()
         )
+    }
+
+    /// A working set of the workout was done.
+    private static func isTrained(_ workout: Workout) -> Bool {
+        workout.workoutExercises.contains { $0.completedWorkingSets > 0 }
     }
 
     /// The break band (12.2) for a lift last trained at `lastTrained`, or `nil` when it isn't on a break.

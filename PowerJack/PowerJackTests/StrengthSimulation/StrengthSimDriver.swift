@@ -56,6 +56,7 @@ final class StrengthSimDriver {
         lifter = StrengthSimLifter(profile: profile, seed: seed)
         report = StrengthSimReport(seed: seed, profile: profile.name, weeks: weeks)
         report.keepsTrace = keepsTrace
+        report.habits = profile.habits
         var draw = StrengthSimRandom(seed: seed ^ 0x5E77_1265)
         settings = Settings(unit: profile.unit, steps: Self.steps(profile.steps, unit: profile.unit, draw: &draw))
 
@@ -245,8 +246,8 @@ private extension StrengthSimDriver {
     /// Stops a program partway through. A Strengthen week left partway through still counts toward the records.
     func stop(_ previous: Program, at date: Date) {
         let isStrength = previous.templateType == .strength
-        let trained = previous.nextWorkout.flatMap(previous.programWeek(containing:))?.workouts
-            .contains { workout in workout.workoutExercises.contains { $0.completedWorkingSets > 0 } } ?? false
+        let week = previous.nextWorkout.flatMap(previous.programWeek(containing:))
+        let trained = week?.workouts.contains { workout in workout.workoutExercises.contains { $0.completedWorkingSets > 0 } } ?? false
         let logsBefore = strengthLogCount()
         let recordsBefore = latestRecords()
         act(at: date) {
@@ -258,7 +259,7 @@ private extension StrengthSimDriver {
         let here = "\(checker.place) stopped"
         checker.checkClose(logsBefore: logsBefore, logsAfter: strengthLogCount(), expected: trained ? 1 : 0, at: here)
         if trained {
-            checkRecords(after: recordsBefore, at: here)
+            checkRecords(after: recordsBefore, closed: week?.weekKind, at: here)
         }
     }
 
@@ -283,9 +284,12 @@ private extension StrengthSimDriver {
         StrengthLog.latestState(in: context)
     }
 
-    func checkRecords(after previous: StrengthState, at here: String) {
+    func checkRecords(after previous: StrengthState, closed: WeekKind?, at here: String) {
         let records = latestRecords()
-        checker.checkRecords(records, previous: previous, lifter: lifter, exercises: exercisesByKey, at: here)
+        checker.checkRecords(
+            records, previous: previous, closed: closed, lifter: lifter, honest: profile.rating == .honest,
+            exercises: exercisesByKey, at: here
+        )
         report.trainedWeeks = records.clock.trainedWeeks
         report.experience = records.clock.experience
     }
@@ -369,7 +373,7 @@ private extension StrengthSimDriver {
         if weekWasOpen, weeks[index].status == .complete {
             let here = "\(checker.place) week \(index + 1) closed"
             checker.checkClose(logsBefore: logsBefore, logsAfter: strengthLogCount(), expected: 1, at: here)
-            checkRecords(after: recordsBefore, at: here)
+            checkRecords(after: recordsBefore, closed: weeks[index].weekKind, at: here)
         }
         if nextWasEmpty, !weeks[index + 1].workouts.isEmpty {
             checker.checkBuild(of: program, week: index + 1, records: latestRecords())

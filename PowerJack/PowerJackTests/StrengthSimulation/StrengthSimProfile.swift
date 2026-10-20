@@ -132,6 +132,13 @@ struct StrengthSimProfile {
     /// Strength weeks already logged before the run, so the lifter turns advanced partway through (17.7).
     var trainedWeeksBefore = 0
 
+    /// The habits that shape a run most, in a few words.
+    var habits: String {
+        let rated = rating == .honest ? "honest\(ratingBias == 0 ? "" : String(format: "%+d", ratingBias))" : rating.rawValue
+        return "rates \(rated), reps \(reps.rawValue), loads \(loads.rawValue), \(unit.symbol) \(steps.rawValue) steps, "
+            + "gain \(weeklyGain), endurance \(String(format: "%.2f", endurance))"
+    }
+
     /// Lifters with an ordinary body who rate honestly, follow the plan, show up and stay healthy. Their plans
     /// and estimates should track what they can lift.
     var isWellBehaved: Bool {
