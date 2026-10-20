@@ -51,7 +51,8 @@ struct AppScreenTests {
         #expect(defaults.bool(forKey: AppSettings.Key.restLiveActivity) == false)
 
         // In memory, turning backup on swaps the container without touching iCloud.
-        let backup = try #require(screen.label(startingWith: "iCloud Backup"))
+        await screen.scrollToBottom()
+        let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup)
         #expect(store.syncsWithICloud)
@@ -74,6 +75,7 @@ struct AppScreenTests {
 
         await screen.tap("Templates", settleFor: .milliseconds(800))
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        await screen.scrollToBottom()
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
         #expect(store.syncsWithICloud)

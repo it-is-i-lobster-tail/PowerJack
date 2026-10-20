@@ -41,8 +41,12 @@ struct PowerJackApp: App {
 struct PowerJackAppContent: View {
     @Environment(PowerJackStore.self) private var store
 
+    @AppStorage(AppSettings.Key.appearance)
+    private var appearance = AppSettings.Default.appearance
+
     var body: some View {
         PowerJackRootView()
             .modelContainer(store.container)
+            .windowAppearance(appearance)
     }
 }
