@@ -151,6 +151,23 @@ final class HostedView {
         return search(window)
     }
 
+    /// Scrolls every vertical list to its end, so rows below the fold get built.
+    func scrollToBottom() async {
+        func search(_ view: UIView) -> [UIScrollView] {
+            var found = view.subviews.flatMap(search)
+            if let scrollView = view as? UIScrollView,
+               scrollView.contentSize.height > scrollView.bounds.height + 1 {
+                found.append(scrollView)
+            }
+            return found
+        }
+        for scrollView in search(window) {
+            let bottom = scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
+            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: bottom), animated: false)
+        }
+        await settle()
+    }
+
     /// Ends editing, like tapping outside the keyboard.
     func dismissKeyboard() async {
         window.endEditing(true)

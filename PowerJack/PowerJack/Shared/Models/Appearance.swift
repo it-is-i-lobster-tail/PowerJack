@@ -31,3 +31,8 @@ enum Appearance: String, CaseIterable, Identifiable {
         }
     }
 }
+
+// Here rather than in AppSettings, which the watch shares and which can't see this iPhone-only type.
+extension AppSettings.Default {
+    static let appearance = Appearance.system
+}

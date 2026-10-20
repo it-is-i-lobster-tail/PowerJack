@@ -21,6 +21,5 @@ enum AppSettings {
         static let restLiveActivity = true
         static let iCloudBackup = true
         static let hints = true
-        static let appearance = Appearance.system
     }
 }
