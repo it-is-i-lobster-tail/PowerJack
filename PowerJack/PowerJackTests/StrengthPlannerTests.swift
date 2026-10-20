@@ -294,6 +294,41 @@ struct StrengthPlannerTests {
         #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })
     }
 
+    @Test("A swap that makes an accessory a priority lift midweek replans it for its new role when its workout starts (14.6)")
+    func roleChangeMidweek() throws {
+        // Squat, bench and deadlift, then the row as day 4's first compound, fill the 4 priority lifts, so the
+        // overhead press starts as an accessory.
+        let template = TemplateProgram(templateName: "Four", workoutsPerWeek: 4, templateMuscleFocus: [.quads], templateType: .strength)
+        for ids in [["barbell-bench-press", "barbell-overhead-press"], ["barbell-back-squat"], ["barbell-deadlift"], ["barbell-row", "barbell-overhead-press"]] {
+            let workout = template.addTemplateWorkout()
+            for id in ids {
+                workout.addTemplateExercise(exercise: try exercise(id))
+            }
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 2, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+        #expect(try slot("barbell-overhead-press", day: 3, in: program).strengthRole == .accessory)
+
+        // Day 1's bench becomes curls, so the press is day 1's first compound and a priority lift.
+        let dayOne = try #require(program.nextWorkout)
+        program.prepareToStart(dayOne)
+        dayOne.startAndCascade()
+        try slot("barbell-bench-press", day: 0, in: program).changeExercise(newExercise: try exercise("dumbbell-curl"))
+        program.finishWorkout(dayOne)
+        for _ in 0..<2 {
+            program.skipWorkout(try #require(program.nextWorkout))
+        }
+        let dayFour = try #require(program.nextWorkout)
+        program.prepareToStart(dayFour)
+
+        let press = try slot("barbell-overhead-press", day: 3, in: program)
+        #expect(press.strengthRole == .primary)
+        #expect(press.progressionCode?.hasPrefix("accessory") == false)
+        #expect(press.targetReps != nil)
+    }
+
     @Test("Another break during week 2 back starts the return over (12.1)")
     func breakDuringReturn() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
