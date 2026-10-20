@@ -297,6 +297,36 @@ extension PowerJackEngineTests {
         #expect(start.workouts[0][0].sets.allSatisfy { ($0.load ?? 0) <= 270 })
     }
 
+    @Test("A lift swapped into a new slot in a pain episode starts the block no heavier than it last lifted (R10.2)")
+    func swappedInLiftHoldsPain() {
+        let now = Date.now
+        func squatEntry(_ top: Double, _ back: Double, pain: LevelOfPain) -> PowerJackEntryLog {
+            var logged = entry(squat, tag: .topAndBack, sets: [(5, top), (8, back), (8, back)], target: 2, loadTarget: 180, tap: 2)
+            logged.pain = pain
+            return logged
+        }
+        // BACK sets planned from a 180 lb target, then Moderate pain twice kept the lifter at 150/125. In
+        // the deload the lifter swaps a leg extension for a second squat.
+        let hurt = squatEntry(150, 125, pain: .moderate)
+        var swapped = entry(squat, sets: [(8, 190), (8, 190)], target: 3, tap: 3)
+        swapped.pain = LevelOfPain.none
+        let exposures = [
+            PowerJackExposure(date: now.addingTimeInterval(-21 * 86_400), entry: squatEntry(200, 170, pain: .none), weekType: .build, tag: .topAndBack),
+            PowerJackExposure(date: now.addingTimeInterval(-14 * 86_400), entry: hurt, weekType: .build, tag: .topAndBack),
+            PowerJackExposure(date: now.addingTimeInterval(-8 * 86_400), entry: hurt, weekType: .build, tag: .topAndBack),
+            PowerJackExposure(date: now.addingTimeInterval(-3 * 86_400), entry: swapped, weekType: .deload),
+        ]
+        let extensionLog = entry(legExtension, sets: [(12, 95), (12, 95)], target: 2, tap: 2)
+        let weeks = [
+            weekLog([[hurt, extensionLog]]),
+            PowerJackWeekLog(type: .deload, blockWeek: 0, column: 0, workouts: [PowerJackWorkoutLog(entries: [hurt, swapped])]),
+        ]
+        // Two squats in one workout: a TOP entry, then a BACK entry new to its slot.
+        let start = builder(weeks, structure: [[squat, squat]], history: { _ in exposures }).build(header: blockStartHeader)
+        #expect(start.workouts[0][0].sets.allSatisfy { ($0.load ?? 0) <= 150 })
+        #expect(start.workouts[0][1].sets.allSatisfy { ($0.load ?? 0) <= 125 })
+    }
+
     // MARK: G24 ties
 
     @Test("Added sets go to muscles in template order when their room ties, the same every time (G24)")
