@@ -34,9 +34,12 @@ extension PowerJackEngineTests {
         #expect(goals.map { band(PowerJackRules.heavyReps($0)) } == ["86-90", "84-88", "82-86"])
         #expect(goals.map { band(PowerJackRules.volumeReps($0)) } == ["82-86", "78-82", "74-78"])
         #expect(goals.map { percent(PowerJackRules.volumeReps($0) + 2) } == [84, 80, 76])
-        let steps = try [5, 8].flatMap { reps in
-            try [2, 1].map { rir in
-                try tenth((#require(PowerJackPercent.percent(reps: Double(reps + rir))) / #require(PowerJackPercent.percent(reps: Double(reps + rir + 1))) - 1) * 100)
+        var steps: [Double] = []
+        for reps in [5, 8] {
+            for rir in [2, 1] {
+                let lighter = try #require(PowerJackPercent.percent(reps: Double(reps + rir)))
+                let heavier = try #require(PowerJackPercent.percent(reps: Double(reps + rir + 1)))
+                steps.append(tenth((lighter / heavier - 1) * 100))
             }
         }
         #expect(steps.min() == 2.4 && steps.max() == 2.6)
@@ -245,9 +248,9 @@ extension PowerJackEngineTests {
         let floor = exposure(e1RM: 298, daysAgo: 1, tap: 5)
         let previous = exposure(e1RM: 285, daysAgo: 20, tap: nil, loadTarget: true)
         let history = { (id: AnyHashable) in id == self.squat.id ? [previous] + estimates + [floor] : [] }
-        let builder = builder([], structure: [[squat], [squat]], history: history)
-        #expect(try tenth(#require(builder.currentE1RM(squat, .heavy, previous: 285))) == 301.2)
-        #expect(try tenth(#require(builder.blockStartAnchor(squat, .heavy).anchor)) == 301.2)
+        let weekBuilder = builder([], structure: [[squat], [squat]], history: history)
+        #expect(try tenth(#require(weekBuilder.currentE1RM(squat, .heavy, previous: 285))) == 301.2)
+        #expect(try tenth(#require(weekBuilder.blockStartAnchor(squat, .heavy).anchor)) == 301.2)
         // Had the median been 320, the anchor would stop at 285 x 1.075 = 306.4.
         let higher = { (id: AnyHashable) in id == self.squat.id ? [previous] + [320.0, 320, 320].map { self.exposure(e1RM: $0, daysAgo: 2, tap: 2) } : [] }
         #expect(try tenth(#require(self.builder([], structure: [[squat], [squat]], history: higher).blockStartAnchor(squat, .heavy).anchor)) == 306.4)
@@ -507,12 +510,12 @@ extension PowerJackEngineTests {
     }
 
     func jumpPoint(_ exercise: PowerJackExercise, load: Double) -> JumpPoint? {
-        let builder = builder([], structure: [[exercise]])
+        let weekBuilder = builder([], structure: [[exercise]])
         let range = PowerJackRules.accessoryRange(exercise.fatigue)
         var reps = [range.upperBound, range.upperBound]
         for _ in 0..<40 {
             let part = PowerJackPart(sets: reps.map { .done($0, at: load) }, tap: 2)
-            let result = builder.doubleProgression(part, previous: nil, outcome: .met, range: range, exercise: exercise, caution: false, held: false, setFell: false)
+            let result = weekBuilder.doubleProgression(part, previous: nil, outcome: .met, range: range, exercise: exercise, caution: false, held: false, setFell: false)
             switch result.reason {
             case .loadJump: return .jump(at: reps.min()!, planned: result.sets[0].reps!)
             case .hold: return .holds(at: reps.min()!)
