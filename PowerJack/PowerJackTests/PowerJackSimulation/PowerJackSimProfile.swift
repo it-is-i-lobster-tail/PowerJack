@@ -118,12 +118,13 @@ struct PowerJackSimProfile {
     var daysBetweenPrograms = [0, 2, 7]
 
     /// Lifters with an ordinary body who rate honestly, show up and stay healthy. Their plans should
-    /// track what they can lift. Very light lifters are left out: a 5 lb step is a third of a 15 lb
-    /// press, so no plan can sit near their reps until steps can be set per exercise.
+    /// track what they can lift. Very light lifters and kilogram lifters are left out until steps can be
+    /// set per exercise and in kilograms: a 5 lb step is a third of a 15 lb press, and plans in pounds
+    /// land between kilogram plates.
     var isWellBehaved: Bool {
         strength >= 0.5 && dayNoise <= 0.04 && fatiguePerSet <= 0.003 && recovery >= 0.4 && (0.85...1.2).contains(endurance)
             && rating == .honest && abs(ratingBias) <= 1 && ratingNoise <= 0.2 && legacyRating == 0 && noRating == 0
-            && reps == .asPlanned && loads != .ownChoice
+            && reps == .asPlanned && loads != .ownChoice && loads != .kilograms
             && skipWorkout <= 0.05 && skipExercise <= 0.02 && stopEarly <= 0.02
             && swapExercise == 0 && editExercise == 0 && breakChance == 0 && injuryChance == 0
             && customTemplate == 0 && otherStyle == 0 && abandonProgram == 0
