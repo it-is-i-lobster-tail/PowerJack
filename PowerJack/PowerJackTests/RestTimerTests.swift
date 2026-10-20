@@ -14,6 +14,11 @@ struct RestTimerTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
     private let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
+    init() {
+        // These read weights in pounds, whatever unit the simulator was last left in.
+        UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
+    }
+
     @Test("Fatigue level picks the rest length")
     func fatigueLevelRestLengths() {
         #expect(FatigueLevel.low.restLength == .short)

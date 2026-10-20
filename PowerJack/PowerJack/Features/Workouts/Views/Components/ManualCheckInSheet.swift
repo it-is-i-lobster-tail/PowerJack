@@ -18,6 +18,15 @@ struct ManualCheckInSheet: View {
         workoutExercise.checkInSourcePain?.label.lowercased() ?? "high"
     }
 
+    /// Strengthen has already planned the lighter sets, so Continue logs those and there is no Reset (15.4).
+    private var offersLighter: Bool {
+        workoutExercise.templateType == .strength
+    }
+
+    private var decisions: [ManualCheckInDecision] {
+        offersLighter ? [.continue, .skip] : ManualCheckInDecision.allCases
+    }
+
     var body: some View {
         GlassEffectContainer(spacing: LayoutMetrics.sectionSpacing) {
             VStack(spacing: LayoutMetrics.sectionSpacing) {
@@ -33,11 +42,11 @@ struct ManualCheckInSheet: View {
                 }
                 .padding(.top, 10)
 
-                ForEach(ManualCheckInDecision.allCases) { decision in
+                ForEach(decisions) { decision in
                     Button {
                         resolve(decision)
                     } label: {
-                        CheckInOption(decision: decision)
+                        CheckInOption(decision: decision, isLighter: offersLighter)
                     }
                     .buttonStyle(.plain)
                     .powerJackGlassCard(interactive: true)
@@ -57,10 +66,11 @@ struct ManualCheckInSheet: View {
 
 private struct CheckInOption: View {
     let decision: ManualCheckInDecision
+    let isLighter: Bool
 
     private var title: String {
         switch decision {
-        case .continue: "Continue"
+        case .continue: isLighter ? "Lighter" : "Continue"
         case .reset: "Reset"
         case .skip: "Skip Exercise"
         }
@@ -68,15 +78,17 @@ private struct CheckInOption: View {
 
     private var detail: String {
         switch decision {
+        case .continue where isLighter: "Two sets, 20% lighter, with 3 or more reps left."
         case .continue: "Log the same sets, reps, and weight as last time."
         case .reset: "Start over with two fresh sets."
+        case .skip where isLighter: "Skip this exercise today. You'll be asked again next time."
         case .skip: "Skip this exercise today. You'll be asked again next week."
         }
     }
 
     private var systemImage: String {
         switch decision {
-        case .continue: "arrow.right.circle"
+        case .continue: isLighter ? "arrow.down.circle" : "arrow.right.circle"
         case .reset: "arrow.counterclockwise.circle"
         case .skip: "forward.circle"
         }
