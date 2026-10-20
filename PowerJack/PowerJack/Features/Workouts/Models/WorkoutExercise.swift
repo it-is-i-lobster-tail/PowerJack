@@ -48,10 +48,20 @@ final class WorkoutExercise {
     private var rirTargetValue: Int?
     private var progressionCodeValue: String?
     private var progressionNoteValue: String?
-    // Strengthen's slot targets: R before any reps-mode offset, the offset, and the unrounded load (kg).
+    // Strengthen's slot targets: its role, R before any reps-mode offset, the offset, and the unrounded load (kg).
+    private var strengthRoleValue: String?
     private var targetRepsValue: Int?
     private var repOffsetValue: Int?
     private var intendedLoadKgValue: Double?
+    // PowerJack's plan for this slot (see `PowerJackPlanner`): its role and tag, its TOP sets and their
+    // reps-left tap, the unrounded loads it ramps from, and whether it calibrates a new anchor.
+    var powerJackRoleValue: String?
+    var powerJackTagValue: String?
+    var powerJackTopSetsValue: Int = 0
+    var powerJackTopRIRValue: Int?
+    var powerJackLoadTargetValue: Double?
+    var powerJackTopLoadTargetValue: Double?
+    var powerJackCalibratingValue: Bool = false
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -105,6 +115,7 @@ extension WorkoutExercise {
     var rirTarget: Int? { rirTargetValue }
     var progressionCode: String? { progressionCodeValue }
     var progressionNote: String? { progressionNoteValue }
+    var strengthRole: StrengthRole? { strengthRoleValue.flatMap(StrengthRole.init(rawValue:)) }
     var targetReps: Int? { targetRepsValue }
     var repOffset: Int? { repOffsetValue }
     var intendedLoadKg: Double? { intendedLoadKgValue }
@@ -458,11 +469,12 @@ extension WorkoutExercise {
         progressionNoteValue = note
     }
     /// Records Strengthen's slot targets on a planned exercise.
-    func setStrengthTargets(reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
+    func setStrengthTargets(role: StrengthRole, reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only set the targets of a planned WorkoutExercise.")
             return
         }
+        strengthRoleValue = role.rawValue
         targetRepsValue = reps
         repOffsetValue = repOffset
         intendedLoadKgValue = intendedLoadKg
@@ -573,9 +585,11 @@ extension WorkoutExercise {
         rirTargetValue = nil
         progressionCodeValue = nil
         progressionNoteValue = nil
+        strengthRoleValue = nil
         targetRepsValue = nil
         repOffsetValue = nil
         intendedLoadKgValue = nil
+        clearPowerJackPlan()
         deleteAllSets()
         addInitialSets()
     }
