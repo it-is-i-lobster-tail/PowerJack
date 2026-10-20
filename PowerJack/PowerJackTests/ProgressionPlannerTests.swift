@@ -75,7 +75,13 @@ struct ProgressionPlannerTests {
             maxReps: 12
         )
         container.mainContext.insert(exercise)
-        let template = TemplateProgram(templateName: "Test", workoutsPerWeek: 1, templateMuscleFocus: focus)
+        // Build and PowerJack programs have their own engines; Strengthen programs still use this planner.
+        let template = TemplateProgram(
+            templateName: "Test",
+            workoutsPerWeek: 1,
+            templateMuscleFocus: focus,
+            templateType: .strength
+        )
         template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
         container.mainContext.insert(template)
         let program = Program(programLengthWeeks: weeks, templateProgram: template)
