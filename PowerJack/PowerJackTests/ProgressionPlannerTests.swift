@@ -75,7 +75,7 @@ struct ProgressionPlannerTests {
             maxReps: 12
         )
         container.mainContext.insert(exercise)
-        // Build and PowerJack programs have their own engines; Strengthen programs still use this planner.
+        // Every type now has its own planner, so `finishWeeks` builds the next week with this one directly.
         let template = TemplateProgram(
             templateName: "Test",
             workoutsPerWeek: 1,
@@ -103,6 +103,12 @@ struct ProgressionPlannerTests {
                 }
                 exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .easy, levelOfPain: .none))
                 exercise.completeAndCascade()
+            }
+            if let week = program.programWeek(containing: workout),
+               week.workouts.allSatisfy({ $0 === workout || $0.isFinished }),
+               let nextWeek = program.programWeeks.first(where: { $0.order == week.order + 1 }),
+               nextWeek.workouts.isEmpty {
+                ProgressionPlanner.build(nextWeek, in: program)
             }
             program.finishWorkout(workout)
         }

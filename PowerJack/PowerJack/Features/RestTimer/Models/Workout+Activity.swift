@@ -67,7 +67,8 @@ extension WorkoutSet {
             label: label,
             progress: progress,
             reps: isLogged ? reps : repsPlanned,
-            weightTenthsPounds: repsOnly ? nil : (isLogged ? weightTenthsPounds : weightTenthsPlannedPounds)
+            weightTenthsPounds: repsOnly ? nil : (isLogged ? weightTenthsPounds : weightTenthsPlannedPounds),
+            usesKilograms: WeightUnit.current == .kilograms
         )
     }
 

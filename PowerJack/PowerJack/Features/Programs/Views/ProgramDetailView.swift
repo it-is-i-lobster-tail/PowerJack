@@ -19,7 +19,8 @@ struct ProgramDetailView: View {
             return nil
         }
         switch occasion {
-        case .weekOneDayOne, .weekOneDayTwo: return BaselineHint(occasion: occasion)
+        case .weekOneDayOne, .weekOneDayTwo:
+            return BaselineHint(occasion: occasion, ratesRepsInReserve: program.templateType.ratesRepsInReserve)
         case .weekTwoDayOne: return SwapExerciseHint()
         case .weekTwoDayTwo: return RestSettingsHint()
         case .weekThreeDayOne: return EditExercisesHint()

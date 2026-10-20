@@ -47,7 +47,8 @@ extension Workout {
             setCount: current.workoutExercise.count(sameTypeAs: nextSet),
             isWarmup: nextSet.isWarmup,
             reps: nextSet.repsPlanned ?? nextSet.reps,
-            weightTenthsPounds: exercise.repsOnly ? nil : weight
+            weightTenthsPounds: exercise.repsOnly ? nil : weight,
+            usesKilograms: WeightUnit.current == .kilograms
         )
     }
 

@@ -17,6 +17,8 @@ struct SettingsView: View {
     private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
     @AppStorage(AppSettings.Key.hints)
     private var showsHints = AppSettings.Default.hints
+    @AppStorage(AppSettings.Key.weightUnit)
+    private var weightUnit = WeightUnit.deviceDefault
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var iCloudAvailable = true
@@ -61,6 +63,37 @@ struct SettingsView: View {
                             detail: "How long the timer counts down after each set, based on the exercise's fatigue level."
                         )
                     }
+                }
+
+                Section {
+                    // A trailing control, like the toggles: lb or kg.
+                    HStack {
+                        SettingsRowLabel(
+                            systemImage: "scalemass",
+                            title: "Weight Unit",
+                            detail: "Weights show and are typed in this unit. Logged weights convert."
+                        )
+                        Picker("Weight Unit", selection: $weightUnit) {
+                            ForEach(WeightUnit.allCases) { unit in
+                                Text(unit.symbol).tag(unit)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
+                    NavigationLink {
+                        LoadStepsView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "plusminus",
+                            title: "Load Steps",
+                            detail: "The smallest weight jump for each kind of equipment in Strengthen programs."
+                        )
+                    }
+                } header: {
+                    Text("Weights")
                 }
 
                 Section {

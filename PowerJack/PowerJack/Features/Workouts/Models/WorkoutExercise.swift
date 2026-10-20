@@ -48,6 +48,11 @@ final class WorkoutExercise {
     private var rirTargetValue: Int?
     private var progressionCodeValue: String?
     private var progressionNoteValue: String?
+    // Strengthen's slot targets: its role, R before any reps-mode offset, the offset, and the unrounded load (kg).
+    private var strengthRoleValue: String?
+    private var targetRepsValue: Int?
+    private var repOffsetValue: Int?
+    private var intendedLoadKgValue: Double?
     // PowerJack's plan for this slot (see `PowerJackPlanner`): its role and tag, its TOP sets and their
     // reps-left tap, the unrounded loads it ramps from, and whether it calibrates a new anchor.
     var powerJackRoleValue: String?
@@ -110,6 +115,10 @@ extension WorkoutExercise {
     var rirTarget: Int? { rirTargetValue }
     var progressionCode: String? { progressionCodeValue }
     var progressionNote: String? { progressionNoteValue }
+    var strengthRole: StrengthRole? { strengthRoleValue.flatMap(StrengthRole.init(rawValue:)) }
+    var targetReps: Int? { targetRepsValue }
+    var repOffset: Int? { repOffsetValue }
+    var intendedLoadKg: Double? { intendedLoadKgValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -383,6 +392,7 @@ extension WorkoutExercise {
     /// still to do, so the workout moves on to the next working set instead of back to them.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
         workoutSet.complete(at: date)
+        StrengthPlanner.didComplete(workoutSet, in: self)
         guard
             !workoutSet.isWarmup,
             workoutSet.status == .complete,
@@ -457,6 +467,17 @@ extension WorkoutExercise {
         rirTargetValue = rirTarget
         progressionCodeValue = code
         progressionNoteValue = note
+    }
+    /// Records Strengthen's slot targets on a planned exercise.
+    func setStrengthTargets(role: StrengthRole, reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the targets of a planned WorkoutExercise.")
+            return
+        }
+        strengthRoleValue = role.rawValue
+        targetRepsValue = reps
+        repOffsetValue = repOffset
+        intendedLoadKgValue = intendedLoadKg
     }
     /// Replaces a planned exercise's warmups. Working sets stay.
     func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
@@ -564,6 +585,10 @@ extension WorkoutExercise {
         rirTargetValue = nil
         progressionCodeValue = nil
         progressionNoteValue = nil
+        strengthRoleValue = nil
+        targetRepsValue = nil
+        repOffsetValue = nil
+        intendedLoadKgValue = nil
         clearPowerJackPlan()
         deleteAllSets()
         addInitialSets()

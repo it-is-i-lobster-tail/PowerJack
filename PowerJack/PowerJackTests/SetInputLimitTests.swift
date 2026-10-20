@@ -15,6 +15,11 @@ import Testing
 struct SetInputLimitTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
 
+    init() {
+        // These read weights in pounds, whatever unit the simulator was last left in.
+        UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
+    }
+
     @Test("Reps input takes whole numbers from 0 to 50")
     func repsInput() {
         #expect(WorkoutSetView.repsInput("", previous: "8") == "")
