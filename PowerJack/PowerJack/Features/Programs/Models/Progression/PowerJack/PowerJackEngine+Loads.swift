@@ -138,18 +138,18 @@ extension PowerJackWeekBuilder {
                 plan.calibrating = entry.calibrating
                 plan.reasons.append(.repeatSkipped)
             } else if !applyPain(&plan, slot: slot, entry: entry) {
-                let classes = classes(slot, in: last) ?? []
+                let outcomes = classes(slot, in: last) ?? []
                 let held = flagged.contains(exercise(slot).id)
                 let setFell = cuts.contains(slot)
                 switch role(slot).role {
                 case .main:
-                    progressMainLift(&plan, slot: slot, entry: entry, classes: classes, header: header, held: held, setFell: setFell)
+                    progressMainLift(&plan, slot: slot, entry: entry, classes: outcomes, header: header, held: held, setFell: setFell)
                 case .secondary, .accessory:
                     let previous = previousBuildWeek(before: last).flatMap { log(slot, in: $0) }
                     let result = doubleProgression(
                         entry.parts[0],
                         previous: previous?.parts.first,
-                        outcome: classes.first ?? .none,
+                        outcome: outcomes.first ?? .none,
                         range: repRange(slot),
                         exercise: exercise(slot),
                         caution: header.caution,

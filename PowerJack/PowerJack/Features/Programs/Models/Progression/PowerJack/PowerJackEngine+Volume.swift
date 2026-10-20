@@ -315,8 +315,8 @@ extension PowerJackWeekBuilder {
         guard !exposures.isEmpty else { return false }
         return exposures.allSatisfy { slot, entry in
             guard !entry.calibrating,
-                  let classes = classes(slot, in: week),
-                  classes.allSatisfy(\.rises),
+                  let outcomes = classes(slot, in: week),
+                  outcomes.allSatisfy(\.rises),
                   entry.parts.allSatisfy({ $0.source == .tapped }),
                   let pain = entry.pain, pain.rawValue <= PowerJackRules.addMaxPain.rawValue
             else { return false }

@@ -174,13 +174,13 @@ struct PowerJackWeekBuilder {
 
     /// R6.4: M slots on a miss or HARD; S and A slots on HARD or a set under the range at full load.
     func strainSign(_ slot: SlotRef, in week: PowerJackWeekLog) -> Bool {
-        guard let classes = classes(slot, in: week), let entry = log(slot, in: week) else { return false }
-        if classes.allSatisfy({ $0 == .none }) { return false }
+        guard let outcomes = classes(slot, in: week), let entry = log(slot, in: week) else { return false }
+        if outcomes.allSatisfy({ $0 == .none }) { return false }
         switch role(slot).role {
         case .main:
-            return classes.contains { $0.isMiss || $0 == .hard }
+            return outcomes.contains { $0.isMiss || $0 == .hard }
         case .secondary, .accessory:
-            if classes.contains(.hard) { return true }
+            if outcomes.contains(.hard) { return true }
             let low = repRange(slot).lowerBound
             return entry.sets.contains { set in
                 guard set.isComplete, let reps = set.reps, reps < low else { return false }
