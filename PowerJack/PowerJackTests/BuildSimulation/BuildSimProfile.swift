@@ -103,9 +103,11 @@ struct BuildSimProfile {
     var abandonProgram = 0.0
     var daysBetweenPrograms = [0, 2, 7]
 
-    /// Lifters who rate honestly, show up and stay healthy. Their plans should track what they can lift.
+    /// Lifters with an ordinary body who rate honestly, show up and stay healthy. Their plans should track what
+    /// they can lift.
     var isWellBehaved: Bool {
-        rating == .honest && abs(ratingBias) <= 1 && ratingNoise <= 0.2 && legacyRating == 0
+        dayNoise <= 0.04 && fatiguePerSet <= 0.003 && recovery >= 0.4
+            && rating == .honest && abs(ratingBias) <= 1 && ratingNoise <= 0.2 && legacyRating == 0
             && reps == .asPlanned && loads != .ownChoice
             && skipWorkout <= 0.05 && skipExercise <= 0.02 && stopEarly <= 0.02 && noRating <= 0.02
             && swapExercise == 0 && editExercise == 0 && breakChance == 0 && injuryChance == 0

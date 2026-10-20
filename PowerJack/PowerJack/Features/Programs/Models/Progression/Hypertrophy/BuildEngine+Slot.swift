@@ -406,11 +406,10 @@ extension BuildEngine {
         // unless pain is rising, which blocks every increase (PAIN-01).
         let preBreak = afterReturn && !caps.noIncrease ? context.latest(index, in: .build)?.plannedSets ?? 0 : 0
         let sets = max(base.plannedSets, preBreak)
-        // A calibration from before return weeks never sizes the block after them; their plan does (BLK-07).
-        if let latest = context.latestDone(index), context.isCalibration(index, latest),
-           !afterReturn || context.weeks[latest.weekIndex].kind == .return,
-           var calibrated = calibrate(context, index, latest, aim: target) {
-            calibrated.sets = afterReturn ? max(calibrated.sets, sets) : calibrated.sets
+        // Return weeks never calibrate, so a calibration before them is from before the break: the return plan
+        // sizes the block instead (BLK-07).
+        if !afterReturn, let latest = context.latestDone(index), context.isCalibration(index, latest),
+           let calibrated = calibrate(context, index, latest, aim: target) {
             return calibrated
         }
         let load = exercise.repsOnly ? nil : base.load
