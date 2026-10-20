@@ -11,11 +11,15 @@ import OSLog
 import SwiftData
 
 enum StrengthPlanner: WeekPlanner {
+    /// The time the planner reads as now, when it closes a week or sets up a new program. Nil is now; tests
+    /// set it to replay programs on a simulated calendar.
+    @TaskLocal static var currentDate: Date?
+
     /// Program.init runs this before the program is saved, so lift records can't be read yet: week 1
     /// is planned by feel here, and `prepareToStart` reloads each workout from the records as it starts.
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {
         week.setBlock(kind: .build, blockWeek: 1)
-        plan(week, history: [], state: StrengthState(), at: .now)
+        plan(week, history: [], state: StrengthState(), at: currentDate ?? .now)
     }
 
     /// Closes the week before `week`, logs the lift records and plans `week` from them.
@@ -29,11 +33,9 @@ enum StrengthPlanner: WeekPlanner {
             Logger.program.warning("Can only build an empty ProgramWeek that follows another week.")
             return
         }
-        let now = Date.now
+        let now = currentDate ?? .now
         let source = weeks[index - 1]
-        var state = StrengthLog.latestState(in: program.modelContext)
-        StrengthWeekClose.close(&state, week: closedWeek(source, at: now))
-        program.modelContext?.insert(StrengthLog(date: now, state: state))
+        let state = close(source, in: program, at: now)
 
         for sourceWorkout in source.workouts {
             guard let workout = week.addWorkout() else { continue }
@@ -56,6 +58,21 @@ enum StrengthPlanner: WeekPlanner {
         week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
         plan(week, history: Array(weeks[..<index].reversed()), state: state, at: now)
         Logger.program.info("Built strength week \(index + 1): \(state.clock.upcoming.rawValue), block week \(state.clock.blockWeek)")
+    }
+
+    /// A program's last week, or the week it stopped in, has no next week to build, but its sessions still
+    /// move the lift records and the block clock, which carry over to the next program (4, 9.5, 15.1).
+    static func close(_ week: ProgramWeek, in program: Program) {
+        close(week, in: program, at: currentDate ?? .now)
+    }
+
+    /// Folds a finished week into the lift records and logs them (the weekly loop, steps 1-4).
+    @discardableResult
+    private static func close(_ week: ProgramWeek, in program: Program, at now: Date) -> StrengthState {
+        var state = StrengthLog.latestState(in: program.modelContext)
+        StrengthWeekClose.close(&state, week: closedWeek(week, at: now))
+        program.modelContext?.insert(StrengthLog(date: now, state: state))
+        return state
     }
 
     /// Runs the rules that depend on what happened since the week was planned: a lift's first week loads
@@ -94,12 +111,15 @@ enum StrengthPlanner: WeekPlanner {
                 ? StrengthPrescriber.plan(context, record: record, clock: state.clock, at: date)
                 : stored
 
-            if slot.role != .accessory, let grid = context.grid, !plan.kind.isReturn {
-                let lastTrained = [record.lastTrained, lastCompleted(exercise, before: workout)].compactMap { $0 }.max()
-                let band = returnBands[slot.key]
-                    ?? StrengthSessionRules.daysOff(since: lastTrained, at: date).flatMap { StrengthSessionRules.returnBand(daysOff: $0) }
+            if slot.role != .accessory, let grid = context.grid, plan.kind != .returnWeek1 {
+                // A lift the records show trained in the last 14 days is not on a break, which spares searching every
+                // set it ever had for training in other programs.
+                let breakBand = record.lastTrained != nil && returnBand(since: record.lastTrained, at: date) == nil
+                    ? nil
+                    : returnBand(since: [record.lastTrained, lastCompleted(exercise, before: workout)].compactMap { $0 }.max(), at: date)
+                let band = returnBands[slot.key] ?? breakBand
                 if let band {
-                    let preBreak = history.first { $0.plan.kind == .normal || $0.plan.kind == .calibration }
+                    let preBreak = history.first { ($0.plan.kind == .normal || $0.plan.kind == .calibration) && $0.hasLoad }
                     StrengthSessionRules.applyReturn(
                         band: band,
                         to: &plan,
@@ -108,7 +128,6 @@ enum StrengthPlanner: WeekPlanner {
                         curve: context.curve,
                         grid: grid
                     )
-                    plan.warmups = nil
                 }
             }
             let needsCheckIn = StrengthPain.apply(
@@ -118,6 +137,10 @@ enum StrengthPlanner: WeekPlanner {
                 grid: context.grid
             )
             if plan != stored {
+                // A break or pain moves the working load, and the warm-ups follow it (5.7).
+                if slot.role != .accessory {
+                    plan.warmups = StrengthPrescriber.warmups(for: plan, slot: context, record: record)
+                }
                 write(plan, to: workoutExercise, role: slot.role)
             }
             if needsCheckIn, let pain = record.pain.ratings.last.flatMap(LevelOfPain.init(rawValue:)) {
@@ -306,6 +329,11 @@ enum StrengthPlanner: WeekPlanner {
             pain: workoutExercise.feedback?.levelOfPain.rawValue,
             date: working.filter { $0.status == .complete }.compactMap(\.completedAt).max()
         )
+    }
+
+    /// The break band (12.2) for a lift last trained at `lastTrained`, or `nil` when it isn't on a break.
+    private static func returnBand(since lastTrained: Date?, at date: Date) -> Int? {
+        StrengthSessionRules.daysOff(since: lastTrained, at: date).flatMap { StrengthSessionRules.returnBand(daysOff: $0) }
     }
 
     /// When the exercise last had a working set done, in any program, so training in other styles counts.

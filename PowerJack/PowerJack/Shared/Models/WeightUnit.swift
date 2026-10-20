@@ -25,9 +25,13 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Takes the place of the Settings pick within one task. Settings are shared by every test running at once,
+    /// so tests that need a unit pin it here instead.
+    @TaskLocal static var pinned: WeightUnit?
+
     /// The unit picked in Settings, or the device's measurement system until one is picked.
     static var current: WeightUnit {
-        UserDefaults.standard.string(forKey: AppSettings.Key.weightUnit)
+        pinned ?? UserDefaults.standard.string(forKey: AppSettings.Key.weightUnit)
             .flatMap(WeightUnit.init(rawValue:)) ?? deviceDefault
     }
 
