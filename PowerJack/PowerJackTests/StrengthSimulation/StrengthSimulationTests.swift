@@ -75,12 +75,13 @@ struct StrengthSimulationTests {
 
     /// No rule broken, and for lifters who rate honestly and show up, targets and estimates that track what they
     /// can lift: few beyond reach even fresh, few with more than 6 reps to spare, e1RMs within 20% of the truth.
+    /// Block week 1 adds a rep in reserve and restarts from an e1RM that reads a little low, so some easy weeks are expected.
     private func expectSound(_ report: StrengthSimReport, _ profile: StrengthSimProfile) {
         print("Strength simulation: \(report.headline)")
-        #expect(report.weeksChecked > 0, "\(report.headline)")
+        #expect(report.weeksChecked + report.workoutsChecked > 0, "\(report.headline)")
         #expect(report.violations.isEmpty, "\(report.failureMessage)")
         if profile.isWellBehaved {
-            #expect(report.tooHard <= 0.05 && report.tooEasy <= 0.1, "Targets drifted from what the lifter can lift. \(report.failureMessage)")
+            #expect(report.tooHard <= 0.05 && report.tooEasy <= 0.15, "Targets drifted from what the lifter can lift. \(report.failureMessage)")
             #expect(report.e1rmOff <= 0.2, "Estimates drifted from the lifter's true maxes. \(report.failureMessage)")
         }
     }

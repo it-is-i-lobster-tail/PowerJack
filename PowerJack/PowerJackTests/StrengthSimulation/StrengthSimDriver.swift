@@ -266,7 +266,8 @@ private extension StrengthSimDriver {
         if let lastTemplate, lifter.decides(profile.sameTemplate) {
             return lastTemplate
         }
-        if !otherTemplates.isEmpty, lifter.decides(profile.otherStyles) {
+        // A Strengthen lifter who sometimes tries other styles: the first program is always Strengthen.
+        if programNumber > 0, !otherTemplates.isEmpty, lifter.decides(profile.otherStyles) {
             return lifter.rng.pick(otherTemplates)
         }
         if lifter.decides(profile.customTemplate) || strengthTemplates.isEmpty {
@@ -385,6 +386,9 @@ private extension StrengthSimDriver {
         for slot in StrengthSimSlot.all(in: week) where slot.role == .primary && slot.kind == .normal {
             guard let reps = slot.reps, let slack = lifter.slack(slot.exercise, loadKg: slot.loadKg, reps: reps) else { continue }
             report.record(slack: slack)
+            if slack > 6 || slack < -1 {
+                report.trace("  \(slack > 6 ? "easy" : "hard"): \(slot.name) \(describe(slot)), \(String(format: "%.1f", slack)) reps to spare")
+            }
         }
     }
 
