@@ -341,6 +341,29 @@ struct BuildEngineTests {
         #expect(plan.reason.code == .painHold)
     }
 
+    @Test("PAIN-02, ENG-02: a set a severe cut took comes back only after a rated exposure")
+    func setBackNeedsRating() throws {
+        let cut = [
+            exposure(0, sets: 4, reps: 10, target: 10, load: 1000, effort: .tapped(2), aim: 3, pain: .severe),
+            exposure(1, sets: 2, reps: 10, target: 10, load: 800, effort: .tapped(3), aim: 2, code: .painCheckIn),
+        ]
+        let weeks = [week(1), week(2), week(3)]
+        let unrated = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .missing, aim: 2, pain: nil, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(unrated.sets == 3)
+        #expect(unrated.reason.code == .unratedStep)
+        let legacy = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .legacy(2), aim: 2, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(legacy.sets == 3)
+        let rated = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .tapped(2), aim: 2, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(rated.sets == 4)
+        #expect(rated.reason.code == .painSetBack)
+    }
+
     @Test("PAIN-03: a hold released in the deload resumes the next block from the cut, not the load before it")
     func releasedInDeload() throws {
         let row = BuildExercise(minReps: 6, maxReps: 12, primary: .back, fatigueLevel: .moderate)
