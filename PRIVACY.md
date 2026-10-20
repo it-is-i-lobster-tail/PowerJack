@@ -1,6 +1,6 @@
 # PowerJack Privacy Policy
 
-Last updated: October 6, 2026
+Last updated: October 19, 2026
 
 PowerJack does not collect, sell or share any of your data. There are no accounts, no ads, no analytics and no tracking.
 
@@ -15,6 +15,10 @@ If iCloud Backup is on in Settings, PowerJack keeps a copy of your data in your 
 ## Live Activities
 
 The rest timer on the Lock Screen and in the Dynamic Island runs on your iPhone. Nothing about it leaves the device.
+
+## Apple Watch
+
+PowerJack on Apple Watch gets your workouts through iCloud Backup, from the same private iCloud database, and your settings straight from your paired iPhone. Its rest alerts are scheduled on the watch. Nothing about it goes anywhere else.
 
 ## Third parties
 
