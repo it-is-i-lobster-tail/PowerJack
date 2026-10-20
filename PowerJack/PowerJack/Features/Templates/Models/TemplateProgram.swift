@@ -23,13 +23,16 @@ final class TemplateProgram {
     // Hidden from the template list but kept, so programs started from it keep their name and
     // the catalog seed doesn't bring a deleted built-in template back.
     var hiddenValue: Bool = false
+    var templateTypeValue: TemplateType = TemplateType.hypertrophy
 
     init(
         templateName: String,
         workoutsPerWeek: Int,
-        templateMuscleFocus: [Muscle]
+        templateMuscleFocus: [Muscle],
+        templateType: TemplateType = .hypertrophy
     ) {
         self.templateName = templateName
+        self.templateTypeValue = templateType
         self.workoutsPerWeek = max(0, workoutsPerWeek)
         self.templateWorkoutsValue = []
         self.templateMuscleFocusValue = templateMuscleFocus
@@ -41,6 +44,11 @@ final class TemplateProgram {
 // Public Accesors
 //
 extension TemplateProgram {
+    // Template Type
+    var templateType: TemplateType {
+        get { templateTypeValue }
+        set { templateTypeValue = newValue }
+    }
     // Template Workouts
     var templateWorkouts: [TemplateWorkout] { (templateWorkoutsValue ?? []).sorted(byOrder: \.order) }
     // Template Muscle Focus

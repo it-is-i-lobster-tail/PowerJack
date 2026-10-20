@@ -14,6 +14,12 @@ protocol ScaleSelectorOption:
 where RawValue == Int {
 
     var label: String { get }
+    /// The big value on the option. Defaults to the raw value.
+    var valueText: String { get }
+}
+
+extension ScaleSelectorOption {
+    var valueText: String { "\(rawValue)" }
 }
 
 /// A 0–5 style rating laid out as a grid so every label fits on any iPhone.
@@ -33,7 +39,7 @@ struct ScaleSelector<Option: ScaleSelectorOption>: View {
                     selection = option
                 } label: {
                     VStack(spacing: 2) {
-                        Text(option.rawValue, format: .number)
+                        Text(option.valueText)
                             .font(.title3.weight(.semibold))
                         Text(option.label)
                             .font(.caption)

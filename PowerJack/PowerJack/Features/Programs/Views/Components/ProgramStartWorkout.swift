@@ -27,6 +27,7 @@ struct ProgramStartWorkout: View {
     private func startWorkout() {
         if workout.status == .planned && workout.locked {
             HintOccasion.workoutStarted(weekNumber: program.weekNumber(containing: workout), workout: workout)
+            program.prepareToStart(workout)
             workout.startAndCascade()
             try? modelContext.save()
         }

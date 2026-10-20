@@ -14,7 +14,16 @@ struct Feedback: View {
 
     @Bindable var workoutExercise: WorkoutExercise
     let onFinished: () -> Void
-    @State private var draft = FeedbackDraft()
+    @State private var draft: FeedbackDraft
+
+    init(workoutExercise: WorkoutExercise, onFinished: @escaping () -> Void) {
+        self.workoutExercise = workoutExercise
+        self.onFinished = onFinished
+        _draft = State(initialValue: FeedbackDraft(
+            ratesRepsInReserve: workoutExercise.templateType?.ratesRepsInReserve ?? false,
+            asksTopSet: workoutExercise.topSetsNeedRating
+        ))
+    }
 
     var body: some View {
         ScrollView {
@@ -27,11 +36,27 @@ struct Feedback: View {
                         .foregroundStyle(.secondary)
                 }
 
-                FeedbackScaleSection(
-                    title: "Level of Effort",
-                    subheading: "How difficult was this exercise to perform?",
-                    selection: $draft.levelOfEffort
-                )
+                if draft.asksTopSet {
+                    FeedbackScaleSection(
+                        title: "Top Set",
+                        subheading: "How many more good reps could you have done on your top set?",
+                        selection: $draft.topSetRepsInReserve
+                    )
+                }
+
+                if draft.ratesRepsInReserve {
+                    FeedbackScaleSection(
+                        title: "Reps Left",
+                        subheading: "How many more good reps could you have done on your last set?",
+                        selection: $draft.repsInReserve
+                    )
+                } else {
+                    FeedbackScaleSection(
+                        title: "Level of Effort",
+                        subheading: "How difficult was this exercise to perform?",
+                        selection: $draft.levelOfEffort
+                    )
+                }
 
                 FeedbackScaleSection(
                     title: "Level of Pain",
@@ -48,19 +73,13 @@ struct Feedback: View {
     }
 
     private func saveFeedbackIfComplete(wasComplete: Bool, isComplete: Bool) {
-        guard
-            !wasComplete,
-            isComplete,
-            let levelOfEffort = draft.levelOfEffort,
-            let levelOfPain = draft.levelOfPain
-        else {
+        guard !wasComplete, isComplete, let newFeedback = draft.makeFeedback() else {
             return
         }
 
-        let newFeedback = ExerciseFeedback(
-            levelOfEffort: levelOfEffort,
-            levelOfPain: levelOfPain
-        )
+        if let topSetRepsInReserve = draft.topSetRepsInReserve {
+            workoutExercise.rateTopSets(topSetRepsInReserve)
+        }
         // The exercise stays open, so the lifter can still add a set before finishing the workout.
         workoutExercise.addFeedback(feedback: newFeedback)
         try? modelContext.save()

@@ -2,7 +2,7 @@
 //  ProgressionPlanner.swift
 //  PowerJack
 //
-//  Builds a program week from the week before it, using `ProgressionEngine`.
+//  Builds a program week from the week before it, using its template type's progression rules.
 //
 
 import Foundation
@@ -25,6 +25,7 @@ enum ProgressionPlanner {
         let olderWeeks = weeks[..<(weekIndex - 1)].reversed().prefix(2).map { $0 }
         let credits = muscleSetCredits(in: sourceWeek)
         let focusMuscles = Set(program.templateMuscleFocus)
+        let nextPrescription = program.templateType.progressionRules
 
         for sourceWorkout in sourceWeek.workouts {
             guard let workout = week.addWorkout() else { continue }
@@ -40,7 +41,7 @@ enum ProgressionPlanner {
                 let matches = olderWeeks.map {
                     matchingExercise(for: sourceExercise, in: sourceWorkout, week: $0)
                 }
-                let prescription = ProgressionEngine.nextPrescription(
+                let prescription = nextPrescription(
                     ProgressionInput(
                         current: history(sourceExercise, programWeek: weekIndex),
                         previous: matches.first.flatMap { $0 }.map { history($0, programWeek: weekIndex - 1) },

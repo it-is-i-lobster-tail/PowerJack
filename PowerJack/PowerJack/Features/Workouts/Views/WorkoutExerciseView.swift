@@ -51,6 +51,7 @@ struct WorkoutExerciseView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                ProgressionCue(workoutExercise: workoutExercise)
             }
 
             ScrollView {
@@ -116,10 +117,19 @@ struct WorkoutExerciseView: View {
                     repsOnly: workoutExercise.exercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
                     onWeightChange: { weight in
+                        // A top set's weight is heavier than the back sets that follow it.
+                        guard !workoutExercise.isTopSet(workoutSet) else { return }
                         workoutExercise.applyWeight(weight, after: workoutSet)
                     }
                 )
                 .frame(width: screenWidth * 0.88, height: 55)
+
+                if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {
+                    TopSetRating(workoutExercise: workoutExercise)
+                        .frame(width: screenWidth * 0.84)
+                        .padding(.vertical, LayoutMetrics.compactSpacing)
+                        .transition(.opacity)
+                }
 
                 // No divider at the end of a group; the next group's heading separates them.
                 if workoutSet !== sets.last {

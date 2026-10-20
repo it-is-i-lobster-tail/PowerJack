@@ -12,9 +12,13 @@ import SwiftData
 struct TemplateProgramNew: View {
     @Environment(\.modelContext) private var modelContext
 
-    @State private var draft = TemplateProgramDraft()
+    @State private var draft: TemplateProgramDraft
     @State private var templateProgram: TemplateProgram?
     @State private var saveErrorMessage: String?
+
+    init(templateType: TemplateType = .hypertrophy) {
+        _draft = State(initialValue: TemplateProgramDraft(templateType: templateType))
+    }
 
     var body: some View {
         // Saves on every edit, including ones made on the screens pushed from this form.

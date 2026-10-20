@@ -55,11 +55,19 @@ enum LevelOfPain: Int, Codable, CaseIterable, Identifiable, ScaleSelectorOption 
 final class ExerciseFeedback {
     private var levelOfEffortValue: LevelOfEffort = LevelOfEffort.none
     private var levelOfPainValue: LevelOfPain = LevelOfPain.none
+    // 1 stores a `LevelOfEffort` word, 2 stores `RepsInReserve`. Rows saved before this existed are 1.
+    private var effortScaleVersionValue: Int = 1
     var workoutExerciseValue: WorkoutExercise?
 
     init(levelOfEffort: LevelOfEffort, levelOfPain: LevelOfPain) {
         self.levelOfEffortValue = levelOfEffort
         self.levelOfPainValue = levelOfPain
+    }
+
+    init(repsInReserve: RepsInReserve, levelOfPain: LevelOfPain) {
+        self.levelOfEffortValue = LevelOfEffort(rawValue: repsInReserve.storedValue) ?? .none
+        self.levelOfPainValue = levelOfPain
+        self.effortScaleVersionValue = RepsInReserve.scaleVersion
     }
 }
 
@@ -73,6 +81,13 @@ extension ExerciseFeedback {
         set {
             levelOfEffortValue = newValue
         }
+    }
+    // Effort Scale Version
+    var effortScaleVersion: Int { effortScaleVersionValue }
+    /// Reps left on the last set, when the effort was rated on that scale.
+    var repsInReserve: RepsInReserve? {
+        guard effortScaleVersionValue == RepsInReserve.scaleVersion else { return nil }
+        return RepsInReserve(storedValue: levelOfEffortValue.rawValue)
     }
     // Level of Pain
     var levelOfPain: LevelOfPain {

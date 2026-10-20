@@ -41,7 +41,7 @@ extension Workout {
 
         return RestPeriod(
             startedAt: latest.completedAt,
-            endsAt: latest.completedAt.addingTimeInterval(exercise.restDuration.timeInterval),
+            endsAt: latest.completedAt.addingTimeInterval(current.workoutExercise.restDuration.timeInterval),
             exerciseName: exercise.exerciseName,
             setNumber: current.workoutExercise.number(of: nextSet),
             setCount: current.workoutExercise.count(sameTypeAs: nextSet),

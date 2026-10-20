@@ -24,6 +24,7 @@ final class Program {
     var workoutsPerWeekValue: Int = 0
     var templateNameValue: String = ""
     var templateMuscleFocusValue: [Muscle] = []
+    var templateTypeValue: TemplateType = TemplateType.hypertrophy
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -38,10 +39,14 @@ final class Program {
         self.workoutsPerWeekValue = templateProgram.workoutsPerWeek
         self.templateNameValue = templateProgram.templateName
         self.templateMuscleFocusValue = templateProgram.templateMuscleFocus
+        self.templateTypeValue = templateProgram.templateType
         self.programWeeksValue = []
         self.lockedValue = false
         buildInitialProgramWeeks()
         setupInitialProgramWeek()
+        if let firstWeek = programWeeks.first {
+            templateType.weekPlanner.setUpFirstWeek(firstWeek, in: self)
+        }
     }
 
     private func buildInitialProgramWeeks() {
@@ -127,6 +132,8 @@ extension Program {
         if !templateMuscleFocusValue.isEmpty { return templateMuscleFocusValue }
         return templateProgram?.templateMuscleFocus ?? []
     }
+    /// Picks the progression rules, so it's copied like the rest and never follows template edits.
+    var templateType: TemplateType { templateTypeValue }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
@@ -201,6 +208,11 @@ extension Program {
         programWeeks.first?.start()
         Logger.program.debug("Started Program")
     }
+    /// Lets the program's planner adjust `workout` right before it starts, such as after a long break.
+    func prepareToStart(_ workout: Workout, at date: Date = .now) {
+        guard status == .active, workout.status == .planned else { return }
+        templateType.weekPlanner.prepareToStart(workout, in: self, at: date)
+    }
     /// Completes `workout` and moves the program forward.
     /// - Returns: The next workout, already started, or `nil` when the program is finished.
     @discardableResult
@@ -246,7 +258,7 @@ extension Program {
             week.complete()
             if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
                 if nextWeek.workouts.isEmpty {
-                    ProgressionPlanner.build(nextWeek, in: self)
+                    templateType.weekPlanner.build(nextWeek, in: self)
                 }
                 nextWeek.start()
             }
