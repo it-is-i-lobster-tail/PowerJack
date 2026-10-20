@@ -16,9 +16,6 @@ extension WorkoutExercise {
     var topSetRepsInReserve: RepsInReserve? { powerJackTopRIRValue.flatMap(RepsInReserve.init(rawValue:)) }
     var calibrating: Bool { powerJackCalibratingValue }
 
-    /// Part of a PowerJack program, so its plan, taps and rest follow the PowerJacking rules.
-    var isPowerJack: Bool { templateType == .powerJack }
-
     /// Whether `workoutSet` is one of the TOP sets.
     func isTopSet(_ workoutSet: WorkoutSet) -> Bool {
         topSets > 0 && !workoutSet.isWarmup && number(of: workoutSet) <= topSets
@@ -79,7 +76,9 @@ extension WorkoutExercise {
     /// heavy main-lift sets, a minute more after a short M or S set, and a minute after a warm-up.
     var restDuration: Duration {
         guard let exercise else { return .zero }
-        guard isPowerJack, let role = powerJackRole else { return exercise.restDuration }
+        // Only PowerJack's planner sets a role. Reading it here, rather than the program's type,
+        // keeps the rest timer from reaching up to the Program.
+        guard let role = powerJackRole else { return exercise.restDuration }
         let latest = workoutSets
             .filter { $0.status == .complete }
             .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
