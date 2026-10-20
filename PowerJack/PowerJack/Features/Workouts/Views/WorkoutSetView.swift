@@ -83,7 +83,8 @@ struct WorkoutSetView: View {
 
     private var plannedRepsPrompt: Text {
         guard let plannedReps = workoutSet.repsPlanned else {
-            return Text("2RIR")
+            // Without a rep target, the prompt is the reps to leave in reserve.
+            return Text("\(workoutSet.workoutExerciseValue?.rirTarget ?? 2)RIR")
         }
 
         return Text(plannedReps, format: .number)
