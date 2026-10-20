@@ -142,6 +142,235 @@ struct StrengthPlannerTests {
         #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds?.pounds } == [275, 275])
     }
 
+    @Test("A program's last week still moves the lift records, so the next program starts from it (the weekly loop)")
+    func lastWeekCloses() throws {
+        let program = try makeProgram(weeks: 1)
+        try finishWeek(of: program) { id in id == "dumbbell-curl" ? (25, 10) : (300, nil) }
+        #expect(program.status == .complete)
+
+        let logs = try context.fetch(FetchDescriptor<StrengthLog>())
+        #expect(logs.count == 1)
+        let state = try #require(logs.first?.state)
+        #expect(state["barbell-back-squat"].e1rmKg != nil)
+        #expect(state.clock.trainedWeeks == 1)
+    }
+
+    @Test("Stopping a program partway through a week keeps what was trained, so pain still opens a check-in next program (15.4)")
+    func stoppedWeekCloses() throws {
+        let program = try makeProgram()
+        let dayOne = try #require(program.nextWorkout)
+        try log(dayOne, in: program, pain: { $0 == "barbell-back-squat" ? .severe : LevelOfPain.none }) { id in
+            id == "dumbbell-curl" ? (25, 10) : (300, nil)
+        }
+        program.stop()
+        program.stopAndCascade()
+        let logs = try context.fetch(FetchDescriptor<StrengthLog>())
+        #expect(logs.count == 1)
+        #expect(logs.first?.state?["barbell-back-squat"].pain.pending == .lighter)
+
+        let next = try makeProgram()
+        let workout = try #require(next.nextWorkout)
+        next.prepareToStart(workout)
+        #expect(try slot("barbell-back-squat", day: 0, in: next).checkInPending)
+
+        // A week stopped before anything in it was trained logs nothing.
+        next.stop()
+        next.stopAndCascade()
+        #expect(try context.fetchCount(FetchDescriptor<StrengthLog>()) == 1)
+    }
+
+    @Test("A lift whose first week was skipped before it started still loads from its e1RM (2.6)")
+    func skippedFirstWeekLoadsFromRecords() throws {
+        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+        record.ratedDates = [.now, .now, .now]
+        record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
+        var state = StrengthState()
+        state["barbell-back-squat"] = record
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+
+        let program = try makeProgram()
+        for _ in 0..<2 {
+            program.skipWorkout(try #require(program.nextWorkout))
+        }
+        let squat = try slot("barbell-back-squat", day: 0, in: program, week: 1)
+        #expect(squat.progressionCode?.hasPrefix("normal") == true)
+        #expect(squat.workingSets.allSatisfy { $0.weightTenthsPlannedPounds != nil })
+    }
+
+    @Test("Warm-ups follow the working weight down when pain lightens it at the start of a workout (5.7, 15.4)")
+    func warmupsFollowPain() throws {
+        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+        record.ratedDates = [.now, .now, .now]
+        record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
+        var state = StrengthState()
+        state["barbell-back-squat"] = record
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+
+        let program = try makeProgram()
+        let dayOne = try #require(program.nextWorkout)
+        try log(dayOne, in: program, pain: { $0 == "barbell-back-squat" ? .severe : LevelOfPain.none }) { id in
+            id == "dumbbell-curl" ? (25, 10) : (340, nil)
+        }
+        let dayTwo = try #require(program.nextWorkout)
+        program.prepareToStart(dayTwo)
+
+        // The pain floor makes it 6 @ 3, so 400 × pct(9) = 325.2, and Lighter takes 80%: 260 lb, not the 275 lb
+        // top warm-up the unlightened 325 lb would have had.
+        let squat = try slot("barbell-back-squat", day: 1, in: program)
+        #expect(squat.progressionCode?.hasPrefix("painLighter") == true)
+        #expect(squat.workingSets.first?.weightTenthsPlannedPounds?.pounds == 260)
+        #expect(squat.warmupSets.map { $0.weightTenthsPlannedPounds?.pounds } == [130, 180])
+    }
+
+    @Test("A new program takes the deload that is due even when its first workout is skipped before it starts (10.5)")
+    func firstWeekTakesTheClock() throws {
+        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+        record.ratedDates = [.now, .now, .now]
+        record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
+        var state = StrengthState()
+        state["barbell-back-squat"] = record
+        state.clock.upcoming = .deload
+        state.clock.weeksSinceDeload = 8
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+
+        let program = try makeProgram()
+        program.skipWorkout(try #require(program.nextWorkout))
+        let dayTwo = try #require(program.nextWorkout)
+        program.prepareToStart(dayTwo)
+        #expect(program.programWeeks.first?.weekKind == .deload)
+        #expect(try slot("barbell-back-squat", day: 1, in: program).progressionCode?.hasPrefix("deload") == true)
+
+        // Skipped whole, the first week still counts as the deload.
+        let skipped = try makeProgram()
+        for _ in 0..<2 {
+            skipped.skipWorkout(try #require(skipped.nextWorkout))
+        }
+        #expect(StrengthLog.latestState(in: context).clock.weeksSinceDeload == 0)
+    }
+
+    @Test("Lighter on an accessory with no logged reps plans the bottom of its range, not 3 reps (15.4)")
+    func accessoryLighterReps() throws {
+        let curl = try exercise("dumbbell-curl")
+        let template = TemplateProgram(templateName: "Curls", workoutsPerWeek: 2, templateMuscleFocus: [.biceps], templateType: .strength)
+        for _ in 0..<2 {
+            template.addTemplateWorkout().addTemplateExercise(exercise: curl)
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 3, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+
+        // Week 1: day 2 is skipped, so its curls carry their by-feel plan into week 2.
+        try log(try #require(program.nextWorkout), in: program) { _ in (25, 10) }
+        program.skipWorkout(try #require(program.nextWorkout))
+        // Week 2: Severe pain on day 1 puts day 2's curls behind a check-in.
+        try log(try #require(program.nextWorkout), in: program, pain: { _ in .severe }) { _ in (25, 10) }
+        let dayTwo = try #require(program.nextWorkout)
+        program.prepareToStart(dayTwo)
+
+        let curls = try slot("dumbbell-curl", day: 1, in: program, week: 1)
+        #expect(curls.checkInPending)
+        #expect(curls.workingSets.map(\.repsPlanned) == [curl.minReps, curl.minReps])
+    }
+
+    @Test("An exercise of your own switched to bodyweight drops its planned weights when its workout starts (1.3)")
+    func switchedToBodyweight() throws {
+        let own = Exercise(exerciseName: "Own Carry", exerciseEquipment: .dumbbell, primaryMuscleFocus: .forearms, userCreated: true)
+        context.insert(own)
+        let template = TemplateProgram(templateName: "Carries", workoutsPerWeek: 2, templateMuscleFocus: [.forearms], templateType: .strength)
+        for _ in 0..<2 {
+            template.addTemplateWorkout().addTemplateExercise(exercise: own)
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 2, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+        try finishWeek(of: program) { _ in (50, 10) }
+        #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds != nil })
+
+        own.exerciseEquipment = .bodyweight
+        let workout = try #require(program.nextWorkout)
+        program.prepareToStart(workout)
+        #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })
+    }
+
+    @Test("A swap that makes an accessory a priority lift midweek replans it for its new role when its workout starts (14.6)")
+    func roleChangeMidweek() throws {
+        // Squat, bench and deadlift, then the row as day 4's first compound, fill the 4 priority lifts, so the
+        // overhead press starts as an accessory.
+        let template = TemplateProgram(templateName: "Four", workoutsPerWeek: 4, templateMuscleFocus: [.quads], templateType: .strength)
+        for ids in [["barbell-bench-press", "barbell-overhead-press"], ["barbell-back-squat"], ["barbell-deadlift"], ["barbell-row", "barbell-overhead-press"]] {
+            let workout = template.addTemplateWorkout()
+            for id in ids {
+                workout.addTemplateExercise(exercise: try exercise(id))
+            }
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 3, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+        for _ in 0..<4 {
+            program.skipWorkout(try #require(program.nextWorkout))
+        }
+        #expect(try slot("barbell-overhead-press", day: 3, in: program, week: 1).strengthRole == .accessory)
+
+        // Week 2's bench becomes curls, so the press is day 1's first compound and a priority lift.
+        let dayOne = try #require(program.nextWorkout)
+        program.prepareToStart(dayOne)
+        dayOne.startAndCascade()
+        try slot("barbell-bench-press", day: 0, in: program, week: 1).changeExercise(newExercise: try exercise("dumbbell-curl"))
+        program.finishWorkout(dayOne)
+        for _ in 0..<2 {
+            program.skipWorkout(try #require(program.nextWorkout))
+        }
+        let dayFour = try #require(program.nextWorkout)
+        program.prepareToStart(dayFour)
+
+        let press = try slot("barbell-overhead-press", day: 3, in: program, week: 1)
+        #expect(press.strengthRole == .primary)
+        #expect(press.progressionCode?.hasPrefix("accessory") == false)
+        #expect(press.targetReps != nil)
+    }
+
+    @Test("Another break during week 2 back starts the return over (12.1)")
+    func breakDuringReturn() throws {
+        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+        record.ratedDates = [.now, .now, .now]
+        record.lastTrained = .now.addingTimeInterval(-35 * 86_400)
+        var state = StrengthState()
+        state["barbell-back-squat"] = record
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+
+        let program = try makeProgram()
+        try finishWeek(of: program) { id in id == "dumbbell-curl" ? (25, 10) : (305, nil) }
+        #expect(try slot("barbell-back-squat", day: 0, in: program, week: 1).progressionCode?.hasPrefix("returnWeek2") == true)
+
+        let workout = try #require(program.nextWorkout)
+        program.prepareToStart(workout, at: .now.addingTimeInterval(20 * 86_400))
+        #expect(try slot("barbell-back-squat", day: 0, in: program, week: 1).progressionCode?.hasPrefix("returnWeek1.1") == true)
+    }
+
+    @Test("A short set in kilograms lowers the sets still to do by at least a step (6.2)")
+    func missRuleInKilograms() throws {
+        let program = try makeProgram()
+        let workout = try #require(program.nextWorkout)
+        try WeightUnit.$pinned.withValue(.kilograms) {
+            try StrengthLoadSteps.$pinned.withValue([.barbell: 5]) {
+                program.prepareToStart(workout)
+                workout.startAndCascade()
+                let squat = try slot("barbell-back-squat", day: 0, in: program)
+                for set in squat.workingSets {
+                    set.weightTenthsPounds = WeightUnit.tenthsPounds(fromKilograms: 60)
+                }
+                let first = try #require(squat.workingSets.first)
+                first.reps = 3
+                squat.completeSet(first)
+                // 4% off 60 kg is 57.6, which rounds back to 60 on a 5 kg grid, so the cut takes a whole step to 55.
+                #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds } == Array(repeating: WeightUnit.tenthsPounds(fromKilograms: 55), count: 2))
+            }
+        }
+    }
+
     @Test("Priority lifts rest 3:00 and their close variants 2:15; other exercises keep their own rest (5.6)")
     func restDefaults() throws {
         let program = try makeProgram()
@@ -154,7 +383,7 @@ struct StrengthPlannerTests {
     // MARK: Helpers
 
     /// Day 1: squat, bench. Day 2: squat, front squat, curl.
-    private func makeProgram() throws -> Program {
+    private func makeProgram(weeks: Int = 4) throws -> Program {
         let template = TemplateProgram(templateName: "Strong", workoutsPerWeek: 2, templateMuscleFocus: [.quads], templateType: .strength)
         let dayOne = template.addTemplateWorkout()
         for id in ["barbell-back-squat", "barbell-bench-press"] {
@@ -165,7 +394,7 @@ struct StrengthPlannerTests {
             dayTwo.addTemplateExercise(exercise: try exercise(id))
         }
         context.insert(template)
-        let program = Program(programLengthWeeks: 4, templateProgram: template)
+        let program = Program(programLengthWeeks: weeks, templateProgram: template)
         try context.insertAndSave(program)
         program.start()
         return program
@@ -178,6 +407,11 @@ struct StrengthPlannerTests {
     private func slot(_ id: String, day: Int, in program: Program, week: Int = 0) throws -> WorkoutExercise {
         let workout = try #require(program.programWeeks[week].workouts.first { $0.order == day })
         return try #require(workout.workoutExercises.first { $0.exercise?.catalogID == id })
+    }
+
+    private func slot(_ exercise: Exercise, day: Int, in program: Program, week: Int = 0) throws -> WorkoutExercise {
+        let workout = try #require(program.programWeeks[week].workouts.first { $0.order == day })
+        return try #require(workout.workoutExercises.first { $0.exercise === exercise })
     }
 
     /// Logs every workout of the current week with `load(catalogID)`: pounds, and reps or the plan's.
