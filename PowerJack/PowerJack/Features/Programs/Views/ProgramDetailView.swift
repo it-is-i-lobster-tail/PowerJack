@@ -11,7 +11,7 @@ import SwiftData
 struct ProgramDetailView: View {
     @Bindable var program: Program
 
-    /// Each early workout gets its own hint above Start Workout, shown until it starts.
+    /// Each early workout gets its own hint on Start Workout, shown until it starts.
     private var startWorkoutHint: (any Hint)? {
         guard let workout = program.nextWorkout, workout.status == .planned,
               let occasion = HintOccasion(weekNumber: program.weekNumber(containing: workout), workout: workout)
@@ -26,98 +26,33 @@ struct ProgramDetailView: View {
         }
     }
 
-    var body: some View {
-        GeometryReader { geometry in
-            let screenWidth = geometry.size.width
-            let screenHeight = geometry.size.height
-
-            let programInfoBannerVerticalAllocation = 0.1
-            let programFocusInfoVerticalAllocation = 0.15
-            let programStartWorkoutVerticalAllocation = 0.085
-            let programBottomBuffer = 0.025
-            let programDetailBuffer = 0.01
-            let detailBufferCount = 4.0
-            let programDividerVerticalAllocation = 0.001
-            let programProgressGridVerticalAllocation = 1
-                - programInfoBannerVerticalAllocation
-                - programFocusInfoVerticalAllocation
-                - programStartWorkoutVerticalAllocation
-                - (programDetailBuffer * detailBufferCount)
-                - programBottomBuffer
-                - programDividerVerticalAllocation
-                - 0.025
-
-            VStack(spacing: 0) {
-                // Info Banner
-                ProgramInfoBanner(
-                    program: program
-                )
-                    .frame(width: screenWidth, height: screenHeight * programInfoBannerVerticalAllocation)
-                // Divider Line
-                Color.gray.opacity(0.8)
-                    .frame(
-                        width: screenWidth * 0.9,
-                        height: screenHeight * programDividerVerticalAllocation
-                    )
-                // Detail Buffer
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: screenWidth,
-                        height: screenHeight * programDetailBuffer
-                    )
-                // Progression Grid
-                ProgramProgressGrid(
-                    workableWidth: screenWidth * 0.8875,
-                    workableHeight: screenHeight * programProgressGridVerticalAllocation,
-                    program: program
-                )
-                .frame(width: screenWidth, height: screenHeight * programProgressGridVerticalAllocation)
-
-                // Detail Buffer
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: screenWidth,
-                        height: screenHeight * programDetailBuffer
-                    )
-                // Focus Info
-                ProgramFocusInfo(
-                    focusMuscles: program.templateMuscleFocus,
-                    screenWidth: screenWidth * 0.9
-                )
-                .frame(width: screenWidth * 0.9,
-                           height: screenHeight * programFocusInfoVerticalAllocation)
-                Spacer()
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Group {
-                    if let nextWorkout = program.nextWorkout {
-                        ProgramStartWorkout(
-                            screenWidth: screenWidth * 0.9,
-                            height: screenHeight
-                                * programStartWorkoutVerticalAllocation
-                                * 0.95,
-                            program: program,
-                            workout: nextWorkout
-                        )
-                        .popoverHint(startWorkoutHint, arrowEdge: .bottom)
-                    } else {
-                        EmptyStateView(
-                            title: "No upcoming workouts",
-                            systemImage: "checkmark.circle"
-                        )
-                        .frame(
-                            maxWidth: screenWidth * 0.9,
-                            minHeight: screenHeight
-                                * programStartWorkoutVerticalAllocation
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, screenHeight * programBottomBuffer)
-            }
+    /// "Week 5 of 8 · 50%" while the program runs, otherwise its status.
+    private var subtitle: String {
+        if let workout = program.nextWorkout, let week = program.weekNumber(containing: workout) {
+            return "Week \(week) of \(program.programLengthWeeks) · \(program.percentFinished)%"
         }
+        return "\(program.status.rawValue.localizedCapitalized) · \(program.percentFinished)%"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: LayoutMetrics.sectionSpacing) {
+                if let nextWorkout = program.nextWorkout {
+                    ProgramUpNext(program: program, workout: nextWorkout, startHint: startWorkoutHint)
+                } else {
+                    EmptyStateView(
+                        title: program.status == .complete ? "Program complete" : "No upcoming workouts",
+                        systemImage: "checkmark.circle"
+                    )
+                }
+
+                ProgramProgressGrid(program: program)
+            }
+            .padding(.horizontal, LayoutMetrics.sectionSpacing)
+            .padding(.bottom, LayoutMetrics.sectionSpacing)
+        }
+        .navigationTitle(program.templateName)
+        .navigationSubtitle(subtitle)
     }
 }
 
