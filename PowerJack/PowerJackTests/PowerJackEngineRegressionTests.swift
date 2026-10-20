@@ -45,8 +45,8 @@ extension PowerJackEngineTests {
         #expect(second.workouts[0][0].reasons.contains(.loadJump))
 
         // At 100 lb the step is 5.0%, so R2.3 ramps from 100 rather than falling back to 95.
-        let logged = weekLog(second.workouts.map { $0.map { logged($0, tap: 2) } }, column: second.header.column, blockWeek: 2)
-        let third = try #require(PowerJackEngine.nextWeek(after: [first, logged], context: context()))
+        let secondLog = weekLog(second.workouts.map { $0.map { logged($0, tap: 2) } }, column: second.header.column, blockWeek: 2)
+        let third = try #require(PowerJackEngine.nextWeek(after: [first, secondLog], context: context()))
         #expect(third.workouts[0][0].sets.allSatisfy { $0.reps == 5 && $0.load == 100 })
     }
 
@@ -209,9 +209,9 @@ extension PowerJackEngineTests {
         #expect(next.workouts[0][0].checkInPain == .severe)
         #expect(next.workouts[0][0].sets == [PowerJackSetPlan(reps: 5, load: 270)])
         // In a deload and at a block start too.
-        let builder = builder(weeks, structure: [[squat]], history: history)
-        #expect(builder.build(header: deloadHeader).workouts[0][0].checkInPain == .severe)
-        #expect(builder.build(header: blockStartHeader).workouts[0][0].checkInPain == .severe)
+        let weekBuilder = builder(weeks, structure: [[squat]], history: history)
+        #expect(weekBuilder.build(header: deloadHeader).workouts[0][0].checkInPain == .severe)
+        #expect(weekBuilder.build(header: blockStartHeader).workouts[0][0].checkInPain == .severe)
     }
 
     @Test("A calibrating exposure done in pain doesn't calibrate: the next one does (R8.8)")
