@@ -41,8 +41,13 @@ enum StrengthLoadSteps {
         }
     }
 
+    /// Take the place of the steps picked in Settings within one task, as `WeightUnit.pinned` does for the unit.
+    /// Equipment left out uses its default.
+    @TaskLocal static var pinned: [Equipment: Double]?
+
     /// The step picked in Settings, or the default. `nil` for bodyweight, which has no load.
     static func step(for equipment: Equipment, in unit: WeightUnit) -> Double? {
+        if let pinned { return pinned[equipment] ?? defaultStep(for: equipment, in: unit) }
         let saved = UserDefaults.standard.double(forKey: key(for: equipment, in: unit))
         return saved > 0 ? saved : defaultStep(for: equipment, in: unit)
     }
@@ -56,6 +61,10 @@ struct LoadGrid: Equatable {
     /// The empty bar, which barbell loads never go under (rule 1.1).
     static let barKilograms = 20.0
     static let barPounds = 45.0
+    /// The most a set can log, 1,000 lb, which plans never go over (rule 1.1).
+    static let capKilograms = Double(WorkoutSet.maxWeightPounds) * WeightUnit.kilogramsPerPound
+    /// Sets store tenths of a pound, so a logged load can sit this far from the grid load it was planned at.
+    static let storedTolerance = 0.05 * WeightUnit.kilogramsPerPound
 
     let unit: WeightUnit
     /// In `unit`.
@@ -78,6 +87,10 @@ struct LoadGrid: Equatable {
     var stepKilograms: Double { step * unit.kilograms }
     /// The lightest load: the bar, or one step.
     var minimumKilograms: Double { (base > 0 ? base : step) * unit.kilograms }
+    /// The heaviest grid load a set can log.
+    var maximumKilograms: Double {
+        (base + (stepsFromBase(Self.capKilograms) + Self.tolerance).rounded(.down) * step) * unit.kilograms
+    }
 
     /// Nearest grid load, ties going down (rule 1.1).
     func nearest(_ kilograms: Double) -> Double {
@@ -108,6 +121,6 @@ struct LoadGrid: Equatable {
     }
 
     private func load(_ steps: Double) -> Double {
-        max(minimumKilograms, (base + steps * step) * unit.kilograms)
+        min(maximumKilograms, max(minimumKilograms, (base + steps * step) * unit.kilograms))
     }
 }
