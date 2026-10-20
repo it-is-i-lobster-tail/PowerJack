@@ -87,6 +87,41 @@ struct BuildPlannerTests {
         #expect(exercise.workingSets.count == (plannedSets + 1) / 2)
     }
 
+    @Test("CLOCK 0: a break in the second return week is caught, and the return starts from the return weeks' loads")
+    func breakDuringSecondReturnWeek() throws {
+        let program = try makeProgram(weeks: 4)
+        let start = Date.now
+        try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .three, at: start)
+        // 90 days off: return week 1 at 80%, then return week 2 with full sets.
+        let returnStart = start.addingTimeInterval(90 * 86_400)
+        program.prepareToStart(try #require(program.nextWorkout), at: returnStart)
+        try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .three, at: returnStart)
+        let weekThree = try #require(program.nextWorkout)
+        #expect(program.programWeek(containing: weekThree)?.weekKind == .return)
+        #expect(program.programWeek(containing: weekThree)?.blockWeek == 2)
+
+        // Five more weeks off before it: a band 2 return from the return weeks' 80 lb, not the 100 lb before.
+        program.prepareToStart(weekThree, at: returnStart.addingTimeInterval(35 * 86_400))
+        let week = try #require(program.programWeek(containing: weekThree))
+        #expect(week.weekKind == .return)
+        #expect(week.blockWeek == 1)
+        #expect(week.returnBand == 2)
+        let exercise = try #require(weekThree.workoutExercises.first)
+        #expect(exercise.workingSets.count == 1)
+        #expect(exercise.workingSets.first?.weightTenthsPlannedPounds == 700)
+    }
+
+    @Test("START-04: a seed from history never passes the heaviest load a set can log")
+    func seedWithinLimit() throws {
+        let first = try makeProgram(weeks: 1)
+        try finishWeek(of: first, reps: 20, weightTenthsPounds: 10_000, repsLeft: .four)
+        let bench = try #require(try benchExercise())
+        let second = try makeProgram(weeks: 1, exercise: bench)
+        let exercise = try #require(second.programWeeks.first?.workouts.first?.workoutExercises.first)
+        #expect(exercise.progressionCode == BuildReason.Code.startHistory.rawValue)
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [10_000, 10_000])
+    }
+
     @Test("A short gap leaves the week alone")
     func shortGapKeepsWeek() throws {
         let program = try makeProgram(weeks: 2)
@@ -148,7 +183,8 @@ struct BuildPlannerTests {
         of program: Program,
         reps: Int,
         weightTenthsPounds: Int,
-        repsLeft: RepsInReserve
+        repsLeft: RepsInReserve,
+        at date: Date = .now
     ) throws {
         let workout = try #require(program.nextWorkout)
         if workout.status == .planned { workout.startAndCascade() }
@@ -157,7 +193,7 @@ struct BuildPlannerTests {
             for set in exercise.workingSets {
                 set.reps = set.repsPlanned ?? reps
                 set.weightTenthsPounds = set.weightTenthsPlannedPounds ?? weightTenthsPounds
-                set.complete()
+                set.complete(at: date)
             }
             exercise.addFeedback(feedback: ExerciseFeedback(repsInReserve: repsLeft, levelOfPain: .none))
             exercise.completeAndCascade()
