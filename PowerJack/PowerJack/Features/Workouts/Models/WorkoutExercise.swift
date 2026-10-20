@@ -48,6 +48,10 @@ final class WorkoutExercise {
     private var rirTargetValue: Int?
     private var progressionCodeValue: String?
     private var progressionNoteValue: String?
+    // Strengthen's slot targets: R before any reps-mode offset, the offset, and the unrounded load (kg).
+    private var targetRepsValue: Int?
+    private var repOffsetValue: Int?
+    private var intendedLoadKgValue: Double?
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -101,6 +105,9 @@ extension WorkoutExercise {
     var rirTarget: Int? { rirTargetValue }
     var progressionCode: String? { progressionCodeValue }
     var progressionNote: String? { progressionNoteValue }
+    var targetReps: Int? { targetRepsValue }
+    var repOffset: Int? { repOffsetValue }
+    var intendedLoadKg: Double? { intendedLoadKgValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -374,6 +381,7 @@ extension WorkoutExercise {
     /// still to do, so the workout moves on to the next working set instead of back to them.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
         workoutSet.complete(at: date)
+        StrengthPlanner.didComplete(workoutSet, in: self)
         guard
             !workoutSet.isWarmup,
             workoutSet.status == .complete,
@@ -448,6 +456,31 @@ extension WorkoutExercise {
         rirTargetValue = rirTarget
         progressionCodeValue = code
         progressionNoteValue = note
+    }
+    /// Records Strengthen's slot targets on a planned exercise.
+    func setStrengthTargets(reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the targets of a planned WorkoutExercise.")
+            return
+        }
+        targetRepsValue = reps
+        repOffsetValue = repOffset
+        intendedLoadKgValue = intendedLoadKg
+    }
+    /// Replaces a planned exercise's warmups. Working sets stay.
+    func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only replace the warmups of a planned WorkoutExercise.")
+            return
+        }
+        for warmup in warmupSets {
+            workoutSetsValue?.removeAll { $0 === warmup }
+            modelContext?.delete(warmup)
+        }
+        // Disabled warmups stay off (see `canAddSet`).
+        for set in sets {
+            addPlannedSet(type: .warmup, plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
+        }
     }
     /// Replaces a planned exercise's working sets. Warmups stay.
     func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
@@ -540,6 +573,9 @@ extension WorkoutExercise {
         rirTargetValue = nil
         progressionCodeValue = nil
         progressionNoteValue = nil
+        targetRepsValue = nil
+        repOffsetValue = nil
+        intendedLoadKgValue = nil
         deleteAllSets()
         addInitialSets()
     }

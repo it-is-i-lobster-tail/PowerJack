@@ -22,6 +22,8 @@ nonisolated struct RestPeriod: Codable, Hashable {
     var reps: Int?
     /// `nil` for bodyweight sets or when no weight is known yet.
     var weightTenthsPounds: Int?
+    /// Shows the weight in kilograms. Weights are always stored in tenths of a pound.
+    var usesKilograms: Bool?
 
     /// How long "Start set" stays up after the rest runs out.
     static let readyWindow: TimeInterval = 10 * 60
@@ -49,12 +51,12 @@ nonisolated struct RestPeriod: Codable, Hashable {
         WorkoutActivityState.setText(number: setNumber, count: setCount, isWarmup: isWarmup)
     }
 
-    /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", or "12 reps".
+    /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", "5 reps × 102.5 kg" or "12 reps".
     var prescriptionText: String {
         let repsText = reps.map { $0 == 1 ? "1 rep" : "\($0) reps" } ?? "2 RIR"
         guard let weightTenthsPounds else { return repsText }
-        let pounds = (Double(weightTenthsPounds) / 10).formatted(.number.precision(.fractionLength(0...1)))
-        return "\(repsText) × \(pounds) lb"
+        let weight = ActivitySet.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
+        return "\(repsText) × \(weight) \(usesKilograms == true ? "kg" : "lb")"
     }
 
     var detailText: String { "\(setText) · \(prescriptionText)" }
