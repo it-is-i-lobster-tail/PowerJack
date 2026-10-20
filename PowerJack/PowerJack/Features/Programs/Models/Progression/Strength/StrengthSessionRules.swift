@@ -61,6 +61,6 @@ enum StrengthSessionRules {
         let cut = setLoadKg * (1 - StrengthRules.missDrop * Double(missingReps))
         let floor = plannedKg * (1 - 0.10)
         let load = grid.nearest(max(cut, floor))
-        return load < setLoadKg ? load : grid.moved(setLoadKg, bySteps: -1)
+        return load < setLoadKg - LoadGrid.storedTolerance ? load : grid.moved(setLoadKg, bySteps: -1)
     }
 }

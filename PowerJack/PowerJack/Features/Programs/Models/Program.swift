@@ -192,6 +192,12 @@ extension Program {
             Logger.program.warning("Cannot stop a locked Program.")
             return
         }
+        // What was trained in the week left partway through still counts toward its planner's records.
+        if status == .active,
+           let week = nextWorkout.flatMap(programWeek(containing:)),
+           week.workouts.contains(where: { $0.workoutExercises.contains { $0.completedWorkingSets > 0 } }) {
+            templateType.weekPlanner.close(week, in: self)
+        }
         statusValue = Status.stopped
         lockedValue = true
         Logger.program.debug("Stopped Program")
@@ -261,6 +267,8 @@ extension Program {
                     templateType.weekPlanner.build(nextWeek, in: self)
                 }
                 nextWeek.start()
+            } else {
+                templateType.weekPlanner.close(week, in: self)
             }
         }
 

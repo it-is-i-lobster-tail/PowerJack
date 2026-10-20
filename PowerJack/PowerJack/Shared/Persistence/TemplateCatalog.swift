@@ -36,178 +36,163 @@ enum TemplateCatalog {
     }
 
     // IDs are permanent: changing a display name must not create another template.
-    // Each name says the gym it needs: Home (dumbbells, or a barbell and rack), Small Gym
-    // (Smith machine, dumbbells and cables) or Full Gym. Workouts are in order, one per day.
-    // Programs start each exercise at 2 sets, so most muscles get 3 to 5 exercises a week to grow into.
+    // Names are the split or the lifts; the list already shows the days and focus muscles.
+    // Workouts are in order, one per day. Programs start each exercise at 2 sets.
     static let entries: [Entry] = [
+        // Build: every muscle trained at least twice a week (START-01). Full gym unless named Home.
         Entry(
-            id: "home-whole-body-essentials-2x",
-            name: "Home Whole Body Essentials",
+            id: "build-full-body-3x",
+            name: "Full Body",
+            muscleFocus: [.chest, .back, .quads, .shoulders],
+            workouts: [
+                ["barbell-back-squat", "dumbbell-bench-press", "chest-supported-dumbbell-row", "seated-leg-curl", "dumbbell-lateral-raise", "cable-overhead-extension", "standing-calf-raise"],
+                ["barbell-romanian-deadlift", "incline-dumbbell-bench-press", "lat-pulldown", "leg-extension", "dumbbell-curl", "seated-calf-raise", "cable-crunch"],
+                ["hack-squat", "seated-cable-row", "cable-chest-fly", "cable-lateral-raise", "incline-dumbbell-curl", "cable-triceps-pushdown", "hanging-leg-raise"],
+            ]
+        ),
+        Entry(
+            id: "build-upper-lower-4x",
+            name: "Upper Lower",
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                ["dumbbell-goblet-squat", "dumbbell-bench-press", "one-arm-dumbbell-row", "dumbbell-romanian-deadlift", "dumbbell-calf-raise"],
-                ["dumbbell-goblet-squat", "push-up", "one-arm-dumbbell-row", "sliding-leg-curl", "crunch"],
+                ["barbell-bench-press", "chest-supported-dumbbell-row", "incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-lateral-raise", "cable-triceps-pushdown", "dumbbell-curl"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["dumbbell-shoulder-press", "pull-up", "cable-chest-fly", "seated-cable-row", "cable-lateral-raise", "cable-overhead-extension", "incline-dumbbell-curl"],
+                ["hack-squat", "dumbbell-bulgarian-split-squat", "lying-leg-curl", "seated-calf-raise", "hanging-leg-raise"],
             ]
         ),
         Entry(
-            id: "small-gym-whole-body-essentials-2x",
-            name: "Small Gym Whole Body Essentials",
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
+            id: "build-physique-5x",
+            name: "Physique",
+            muscleFocus: [.shoulders, .chest, .back, .biceps],
             workouts: [
-                ["smith-machine-squat", "dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "dumbbell-calf-raise"],
-                ["smith-machine-squat", "dumbbell-romanian-deadlift", "incline-dumbbell-bench-press", "lat-pulldown", "cable-crunch"],
+                // Push, pull, legs, upper, lower.
+                ["barbell-bench-press", "incline-dumbbell-bench-press", "dumbbell-shoulder-press", "dumbbell-lateral-raise", "cable-triceps-pushdown", "cable-overhead-extension"],
+                ["pull-up", "chest-supported-dumbbell-row", "seated-cable-row", "cable-face-pull", "dumbbell-curl", "dumbbell-hammer-curl"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["dumbbell-bench-press", "lat-pulldown", "cable-chest-fly", "cable-lateral-raise", "incline-dumbbell-curl", "barbell-skull-crusher"],
+                ["hack-squat", "lying-leg-curl", "dumbbell-bulgarian-split-squat", "seated-calf-raise", "hanging-leg-raise"],
             ]
         ),
         Entry(
-            id: "full-gym-legs-core-focus-2x",
-            name: "Full Gym Legs & Core Focus",
-            muscleFocus: [.quads, .hamstrings, .abs, .obliques],
-            workouts: [
-                ["leg-press", "seated-leg-curl", "standing-calf-raise", "dumbbell-bench-press", "seated-cable-row", "cable-crunch"],
-                ["dumbbell-romanian-deadlift", "leg-extension", "standing-calf-raise", "incline-dumbbell-bench-press", "lat-pulldown", "cable-woodchop"],
-            ]
-        ),
-        Entry(
-            id: "home-whole-body-muscle-builder-3x",
-            name: "Home Whole Body Muscle Builder",
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
-            workouts: [
-                ["barbell-back-squat", "barbell-bench-press", "one-arm-dumbbell-row", "sliding-leg-curl", "dumbbell-lateral-raise"],
-                ["barbell-romanian-deadlift", "dumbbell-shoulder-press", "pull-up", "dumbbell-goblet-squat", "dumbbell-calf-raise", "crunch"],
-                ["dumbbell-goblet-squat", "incline-dumbbell-bench-press", "one-arm-dumbbell-row", "sliding-leg-curl", "dumbbell-curl", "dumbbell-triceps-extension"],
-            ]
-        ),
-        Entry(
-            id: "small-gym-whole-body-muscle-builder-3x",
-            name: "Small Gym Whole Body Muscle Builder",
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
-            workouts: [
-                ["smith-machine-squat", "dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "dumbbell-lateral-raise"],
-                ["dumbbell-romanian-deadlift", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-curl", "cable-crunch", "dumbbell-calf-raise"],
-                ["smith-machine-squat", "incline-dumbbell-bench-press", "seated-cable-row", "sliding-leg-curl", "cable-overhead-extension", "dumbbell-calf-raise"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-arms-focus-3x",
-            name: "Full Gym Arms Focus",
-            muscleFocus: [.biceps, .triceps],
-            workouts: [
-                ["dumbbell-curl", "cable-overhead-extension", "dumbbell-bench-press", "seated-cable-row", "seated-leg-curl", "dumbbell-lateral-raise"],
-                ["leg-press", "dumbbell-romanian-deadlift", "dumbbell-shoulder-press", "standing-calf-raise", "cable-crunch"],
-                ["dumbbell-hammer-curl", "cable-triceps-pushdown", "incline-dumbbell-bench-press", "lat-pulldown", "leg-press", "dumbbell-reverse-fly"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-chest-back-core-focus-3x",
-            name: "Full Gym Chest, Back & Core Focus",
-            muscleFocus: [.chest, .back, .abs, .obliques],
-            workouts: [
-                ["dumbbell-bench-press", "seated-cable-row", "leg-press", "standing-calf-raise", "cable-crunch"],
-                ["lat-pulldown", "incline-dumbbell-bench-press", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "cable-woodchop"],
-                ["seated-cable-row", "cable-chest-fly", "leg-extension", "seated-leg-curl", "hanging-knee-raise"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-whole-body-muscle-builder-4x",
-            name: "Full Gym Whole Body Muscle Builder",
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
-            workouts: [
-                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
-                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
-                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
-                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
-            ]
-        ),
-        Entry(
-            id: "small-gym-glutes-shoulders-focus-4x",
-            name: "Small Gym Glutes & Shoulders Focus",
-            muscleFocus: [.glutes, .shoulders],
-            workouts: [
-                ["smith-machine-squat", "dumbbell-romanian-deadlift", "smith-machine-hip-thrust", "dumbbell-calf-raise", "cable-crunch"],
-                ["incline-dumbbell-bench-press", "seated-cable-row", "dumbbell-shoulder-press", "dumbbell-lateral-raise", "dumbbell-curl", "cable-overhead-extension"],
-                ["smith-machine-hip-thrust", "dumbbell-bulgarian-split-squat", "sliding-leg-curl", "cable-hip-abduction", "dumbbell-calf-raise"],
-                ["lat-pulldown", "dumbbell-bench-press", "dumbbell-reverse-fly", "cable-lateral-raise", "cable-triceps-pushdown", "cable-hip-abduction"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-upper-body-specialization-5x",
-            name: "Full Gym Upper Body Specialization",
-            muscleFocus: [.chest, .back, .biceps, .triceps],
-            workouts: [
-                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
-                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
-                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
-                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
-                ["cable-chest-fly", "seated-cable-row", "dumbbell-lateral-raise", "dumbbell-curl", "cable-overhead-extension"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-glute-specialization-5x",
-            name: "Full Gym Glute Specialization",
-            muscleFocus: [.glutes],
-            workouts: [
-                ["barbell-back-squat", "dumbbell-romanian-deadlift", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
-                ["dumbbell-bench-press", "seated-cable-row", "lat-pulldown", "dumbbell-lateral-raise", "dumbbell-curl", "cable-triceps-pushdown"],
-                ["barbell-hip-thrust", "cable-glute-kickback", "cable-hip-abduction", "dumbbell-lateral-raise", "cable-crunch"],
-                ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
-                ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
-            ]
-        ),
-        // Placeholder Strengthen and PowerJack templates, so their sections have something to show
-        // until their own templates and progression rules land.
-        Entry(
-            id: "full-gym-strength-foundations-3x",
-            name: "Full Gym Strength Foundations",
-            type: .strength,
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
-            workouts: [
-                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "cable-crunch"],
-                ["barbell-deadlift", "barbell-overhead-press", "pull-up", "hanging-knee-raise"],
-                ["barbell-front-squat", "incline-barbell-bench-press", "barbell-row", "side-plank"],
-            ]
-        ),
-        Entry(
-            id: "full-gym-upper-lower-strength-4x",
-            name: "Full Gym Upper Lower Strength",
-            type: .strength,
-            muscleFocus: [.chest, .back, .quads, .hamstrings],
-            workouts: [
-                ["barbell-bench-press", "barbell-row", "barbell-overhead-press", "chin-up", "barbell-skull-crusher"],
-                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-press", "standing-calf-raise"],
-                ["barbell-overhead-press", "pull-up", "incline-barbell-bench-press", "barbell-row", "barbell-curl"],
-                ["barbell-deadlift", "barbell-front-squat", "lying-leg-curl", "cable-crunch"],
-            ]
-        ),
-        Entry(
-            id: "powerjack-whole-body-3x",
-            name: "PowerJack Whole Body",
-            type: .powerJack,
+            // Dumbbells, a bench and a pull-up bar.
+            id: "build-home-full-body-3x",
+            name: "Home Full Body",
             muscleFocus: [.chest, .back, .quads, .glutes],
             workouts: [
-                ["barbell-back-squat", "barbell-bench-press", "seated-cable-row", "dumbbell-lateral-raise", "cable-crunch"],
-                ["barbell-deadlift", "incline-dumbbell-bench-press", "lat-pulldown", "leg-extension", "dumbbell-curl"],
-                ["barbell-hip-thrust", "barbell-overhead-press", "one-arm-dumbbell-row", "seated-leg-curl", "cable-triceps-pushdown"],
+                ["dumbbell-bulgarian-split-squat", "dumbbell-bench-press", "pull-up", "dumbbell-romanian-deadlift", "dumbbell-lateral-raise", "dumbbell-triceps-extension", "crunch"],
+                ["dumbbell-goblet-squat", "incline-dumbbell-bench-press", "chest-supported-dumbbell-row", "sliding-leg-curl", "dumbbell-curl", "dumbbell-calf-raise", "hanging-leg-raise"],
+                ["dumbbell-walking-lunge", "dumbbell-shoulder-press", "push-up", "one-arm-dumbbell-row", "incline-dumbbell-curl", "dumbbell-triceps-extension", "dumbbell-calf-raise"],
+            ]
+        ),
+        // Strengthen: a barbell, rack, bench, dumbbells and a pull-up bar. Each day opens with a priority
+        // lift; one trained twice a week gets a heavy day, then a moderate one (rule 5.3).
+        Entry(
+            id: "strength-big-three-3x",
+            name: "Big Three",
+            type: .strength,
+            muscleFocus: [.quads, .glutes, .chest, .back],
+            workouts: [
+                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "hanging-leg-raise"],
+                ["barbell-deadlift", "barbell-overhead-press", "chin-up", "dip"],
+                ["barbell-back-squat", "barbell-bench-press", "barbell-romanian-deadlift", "one-arm-dumbbell-row"],
             ]
         ),
         Entry(
-            id: "powerjack-upper-lower-4x",
-            name: "PowerJack Upper Lower",
+            id: "strength-big-four-4x",
+            name: "Big Four",
+            type: .strength,
+            muscleFocus: [.quads, .chest, .back, .shoulders],
+            workouts: [
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-bulgarian-split-squat", "hanging-leg-raise"],
+                ["barbell-bench-press", "barbell-row", "dip", "barbell-curl"],
+                ["barbell-deadlift", "barbell-front-squat", "one-arm-dumbbell-row", "hanging-leg-raise"],
+                ["barbell-overhead-press", "barbell-bench-press", "chin-up", "dumbbell-lateral-raise"],
+            ]
+        ),
+        Entry(
+            id: "strength-bigger-total-5x",
+            name: "Bigger Total",
+            type: .strength,
+            muscleFocus: [.quads, .chest, .back, .triceps],
+            workouts: [
+                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "hanging-leg-raise"],
+                ["barbell-deadlift", "barbell-overhead-press", "chin-up", "barbell-curl"],
+                ["barbell-bench-press", "barbell-front-squat", "one-arm-dumbbell-row", "dip"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-bulgarian-split-squat", "hanging-leg-raise"],
+                ["barbell-bench-press", "close-grip-bench-press", "chest-supported-dumbbell-row", "dumbbell-lateral-raise"],
+            ]
+        ),
+        // PowerJack: the squat, deadlift, bench and overhead press come before any other lift of their
+        // pattern, so they are the main lifts (R1.1).
+        Entry(
+            // The same setup as Strengthen.
+            id: "powerjack-power-full-body-3x",
+            name: "Power Full Body",
+            type: .powerJack,
+            muscleFocus: [.quads, .chest, .back, .shoulders],
+            workouts: [
+                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "sliding-leg-curl", "dumbbell-lateral-raise", "barbell-curl"],
+                ["barbell-deadlift", "barbell-overhead-press", "pull-up", "dumbbell-bulgarian-split-squat", "barbell-skull-crusher", "hanging-leg-raise"],
+                ["barbell-back-squat", "barbell-bench-press", "dumbbell-romanian-deadlift", "chest-supported-dumbbell-row", "dumbbell-hammer-curl", "dumbbell-calf-raise"],
+            ]
+        ),
+        Entry(
+            id: "powerjack-power-upper-lower-4x",
+            name: "Power Upper Lower",
             type: .powerJack,
             muscleFocus: [.chest, .back, .quads, .hamstrings],
             workouts: [
-                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-triceps-pushdown"],
-                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-extension", "seated-leg-curl", "standing-calf-raise"],
-                ["incline-dumbbell-bench-press", "pull-up", "cable-lateral-raise", "cable-face-pull", "dumbbell-hammer-curl"],
-                ["barbell-deadlift", "leg-press", "lying-leg-curl", "barbell-hip-thrust", "hanging-knee-raise"],
+                ["barbell-bench-press", "barbell-row", "barbell-overhead-press", "lat-pulldown", "dumbbell-lateral-raise", "cable-triceps-pushdown", "barbell-curl"],
+                ["barbell-back-squat", "barbell-deadlift", "leg-press", "seated-leg-curl", "standing-calf-raise", "cable-crunch"],
+                ["barbell-bench-press", "chin-up", "incline-dumbbell-bench-press", "seated-cable-row", "dumbbell-lateral-raise", "dumbbell-hammer-curl"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "dumbbell-walking-lunge", "leg-extension", "seated-calf-raise", "hanging-leg-raise"],
+            ]
+        ),
+        Entry(
+            id: "powerjack-power-and-pump-5x",
+            name: "Power & Pump",
+            type: .powerJack,
+            muscleFocus: [.chest, .back, .shoulders, .quads],
+            workouts: [
+                // Heavy upper and lower days, then back and shoulders, legs, and chest and arms.
+                ["barbell-bench-press", "barbell-row", "barbell-overhead-press", "pull-up", "barbell-skull-crusher", "barbell-curl"],
+                ["barbell-back-squat", "barbell-deadlift", "seated-leg-curl", "standing-calf-raise", "hanging-leg-raise"],
+                ["chest-supported-dumbbell-row", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-lateral-raise", "cable-face-pull", "dumbbell-curl"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "hack-squat", "leg-extension", "lying-leg-curl", "seated-calf-raise"],
+                ["barbell-bench-press", "incline-dumbbell-bench-press", "cable-chest-fly", "cable-triceps-pushdown", "incline-dumbbell-curl", "cable-crunch"],
             ]
         ),
     ]
 
-    /// Inserts any built-in template that isn't stored yet. Existing ones are left alone so user edits stick.
+    /// Built-in templates the app no longer ships. Seeding hides them the way deleting a built-in
+    /// template does: programs started from one keep it, and an older app version won't seed it again.
+    static let retiredIDs: Set<String> = [
+        "home-whole-body-essentials-2x",
+        "small-gym-whole-body-essentials-2x",
+        "full-gym-legs-core-focus-2x",
+        "home-whole-body-muscle-builder-3x",
+        "small-gym-whole-body-muscle-builder-3x",
+        "full-gym-arms-focus-3x",
+        "full-gym-chest-back-core-focus-3x",
+        "full-gym-whole-body-muscle-builder-4x",
+        "small-gym-glutes-shoulders-focus-4x",
+        "full-gym-upper-body-specialization-5x",
+        "full-gym-glute-specialization-5x",
+        "full-gym-strength-foundations-3x",
+        "full-gym-upper-lower-strength-4x",
+        "powerjack-whole-body-3x",
+        "powerjack-upper-lower-4x",
+    ]
+
+    /// Inserts any built-in template that isn't stored yet and hides retired ones. Existing ones are left
+    /// alone so user edits stick.
     @MainActor
     static func seed(in context: ModelContext) throws {
         var changed = try removeDuplicates(in: context)
-        let existingIDs = Set(try context.fetch(FetchDescriptor<TemplateProgram>()).compactMap(\.catalogID))
+        let stored = try context.fetch(FetchDescriptor<TemplateProgram>())
+        changed = hideRetired(stored) || changed
+        let existingIDs = Set(stored.compactMap(\.catalogID))
         let missing = entries.filter { !existingIDs.contains($0.id) }
 
         if !missing.isEmpty {
@@ -224,6 +209,18 @@ enum TemplateCatalog {
 
         guard changed else { return }
         try context.save()
+    }
+
+    /// Hides retired built-in templates that are still listed.
+    /// - Returns: Whether any were. The caller saves.
+    @MainActor
+    private static func hideRetired(_ templates: [TemplateProgram]) -> Bool {
+        let showing = templates.filter { retiredIDs.contains($0.catalogID ?? "") && !$0.hiddenValue }
+        for template in showing {
+            // Only hides it: `delete()` never removes a built-in template.
+            template.delete()
+        }
+        return !showing.isEmpty
     }
 
     /// Merges copies of the same built-in template, the same way `ExerciseCatalog.removeDuplicates`

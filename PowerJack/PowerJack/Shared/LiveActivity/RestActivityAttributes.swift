@@ -5,12 +5,16 @@
 //  The workout Live Activity shown in the Dynamic Island and on the Lock Screen:
 //  the current set, its target, and the rest before it.
 //  Compiled into the widget extension too, along with everything else in this file.
+//  The watch app shares the set text, so the Live Activity parts are iPhone only.
 //
 
+#if os(iOS)
 import ActivityKit
 import AppIntents
+#endif
 import Foundation
 
+#if os(iOS)
 nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
     typealias ContentState = WorkoutActivityState
 
@@ -20,6 +24,7 @@ nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
     /// Opens PowerJack on the current exercise of the active workout.
     static let currentExerciseURL = URL(string: "powerjack://workout/current")!
 }
+#endif
 
 /// Every set of the current exercise and, between sets, the rest before the next one.
 nonisolated struct WorkoutActivityState: Codable, Hashable {
@@ -75,6 +80,7 @@ nonisolated struct ActivitySet: Codable, Hashable {
     }
 }
 
+#if os(iOS)
 /// The check button: logs the shown set at its target weight and reps.
 /// Live Activity intents run in the app, so `perform()` lives in CompleteSetIntent+App.swift;
 /// the widget's copy only lets it build the button.
@@ -95,3 +101,4 @@ struct CompleteSetIntent: LiveActivityIntent {
         self.setOrder = setOrder
     }
 }
+#endif

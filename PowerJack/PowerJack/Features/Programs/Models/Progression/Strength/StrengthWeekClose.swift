@@ -151,11 +151,15 @@ enum StrengthWeekClose {
     private static func closeClock(_ state: inout StrengthState, week: StrengthClosedWeek, loadedKeys: [String]) {
         let sessions = week.entries.map(\.session)
         let anyTrained = sessions.contains(where: \.trained)
+        // 12.5: a return week is one where every priority lift trained came back from a break. One lift back from
+        // a missed session is not, so it neither skips the planned deload nor restarts the count.
+        let primaries = week.entries.filter { $0.role == .primary && $0.session.trained }
+        let returnWeek = !primaries.isEmpty && primaries.allSatisfy { $0.session.plan.kind == .returnWeek1 }
         var clock = state.clock
         if anyTrained { clock.trainedWeeks += 1 }
         clock.recentWeeks = Array((clock.recentWeeks + [StrengthClock.WeekMark(
             deload: week.kind == .deload,
-            returned: sessions.contains { $0.plan.kind.isReturn && $0.trained },
+            returned: returnWeek,
             missed: !anyTrained
         )]).suffix(StrengthRules.deloadSkipWeeks))
 
@@ -170,12 +174,14 @@ enum StrengthWeekClose {
 
         if week.kind == .deload {
             clock.weeksSinceDeload = 0
+            // Fatigue counts only weeks after the last deload, so RIR 0 weeks must run in a row again (10.1, 10.4).
+            clock.rir0Weeks = 0
             startBlock(&clock, flip: clock.lastDeloadPlanned, state: &state, keys: loadedKeys)
             state.clock = clock
             return
         }
 
-        clock.weeksSinceDeload += 1
+        clock.weeksSinceDeload = returnWeek ? 0 : clock.weeksSinceDeload + 1
         let calibrating = week.entries.contains { $0.role == .primary && $0.session.plan.kind == .calibration }
         let flaggedLifts = week.priorityKeys.filter { state[$0].flagged }.count
         let anyFlag = loadedKeys.contains { state[$0].flagged }
