@@ -77,8 +77,8 @@ struct WorkoutFlowTests {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
         let workout = try #require(program.nextWorkout)
         workout.startAndCascade()
-        // Max reps 12 -> load threshold 11; 11 reps at 135 lb earns +5 lb.
-        log(workout, reps: 11, weightTenthsPounds: 1350)
+        // Week 1 calibrates: 11 reps at 135 lb with 4 left sets week 2 at 140 lb for 12.
+        log(workout, reps: 11, weightTenthsPounds: 1350, repsInReserve: .four)
 
         let next = try #require(program.finishWorkout(workout))
 
@@ -88,9 +88,11 @@ struct WorkoutFlowTests {
         #expect(next === weekTwo.workouts.first)
         #expect(next.status == .planned)
         let sets = try #require(next.workoutExercises.first).workingSets
-        #expect(sets.map(\.repsPlanned) == [11, 11])
+        #expect(sets.map(\.repsPlanned) == [12, 12])
         #expect(sets.map(\.weightTenthsPlannedPounds) == [1400, 1400])
         #expect(sets.allSatisfy { $0.status == .planned })
+        #expect(weekTwo.weekKind == .build && weekTwo.blockWeek == 2)
+        #expect(next.workoutExercises.first?.rirTarget == 2)
     }
 
     @Test("Severe pain holds the next exercise behind a check-in until resolved")
@@ -107,7 +109,9 @@ struct WorkoutFlowTests {
         #expect(exercise.checkInSourcePain == .severe)
         #expect(exercise.locked)
         #expect(exercise.status == .planned)
-        #expect(exercise.workingSets.map(\.repsPlanned) == [10, 10])
+        // Severe pain halves the sets and takes 20% off.
+        #expect(exercise.workingSets.map(\.repsPlanned) == [10])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
         #expect(exercise.addSet() == nil)
         #expect(next.currentExerciseIndex == 0)
 
@@ -131,7 +135,7 @@ struct WorkoutFlowTests {
         exercise.resolveCheckIn(.continue)
 
         #expect(exercise.status == .active)
-        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
         #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
@@ -211,7 +215,7 @@ struct WorkoutFlowTests {
         #expect(exercise.checkInPending)
         #expect(exercise.checkInSourcePain == .severe)
         #expect(exercise.locked)
-        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
     }
 
     @Test("A check-in reaches past several skipped workouts to the last completed one")
@@ -440,14 +444,14 @@ struct WorkoutFlowTests {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
         let weekOne = try #require(program.nextWorkout)
         weekOne.startAndCascade()
-        log(weekOne, reps: 11, weightTenthsPounds: 1350)
+        log(weekOne, reps: 11, weightTenthsPounds: 1350, repsInReserve: .four)
         let weekTwo = try #require(program.finishWorkout(weekOne))
         let sets = try #require(weekTwo.workoutExercises.first).workingSets
         #expect(sets.allSatisfy { $0.reps == nil && $0.weightTenthsPounds == nil })
 
         weekTwo.startAndCascade()
 
-        #expect(sets.map(\.reps) == [11, 11])
+        #expect(sets.map(\.reps) == [12, 12])
         #expect(sets.map(\.weightTenthsPounds) == [1400, 1400])
         // The Live Activity's check button still sees the set as on target.
         #expect(sets.allSatisfy { $0.canCompleteAtTarget(repsOnly: false) })
@@ -484,7 +488,7 @@ struct WorkoutFlowTests {
         #expect(set.weightTenthsPounds == 950)
     }
 
-    @Test("The seeded week two matches the documented progression rules")
+    @Test("The seeded week two matches the Build progression rules")
     func seededWeekTwo() {
         let scenario = PowerJackSeed.weekTwoProgression()
         let week = scenario.weekTwoWorkouts
@@ -494,8 +498,9 @@ struct WorkoutFlowTests {
 
         #expect(bench.map(\.weightTenthsPlannedPounds) == [1400, 1400])
         #expect(scenario.checkInExercise.checkInPending)
-        #expect(pullUp.map(\.repsPlanned) == [9, 8])
-        #expect(pulldown.map(\.repsPlanned) == [10, 5])
+        #expect(pullUp.map(\.repsPlanned) == [8, 8])
+        #expect(pulldown.map(\.repsPlanned) == [7, 7])
+        #expect(pulldown.map(\.weightTenthsPlannedPounds) == [1100, 1100])
         #expect(scenario.program.nextWorkout === week[0])
     }
 
@@ -553,7 +558,8 @@ struct WorkoutFlowTests {
         reps: Int,
         weightTenthsPounds: Int,
         pain: LevelOfPain = .none,
-        effort: LevelOfEffort = .challenge
+        effort: LevelOfEffort = .challenge,
+        repsInReserve: RepsInReserve? = nil
     ) {
         for exercise in workout.workoutExercises {
             for set in exercise.workoutSets {
@@ -561,7 +567,10 @@ struct WorkoutFlowTests {
                 set.weightTenthsPounds = weightTenthsPounds
                 set.complete()
             }
-            exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: effort, levelOfPain: pain))
+            exercise.addFeedback(
+                feedback: repsInReserve.map { ExerciseFeedback(repsInReserve: $0, levelOfPain: pain) }
+                    ?? ExerciseFeedback(levelOfEffort: effort, levelOfPain: pain)
+            )
             exercise.completeAndCascade()
         }
     }
