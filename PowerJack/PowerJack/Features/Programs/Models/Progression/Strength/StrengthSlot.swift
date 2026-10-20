@@ -36,6 +36,9 @@ enum StrengthSlotKind: String, Codable {
 struct StrengthPlannedSet: Equatable {
     var reps: Int?
     var loadKg: Double?
+
+    /// Bodyweight exercises are reps-only (1.3), even one of the lifter's own that once had a load.
+    var repsOnly: StrengthPlannedSet { StrengthPlannedSet(reps: reps) }
 }
 
 /// What the planner writes on one slot.

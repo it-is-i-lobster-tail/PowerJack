@@ -551,6 +551,55 @@ struct StrengthEngineTests {
         #expect(next.rules == ["5.1", "hold"])
     }
 
+    @Test("A skipped accessory set planned under the rep range comes back inside it (5.1)")
+    func skippedSetBackIntoRange() {
+        let raises = LoadGrid(unit: .pounds, step: 5, isBarbell: false)
+        // The second set was held at 1 rep, then skipped this week.
+        let last = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 10, rir: 2, sets: [StrengthPlannedSet(reps: 10, loadKg: pounds(30)), StrengthPlannedSet(reps: 1, loadKg: pounds(30))]),
+            sets: [.init(loadKg: pounds(30), reps: 10, plannedLoadKg: pounds(30), completed: true), .init(loadKg: pounds(30), reps: nil, plannedLoadKg: pounds(30), completed: false)],
+            rir: 2,
+            pain: 0,
+            date: now
+        )
+        let next = plan(context(role: .accessory, zone: nil, grid: raises, repRange: 5...20, history: [last]), record: .init(), clock: StrengthClock())
+        #expect(next.sets.map(\.reps) == [10, 5])
+    }
+
+    @Test("A bodyweight exercise plans no weight, though it had one before its equipment changed (1.3)")
+    func bodyweightDropsLoads() {
+        let last = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 10, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 10, loadKg: 20)),
+            sets: Array(repeating: .init(loadKg: 20, reps: 10, plannedLoadKg: 20, completed: true), count: 2),
+            rir: 2,
+            pain: 0,
+            date: now
+        )
+        let bodyweight = StrengthSlotContext(
+            key: "own", role: .accessory, zone: nil, curve: .main, grid: nil, needsSpotter: false, repRange: 5...20, history: [last]
+        )
+        let next = StrengthPrescriber.plan(bodyweight, record: .init(), clock: StrengthClock(), at: now)
+        #expect(next.sets == StrengthSlotPlan.uniform(2, reps: 11, loadKg: nil))
+    }
+
+    @Test("Week 2 back repeats week 1 on the grid of the unit now in use (1.4, 12.3)")
+    func returnRepeatAfterUnitSwitch() {
+        let fine = LoadGrid(unit: .kilograms, step: 0.5, isBarbell: true)
+        var weekOne = StrengthSlotPlan(kind: .returnWeek1, reps: 4, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 4, loadKg: pounds(199)), intendedKg: pounds(199))
+        weekOne.returnBand = 1
+        let last = StrengthSession(
+            plan: weekOne,
+            sets: [4, 3].map { .init(loadKg: pounds(199), reps: $0, plannedLoadKg: pounds(199), completed: true) },
+            rir: 0,
+            pain: 0,
+            date: now
+        )
+        // 199 lb is 90.26 kg: 90 on 0.5 kg plates.
+        let next = plan(context(zone: .heavy, grid: fine, history: [last]), record: confident(e1rm: 120), clock: StrengthClock(blockWeek: 2))
+        #expect(next.rules == ["12.3"])
+        #expect(next.loadKg == 90)
+    }
+
     @Test("Week 2 back repeats week 1 evenly, even with a set the lifter added to it (12.3)")
     func returnRepeatEven() {
         var weekOne = StrengthSlotPlan(
@@ -628,6 +677,16 @@ struct StrengthEngineTests {
                              record: confident(e1rm: 136), clock: StrengthClock(blockWeek: 3))
         #expect(ceilinged.rules.contains("7.6"))
         #expect(ceilinged.loadKg == 124.5)
+    }
+
+    @Test("A pain ramp at workout start rounds a plan made before a unit switch down to the new grid (1.4, 15.7)")
+    func rampAfterUnitSwitch() {
+        // Planned at 60 kg, then switched to lb with 2 lb steps: 132.3 lb isn't on the grid, 131 lb is.
+        let lb2 = LoadGrid(unit: .pounds, step: 2, isBarbell: true)
+        var plan = StrengthSlotPlan(kind: .normal, reps: 6, rir: 2, sets: StrengthSlotPlan.uniform(3, reps: 6, loadKg: 60), intendedKg: 62)
+        _ = StrengthPain.apply(StrengthPainState(capShare: 0.98), to: &plan, lastSession: nil, grid: lb2)
+        #expect(plan.kind == .painCut)
+        #expect(abs((plan.loadKg ?? 0) - pounds(131)) < 0.001)
     }
 
     @Test("Deloads and micro-deloads cut from the bar when a cap kept it under the intended load (10.3, 10.6)")
