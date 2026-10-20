@@ -297,9 +297,9 @@ private extension BuildSimDriver {
             workoutExercise.resolveCheckIn(lifter.rng.pick(weighted: profile.checkIn))
         }
         guard workoutExercise.status == .active, var exercise = workoutExercise.exercise else { return nil }
-        if lifter.decides(profile.swapExercise), let replacement = replacement(for: exercise) {
-            workoutExercise.changeExercise(newExercise: replacement)
-            exercise = replacement
+        if lifter.decides(profile.swapExercise), let swap = replacement(for: exercise) {
+            workoutExercise.changeExercise(newExercise: swap)
+            exercise = swap
         }
         if lifter.decides(profile.skipExercise) || (lifter.isHurt(exercise) && lifter.decides(0.5)) {
             workoutExercise.skipRemainingSets()
