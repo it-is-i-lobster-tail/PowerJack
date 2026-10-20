@@ -362,29 +362,27 @@ struct PowerJackSimChecker {
                     // R10.2: an exercise in a pain episode, or with rising pain, gets no more load and no added set.
                     let pain = builder.painState(builder.exercise(slot))
                     if pain.inEpisode || pain.action == .hold(floor: false), previous.hasCompletedSets {
-                        for (index, part) in previous.parts.enumerated() {
-                            guard let before = part.heaviestLoad else { continue }
-                            let range = previous.isTopAndBack ? (index == 0 ? 0..<entry.topSets : entry.topSets..<entry.sets.count) : 0..<entry.sets.count
-                            for set in range.compactMap({ entry.sets.indices.contains($0) ? entry.sets[$0] : nil }) {
-                                guard let load = set.load else { continue }
-                                expect(load <= before + 1e-6, "R10.2", name,
-                                       "pain \(previous.pain?.label ?? "untapped") (\(pain.action)), but \(PowerJackSimText.pounds(before)) became \(PowerJackSimText.pounds(load))")
-                            }
+                        for (set, before) in zip(entry.sets, Self.lastLoads(of: previous, for: entry, tag: builder.role(slot).tag)) {
+                            guard let load = set.load, let before else { continue }
+                            expect(load <= before + 1e-6, "R10.2", name,
+                                   "pain \(previous.pain?.label ?? "untapped") (\(pain.action)), but \(PowerJackSimText.pounds(before)) became \(PowerJackSimText.pounds(load))")
                         }
                         expect(!entry.reasons.contains(.addedSet), "R10.2", name, "a set added in a pain episode")
                     }
                 case .build:
-                    // R10.2, R8.4: a block start never raises an exercise in a pain episode.
+                    // R10.2, R8.4: a block start never raises an exercise in a pain episode above what it last
+                    // lifted in a BUILD week, in this slot or, new to the slot, wherever it was done with this tag.
                     let pain = builder.painState(builder.exercise(slot))
-                    if pain.inEpisode, let latest = builder.latestBuildLog(slot), latest.hasCompletedSets {
-                        for (index, part) in latest.parts.enumerated() {
-                            guard let before = part.heaviestLoad else { continue }
-                            let range = latest.isTopAndBack ? (index == 0 ? 0..<entry.topSets : entry.topSets..<entry.sets.count) : 0..<entry.sets.count
-                            for set in range.compactMap({ entry.sets.indices.contains($0) ? entry.sets[$0] : nil }) {
-                                guard let load = set.load else { continue }
-                                expect(load <= before + 1e-6, "R10.2", name,
-                                       "in a pain episode (\(pain.action)), but the block starts at \(PowerJackSimText.pounds(load)) after \(PowerJackSimText.pounds(before))")
-                            }
+                    let tag = builder.role(slot).tag
+                    let builds: [PowerJackExposure] = builder.context.history(entry.exercise.id)
+                        .filter { $0.weekType == .build && $0.entry.hasCompletedSets }
+                    let sameTag: PowerJackExposure? = builds.last { $0.tag == tag || $0.tag == .topAndBack }
+                    let elsewhere = (sameTag ?? builds.last)?.entry
+                    if pain.inEpisode, let latest = builder.latestBuildLog(slot) ?? elsewhere, latest.hasCompletedSets {
+                        for (set, before) in zip(entry.sets, Self.lastLoads(of: latest, for: entry, tag: tag)) {
+                            guard let load = set.load, let before else { continue }
+                            expect(load <= before + 1e-6, "R10.2", name,
+                                   "in a pain episode (\(pain.action)), but the block starts at \(PowerJackSimText.pounds(load)) after \(PowerJackSimText.pounds(before))")
                         }
                     }
                 }
@@ -394,6 +392,19 @@ struct PowerJackSimChecker {
     }
 
     // MARK: Helpers
+
+    /// The load each planned set may not pass in a pain episode: its own part of `log` (TOP sets read TOP
+    /// sets, a TOP entry the TOP sets, a BACK entry the BACK sets), else the heaviest of it.
+    private static func lastLoads(of log: PowerJackEntryLog, for entry: PowerJackEntryPlan, tag: PowerJackTag?) -> [Double?] {
+        let parts = log.parts.map(\.heaviestLoad)
+        let heaviest = parts.compactMap { $0 }.max()
+        return entry.sets.indices.map { index in
+            guard log.isTopAndBack else { return heaviest }
+            if entry.topSets > 0 { return parts[index < entry.topSets ? 0 : 1] ?? heaviest }
+            if tag == .heavy || tag == .volume { return parts[tag == .heavy ? 0 : 1] ?? heaviest }
+            return heaviest
+        }
+    }
 
     private mutating func expect(_ condition: Bool, _ rule: String, _ place: String, _ detail: @autoclosure () -> String) {
         guard !condition else { return }

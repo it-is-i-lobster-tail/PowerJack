@@ -163,15 +163,30 @@ extension PowerJackWeekBuilder {
         return top || role(slot).tag == .heavy ? heavyReps : volumeReps
     }
 
-    /// R10.2: never above what the slot last lifted in a BUILD week.
+    /// R10.2: never above what the exercise last lifted in a BUILD week: in this slot, or where it was
+    /// last done when it's new to the slot. A TOP entry reads a TOP-and-BACK log's TOP sets, a BACK entry
+    /// its BACK sets.
     private func holdAtLastLoads(_ plan: inout PowerJackEntryPlan, slot: SlotRef) {
-        guard let latest = latestBuildLog(slot) else { return }
+        guard let latest = latestBuildLog(slot) ?? latestBuildExposure(slot) else { return }
         let parts = latest.parts.map(\.heaviestLoad)
+        let tag = role(slot).tag
         for index in plan.sets.indices {
-            let partLoad = latest.isTopAndBack && plan.topSets > 0 ? parts[index < plan.topSets ? 0 : 1] : parts.compactMap { $0 }.max()
-            guard let last = partLoad, let load = plan.sets[index].load, load > last else { continue }
+            var partLoad: Double?
+            if latest.isTopAndBack, plan.topSets > 0 {
+                partLoad = parts[index < plan.topSets ? 0 : 1]
+            } else if latest.isTopAndBack, tag == .heavy || tag == .volume {
+                partLoad = parts[tag == .heavy ? 0 : 1]
+            }
+            guard let last = partLoad ?? parts.compactMap({ $0 }).max(), let load = plan.sets[index].load, load > last else { continue }
             plan.sets[index].load = last
         }
+    }
+
+    /// The exercise's latest BUILD exposure in any slot, planned with this slot's tag when there is one.
+    private func latestBuildExposure(_ slot: SlotRef) -> PowerJackEntryLog? {
+        let tag = role(slot).tag
+        let builds = context.history(exercise(slot).id).filter { $0.weekType == .build && $0.entry.hasCompletedSets }
+        return (builds.last { $0.tag == tag || $0.tag == .topAndBack } ?? builds.last)?.entry
     }
 
     /// R2.5 and R10.7: no load rises past max(10% over the best load of the last 14 days, one step), block
