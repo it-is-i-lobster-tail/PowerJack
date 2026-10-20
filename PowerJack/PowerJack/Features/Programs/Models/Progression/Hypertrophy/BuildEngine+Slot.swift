@@ -67,12 +67,12 @@ extension BuildEngine {
             draft.caps.noJump = true
             draft.caps.noRamp = true
         }
-        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02), after an exposure with
-        // a pain tap: an unrated one never gains a set (ENG-02).
+        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02), after a rated exposure:
+        // an unrated or legacy-rated one never gains a set (ENG-02, RIR-02).
         if state.exposuresSinceRelease != nil,
            let target = state.setsBeforePainCut,
            exposure.plannedSets < target,
-           exposure.pain != nil,
+           exposure.tappedRIR != nil,
            !draft.caps.noIncrease {
             let exercise = context.slots[index].exercise
             draft.plan = BuildSlotPlan(

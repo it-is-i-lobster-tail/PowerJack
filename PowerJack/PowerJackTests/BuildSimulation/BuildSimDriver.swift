@@ -38,6 +38,8 @@ final class BuildSimDriver {
     private var lastTrained: Date?
     /// Trained build weeks in a row since the last deload, return week or break, across programs.
     private var buildRun = 0
+    /// The pain tapped the last time each exercise was done, nil when it went unrated.
+    private var lastPain: [String: LevelOfPain] = [:]
 
     init(seed: UInt64, profile: BuildSimProfile, weeks: Int, keepsTrace: Bool = false) throws {
         self.seed = seed
@@ -70,12 +72,12 @@ final class BuildSimDriver {
         for day in 0..<(weeks * 7) {
             let date = Self.firstDay.addingTimeInterval(Double(day) * 86_400)
             if day.isMultiple(of: 7) {
-                try startCalendarWeek(day: day, at: date)
+                startCalendarWeek(day: day, at: date)
             }
             guard day >= breakEndsDay else { continue }
             if program?.status != .active {
                 guard day >= nextProgramDay else { continue }
-                try startProgram(at: date)
+                startProgram(at: date)
             }
             guard let program, trainingDays.contains(day % 7), !lifter.decides(profile.missDay) else { continue }
 
@@ -100,7 +102,7 @@ final class BuildSimDriver {
 // Calendar
 //
 private extension BuildSimDriver {
-    func startCalendarWeek(day: Int, at date: Date) throws {
+    func startCalendarWeek(day: Int, at date: Date) {
         lifter.endWeek(at: date)
         guard day >= breakEndsDay else { return }
         if lifter.decides(profile.breakChance) {
@@ -116,18 +118,19 @@ private extension BuildSimDriver {
         }
         if lifter.decides(profile.abandonProgram) {
             report.programsAbandoned += 1
-            try startProgram(at: date)
+            startProgram(at: date)
         }
     }
 
     /// Starts a new program the way Programs › New does, stopping the active one.
-    func startProgram(at date: Date) throws {
+    func startProgram(at date: Date) {
         let template = chooseTemplate()
         let length = lifter.rng.int(profile.programWeeks)
         let program = BuildPlanner.$startDate.withValue(date) {
             Program(programLengthWeeks: length, templateProgram: template)
         }
-        try context.insertAndSave(program)
+        // The app saves here. One in-memory context needs no saves, and skipping them keeps years of logs fast.
+        context.insert(program)
         if let lastTrained, date.timeIntervalSince(lastTrained) >= Double(BuildRules.returnBandsDays[0]) * 86_400 {
             buildRun = 0
         }
@@ -256,22 +259,14 @@ private extension BuildSimDriver {
     }
 
     /// Exercises that start a new program with no check-in, though they were painful (Moderate or worse) the last
-    /// time they were done in another program. PAIN-03 asks for pain state to carry over.
+    /// time they were done. PAIN-03 asks for pain state to carry over to a new program.
     func countPainLeftBehind(by program: Program) {
         guard let week = program.programWeeks.first else { return }
         for slot in BuildSimSlot.all(in: week) where !slot.workoutExercise.checkInPending {
-            let earlier = (slot.exercise.workoutExercisesValue ?? []).filter { past in
-                past.workoutValue?.programWeekValue?.programValue !== program && past.completedWorkingSets > 0
-            }
-            let last = earlier.max { lastSet($0) < lastSet($1) }
-            if let pain = last?.feedback?.levelOfPain, pain.rawValue >= BuildRules.holdAt.rawValue {
+            if let pain = lastPain[slot.name], pain.rawValue >= BuildRules.holdAt.rawValue {
                 report.painLeftBehind += 1
             }
         }
-    }
-
-    func lastSet(_ workoutExercise: WorkoutExercise) -> Date {
-        workoutExercise.workingSets.compactMap(\.completedAt).max() ?? .distantPast
     }
 
     /// How far each new build-week target sits from what the lifter can really do: reps left on a fresh first set.
@@ -348,8 +343,10 @@ private extension BuildSimDriver {
 
         let pain = lifter.pain(after: exercise)
         guard workoutExercise.needsFeedback, !lifter.decides(profile.noRating) else {
+            lastPain[exercise.exerciseName] = nil
             return "\(exercise.exerciseName) \(logged.joined(separator: ",")) unrated"
         }
+        lastPain[exercise.exerciseName] = pain
         let feedback: ExerciseFeedback
         if lifter.decides(profile.legacyRating) {
             feedback = ExerciseFeedback(levelOfEffort: lifter.legacyWord(repsLeft: repsLeft), levelOfPain: pain)
