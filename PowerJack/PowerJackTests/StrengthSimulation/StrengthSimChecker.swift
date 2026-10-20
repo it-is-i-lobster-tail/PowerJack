@@ -120,6 +120,7 @@ struct StrengthSimChecker {
                 checkDeload(slot, history: history, at: at)
             } else {
                 checkRise(slot, history: history, at: at)
+                checkAccessory(slot, history: history, at: at)
             }
         }
     }
@@ -296,11 +297,8 @@ struct StrengthSimChecker {
         }
 
         if checksGrid, let load = slot.loadKg {
-            let logged = history.first.map { $0.sets.compactMap(\.weightTenthsPounds).map { WeightUnit.kilograms(fromTenthsPounds: $0) } } ?? []
-            let onGrid = abs(grid.nearest(load) - load) <= Self.tolerance
-            let asLogged = logged.contains { abs($0 - load) <= Self.tolerance }
-            expect(onGrid || asLogged, "1.1", here,
-                   "planned at \(Self.format(load)) kg, off the \(grid.step) \(grid.unit.symbol) grid and not a weight last logged")
+            expect(abs(grid.nearest(load) - load) <= Self.tolerance, "1.1", here,
+                   "planned at \(Self.format(load)) kg, off the \(grid.step) \(grid.unit.symbol) grid (\(Self.describe(slot)))")
             expect(load >= grid.minimumKilograms - Self.tolerance, "1.1", here, "planned at \(Self.format(load)) kg, under the bar or one step")
         }
         // Calibration weeks keep the warm-ups the lifter logged (5.7).
@@ -323,10 +321,17 @@ struct StrengthSimChecker {
         // A lift with nothing to deload from calibrates by feel instead (2.2).
         expect(kind == .deload || (kind == .calibration && slot.load == nil), "10.6", here, "planned as \(Self.describe(slot)) in a deload week")
         guard kind == .deload else { return }
-        guard let source = history.first(where: { $0.kind == .normal || $0.kind == .calibration }) ?? history.first else { return }
+        // The last normal week with a load, as the planner reads it: a slot it never wrote, such as a swapped
+        // exercise, reads as a by-feel week.
+        let rated = { (week: StrengthSimSlot) in week.ratedSet?.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) } }
+        let normal = history.first { week in
+            [.normal, .calibration].contains(week.kind ?? .calibration) && (week.workoutExercise.intendedLoadKg ?? rated(week)) != nil
+        }
+        guard let source = normal ?? history.first else { return }
         let sets = max(1, source.sets.count / 2)
         expect(slot.sets.count == sets, "10.6", here, "\(slot.sets.count) sets, half of \(source.sets.count) is \(sets)")
-        let base = source.workoutExercise.intendedLoadKg ?? source.ratedSet?.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) }
+        // 90% of the intended load, or of the bar when a cap kept the bar under it.
+        let base = [source.workoutExercise.intendedLoadKg, source.loadKg ?? rated(source)].compactMap { $0 }.min()
         if let base, let load = slot.loadKg {
             let expected = grid.nearest(base * StrengthRules.deloadLoadFactor)
             expect(abs(load - expected) <= Self.tolerance, "10.6", here,
@@ -357,6 +362,23 @@ struct StrengthSimChecker {
         if slot.kind == .microDeload, let lastLoad = last.loadKg {
             expect(load <= lastLoad + Self.tolerance, "10.3", here, "a micro-deload at \(Self.format(load)) kg after \(Self.format(lastLoad)) kg")
         }
+    }
+
+    /// 5.1: an accessory keeps today's double progression: its sets stay, a set skipped one week included, and its
+    /// reps stay inside its range unless pain or a 0 rating holds them where they were.
+    private mutating func checkAccessory(_ slot: StrengthSimSlot, history: [StrengthSimSlot], at here: String) {
+        guard
+            slot.role == .accessory, slot.kind == .accessory,
+            let last = history.first(where: { !($0.kind?.isLight ?? false) }),
+            last.ratedSet != nil
+        else { return }
+        expect(slot.sets.count >= last.sets.count, "5.1", here,
+               "\(slot.sets.count) sets after \(last.sets.count) last time (\(Self.describe(slot)))")
+        let feedback = last.workoutExercise.feedback
+        let held = (feedback?.levelOfPain.rawValue ?? 0) >= StrengthRules.painHold.rawValue || feedback?.repsInReserve == .zero
+        let low = slot.sets.compactMap(\.repsPlanned).filter { $0 < slot.exercise.repRange.lowerBound }
+        expect(held || low.isEmpty, "5.1", here,
+               "planned \(low) reps, under its \(slot.exercise.repRange) range (\(Self.describe(slot)))")
     }
 
     // MARK: Helpers

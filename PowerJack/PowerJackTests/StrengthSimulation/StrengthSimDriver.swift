@@ -48,6 +48,9 @@ final class StrengthSimDriver {
     private var trainingDays: Set<Int> = []
     /// What really happened to each lift, by record key.
     private var truth: [String: StrengthSimTruth] = [:]
+    /// The lift records as last logged, and how many logs there are. Only a week's close changes them.
+    private var records = StrengthState()
+    private var logCount = 0
 
     init(seed: UInt64, profile: StrengthSimProfile, weeks: Int, keepsTrace: Bool = false) throws {
         self.seed = seed
@@ -84,6 +87,8 @@ final class StrengthSimDriver {
             context.insert(StrengthLog(date: Self.firstDay.addingTimeInterval(-86_400), state: state))
         }
         try context.save()
+        records = StrengthLog.latestState(in: context)
+        logCount = try context.fetchCount(FetchDescriptor<StrengthLog>())
         checker.gridFor = Self.grids(settings)
     }
 
@@ -248,19 +253,13 @@ private extension StrengthSimDriver {
         let isStrength = previous.templateType == .strength
         let week = previous.nextWorkout.flatMap(previous.programWeek(containing:))
         let trained = week?.workouts.contains { workout in workout.workoutExercises.contains { $0.completedWorkingSets > 0 } } ?? false
-        let logsBefore = strengthLogCount()
-        let recordsBefore = latestRecords()
         act(at: date) {
             previous.stop()
             previous.stopAndCascade()
         }
         report.trace("\(Self.dayText(date)) stop \(checker.place)")
         guard isStrength else { return }
-        let here = "\(checker.place) stopped"
-        checker.checkClose(logsBefore: logsBefore, logsAfter: strengthLogCount(), expected: trained ? 1 : 0, at: here)
-        if trained {
-            checkRecords(after: recordsBefore, closed: week?.weekKind, at: here)
-        }
+        recordClose(expected: trained ? 1 : 0, closed: week?.weekKind, at: "\(checker.place) stopped")
     }
 
     func chooseTemplate() -> TemplateProgram {
@@ -276,18 +275,20 @@ private extension StrengthSimDriver {
         return lifter.rng.pick(strengthTemplates)
     }
 
-    func strengthLogCount() -> Int {
-        (try? context.fetchCount(FetchDescriptor<StrengthLog>())) ?? 0
-    }
-
-    func latestRecords() -> StrengthState {
-        StrengthLog.latestState(in: context)
-    }
-
-    func checkRecords(after previous: StrengthState, closed: WeekKind?, at here: String) {
-        let records = latestRecords()
+    /// After a week closed, or a program stopped: the records logged that many times, and what they hold now.
+    /// Saving here, as the app's autosave would, keeps the planner's own fetches quick.
+    func recordClose(expected: Int, closed: WeekKind?, at here: String) {
+        try? context.save()
+        let count = (try? context.fetchCount(FetchDescriptor<StrengthLog>())) ?? 0
+        checker.checkClose(logsBefore: logCount, logsAfter: count, expected: expected, at: here)
+        logCount = count
+        guard expected > 0 else { return }
+        let previous = records
+        records = StrengthLog.latestState(in: context)
         checker.checkRecords(
-            records, previous: previous, closed: closed, lifter: lifter, honest: profile.rating == .honest,
+            // A set stopped short on purpose reads as a failed one (3.3, 4.1), so only lifters who rate as they feel
+            // and finish their sets can expect estimates near the truth.
+            records, previous: previous, closed: closed, lifter: lifter, honest: profile.rating == .honest && profile.reps != .shortOfPlan,
             exercises: exercisesByKey, at: here
         )
         report.trainedWeeks = records.clock.trainedWeeks
@@ -296,7 +297,6 @@ private extension StrengthSimDriver {
 
     /// Each priority lift's final e1RM against the lifter's true max, for lifts trained in the last 8 weeks.
     func finishRun(at end: Date) {
-        let records = latestRecords()
         for key in records.lifts.keys.sorted() {
             guard
                 let e1rm = records[key].e1rmKg,
@@ -341,7 +341,7 @@ private extension StrengthSimDriver {
         let before = Dictionary(StrengthSimSlot.all(in: workout).map { (ObjectIdentifier($0.workoutExercise), StrengthSimChecker.signature(of: $0)) }) { first, _ in first }
         act(at: date) { program.prepareToStart(workout, at: date) }
         guard program.templateType == .strength else { return }
-        checker.checkStart(of: workout, in: program, at: date, records: latestRecords(), truth: truth, before: before)
+        checker.checkStart(of: workout, in: program, at: date, records: records, truth: truth, before: before)
         let changed = StrengthSimSlot.all(in: workout).filter { before[ObjectIdentifier($0.workoutExercise)] != StrengthSimChecker.signature(of: $0) }
         for slot in changed {
             report.count(kind: slot.kind, rules: slot.rules)
@@ -358,8 +358,6 @@ private extension StrengthSimDriver {
         let index = weeks.firstIndex { week in week.workouts.contains { $0 === workout } }
         let nextWasEmpty = index.map { $0 + 1 < weeks.count && weeks[$0 + 1].workouts.isEmpty } ?? false
         let weekWasOpen = index.map { weeks[$0].status != .complete } ?? false
-        let logsBefore = strengthLogCount()
-        let recordsBefore = latestRecords()
         _ = act(at: date) {
             skip ? program.skipWorkout(workout) : program.finishWorkout(workout)
         }
@@ -371,12 +369,10 @@ private extension StrengthSimDriver {
         }
         guard isStrength, let index else { return }
         if weekWasOpen, weeks[index].status == .complete {
-            let here = "\(checker.place) week \(index + 1) closed"
-            checker.checkClose(logsBefore: logsBefore, logsAfter: strengthLogCount(), expected: 1, at: here)
-            checkRecords(after: recordsBefore, closed: weeks[index].weekKind, at: here)
+            recordClose(expected: 1, closed: weeks[index].weekKind, at: "\(checker.place) week \(index + 1) closed")
         }
         if nextWasEmpty, !weeks[index + 1].workouts.isEmpty {
-            checker.checkBuild(of: program, week: index + 1, records: latestRecords())
+            checker.checkBuild(of: program, week: index + 1, records: records)
             traceWeek(of: program, index: index + 1)
             recordSlack(in: weeks[index + 1])
         }

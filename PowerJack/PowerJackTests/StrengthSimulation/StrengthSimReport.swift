@@ -109,7 +109,7 @@ struct StrengthSimReport {
             + "\(checkIns) check-ins; \(weeksChecked) weeks and \(workoutsChecked) workouts checked (\(weekText); \(lifts)); "
             + "\(trainedWeeks) strength weeks logged, ending \(experience.rawValue); targets: median "
             + "\(String(format: "%.1f", medianSlack)) reps to spare, \(percent(tooHard)) too hard, \(percent(tooEasy)) too easy; "
-            + "e1RM: median \(String(format: "%.2f", median(e1rmRatios)))× true, \(percent(e1rmOff)) off by 20%+"
+            + (e1rmRatios.isEmpty ? "no recent e1RMs" : "e1RM: median \(String(format: "%.2f", median(e1rmRatios)))× true, \(percent(e1rmOff)) off by 20%+")
     }
 
     private func percent(_ share: Double) -> String {

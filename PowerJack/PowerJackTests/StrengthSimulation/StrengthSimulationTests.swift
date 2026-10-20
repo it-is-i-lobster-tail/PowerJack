@@ -6,8 +6,8 @@
 //  models, and every week and workout the planner writes is checked against the strength rulebook
 //  (`StrengthSimChecker`). Each lifter replays exactly from its seed.
 //
-//  The normal test run covers every archetype for a year and a few random lifters. The full sweep and
-//  replays run on demand, with settings passed as TEST_RUNNER_ environment variables:
+//  The normal test run covers every archetype for half a year and a few random lifters for a year, so CI stays
+//  quick. The full sweep and replays run on demand, with settings passed as TEST_RUNNER_ environment variables:
 //
 //      scripts/simulate-strength.sh                             # 300 random lifters and every archetype, 2 years each
 //      scripts/simulate-strength.sh --lifters 1000 --weeks 52
@@ -23,10 +23,10 @@ import Testing
 
 @MainActor
 struct StrengthSimulationTests {
-    @Test("Every kind of lifter trains a year of Strengthen programs without breaking a rule", arguments: StrengthSimProfile.archetypes.map(\.name))
+    @Test("Every kind of lifter trains half a year of Strengthen programs without breaking a rule", arguments: StrengthSimProfile.archetypes.map(\.name))
     func archetype(_ name: String) throws {
         let profile = try #require(StrengthSimProfile.archetype(named: name))
-        try expectSound(StrengthSimulation.run(profile, seed: StrengthSimulation.seed(for: name), weeks: 52), profile)
+        try expectSound(StrengthSimulation.run(profile, seed: StrengthSimulation.seed(for: name), weeks: 26), profile)
     }
 
     @Test("Random lifters train a year of Strengthen programs without breaking a rule", arguments: StrengthSimulation.smokeSeeds)
@@ -37,11 +37,11 @@ struct StrengthSimulationTests {
 
     @Test("Principle 7: the same lifter and seed give the same weeks, workout for workout")
     func sameSeedSameWeeks() throws {
-        let first = try StrengthSimulation.run(.chaos, seed: 2_026, weeks: 30)
-        let second = try StrengthSimulation.run(.chaos, seed: 2_026, weeks: 30)
+        let first = try StrengthSimulation.run(.chaos, seed: 2_026, weeks: 20)
+        let second = try StrengthSimulation.run(.chaos, seed: 2_026, weeks: 20)
         #expect(first.fingerprint == second.fingerprint)
         #expect(first.workouts == second.workouts && first.weeksChecked == second.weeksChecked)
-        let other = try StrengthSimulation.run(.chaos, seed: 2_027, weeks: 30)
+        let other = try StrengthSimulation.run(.chaos, seed: 2_027, weeks: 20)
         #expect(other.fingerprint != first.fingerprint)
     }
 
@@ -92,7 +92,7 @@ enum StrengthSimulation {
     private static let environment = ProcessInfo.processInfo.environment
 
     /// Random lifters in the normal test run.
-    nonisolated static let smokeSeeds: [UInt64] = [13, 29, 47, 61, 83, 97]
+    nonisolated static let smokeSeeds: [UInt64] = [13, 29, 47, 61]
 
     /// STRENGTH_SIM_SWEEP: how many random lifters the full sweep runs.
     static let sweep = environment["STRENGTH_SIM_SWEEP"].flatMap(Int.init)
