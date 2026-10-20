@@ -48,6 +48,15 @@ final class WorkoutExercise {
     private var rirTargetValue: Int?
     private var progressionCodeValue: String?
     private var progressionNoteValue: String?
+    // PowerJack's plan for this slot (see `PowerJackPlanner`): its role and tag, its TOP sets and their
+    // reps-left tap, the unrounded loads it ramps from, and whether it calibrates a new anchor.
+    var powerJackRoleValue: String?
+    var powerJackTagValue: String?
+    var powerJackTopSetsValue: Int = 0
+    var powerJackTopRIRValue: Int?
+    var powerJackLoadTargetValue: Double?
+    var powerJackTopLoadTargetValue: Double?
+    var powerJackCalibratingValue: Bool = false
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -449,6 +458,21 @@ extension WorkoutExercise {
         progressionCodeValue = code
         progressionNoteValue = note
     }
+    /// Replaces a planned exercise's warmups. Working sets stay.
+    func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only replace the warmups of a planned WorkoutExercise.")
+            return
+        }
+        for warmup in warmupSets {
+            workoutSetsValue?.removeAll { $0 === warmup }
+            modelContext?.delete(warmup)
+        }
+        // Disabled warmups stay off (see `canAddSet`).
+        for set in sets {
+            addPlannedSet(type: .warmup, plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
+        }
+    }
     /// Replaces a planned exercise's working sets. Warmups stay.
     func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
         guard status == .planned else {
@@ -540,6 +564,7 @@ extension WorkoutExercise {
         rirTargetValue = nil
         progressionCodeValue = nil
         progressionNoteValue = nil
+        clearPowerJackPlan()
         deleteAllSets()
         addInitialSets()
     }

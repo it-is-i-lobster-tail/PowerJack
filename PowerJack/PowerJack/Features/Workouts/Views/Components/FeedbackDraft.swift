@@ -11,13 +11,19 @@ struct FeedbackDraft {
     var levelOfEffort: LevelOfEffort?
     var repsInReserve: RepsInReserve?
     var levelOfPain: LevelOfPain?
+    /// A PowerJack top set left unrated while its back sets were logged, so it's asked here.
+    var asksTopSet = false
+    var topSetRepsInReserve: RepsInReserve?
 
     var canSave: Bool {
-        levelOfPain != nil && (ratesRepsInReserve ? repsInReserve != nil : levelOfEffort != nil)
+        levelOfPain != nil
+            && (ratesRepsInReserve ? repsInReserve != nil : levelOfEffort != nil)
+            && (!asksTopSet || topSetRepsInReserve != nil)
     }
 
-    init(ratesRepsInReserve: Bool = false) {
+    init(ratesRepsInReserve: Bool = false, asksTopSet: Bool = false) {
         self.ratesRepsInReserve = ratesRepsInReserve
+        self.asksTopSet = asksTopSet
     }
 
     init(exerciseFeedback: ExerciseFeedback) {
