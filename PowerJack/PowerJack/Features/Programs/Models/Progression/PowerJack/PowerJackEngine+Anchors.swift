@@ -59,18 +59,19 @@ extension PowerJackWeekBuilder {
     /// else the previous anchor raised only by floors.
     func currentE1RM(_ exercise: PowerJackExercise, _ series: PowerJackSeries, previous: Double?) -> Double? {
         let oldest = context.now.addingTimeInterval(-Double(PowerJackRules.anchorMaxAgeDays) * 86_400)
-        let values = parts(of: exercise, in: series).compactMap { item -> (date: Date, value: Double, estimate: Bool)? in
+        let values = parts(of: exercise, in: series).compactMap { item -> (date: Date, value: Double, estimate: Bool, floor: Double)? in
             guard item.date >= oldest,
                   item.exposure.weekType != .deload,
                   (item.exposure.entry.pain?.rawValue ?? 0) < LevelOfPain.moderate.rawValue,
                   let value = item.part.value
             else { return nil }
-            return (item.date, value.value, value.hasEstimate)
+            return (item.date, value.value, value.hasEstimate, value.floor)
         }
         let estimates = values.filter(\.estimate).suffix(PowerJackRules.anchorWindow)
         let cutoff = estimates.first?.date ?? values.first?.date
         var current = estimates.isEmpty ? previous : median(estimates.map(\.value))
-        if let cutoff, let floor = values.filter({ $0.date >= cutoff }).map(\.value).max() {
+        // Raised to floors only: an estimate's own value never outvotes the median.
+        if let cutoff, let floor = values.filter({ $0.date >= cutoff }).map(\.floor).max() {
             current = max(current ?? floor, floor)
         }
         return current

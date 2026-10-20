@@ -12,8 +12,15 @@ import Foundation
 extension PowerJackWeekBuilder {
     // MARK: Muscles
 
-    /// Muscles that are the primary muscle of an exercise in the week: focus ones and standard ones (R3.2).
-    var targetedMuscles: Set<Muscle> { Set(structure.joined().map(\.primary)) }
+    /// Muscles that are the primary muscle of an exercise in the week: focus ones and standard ones (R3.2),
+    /// in the order of their first exercise, which breaks ties the same way every time (G24).
+    var targetedMuscles: [Muscle] {
+        var muscles: [Muscle] = []
+        for exercise in structure.joined() where !muscles.contains(exercise.primary) {
+            muscles.append(exercise.primary)
+        }
+        return muscles
+    }
 
     func isFocus(_ muscle: Muscle) -> Bool { context.focusMuscles.contains(muscle) }
 
@@ -122,7 +129,7 @@ extension PowerJackWeekBuilder {
             var changed = false
             let current = credits(counts)
             // Trim: over target by more than the tolerance.
-            for (muscle, target) in targets where current[muscle, default: 0] > target + PowerJackRules.creditTolerance {
+            for muscle in targetedMuscles where current[muscle, default: 0] > targets[muscle, default: 0] + PowerJackRules.creditTolerance {
                 let candidate = adjustable(muscle)
                     .filter { counts[$0, default: 0] > PowerJackRules.minSetsPerExposure }
                     .max { a, b in
@@ -135,13 +142,13 @@ extension PowerJackWeekBuilder {
             }
             // Fill: short by the tolerance or more, focus muscles first, then the largest gap.
             let refreshed = credits(counts)
-            let short = targets
-                .filter { $0.value - refreshed[$0.key, default: 0] >= PowerJackRules.creditTolerance }
+            let gap = { (muscle: Muscle) in targets[muscle, default: 0] - refreshed[muscle, default: 0] }
+            let short = targetedMuscles.enumerated()
+                .filter { gap($0.element) >= PowerJackRules.creditTolerance }
                 .sorted { a, b in
-                    (isFocus(a.key) ? 1 : 0, a.value - refreshed[a.key, default: 0])
-                        > (isFocus(b.key) ? 1 : 0, b.value - refreshed[b.key, default: 0])
+                    (isFocus(a.element) ? 1 : 0, gap(a.element), -a.offset) > (isFocus(b.element) ? 1 : 0, gap(b.element), -b.offset)
                 }
-            for (muscle, _) in short {
+            for (_, muscle) in short {
                 if let candidate = fillCandidate(adjustable(muscle), counts: counts) {
                     counts[candidate]! += 1
                     changed = true
@@ -277,7 +284,7 @@ extension PowerJackWeekBuilder {
         let current = credits(counts)
         var added = 0
 
-        let eligible = targetedMuscles.filter { muscle in
+        let eligible = targetedMuscles.enumerated().filter { _, muscle in
             let needed = isFocus(muscle) ? PowerJackRules.focusAddEligibleWeeks : PowerJackRules.addEligibleWeeks
             let changes = setChanges(muscle, in: currentBlockBuildWeeks)
             let limit = max(1, (PowerJackRules.blockAddPct / 100 * Double(blockStart(muscle))).roundedHalfUp)
@@ -287,8 +294,10 @@ extension PowerJackWeekBuilder {
                 && changes.adds < limit
         }
         .sorted { a, b in
-            (isFocus(a) ? 1 : 0, Double(cap(a)) - current[a, default: 0]) > (isFocus(b) ? 1 : 0, Double(cap(b)) - current[b, default: 0])
+            let room = { (muscle: Muscle) in Double(cap(muscle)) - current[muscle, default: 0] }
+            return (isFocus(a.element) ? 1 : 0, room(a.element), -a.offset) > (isFocus(b.element) ? 1 : 0, room(b.element), -b.offset)
         }
+        .map(\.element)
 
         for muscle in eligible where added < PowerJackRules.maxAddsPerWeek {
             let candidates = slots.filter { slot in

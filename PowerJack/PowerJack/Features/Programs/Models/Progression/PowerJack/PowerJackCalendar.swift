@@ -76,7 +76,7 @@ extension PowerJackCalendar {
         hardDeload: Bool
     ) -> PowerJackWeekPlanHeader {
         guard let last = weeks.last else { return firstWeek(programWeeks: programWeeks) }
-        let rest = programWeeks - weeks.count
+        let plan = Replay(weeks, programWeeks: programWeeks).plan(from: weeks.count)
 
         if last.type == .deload {
             let previous = weeks.dropLast().last
@@ -85,7 +85,14 @@ extension PowerJackCalendar {
                     type: .deload, blockNumber: last.blockNumber, blockWeek: 0, column: 0, isBlockStart: false
                 )
             }
-            return blockStart(number: last.blockNumber + 1, rest: rest)
+            return PowerJackWeekPlanHeader(
+                type: .build,
+                blockNumber: last.blockNumber + 1,
+                blockWeek: 1,
+                column: 1,
+                isBlockStart: true,
+                isLastBuildWeek: blockBuildWeeks(counted: 0, plan: plan) <= 1
+            )
         }
 
         let block = weeks.filter { $0.blockNumber == last.blockNumber && $0.type == .build }
@@ -105,7 +112,6 @@ extension PowerJackCalendar {
             return deload
         }
 
-        let plan = layout(weeks: rest, carry: counted.count)
         let nextWeek = counted.count + 1
         var buildWeeks = blockBuildWeeks(counted: counted.count, plan: plan)
         if plan.first == .deload {
@@ -131,53 +137,76 @@ extension PowerJackCalendar {
         )
     }
 
-    private static func blockStart(number: Int, rest: Int) -> PowerJackWeekPlanHeader {
-        let plan = layout(weeks: rest, carry: 0)
-        return PowerJackWeekPlanHeader(
-            type: plan.first ?? .build,
-            blockNumber: number,
-            blockWeek: plan.first == .deload ? 0 : 1,
-            column: plan.first == .deload ? 0 : 1,
-            isBlockStart: true,
-            isLastBuildWeek: blockBuildWeeks(counted: 0, plan: plan) <= 1
-        )
-    }
-
     /// Block number, block week and target column of each built week, replayed from their types,
     /// so the program only stores each week's type (R5.1).
     static func replay(_ weeks: [PowerJackWeekLog], programWeeks: Int) -> [(block: Int, week: Int, column: Int)] {
-        var result: [(block: Int, week: Int, column: Int)] = []
-        var block = 1
-        var counted = 0
-        var lastColumn = 0
-        var afterDeload = false
-        for (index, week) in weeks.enumerated() {
-            if week.type == .deload {
-                result.append((block, 0, 0))
-                afterDeload = true
-                continue
-            }
-            if afterDeload {
-                block += 1
-                counted = 0
-                lastColumn = 0
-                afterDeload = false
-            }
-            let plan = layout(weeks: programWeeks - index, carry: counted)
-            // A planned deload here means the engine postponed it by one BUILD week (R6.2).
-            let buildWeeks = plan.first == .deload ? counted : blockBuildWeeks(counted: counted, plan: plan)
-            let column = column(week: counted + 1, of: buildWeeks, lastColumn: lastColumn)
-            result.append((block, counted + 1, column))
-            if !week.isPartial {
-                counted += 1
-                lastColumn = column
+        Replay(weeks, programWeeks: programWeeks).weeks
+    }
+
+    /// The program's weeks replayed from their types: R5.2's layout from week 1, laid out again the way
+    /// R5.4 does when a BUILD week doesn't count, a deload comes early or twice, or the engine postpones
+    /// one, and each week's block, block week and column (R5.1).
+    struct Replay {
+        let programWeeks: Int
+        /// One type per program week, as laid out by the end of the weeks replayed.
+        private(set) var types: [PowerJackWeekType]
+        private(set) var weeks: [(block: Int, week: Int, column: Int)] = []
+
+        init(_ logs: [PowerJackWeekLog], programWeeks: Int) {
+            self.programWeeks = programWeeks
+            types = PowerJackCalendar.layout(weeks: programWeeks, carry: 0)
+            var block = 1
+            var counted = 0
+            var lastColumn = 0
+            var afterDeload = false
+            for (index, week) in logs.enumerated() {
+                let laidOut = types.indices.contains(index) ? types[index] : week.type
+                if week.type == .deload {
+                    // An early or second deload, in place of a BUILD week.
+                    if laidOut != .deload {
+                        relayout(from: index, [.deload] + PowerJackCalendar.layout(weeks: programWeeks - index - 1, carry: 0))
+                    }
+                    weeks.append((block, 0, 0))
+                    afterDeload = true
+                    continue
+                }
+                if afterDeload {
+                    block += 1
+                    counted = 0
+                    lastColumn = 0
+                    afterDeload = false
+                }
+                let buildWeeks: Int
+                if laidOut == .deload {
+                    // The engine postponed the deload by one BUILD week (R6.2), which k leaves out.
+                    relayout(from: index, [.build, .deload] + PowerJackCalendar.layout(weeks: programWeeks - index - 2, carry: 0))
+                    buildWeeks = counted
+                } else {
+                    buildWeeks = PowerJackCalendar.blockBuildWeeks(counted: counted, plan: plan(from: index))
+                }
+                let weekColumn = PowerJackCalendar.column(week: counted + 1, of: buildWeeks, lastColumn: lastColumn)
+                weeks.append((block, counted + 1, weekColumn))
+                if week.isPartial {
+                    relayout(from: index + 1, PowerJackCalendar.layout(weeks: programWeeks - index - 1, carry: counted))
+                } else {
+                    counted += 1
+                    lastColumn = weekColumn
+                }
             }
         }
-        return result
+
+        /// The laid-out types from program week `index` (0-based) on.
+        func plan(from index: Int) -> [PowerJackWeekType] {
+            Array(types.dropFirst(index))
+        }
+
+        private mutating func relayout(from index: Int, _ tail: [PowerJackWeekType]) {
+            types = Array(types.prefix(index)) + Array(tail.prefix(max(0, programWeeks - index)))
+        }
     }
 
     /// k: the block's planned BUILD weeks, counted ones included (R5.1).
-    private static func blockBuildWeeks(counted: Int, plan: [PowerJackWeekType]) -> Int {
+    fileprivate static func blockBuildWeeks(counted: Int, plan: [PowerJackWeekType]) -> Int {
         let leading = plan.prefix { $0 == .build }.count
         guard leading < plan.count else {
             // The block is left open at the program's end.
