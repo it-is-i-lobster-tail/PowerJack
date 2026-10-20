@@ -333,7 +333,7 @@ struct PowerJackEngineTests {
 
 // MARK: - Fixtures
 
-private extension PowerJackEngineTests {
+extension PowerJackEngineTests {
     func exercise(
         _ id: String,
         _ pattern: PowerJackPattern?,

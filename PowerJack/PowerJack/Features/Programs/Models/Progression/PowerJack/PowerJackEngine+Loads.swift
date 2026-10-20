@@ -28,11 +28,12 @@ extension PowerJackWeekBuilder {
     }
 
     /// R2.2: load = anchor x PCT(reps + target), rounded down, or blank for the lifter to load (R8.8).
-    private func startMainLift(_ plan: inout PowerJackEntryPlan, slot: SlotRef, sets: Int) {
+    /// `column` is the week's target column: 1 at a block start.
+    private func startMainLift(_ plan: inout PowerJackEntryPlan, slot: SlotRef, sets: Int, column: Int = 1) {
         let exercise = exercise(slot)
         let steps = PowerJackSteps(origin: lastLoggedLoad(exercise))
         let best = bestRecentLoad(exercise)
-        let target = PowerJackRules.rirByColumn(.main, goal)[0]
+        let target = PowerJackRules.rirByColumn(.main, goal)[min(3, max(0, column - 1))]
 
         func part(_ series: PowerJackSeries, reps: Int, count: Int) -> (sets: [PowerJackSetPlan], loadTarget: Double?, calibrating: Bool) {
             let start = blockStartAnchor(exercise, series)
@@ -63,14 +64,15 @@ extension PowerJackWeekBuilder {
         }
     }
 
-    /// R2.4 at block start: keep the load, reset reps by the drop in target. A slot new to the plan
-    /// starts from its exercise's own history, or the lifter loads it (R9.1).
-    private func startDoubleProgression(_ plan: inout PowerJackEntryPlan, slot: SlotRef, sets: Int) {
+    /// R2.4 at block start: keep the load, reset reps by the drop in target. A slot new to the plan, or
+    /// whose role changed, starts from its exercise's own history, or the lifter loads it (R9.1).
+    private func startDoubleProgression(_ plan: inout PowerJackEntryPlan, slot: SlotRef, sets: Int, column: Int = 1) {
         let exercise = exercise(slot)
         let range = repRange(slot)
-        let target = PowerJackRules.rirByColumn(role(slot).role, goal)[0]
+        let target = PowerJackRules.rirByColumn(role(slot).role, goal)[min(3, max(0, column - 1))]
 
-        if let previous = latestBuildLog(slot) {
+        if let previous = latestBuildLog(slot), !previous.unplanned, previous.role.map({ $0 == role(slot) }) ?? true,
+           exercise.repsOnly || previous.parts.first?.firstLoad != nil {
             // The same slot last block: keep its load and reps minus the drop in target.
             let drop = target - (previous.target ?? target)
             let load = previous.parts.first?.firstLoad
@@ -89,7 +91,8 @@ extension PowerJackWeekBuilder {
            let start = PowerJackPercent.load(e1RM: value, reps: range.lowerBound, rir: target) {
             load = PowerJackSteps(origin: recent.entry.parts.last?.firstLoad).roundDown(start)
         }
-        plan.calibrating = recent == nil
+        // With no load to start from, the lifter loads it and the exposure calibrates.
+        plan.calibrating = recent == nil || (!exercise.repsOnly && load == nil)
         plan.sets = Array(repeating: PowerJackSetPlan(reps: range.lowerBound, load: load), count: sets)
     }
 
@@ -105,14 +108,16 @@ extension PowerJackWeekBuilder {
         context.history(exercise.id).last { $0.entry.hasCompletedSets }?.entry.sets.last { $0.isComplete }?.load
     }
 
-    /// R2.5: the heaviest completed working load in the last 14 days, else the last completed load.
+    /// R2.5: the heaviest completed working load in the last 14 days, else the heaviest of the latest
+    /// exposure, so a TOP set is never capped by its own BACK sets.
     func bestRecentLoad(_ exercise: PowerJackExercise) -> Double? {
         let oldest = context.now.addingTimeInterval(-Double(PowerJackRules.lookbackDays) * 86_400)
-        let recent = context.history(exercise.id)
+        let history = context.history(exercise.id)
+        let recent = history
             .filter { $0.date >= oldest }
             .flatMap { $0.entry.sets.filter(\.isComplete).compactMap(\.load) }
             .max()
-        return recent ?? lastLoggedLoad(exercise)
+        return recent ?? history.last { $0.entry.hasCompletedSets }?.entry.sets.filter(\.isComplete).compactMap(\.load).max()
     }
 
     // MARK: Later weeks of a block
@@ -128,6 +133,21 @@ extension PowerJackWeekBuilder {
                 plans[slot] = plan
                 continue
             }
+            // R1.4, R9.1: a slot whose role or tag changed since last week, or an exercise swapped in that the
+            // engine never planned, starts again from its exercise's own history, as at a block start.
+            if entry.unplanned || entry.role.map({ $0 != role(slot) }) ?? false {
+                switch role(slot).role {
+                case .main:
+                    // A new main lift's lift sets, at most one more than the slot had (R10.7).
+                    let sets = min(liftSetCounts()[slot] ?? PowerJackRules.minSetsPerExposure, max(entry.sets.count, 1) + PowerJackRules.blockStepSets)
+                    startMainLift(&plan, slot: slot, sets: sets, column: header.column)
+                case .secondary, .accessory:
+                    startDoubleProgression(&plan, slot: slot, sets: min(max(entry.sets.count, 1), PowerJackRules.maxSetsPerSlot), column: header.column)
+                }
+                plan.reasons.append(plan.calibrating ? .calibrate : .blockStart)
+                plans[slot] = plan
+                continue
+            }
             plan.sets = entry.sets.map { PowerJackSetPlan(reps: $0.plannedReps, load: $0.plannedLoad) }
             plan.topSets = entry.topSets
             plan.loadTarget = entry.loadTarget
@@ -137,7 +157,10 @@ extension PowerJackWeekBuilder {
             if workoutSkipped(slot, in: last) || !entry.hasCompletedSets {
                 plan.calibrating = entry.calibrating
                 plan.reasons.append(.repeatSkipped)
-            } else if !applyPain(&plan, slot: slot, entry: entry) {
+            } else if applyPain(&plan, slot: slot, entry: entry) {
+                // A pain-affected exposure doesn't calibrate: the next one does (R8.8).
+                plan.calibrating = entry.calibrating
+            } else {
                 let outcomes = classes(slot, in: last) ?? []
                 let held = flagged.contains(exercise(slot).id)
                 let setFell = cuts.contains(slot)
@@ -187,11 +210,13 @@ extension PowerJackWeekBuilder {
         for (index, part) in entry.parts.enumerated() {
             let isTop = entry.isTopAndBack && index == 0
             let series: PowerJackSeries = isTop || tag == .heavy ? .heavy : .volume
-            let reps = part.plannedReps ?? (series == .heavy ? heavyReps : volumeReps)
+            // R2.1: the tag fixes the reps. Band mode works up from them, never from last week's reps.
+            let reps = series == .heavy ? heavyReps : volumeReps
             let L = part.firstLoad
             let steps = PowerJackSteps(origin: L)
             var loadTarget = part.loadTarget
-            var load = part.sets.first?.plannedLoad
+            // A part logged with no planned load, such as a swapped-in lift, keeps the load the lifter chose.
+            var load = part.sets.first?.plannedLoad ?? (entry.calibrating ? nil : L)
 
             if entry.calibrating, classes.indices.contains(index), classes[index] != .none,
                let anchor = calibratedAnchor(part, exercise, series, loggedOn: entry.lastCompletedAt),
@@ -207,13 +232,16 @@ extension PowerJackWeekBuilder {
                 var outcome = classes[index]
                 if header.caution, outcome == .easy { outcome = .met }
                 if steps.step / L * 100 > PowerJackRules.bandModePct {
-                    // A step too big for the load: progress reps within reps...reps + 2 instead.
+                    // A step too big for the load: progress reps within p...p + 2 instead, widening to p + 4.
                     let result = doubleProgression(
                         part, previous: nil, outcome: outcome, range: reps...(reps + 2),
                         exercise: exercise, caution: header.caution, held: held, setFell: setFell, limit: reps + 4
                     )
                     newSets += result.sets
                     reason = result.reason
+                    // The band's load is the part's target, so R2.3 resumes from it once the step fits.
+                    let bandLoad = result.sets.first?.load ?? loadTarget
+                    if isTop { plan.topLoadTarget = bandLoad } else { plan.loadTarget = bandLoad }
                     continue
                 }
                 let prescribed = part.sets.first?.plannedLoad
@@ -239,7 +267,8 @@ extension PowerJackWeekBuilder {
                 if held { target = min(target, L) }
                 if part.source != .tapped { target = min(target, L + steps.step) }
                 loadTarget = target
-                load = target < L ? steps.roundNearest(target) : steps.capped(steps.roundNearest(target), best: bestRecentLoad(exercise))
+                // A cut never rounds up past L: under one step there's nothing lighter to go to.
+                load = target < L ? min(L, steps.roundNearest(target)) : steps.capped(steps.roundNearest(target), best: bestRecentLoad(exercise))
             }
             newSets += part.sets.map { _ in PowerJackSetPlan(reps: reps, load: load) }
             if isTop { plan.topLoadTarget = loadTarget } else { plan.loadTarget = loadTarget }
@@ -256,19 +285,46 @@ extension PowerJackWeekBuilder {
         range: ClosedRange<Int>,
         exercise: PowerJackExercise,
         caution: Bool,
-        held: Bool,
+        held isHeld: Bool,
         setFell: Bool,
         limit customLimit: Int? = nil
     ) -> (sets: [PowerJackSetPlan], reason: PowerJackReason) {
-        let planned = part.sets.map { PowerJackSetPlan(reps: $0.plannedReps, load: $0.plannedLoad) }
-        let done = part.sets.map { $0.isComplete ? ($0.reps ?? 0) : ($0.plannedReps ?? 0) }
+        let result = progressReps(
+            part, previous: previous, outcome: outcome, range: range, exercise: exercise,
+            caution: caution, held: isHeld, setFell: setFell, limit: customLimit
+        )
+        // No set ever plans past the widening limit, whatever was logged (R2.4, R2.6).
+        let limit = customLimit ?? min(range.upperBound + PowerJackRules.repRangeExtensionMax, PowerJackRules.bodyweightRepCap)
+        return (result.sets.map { PowerJackSetPlan(reps: $0.reps.map { min(max($0, 1), limit) }, load: $0.load) }, result.reason)
+    }
+
+    /// `doubleProgression` before the widening limit.
+    private func progressReps(
+        _ part: PowerJackPart,
+        previous: PowerJackPart?,
+        outcome: PowerJackClass,
+        range: ClosedRange<Int>,
+        exercise: PowerJackExercise,
+        caution: Bool,
+        held isHeld: Bool,
+        setFell: Bool,
+        limit customLimit: Int?
+    ) -> (sets: [PowerJackSetPlan], reason: PowerJackReason) {
+        let lo = range.lowerBound
+        let L = exercise.repsOnly ? nil : part.firstLoad
+        // The plan as it stood. Sets planned with no reps or load, after a calibrating exposure or a swap,
+        // take what the lifter did.
+        let planned = part.sets.map { set in
+            PowerJackSetPlan(reps: set.plannedReps ?? set.reps ?? lo, load: exercise.repsOnly ? nil : set.plannedLoad ?? L)
+        }
+        // A hold keeps L, the load of the first set.
+        let held = planned.map { PowerJackSetPlan(reps: $0.reps, load: L ?? $0.load) }
+        let done = part.sets.map { $0.isComplete ? ($0.reps ?? 0) : ($0.plannedReps ?? lo) }
         guard outcome != .none, let first = done.first else { return (planned, .hold) }
 
-        let lo = range.lowerBound
         let hiBase = range.upperBound
         let hi = max(hiBase, part.sets.compactMap(\.plannedReps).max() ?? hiBase)
         let limit = customLimit ?? min(hiBase + PowerJackRules.repRangeExtensionMax, PowerJackRules.bodyweightRepCap)
-        let L = exercise.repsOnly ? nil : part.firstLoad
         let step = PowerJackRules.stepPounds
         let r = outcome == .easy && !caution ? PowerJackRules.repsPerStepEasy : PowerJackRules.repsPerStep
         let sets = { (reps: [Int], load: Double?) in reps.map { PowerJackSetPlan(reps: $0, load: load) } }
@@ -276,15 +332,15 @@ extension PowerJackWeekBuilder {
         // A set below the range: cut 5% on a clear or repeated shortfall, else hold.
         if done.contains(where: { $0 < lo }) {
             let repeated = previous?.completed.contains { ($0.reps ?? lo) < lo } ?? false
-            guard first <= lo - 2 || repeated, !setFell else { return (planned, .hold) }
+            guard first <= lo - 2 || repeated, !setFell else { return (held, .hold) }
             if let L {
                 let cut = min(PowerJackSteps(origin: L).roundDown(L * (1 - PowerJackRules.backoffPct / 100)), L - step)
-                return (sets(done.map { _ in lo }, max(step, cut)), .backoff)
+                return (sets(done.map { _ in lo }, cut > 0 ? cut : L), .backoff)
             }
             return (sets(done.map { max(1, $0) }, nil), .backoff)
         }
-        if outcome == .incomplete || outcome.isMiss || outcome == .hard || held {
-            return (planned.map { PowerJackSetPlan(reps: $0.reps, load: L ?? $0.load) }, .hold)
+        if outcome == .incomplete || outcome.isMiss || outcome == .hard || isHeld {
+            return (held, .hold)
         }
         guard done.min()! >= hiBase else {
             return (sets(done.map { min(exercise.repsOnly ? limit : hi, $0 + r) }, L), .repStep)
@@ -298,7 +354,7 @@ extension PowerJackWeekBuilder {
         if done.min()! - drop >= lo {
             return (sets(done.map { max(lo, $0 - drop) }, L + jump), .loadJump)
         }
-        if done.min()! >= limit { return (planned, .hold) }
+        if done.min()! >= limit { return (held, .hold) }
         let widened = min(hi + 2, limit)
         return (sets(done.map { min(widened, $0 + r) }, L), .widenRange)
     }
@@ -309,19 +365,11 @@ extension PowerJackWeekBuilder {
     /// 60% of the reps and the old load where the rounded cut passes 20%.
     func deloadPlans() -> [SlotRef: PowerJackEntryPlan] {
         var plans: [SlotRef: PowerJackEntryPlan] = [:]
-        // A second deload repeats the first.
-        let repeatDeload = weeks.last?.type == .deload
         for slot in slots {
             var plan = emptyPlan(slot)
             plan.reasons = [.deload]
-            if repeatDeload, let last = weeks.last, let entry = log(slot, in: last) {
-                plan.sets = entry.sets.map { PowerJackSetPlan(reps: $0.plannedReps, load: $0.plannedLoad) }
-                plan.topSets = entry.topSets
-                plan.loadTarget = entry.loadTarget
-                plan.topLoadTarget = entry.topLoadTarget
-                plans[slot] = plan
-                continue
-            }
+            // A second deload repeats the first: both come from the latest BUILD week, whatever a check-in
+            // did to the first one's sets.
             guard let base = latestBuildLog(slot) ?? weeks.last.flatMap({ log(slot, in: $0) }) else {
                 plans[slot] = plan
                 continue
@@ -330,18 +378,27 @@ extension PowerJackWeekBuilder {
             plan.topSets = min(base.topSets, count)
             plan.loadTarget = base.loadTarget
             plan.topLoadTarget = base.topLoadTarget
-            plan.sets = base.sets.prefix(count).map { set in
-                let reps = set.plannedReps ?? set.reps
-                let load = set.isComplete ? (set.load ?? set.plannedLoad) : set.plannedLoad
-                let fewerReps = reps.map { max(1, (Double($0) * PowerJackRules.deloadRepFactor).roundedHalfUp) }
+            let parts = base.parts
+            plan.sets = base.sets.prefix(count).enumerated().map { index, set in
+                // A main-lift set with no planned reps, after a check-in's Reset, deloads from what was done,
+                // never past the lift's own reps (R2.1). Main lifts never drop under 3 reps.
+                let isMain = role(slot).role == .main
+                let own = defaultReps(slot, top: base.isTopAndBack && index < base.topSets)
+                let reps = set.plannedReps ?? (isMain ? min(own, set.reps ?? own) : set.reps)
+                // A set planned with no load deloads from the first load of its part.
+                let partLoad = parts[base.isTopAndBack && index >= base.topSets ? 1 : 0].firstLoad
+                let load = set.isComplete ? (set.load ?? set.plannedLoad) : (set.plannedLoad ?? partLoad)
+                let fewest = isMain ? PowerJackRules.mainHeavyMinReps : 1
+                let fewerReps = reps.map { max(fewest, (Double($0) * PowerJackRules.deloadRepFactor).roundedHalfUp) }
                 guard let load, !base.exercise.repsOnly, !base.exercise.assisted else {
                     return PowerJackSetPlan(reps: fewerReps, load: load)
                 }
                 let lighter = PowerJackSteps().roundDown(load * PowerJackRules.deloadLoadFactor)
-                if (load - lighter) / load > PowerJackRules.deloadMaxCutPct / 100 {
+                // No lighter step at all, or one past the 20% limit: the old load at fewer reps.
+                if lighter >= load || (load - lighter) / load > PowerJackRules.deloadMaxCutPct / 100 {
                     return PowerJackSetPlan(reps: fewerReps, load: load)
                 }
-                return PowerJackSetPlan(reps: reps, load: lighter)
+                return PowerJackSetPlan(reps: reps.map { max(fewest, $0) }, load: lighter)
             }
             plans[slot] = plan
         }
