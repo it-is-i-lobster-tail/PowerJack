@@ -306,9 +306,11 @@ enum StrengthPlanner: WeekPlanner {
         let sets = workoutExercise.workingSets.map {
             StrengthPlannedSet(reps: $0.repsPlanned, loadKg: $0.weightTenthsPlannedPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) })
         }
+        // An accessory stores no target, so its reps are its first set's, or the bottom of its range.
+        let fallbackReps = role == .accessory ? workoutExercise.exercise?.repRange.lowerBound : nil
         return StrengthSlotPlan(
             kind: parsed?.kind ?? (role == .accessory ? .accessory : .calibration),
-            reps: workoutExercise.targetReps ?? sets.first?.reps ?? StrengthRules.repsMinNormal,
+            reps: workoutExercise.targetReps ?? sets.first?.reps ?? fallbackReps ?? StrengthRules.repsMinNormal,
             rir: workoutExercise.rirTarget ?? 2,
             sets: sets,
             repOffset: workoutExercise.repOffset ?? 0,

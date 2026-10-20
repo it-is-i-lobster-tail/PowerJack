@@ -91,8 +91,8 @@ enum StrengthPain {
             plan.rules.append("15.7")
         }
         if state.holds, let last = lastSession, last.trained {
-            // Hold load and sets: nothing rises past the last session (15.6).
-            let lastLoad = last.ratedSet?.loadKg
+            // Hold load and sets: nothing rises past the last session (15.6), on the grid as it is now (1.4).
+            let lastLoad = last.ratedSet?.loadKg.map { grid?.down($0 + LoadGrid.storedTolerance) ?? $0 }
             let load = [plan.loadKg, lastLoad].compactMap { $0 }.min()
             plan.sets = StrengthSlotPlan.uniform(min(plan.sets.count, last.completedSets.count), reps: plan.targetReps, loadKg: load)
             if let lastLoad, let intended = plan.intendedKg { plan.intendedKg = min(intended, lastLoad) }

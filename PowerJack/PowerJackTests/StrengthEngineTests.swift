@@ -501,6 +501,35 @@ struct StrengthEngineTests {
         #expect(next.sets == [StrengthPlannedSet(reps: 10, loadKg: 10)])
     }
 
+    @Test("An accessory keeps its sets: one skipped this week comes back next week (5.1)")
+    func accessoryKeepsSets() {
+        let curls = LoadGrid(unit: .kilograms, step: 2, isBarbell: false)
+        let last = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 10, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 10, loadKg: 12)),
+            sets: [true, false].map { .init(loadKg: 12, reps: 10, plannedLoadKg: 12, completed: $0) },
+            rir: 2,
+            pain: 0,
+            date: now
+        )
+        let next = plan(context(role: .accessory, zone: nil, grid: curls, repRange: 8...12, history: [last]), record: .init(), clock: StrengthClock())
+        #expect(next.sets == StrengthSlotPlan.uniform(2, reps: 11, loadKg: 12))
+    }
+
+    @Test("An accessory short of its rep range goes back to the bottom of it, as today's double progression does (5.1)")
+    func accessoryBackIntoRange() {
+        let curls = LoadGrid(unit: .kilograms, step: 2, isBarbell: false)
+        let last = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 8, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 8, loadKg: 14)),
+            sets: [6, 5].map { .init(loadKg: 14, reps: $0, plannedLoadKg: 14, completed: true) },
+            rir: 2,
+            pain: 0,
+            date: now
+        )
+        let next = plan(context(role: .accessory, zone: nil, grid: curls, repRange: 8...12, history: [last]), record: .init(), clock: StrengthClock())
+        #expect(next.sets == StrengthSlotPlan.uniform(2, reps: 8, loadKg: 14))
+        #expect(next.rules == ["5.1", "hold"])
+    }
+
     @Test("Week 2 back repeats week 1 evenly, even with a set the lifter added to it (12.3)")
     func returnRepeatEven() {
         var weekOne = StrengthSlotPlan(
@@ -542,6 +571,57 @@ struct StrengthEngineTests {
         StrengthWeekClose.close(&state, week: week(.build))
         #expect(state.clock.rir0Weeks == 1)
         #expect(state.clock.upcoming == .build)
+    }
+
+    @Test("A swap that makes an accessory a priority lift starts it fresh, not from its 15-rep weeks (14.3)")
+    func accessoryTurnedPriority() {
+        let rows = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 15, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 15, loadKg: 60)),
+            sets: Array(repeating: .init(loadKg: 60, reps: 15, plannedLoadKg: 60, completed: true), count: 2),
+            rir: 2,
+            pain: 0,
+            date: now
+        )
+        // No e1RM yet: a by-feel calibration week at the slot's own targets, even in a deload week.
+        let next = plan(context(zone: .heavy, history: [rows]), record: .init(), clock: StrengthClock(blockWeek: 4, upcoming: .deload))
+        #expect((next.kind, next.reps, next.loadKg) == (.calibration, 4, nil))
+        #expect(next.sets.allSatisfy { $0.reps == 4 })
+    }
+
+    @Test("After a switch from lb to kg, holds and the ceiling keep last week's bar rounded down to the kg grid (1.4)")
+    func unitSwitchRounding() {
+        let fine = LoadGrid(unit: .kilograms, step: 0.5, isBarbell: true)
+        let pounds275 = pounds(275)
+
+        // Two Noticeable ratings in a row hold at last week's 275 lb, which is 124.74 kg: 124.5 on the kg grid.
+        var pain = StrengthPainState()
+        let last = session(.normal, reps: 4, rir: 2, intended: pounds275, sets: Array(repeating: (pounds275, 4), count: 3), rated: 2, pain: 2)
+        StrengthPain.record(&pain, session: last)
+        StrengthPain.record(&pain, session: last)
+        var held = StrengthSlotPlan(kind: .normal, reps: 4, rir: 2, sets: StrengthSlotPlan.uniform(3, reps: 4, loadKg: 127), intendedKg: 127)
+        _ = StrengthPain.apply(pain, to: &held, lastSession: last, grid: fine)
+        #expect(held.loadKg == 124.5)
+
+        // A ceiling of 136 × pct(5) = 122.1 binds with d ≥ 0, so the bar stays at last week's, on the new grid.
+        let ceilinged = plan(context(zone: .heavy, grid: fine, history: [session(.normal, reps: 4, rir: 2, intended: pounds275, sets: Array(repeating: (pounds275, 4), count: 3), rated: 2)]),
+                             record: confident(e1rm: 136), clock: StrengthClock(blockWeek: 3))
+        #expect(ceilinged.rules.contains("7.6"))
+        #expect(ceilinged.loadKg == 124.5)
+    }
+
+    @Test("Deloads and micro-deloads cut from the bar when a cap kept it under the intended load (10.3, 10.6)")
+    func lighterThanTheBar() {
+        // The bar was held at 45 lb while the intended load ran ahead to 58 lb: 5% off the bar, not off 58.
+        let last = session(.normal, reps: 4, rir: 2, intended: pounds(58), sets: Array(repeating: (pounds(45), 4), count: 3), rated: 2)
+        var flagged = confident(e1rm: pounds(90))
+        flagged.flagged = true
+        let micro = plan(context(zone: .heavy, grid: lbBar, history: [last]), record: flagged, clock: StrengthClock(blockWeek: 2))
+        #expect(micro.kind == .microDeload)
+        #expect(abs((micro.loadKg ?? 0) - pounds(45)) < 0.001)
+
+        let deload = plan(context(zone: .heavy, grid: lbBar, history: [last]), record: confident(e1rm: pounds(90)), clock: StrengthClock(blockWeek: 4, upcoming: .deload))
+        #expect(deload.kind == .deload)
+        #expect(abs((deload.loadKg ?? 0) - pounds(45)) < 0.001)
     }
 
     @Test("Weeks with no weight yet start from the lift's e1RM, and so does a block with no normal week to build on (2.6, 9.4)")
