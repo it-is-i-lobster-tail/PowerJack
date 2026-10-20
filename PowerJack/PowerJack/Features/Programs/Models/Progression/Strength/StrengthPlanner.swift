@@ -165,6 +165,7 @@ enum StrengthPlanner: WeekPlanner {
         }
         workoutExercise.setProgression(rirTarget: loaded ? plan.rir : nil, code: plan.code, note: note(for: plan))
         workoutExercise.setStrengthTargets(
+            role: role,
             reps: loaded ? plan.reps : nil,
             repOffset: loaded ? plan.repOffset : nil,
             intendedLoadKg: plan.intendedKg
@@ -323,7 +324,7 @@ enum StrengthPlanner: WeekPlanner {
     /// Sets the lifter already changed keep their weight.
     static func didComplete(_ workoutSet: WorkoutSet, in workoutExercise: WorkoutExercise) {
         guard
-            workoutExercise.templateType == .strength,
+            workoutExercise.strengthRole != nil,
             !workoutSet.isWarmup,
             workoutSet.status == .complete,
             let planned = workoutSet.repsPlanned,
@@ -349,21 +350,15 @@ enum StrengthPlanner: WeekPlanner {
 }
 
 extension WorkoutExercise {
-    /// Strengthen rests 3:00 after priority lift sets and 2:15 after their close variants (5.6).
-    /// A rest set on the exercise wins, and other styles use the exercise's own.
-    var restDuration: Duration {
-        guard let exercise else { return .zero }
-        guard
-            exercise.customRestTime == nil,
-            let week = workoutValue?.programWeekValue,
-            week.programValue?.templateType == .strength
-        else {
-            return exercise.restDuration
-        }
-        switch StrengthPlanner.slotsByExercise(in: week)[ObjectIdentifier(self)]?.role {
+    /// Strengthen rests 3:00 after priority lift sets and 2:15 after their close variants (5.6), unless the
+    /// exercise has its own rest. Keyed off the slot's role, which only StrengthPlanner sets, so the rest
+    /// timer never reaches up to the Program.
+    var strengthRestDuration: Duration? {
+        guard exercise?.customRestTime == nil else { return nil }
+        switch strengthRole {
         case .primary: return .seconds(StrengthRules.restPrimarySeconds)
         case .secondary: return .seconds(StrengthRules.restSecondarySeconds)
-        default: return exercise.restDuration
+        case .accessory, nil: return nil
         }
     }
 }

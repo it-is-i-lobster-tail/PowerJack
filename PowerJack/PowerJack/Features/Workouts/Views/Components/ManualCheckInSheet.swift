@@ -20,7 +20,7 @@ struct ManualCheckInSheet: View {
 
     /// Strengthen has already planned the lighter sets, so Continue logs those and there is no Reset (15.4).
     private var offersLighter: Bool {
-        workoutExercise.templateType == .strength
+        workoutExercise.strengthRole != nil
     }
 
     private var decisions: [ManualCheckInDecision] {

@@ -1,0 +1,32 @@
+name: Branch rules
+
+# staging only takes pull requests from main, and prod only from staging.
+# Branch protection marks this check as required on both branches.
+on:
+  pull_request:
+    branches: [staging, prod]
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  source:
+    name: Source branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check source branch
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          case "$BASE" in
+            staging) allowed=main ;;
+            prod) allowed=staging ;;
+          esac
+
+          if [ "$HEAD" != "$allowed" ] || [ "$SAME_REPO" != "true" ]; then
+            echo "::error::$BASE only accepts pull requests from $allowed, not $HEAD."
+            exit 1
+          fi
+
+          echo "$HEAD -> $BASE is allowed."

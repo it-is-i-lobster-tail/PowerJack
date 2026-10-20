@@ -12,6 +12,14 @@ struct ProgramProgressGrid: View {
     let program: Program
 
     @Environment(ProgramsRouter.self) private var router
+    @Namespace private var weekLabels
+    /// Trails `currentWeek` so the pill can slide there each time the grid is shown.
+    @State private var highlightedWeek: Int?
+
+    /// The week of the workout to resume or start next. Nil unless the program is active.
+    private var currentWeek: Int? {
+        program.nextWorkout.flatMap { program.weekNumber(containing: $0) }
+    }
 
     var body: some View {
         let days = max(1, program.workoutsPerWeek)
@@ -41,7 +49,12 @@ struct ProgramProgressGrid: View {
                     GridRow {
                         Text("W\(week)")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(week == highlightedWeek ? .primary : .secondary)
+                            .fixedSize()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            // The current-week pill slides onto this label's frame.
+                            .matchedGeometryEffect(id: week, in: weekLabels, isSource: true)
                             .gridColumnAlignment(.leading)
 
                         ForEach(0..<days, id: \.self) { index in
@@ -55,10 +68,30 @@ struct ProgramProgressGrid: View {
                     }
                 }
             }
+            .background {
+                if let highlightedWeek {
+                    CurrentWeekPill()
+                        .matchedGeometryEffect(id: highlightedWeek, in: weekLabels, isSource: false)
+                }
+            }
         }
         .padding(LayoutMetrics.sectionSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
         .powerJackGlassPanel()
+        .onAppear { slideHighlight(to: currentWeek, animated: highlightedWeek != nil) }
+        .onChange(of: currentWeek) { _, week in slideHighlight(to: week, animated: true) }
+    }
+
+    /// Builds speed slowly, then stops hard on the new week with no overshoot.
+    private func slideHighlight(to week: Int?, animated: Bool) {
+        guard week != highlightedWeek else { return }
+        guard animated, week != nil else {
+            highlightedWeek = week
+            return
+        }
+        withAnimation(.timingCurve(0.7, 0, 0.9, 0.4, duration: 0.55)) {
+            highlightedWeek = week
+        }
     }
 
     /// Only the workout underway or one already completed has anything to show.
@@ -119,5 +152,15 @@ private struct ProgramProgressDot: View {
         .frame(width: isNext ? Self.nextSize : Self.size, height: isNext ? Self.nextSize : Self.size)
         .frame(maxWidth: .infinity, minHeight: Self.nextSize)
         .contentShape(.rect)
+    }
+}
+
+/// See-through green glass behind the current week's label.
+private struct CurrentWeekPill: View {
+    var body: some View {
+        Color.clear
+            .glassEffect(.clear.tint(.green.opacity(VisualOpacity.light)), in: .capsule)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

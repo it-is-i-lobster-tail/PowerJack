@@ -20,7 +20,8 @@ struct Feedback: View {
         self.workoutExercise = workoutExercise
         self.onFinished = onFinished
         _draft = State(initialValue: FeedbackDraft(
-            ratesRepsInReserve: workoutExercise.templateType?.ratesRepsInReserve ?? false
+            ratesRepsInReserve: workoutExercise.templateType?.ratesRepsInReserve ?? false,
+            asksTopSet: workoutExercise.topSetsNeedRating
         ))
     }
 
@@ -33,6 +34,14 @@ struct Feedback: View {
                     Text("This helps calibrate weight, reps, and sets for next week.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                }
+
+                if draft.asksTopSet {
+                    FeedbackScaleSection(
+                        title: "Top Set",
+                        subheading: "How many more good reps could you have done on your top set?",
+                        selection: $draft.topSetRepsInReserve
+                    )
                 }
 
                 if draft.ratesRepsInReserve {
@@ -68,6 +77,9 @@ struct Feedback: View {
             return
         }
 
+        if let topSetRepsInReserve = draft.topSetRepsInReserve {
+            workoutExercise.rateTopSets(topSetRepsInReserve)
+        }
         // The exercise stays open, so the lifter can still add a set before finishing the workout.
         workoutExercise.addFeedback(feedback: newFeedback)
         try? modelContext.save()
