@@ -21,11 +21,15 @@ struct TemplateProgramDraft {
     var workoutsPerWeekValue: Int?
     var templateMuscleFocusValue: [Muscle]
     var templateWorkoutDraftsValue: [TemplateWorkoutDraft]
+    var templateType: TemplateType
 
+    /// A new template takes `templateType`, the section it was created in.
     init(
-        templateProgram: TemplateProgram? = nil
+        templateProgram: TemplateProgram? = nil,
+        templateType: TemplateType = .hypertrophy
     ) {
         self.templateName = templateProgram?.templateName ?? ""
+        self.templateType = templateProgram?.templateType ?? templateType
         // Drafts store 0 when no count was picked yet.
         self.workoutsPerWeekValue = templateProgram.flatMap { $0.workoutsPerWeek > 0 ? $0.workoutsPerWeek : nil }
         self.templateMuscleFocusValue = templateProgram?.templateMuscleFocus ?? []
@@ -86,7 +90,8 @@ struct TemplateProgramDraft {
         let newTemplateProgram = TemplateProgram(
             templateName: savedName,
             workoutsPerWeek: workoutsPerWeek ?? 0,
-            templateMuscleFocus: templateMuscleFocus
+            templateMuscleFocus: templateMuscleFocus,
+            templateType: templateType
         )
 
         for templateWorkoutDraft in templateWorkoutDrafts {
@@ -126,6 +131,7 @@ struct TemplateProgramDraft {
         templateProgram.templateName = savedName
         templateProgram.workoutsPerWeek = workoutsPerWeek ?? 0
         templateProgram.templateMuscleFocus = templateMuscleFocus
+        templateProgram.templateType = templateType
         // Rebuild the workouts only when their exercises changed, so renaming stays cheap.
         guard workoutLayout != Self.workoutLayout(of: templateProgram) else { return true }
         templateProgram.clearAllTemplateWorkoutsValue()

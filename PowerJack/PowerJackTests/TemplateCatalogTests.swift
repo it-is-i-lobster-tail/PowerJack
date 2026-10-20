@@ -26,13 +26,14 @@ struct TemplateCatalogTests {
             // Names are kept whole and stay editable.
             #expect(TemplateProgramDraft(templateProgram: template).canSave, "\(entry.id)")
             #expect(template.templateName == entry.name, "\(entry.id)")
+            #expect(template.templateType == entry.type, "\(entry.id)")
             // Workouts and exercises keep the catalog's order.
             let storedIDs = template.templateWorkouts.map { $0.templateExercises.compactMap(\.exercise?.catalogID) }
             #expect(storedIDs == entry.workouts, "\(entry.id)")
         }
     }
 
-    @Test("The catalog ships the eleven starter templates in order")
+    @Test("The catalog ships the fifteen starter templates in order")
     func catalogContents() {
         let entries = TemplateCatalog.entries
         #expect(entries.map(\.id) == [
@@ -47,8 +48,13 @@ struct TemplateCatalogTests {
             "small-gym-glutes-shoulders-focus-4x",
             "full-gym-upper-body-specialization-5x",
             "full-gym-glute-specialization-5x",
+            "full-gym-strength-foundations-3x",
+            "full-gym-upper-lower-strength-4x",
+            "powerjack-whole-body-3x",
+            "powerjack-upper-lower-4x",
         ])
-        #expect(entries.map(\.workouts.count) == [2, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5])
+        #expect(entries.map(\.workouts.count) == [2, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 3, 4, 3, 4])
+        #expect(entries.map(\.type) == Array(repeating: .hypertrophy, count: 11) + [.strength, .strength, .powerJack, .powerJack])
         #expect(entries.allSatisfy { $0.name.count <= TemplateProgramDraft.maximumNameLength })
     }
 
