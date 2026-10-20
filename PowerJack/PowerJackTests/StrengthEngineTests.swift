@@ -522,6 +522,28 @@ struct StrengthEngineTests {
         #expect(next.sets == StrengthSlotPlan.uniform(3, reps: 4, loadKg: 125))
     }
 
+    @Test("A deload restarts the run of RIR 0 weeks, so another reactive deload takes two more (10.1, 10.4)")
+    func rir0RunRestarts() {
+        var state = StrengthState()
+        state["squat"] = confident(e1rm: 150)
+        // A rep past the target but rated 0: no miss and Δ −1, so only the RIR 0 rule can deload.
+        func week(_ kind: WeekKind) -> StrengthClosedWeek {
+            let sets = Array(repeating: (120.0, 5), count: kind == .deload ? 1 : 3)
+            let entry = StrengthClosedWeek.Entry(
+                key: "squat", role: .primary, zone: .heavy, curve: .main,
+                session: session(kind == .deload ? .deload : .normal, reps: 4, rir: 2, intended: 120, sets: sets, rated: 0)
+            )
+            return StrengthClosedWeek(entries: [entry], priorityKeys: ["squat"], kind: kind, closedAt: now)
+        }
+        StrengthWeekClose.close(&state, week: week(.build))
+        StrengthWeekClose.close(&state, week: week(.build))
+        #expect(state.clock.upcoming == .deload)
+        StrengthWeekClose.close(&state, week: week(.deload))
+        StrengthWeekClose.close(&state, week: week(.build))
+        #expect(state.clock.rir0Weeks == 1)
+        #expect(state.clock.upcoming == .build)
+    }
+
     @Test("Weeks with no weight yet start from the lift's e1RM, and so does a block with no normal week to build on (2.6, 9.4)")
     func noLoadHistory() {
         let byFeel = StrengthSession(

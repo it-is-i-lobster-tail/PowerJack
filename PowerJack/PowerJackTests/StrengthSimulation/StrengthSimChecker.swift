@@ -174,9 +174,22 @@ struct StrengthSimChecker {
     }
 
     /// The records a week close logged: a block clock that keeps to its rules and estimates that make sense.
-    mutating func checkRecords(_ state: StrengthState, previous: StrengthState, lifter: StrengthSimLifter, exercises: [String: Exercise], at here: String) {
+    /// `closed` is the kind of week that just closed, and `honest` whether the lifter rates as they feel, which
+    /// estimates can only track then.
+    mutating func checkRecords(
+        _ state: StrengthState,
+        previous: StrengthState,
+        closed: WeekKind?,
+        lifter: StrengthSimLifter,
+        honest: Bool,
+        exercises: [String: Exercise],
+        at here: String
+    ) {
         let clock = state.clock
         expect((1...StrengthRules.blockTrainWeeks).contains(clock.blockWeek), "9.5", here, "block week \(clock.blockWeek)")
+        if closed == .deload {
+            expect(clock.rir0Weeks == 0, "10.4", here, "\(clock.rir0Weeks) RIR 0 weeks still counted after a deload")
+        }
         expect(clock.trainedWeeks >= previous.clock.trainedWeeks, "17.7", here,
                "trained weeks fell from \(previous.clock.trainedWeeks) to \(clock.trainedWeeks)")
         if clock.weeksSinceDeload >= StrengthRules.deloadMaxGapWeeks {
@@ -188,7 +201,7 @@ struct StrengthSimChecker {
             let record = state[key]
             if let e1rm = record.e1rmKg {
                 expect(e1rm.isFinite && e1rm > 0 && e1rm < 1_000, "4.2", "\(here) \(key)", "e1RM \(e1rm) kg")
-                if let exercise = exercises[key], !exercise.repsOnly, e1rm.isFinite {
+                if honest, let exercise = exercises[key], !exercise.repsOnly, e1rm.isFinite {
                     let ratio = e1rm / lifter.trueMax(exercise)
                     expect(ratio > 0.33 && ratio < 3, "4.1", "\(here) \(key)",
                            "e1RM \(Self.format(e1rm)) kg is \(String(format: "%.2f", ratio))× the lifter's true max")
@@ -255,15 +268,17 @@ struct StrengthSimChecker {
         if let reps = slot.reps {
             expect((1...12).contains(reps), "5.9", here, "planned \(reps) reps, outside Building Strength's 1-12")
         }
+        // Pain floors may pass the zone caps, and so may a variant's first week, a rep easier (2.3, 5.2).
         let painFloor = records[slot.key].pain.rirFloor
+        let allowance = slot.rules.contains("2.3") ? StrengthRules.variantRIRAdd : 0
         switch kind {
         case .normal, .calibration:
             if slot.role == .primary {
                 expect((StrengthRules.repsMinNormal...6).contains(target), "5.2", here, "a normal week at \(target) reps")
-                expect(target + rir <= StrengthRules.primaryRepsToFailureMax || painFloor, "5.2", here,
+                expect(target + rir <= StrengthRules.primaryRepsToFailureMax + allowance || painFloor, "5.2", here,
                        "\(target) @ \(rir) is \(target + rir) reps to failure, over \(StrengthRules.primaryRepsToFailureMax)")
             } else {
-                expect(target + rir <= StrengthRules.secondaryRepsToFailureMax || painFloor, "5.2", here,
+                expect(target + rir <= StrengthRules.secondaryRepsToFailureMax + allowance || painFloor, "5.2", here,
                        "\(target) @ \(rir) is \(target + rir) reps to failure on a variant")
             }
             expect(rir >= StrengthRules.rirMin, "3.4", here, "plans failure: \(target) @ \(rir)")

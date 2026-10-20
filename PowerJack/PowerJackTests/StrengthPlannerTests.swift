@@ -222,6 +222,32 @@ struct StrengthPlannerTests {
         #expect(squat.warmupSets.map { $0.weightTenthsPlannedPounds?.pounds } == [130, 180])
     }
 
+    @Test("A new program takes the deload that is due even when its first workout is skipped before it starts (10.5)")
+    func firstWeekTakesTheClock() throws {
+        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+        record.ratedDates = [.now, .now, .now]
+        record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
+        var state = StrengthState()
+        state["barbell-back-squat"] = record
+        state.clock.upcoming = .deload
+        state.clock.weeksSinceDeload = 8
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+
+        let program = try makeProgram()
+        program.skipWorkout(try #require(program.nextWorkout))
+        let dayTwo = try #require(program.nextWorkout)
+        program.prepareToStart(dayTwo)
+        #expect(program.programWeeks.first?.weekKind == .deload)
+        #expect(try slot("barbell-back-squat", day: 1, in: program).progressionCode?.hasPrefix("deload") == true)
+
+        // Skipped whole, the first week still counts as the deload.
+        let skipped = try makeProgram()
+        for _ in 0..<2 {
+            skipped.skipWorkout(try #require(skipped.nextWorkout))
+        }
+        #expect(StrengthLog.latestState(in: context).clock.weeksSinceDeload == 0)
+    }
+
     @Test("Another break during week 2 back starts the return over (12.1)")
     func breakDuringReturn() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)

@@ -13,6 +13,8 @@ struct StrengthSimReport {
     let seed: UInt64
     let profile: String
     let weeks: Int
+    /// The lifter's main habits, for reading a random lifter's run.
+    var habits = ""
     /// Keeps the trace lines, not just their fingerprint. Replays turn it on.
     var keepsTrace = false
 
@@ -101,7 +103,7 @@ struct StrengthSimReport {
         let weekText = [WeekKind.build, .deload].map { "\(weekKinds[$0] ?? 0) \($0.rawValue)" }.joined(separator: ", ")
         let lifts = [StrengthSlotKind.calibration, .microDeload, .returnWeek1, .painLighter, .painCut]
             .map { "\(kinds[$0] ?? 0) \($0.rawValue)" }.joined(separator: ", ")
-        return "\(profile) seed \(seed), \(weeks) weeks: \(programs) programs (\(programsFinished) finished, "
+        return "\(profile) seed \(seed) (\(habits)), \(weeks) weeks: \(programs) programs (\(programsFinished) finished, "
             + "\(programsAbandoned) abandoned, \(otherStylePrograms) other styles), \(workouts) workouts, \(workoutsSkipped) skipped, "
             + "\(breaks) breaks, \(unitSwitches) unit switches, \(stepChanges) step changes, \(edits) edits, \(swaps) swaps, "
             + "\(checkIns) check-ins; \(weeksChecked) weeks and \(workoutsChecked) workouts checked (\(weekText); \(lifts)); "
