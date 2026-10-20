@@ -20,7 +20,7 @@ struct LegalDocument: Hashable {
 extension LegalDocument {
     static let privacyPolicy = LegalDocument(
         title: "Privacy Policy",
-        lastUpdated: "October 6, 2026",
+        lastUpdated: "October 19, 2026",
         sections: [
             Section(
                 heading: "The Short Version",
@@ -37,6 +37,10 @@ extension LegalDocument {
             Section(
                 heading: "Live Activities",
                 body: "The rest timer on the Lock Screen and in the Dynamic Island runs on your iPhone. Nothing about it leaves the device."
+            ),
+            Section(
+                heading: "Apple Watch",
+                body: "PowerJack on Apple Watch gets your workouts through iCloud Backup, from the same private iCloud database, and your settings straight from your paired iPhone. Its rest alerts are scheduled on the watch. Nothing about it goes anywhere else."
             ),
             Section(
                 heading: "Third Parties",
