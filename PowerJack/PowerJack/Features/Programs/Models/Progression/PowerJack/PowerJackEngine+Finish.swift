@@ -109,8 +109,10 @@ extension PowerJackWeekBuilder {
                 plan.checkInPain = level
                 plan.reasons.append(.painCheckIn)
             }
+            // R2.6: a bodyweight exercise carries no load, even one edited to bodyweight since its last plan.
+            let repsOnly = exercise(slot).repsOnly
             for index in plan.sets.indices {
-                plan.sets[index].load = plan.sets[index].load.map { min($0, PowerJackRules.maxLoadPounds) }
+                plan.sets[index].load = repsOnly ? nil : plan.sets[index].load.map { min($0, PowerJackRules.maxLoadPounds) }
             }
             if header.type == .build {
                 var target = PowerJackRules.rirByColumn(role(slot).role, goal)[min(3, max(0, header.column - 1))]
