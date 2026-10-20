@@ -154,11 +154,14 @@ enum PowerJackPlanner: WeekPlanner {
     private static func entry(_ workoutExercise: WorkoutExercise) -> PowerJackEntryLog? {
         guard let exercise = workoutExercise.exercise else { return nil }
         let feedback = workoutExercise.feedback
-        // A set added in the session has no planned reps: it's held to the last planned set's (R4.2).
+        // A set added in the session has no planned reps: it's held to the last planned set's (R4.2), of its
+        // own part, so a set added after the TOP sets is a BACK set, never held to TOP reps.
+        let topSets = workoutExercise.topSets
         var lastPlannedReps: Int?
         return PowerJackEntryLog(
             exercise: Self.exercise(exercise),
-            sets: workoutExercise.workingSets.map { set in
+            sets: workoutExercise.workingSets.enumerated().map { index, set in
+                if index == topSets { lastPlannedReps = nil }
                 lastPlannedReps = set.repsPlanned ?? lastPlannedReps
                 return PowerJackSetLog(
                     plannedReps: set.repsPlanned ?? lastPlannedReps,
@@ -170,7 +173,7 @@ enum PowerJackPlanner: WeekPlanner {
                     completedAt: set.completedAt
                 )
             },
-            topSets: workoutExercise.topSets,
+            topSets: topSets,
             target: workoutExercise.rirTarget,
             loadTarget: workoutExercise.powerJackLoadTargetValue,
             topLoadTarget: workoutExercise.powerJackTopLoadTargetValue,

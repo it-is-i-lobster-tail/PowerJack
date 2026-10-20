@@ -317,10 +317,9 @@ extension WorkoutExercise {
         if statusValue == .skipped {
             statusValue = .active
         }
-        let nextOrder = totalSets
         let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
         let newSet = WorkoutSet(
-            order: nextOrder,
+            order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
@@ -359,7 +358,7 @@ extension WorkoutExercise {
             return nil
         }
         let newSet = WorkoutSet(
-            order: totalSets,
+            order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds
@@ -367,6 +366,9 @@ extension WorkoutExercise {
         append(newSet)
         return newSet
     }
+    /// After every set, even when a removed warmup left a gap: an order shared with another set would
+    /// sort the two by model identity, which can put a new set ahead of the planned ones.
+    private var nextSetOrder: Int { (workoutSets.last?.order ?? -1) + 1 }
     /// Keeps warmups ahead of working sets, so a warmup added mid-exercise slots in before them.
     private func append(_ newSet: WorkoutSet) {
         workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
