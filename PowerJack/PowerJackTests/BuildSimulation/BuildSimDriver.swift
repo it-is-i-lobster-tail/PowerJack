@@ -333,7 +333,7 @@ private extension BuildSimDriver {
             lastTrained = clock
             lifter.didSet(exercise, repsLeft: capacity - Double(reps), at: clock)
             repsLeft = capacity - Double(reps)
-            logged.append("\(reps)@\(pounds(set.weightTenthsPounds))")
+            logged.append("\(reps)@\(BuildSimText.pounds(set.weightTenthsPounds))")
         }
         if !workoutExercise.allSetsDone() {
             workoutExercise.skipRemainingSets()
@@ -450,6 +450,7 @@ private extension BuildSimDriver {
             report.count(slot.code)
         }
         report.countWeek(week.weekKind)
-        report.trace("  plan p\(programNumber) w\(index + 1) \(describe(week)): " + slots.map { "\($0.name) \(describe($0))" }.joined(separator: "; "))
+        report.trace("  plan p\(programNumber) w\(index + 1) \(BuildSimText.describe(week)): "
+            + slots.map { "\($0.name) \(BuildSimText.describe($0))" }.joined(separator: "; "))
     }
 }
