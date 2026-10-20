@@ -297,6 +297,17 @@ extension PowerJackEngineTests {
         #expect(start.workouts[0][0].sets.allSatisfy { ($0.load ?? 0) <= 270 })
     }
 
+    @Test("An exercise edited to bodyweight plans no load, even through a pain check-in that copies last week's sets (R2.6)")
+    func editedToBodyweightPlansNoLoad() throws {
+        // Logged at 140 lb before the edit, with Severe pain.
+        var hurt = entry(dip, sets: [(6, 140), (6, 140)], target: 2, loadTarget: 140, tap: 2)
+        hurt.pain = .severe
+        let history = { (_: AnyHashable) in [PowerJackExposure(date: .now, entry: hurt, weekType: .build)] }
+        let next = try #require(PowerJackEngine.nextWeek(after: [weekLog([[hurt]])], context: context(history: history)))
+        #expect(next.workouts[0][0].checkInPain == .severe)
+        #expect(next.workouts[0][0].sets.allSatisfy { $0.load == nil })
+    }
+
     @Test("A lift swapped into a new slot in a pain episode starts the block no heavier than it last lifted (R10.2)")
     func swappedInLiftHoldsPain() {
         let now = Date.now
