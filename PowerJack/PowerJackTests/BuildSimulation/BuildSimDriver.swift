@@ -35,6 +35,9 @@ final class BuildSimDriver {
     private var nextProgramDay = 0
     private var breakEndsDay = 0
     private var trainingDays: Set<Int> = []
+    private var lastTrained: Date?
+    /// Trained build weeks in a row since the last deload, return week or break, across programs.
+    private var buildRun = 0
 
     init(seed: UInt64, profile: BuildSimProfile, weeks: Int, keepsTrace: Bool = false) throws {
         self.seed = seed
@@ -125,6 +128,10 @@ private extension BuildSimDriver {
             Program(programLengthWeeks: length, templateProgram: template)
         }
         try context.insertAndSave(program)
+        if let lastTrained, date.timeIntervalSince(lastTrained) >= Double(BuildRules.returnBandsDays[0]) * 86_400 {
+            buildRun = 0
+        }
+        countPainLeftBehind(by: program)
         if let previous = self.program, previous.status == .active {
             previous.stop()
             previous.stopAndCascade()
@@ -217,6 +224,7 @@ private extension BuildSimDriver {
         let weeks = program.programWeeks
         let index = weeks.firstIndex { week in week.workouts.contains { $0 === workout } }
         let nextWasEmpty = index.map { $0 + 1 < weeks.count && weeks[$0 + 1].workouts.isEmpty } ?? false
+        let weekWasOpen = index.map { weeks[$0].status != .complete } ?? false
         if skip {
             program.skipWorkout(workout)
             report.workoutsSkipped += 1
@@ -225,11 +233,45 @@ private extension BuildSimDriver {
             program.finishWorkout(workout)
             report.workouts += 1
         }
+        if let index, weekWasOpen, weeks[index].status == .complete {
+            countRun(of: weeks[index])
+        }
         if let index, nextWasEmpty, !weeks[index + 1].workouts.isEmpty {
             checker.checkBuild(of: program, week: index + 1)
             traceWeek(of: program, index: index + 1)
             recordSlack(in: weeks[index + 1])
         }
+    }
+
+    /// Counts trained build weeks in a row, across programs: a deload, a return week or a break of 15 days or
+    /// more starts the count again.
+    func countRun(of week: ProgramWeek) {
+        guard week.workouts.contains(where: { $0.completedWorkingSets > 0 }) else { return }
+        if week.weekKind == .build {
+            buildRun = week.returnBand > 0 ? 1 : buildRun + 1
+            report.longestBuildRun = max(report.longestBuildRun, buildRun)
+        } else {
+            buildRun = 0
+        }
+    }
+
+    /// Exercises that start a new program with no check-in, though they were painful (Moderate or worse) the last
+    /// time they were done in another program. PAIN-03 asks for pain state to carry over.
+    func countPainLeftBehind(by program: Program) {
+        guard let week = program.programWeeks.first else { return }
+        for slot in BuildSimSlot.all(in: week) where !slot.workoutExercise.checkInPending {
+            let earlier = (slot.exercise.workoutExercisesValue ?? []).filter { past in
+                past.workoutValue?.programWeekValue?.programValue !== program && past.completedWorkingSets > 0
+            }
+            let last = earlier.max { lastSet($0) < lastSet($1) }
+            if let pain = last?.feedback?.levelOfPain, pain.rawValue >= BuildRules.holdAt.rawValue {
+                report.painLeftBehind += 1
+            }
+        }
+    }
+
+    func lastSet(_ workoutExercise: WorkoutExercise) -> Date {
+        workoutExercise.workingSets.compactMap(\.completedAt).max() ?? .distantPast
     }
 
     /// How far each new build-week target sits from what the lifter can really do: reps left on a fresh first set.
@@ -293,6 +335,7 @@ private extension BuildSimDriver {
             guard set.reps != nil, exercise.repsOnly || set.weightTenthsPounds != nil else { break }
             clock.addTimeInterval(Double(lifter.rng.int(90...240)))
             workoutExercise.completeSet(set, at: clock)
+            lastTrained = clock
             lifter.didSet(exercise, repsLeft: capacity - Double(reps), at: clock)
             repsLeft = capacity - Double(reps)
             logged.append("\(reps)@\(pounds(set.weightTenthsPounds))")
