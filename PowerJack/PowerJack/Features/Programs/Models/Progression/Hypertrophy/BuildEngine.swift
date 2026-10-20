@@ -57,7 +57,10 @@ enum BuildEngine {
     /// Bands 2 and 3 start return weeks.
     static func planAfterBreak(_ input: BuildInput, band: Int) -> BuildPlan {
         let context = BuildContext(input)
-        guard band < 2 else { return returnWeek(context, band: band, week: 1) }
+        // A break that cuts return weeks short starts again from the return weeks, never the loads before the first break.
+        let inReturn = context.lastWeek.kind == .return
+        guard band < 2 else { return returnWeek(context, band: band, week: 1, fromReturn: inReturn) }
+        guard !inReturn else { return newBlock(context, review: .holdAll, afterReturn: true, breakEnded: true) }
         return newBlock(context, review: reviewAfterDeload(context), breakEnded: true)
     }
 
@@ -158,12 +161,12 @@ extension BuildEngine {
         return finish(context, drafts, week: week)
     }
 
-    static func returnWeek(_ context: BuildContext, band: Int, week number: Int) -> BuildPlan {
+    static func returnWeek(_ context: BuildContext, band: Int, week number: Int, fromReturn: Bool = false) -> BuildPlan {
         let week = BuildWeek(kind: .return, blockWeek: number, returnBand: band)
         var drafts = context.slots.indices.map { Draft(plan: nil, sets: context.latest($0)?.plannedSets ?? 0) }
         for index in drafts.indices {
             let held = painPlan(context, index)
-            let back = returnPlan(context, index, band: band, week: number)
+            let back = returnPlan(context, index, band: band, week: number, fromReturn: fromReturn)
             drafts[index].plan = held.map { lower($0, back) } ?? back
         }
         return finish(context, drafts, week: week)
@@ -270,6 +273,7 @@ extension BuildEngine {
             let exercise = context.slots[index].exercise
             var plan = draft.plan ?? repeatPlan(context, index)
             plan.sets = min(max(plan.sets, 1), BuildRules.maxSetsPerExercise)
+            plan.load = plan.load.map { min($0, BuildRules.maxLoad) }
             if let reps = plan.reps, week.kind == .build {
                 plan.reps = min(max(reps, exercise.minReps), repCeiling(exercise, repTarget: reps))
             }
