@@ -306,16 +306,19 @@ struct StrengthPlannerTests {
             }
         }
         context.insert(template)
-        let program = Program(programLengthWeeks: 2, templateProgram: template)
+        let program = Program(programLengthWeeks: 3, templateProgram: template)
         try context.insertAndSave(program)
         program.start()
-        #expect(try slot("barbell-overhead-press", day: 3, in: program).strengthRole == .accessory)
+        for _ in 0..<4 {
+            program.skipWorkout(try #require(program.nextWorkout))
+        }
+        #expect(try slot("barbell-overhead-press", day: 3, in: program, week: 1).strengthRole == .accessory)
 
-        // Day 1's bench becomes curls, so the press is day 1's first compound and a priority lift.
+        // Week 2's bench becomes curls, so the press is day 1's first compound and a priority lift.
         let dayOne = try #require(program.nextWorkout)
         program.prepareToStart(dayOne)
         dayOne.startAndCascade()
-        try slot("barbell-bench-press", day: 0, in: program).changeExercise(newExercise: try exercise("dumbbell-curl"))
+        try slot("barbell-bench-press", day: 0, in: program, week: 1).changeExercise(newExercise: try exercise("dumbbell-curl"))
         program.finishWorkout(dayOne)
         for _ in 0..<2 {
             program.skipWorkout(try #require(program.nextWorkout))
@@ -323,7 +326,7 @@ struct StrengthPlannerTests {
         let dayFour = try #require(program.nextWorkout)
         program.prepareToStart(dayFour)
 
-        let press = try slot("barbell-overhead-press", day: 3, in: program)
+        let press = try slot("barbell-overhead-press", day: 3, in: program, week: 1)
         #expect(press.strengthRole == .primary)
         #expect(press.progressionCode?.hasPrefix("accessory") == false)
         #expect(press.targetReps != nil)
