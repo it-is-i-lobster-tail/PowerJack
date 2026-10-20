@@ -9,6 +9,10 @@ import Foundation
 import OSLog
 
 enum BuildPlanner: WeekPlanner {
+    /// When a new program starts, for reading how recent its seed sets are. Nil is now; tests set it to
+    /// replay programs on a simulated calendar.
+    @TaskLocal static var startDate: Date?
+
     /// Week 1 is block week 1. Exercises lifted recently in another program start from those sets; the rest
     /// calibrate, leaving the weight to the lifter (START-03, START-04).
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {
@@ -18,7 +22,7 @@ enum BuildPlanner: WeekPlanner {
             for workoutExercise in workout.workoutExercises {
                 guard let exercise = workoutExercise.exercise else { continue }
                 let info = exerciseInfo(exercise)
-                let recent = seed(for: exercise, outside: program, at: .now)
+                let recent = seed(for: exercise, outside: program, at: startDate ?? .now)
                 if let recent {
                     workoutExercise.replacePlannedWorkingSets(
                         Array(repeating: (recent.reps, recent.load), count: max(1, workoutExercise.workingSets.count))
@@ -85,7 +89,9 @@ enum BuildPlanner: WeekPlanner {
         let weeks = program.programWeeks
         guard
             let weekIndex = weeks.firstIndex(where: { week in week.workouts.contains { $0 === workout } }),
-            weeks[weekIndex].returnBand == 0,
+            // A week that handled a break became week 1 of a block or of a return. Later return weeks keep the
+            // band but handled no break, so they still catch the next one.
+            !(weeks[weekIndex].returnBand > 0 && weeks[weekIndex].blockWeek == 1),
             let lastSet = lastCompletedSetAt(in: program)
         else {
             return
@@ -287,7 +293,7 @@ extension BuildPlanner {
         }
         let target = min(max(reps, info.minReps), info.maxReps)
         guard let solved = estimatedMax.loadTenths(forReps: target, leaving: BuildRules.startRIR) else { return nil }
-        let seeded = max(BuildRules.stepTenths, BuildEngine.floorToStep(solved * keep))
+        let seeded = min(max(BuildRules.stepTenths, BuildEngine.floorToStep(solved * keep)), BuildRules.maxLoad)
         return Seed(reps: target, load: seeded, calibrate: calibrate)
     }
 }
