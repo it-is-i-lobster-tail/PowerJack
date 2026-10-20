@@ -59,7 +59,7 @@ struct BuildSimChecker {
         weeksChecked += 1
         let here = "\(place) week 1"
         expect(week.weekKind == .build && week.blockWeek == 1 && week.returnBand == 0, "BLK-02", here,
-               "week 1 is \(describe(week)), not build week 1")
+               "week 1 is \(BuildSimText.describe(week)), not build week 1")
         let weekOne = BuildWeek(kind: .build, blockWeek: 1)
         for slot in BuildSimSlot.all(in: week) {
             checkSlot(slot, in: weekOne, at: here)
@@ -114,8 +114,8 @@ struct BuildSimChecker {
         checkStored(slots, week: week, against: plan, at: here)
 
         let context = BuildContext(input)
-        expect(band >= 2 ? plan.week == BuildWeek(kind: .return, blockWeek: 1, returnBand: band) : plan.week.kind == .build && plan.week.blockWeek == 1,
-               "BLK-07", here, "the week became \(describe(plan.week))")
+        let expected = band >= 2 ? BuildWeek(kind: .return, blockWeek: 1, returnBand: band) : BuildWeek(kind: .build, blockWeek: 1)
+        expect(plan.week == expected, "BLK-07", here, "the week became \(BuildSimText.describe(plan.week))")
         for (index, slot) in zip(plan.slots.indices, slots) {
             checkSlot(slot, in: plan.week, at: "\(here) \(slot.name)")
             if band >= 2 {
@@ -131,13 +131,13 @@ struct BuildSimChecker {
     private mutating func checkStored(_ slots: [BuildSimSlot], week: ProgramWeek, against plan: BuildPlan, at here: String) {
         expect(slots.count == plan.slots.count, "ENG-04", here, "stored \(slots.count) exercises, the engine planned \(plan.slots.count)")
         expect(week.weekKind == plan.week.kind && week.blockWeek == plan.week.blockWeek, "ENG-04", here,
-               "stored as \(describe(week)), the engine planned \(describe(plan.week))")
+               "stored as \(BuildSimText.describe(week)), the engine planned \(BuildSimText.describe(plan.week))")
         for (slot, slotPlan) in zip(slots, plan.slots) {
             let storedReps = slotPlan.reps.flatMap { WorkoutSet.isValidReps($0) ? $0 : nil }
             expect(slot.sets == min(slotPlan.sets, WorkoutExercise.maxSets) && slot.reps == storedReps && slot.load == slotPlan.load
                    && slot.workoutExercise.rirTarget == slotPlan.rirTarget && slot.code == slotPlan.reason.code,
                    "ENG-04", "\(here) \(slot.name)",
-                   "stored \(describe(slot)), the engine planned \(describe(slotPlan))")
+                   "stored \(BuildSimText.describe(slot)), the engine planned \(BuildSimText.describe(slotPlan))")
             expect(slotPlan.reps.map(WorkoutSet.isValidReps) ?? true, "ENG-01", "\(here) \(slot.name)",
                    "planned \(slotPlan.reps ?? 0) reps, which a set can't hold")
         }
@@ -163,7 +163,7 @@ struct BuildSimChecker {
         let sets = workoutExercise.workingSets
         expect((1...WorkoutExercise.maxSets).contains(sets.count), "ENG-01", here, "\(sets.count) working sets")
         expect(Set(sets.map(\.repsPlanned)).count <= 1 && Set(sets.map(\.weightTenthsPlannedPounds)).count <= 1,
-               "LOAD-09", here, "sets planned unevenly: \(sets.map { "\($0.repsPlanned ?? 0)@\($0.weightTenthsPlannedPounds ?? 0)" })")
+               "LOAD-01", here, "sets planned unevenly: \(sets.map { "\($0.repsPlanned ?? 0)@\($0.weightTenthsPlannedPounds ?? 0)" })")
 
         if let reps = slot.reps, week.kind == .build {
             let ceiling = BuildEngine.repCeiling(info, repTarget: reps)
@@ -171,10 +171,10 @@ struct BuildSimChecker {
                    "\(reps) reps, outside \(info.minReps)-\(ceiling)")
         }
         if info.repsOnly {
-            expect(slot.load == nil, "LOAD-09", here, "a bodyweight exercise planned at \(pounds(slot.load))")
+            expect(slot.load == nil, "LOAD-09", here, "a bodyweight exercise planned at \(BuildSimText.pounds(slot.load))")
         } else if let load = slot.load {
             expect(load > 0 && load <= WorkoutSet.maxWeightPounds * 10, "LIMITS", here,
-                   "planned \(pounds(load)), outside what a set can log (0-\(WorkoutSet.maxWeightPounds) lb)")
+                   "planned \(BuildSimText.pounds(load)), outside what a set can log (0-\(WorkoutSet.maxWeightPounds) lb)")
         }
         if slot.code == .painCheckIn {
             expect(workoutExercise.checkIn == .pending && (workoutExercise.checkInSourcePain?.rawValue ?? 0) >= BuildRules.checkInAt.rawValue,
@@ -205,7 +205,7 @@ struct BuildSimChecker {
             [weekOne]
         }
         expect(expected.contains(next), "BLK-02", here,
-               "after \(trained ? "" : "an untrained ")\(describe(last)) came \(describe(next)), expected \(expected.map(describe).joined(separator: " or "))")
+               "after \(trained ? "" : "an untrained ")\(BuildSimText.describe(last)) came \(BuildSimText.describe(next)), expected \(expected.map(BuildSimText.describe).joined(separator: " or "))")
         expect(next.kind != .build || next.blockWeek <= BuildRules.buildWeeks, "BLK-02", here,
                "build week \(next.blockWeek) of a \(BuildRules.buildWeeks)-week block")
     }
@@ -214,7 +214,8 @@ struct BuildSimChecker {
     private mutating func checkProgression(_ context: BuildContext, _ index: Int, _ plan: BuildSlotPlan, week: BuildWeek, at here: String) {
         let exercise = context.slots[index].exercise
         let state = context.states[index]
-        guard let code = Optional(plan.reason.code), let latest = context.latest(index) else { return }
+        let code = plan.reason.code
+        guard let latest = context.latest(index) else { return }
         let done = context.latestDone(index)
 
         switch week.kind {
@@ -224,7 +225,7 @@ struct BuildSimChecker {
             expect(plan.sets <= BuildEngine.scaled(build.plannedSets, by: BuildRules.deloadSetFactor), "BLK-04", here,
                    "deload keeps \(plan.sets) of \(build.plannedSets) sets")
             expect(lighterOrSame(plan.load, than: build.load), "BLK-04", here,
-                   "deload at \(pounds(plan.load)) after a build week at \(pounds(build.load))")
+                   "deload at \(BuildSimText.pounds(plan.load)) after a build week at \(BuildSimText.pounds(build.load))")
             // A slot waiting on a pain check-in keeps that reason (PAIN-02).
             expect([.deloadPlanned, .deloadReactive, .painCheckIn].contains(code) || plan.checkInPain != nil, "BLK-04", here,
                    "deload code \(code.rawValue)")
@@ -241,7 +242,7 @@ struct BuildSimChecker {
         if !latest.isDone, !newBlock {
             let reps = latest.repTarget.map { min(max($0, exercise.minReps), BuildEngine.repCeiling(exercise, repTarget: $0)) }
             expect(plan.sets == min(max(latest.plannedSets, 1), BuildRules.maxSetsPerExercise) && plan.reps == reps && plan.load == latest.plannedLoad,
-                   "FREQ-06", here, "nothing was logged after \(describe(latest)), but planned \(describe(plan))")
+                   "FREQ-06", here, "nothing was logged after \(BuildSimText.describe(latest)), but planned \(BuildSimText.describe(plan))")
             return
         }
         guard let done else { return }
@@ -258,25 +259,25 @@ struct BuildSimChecker {
         // lift a held one.
         if state.painHold || state.painRose {
             expect(!rose, "PAIN-01", here,
-                   "pain \(done.pain?.label ?? "untapped")\(state.painHold ? " (held)" : "")\(state.painRose ? " (rising)" : ""), but \(describe(reference)) became \(describe(plan))")
+                   "pain \(done.pain?.label ?? "untapped")\(state.painHold ? " (held)" : "")\(state.painRose ? " (rising)" : ""), but \(BuildSimText.describe(reference)) became \(BuildSimText.describe(plan))")
         }
         // PAIN-01: Severe pain or worse cuts the next exposure behind a check-in.
         if latest.isDone, let pain = done.pain, pain.rawValue >= BuildRules.checkInAt.rawValue {
-            expect(plan.checkInPain != nil, "PAIN-01", here, "\(pain.label) pain after \(describe(done)), but no check-in")
+            expect(plan.checkInPain != nil, "PAIN-01", here, "\(pain.label) pain after \(BuildSimText.describe(done)), but no check-in")
         }
         // LOAD-07: a miss holds, and two in a row never earn more.
         if done.missed, !newBlock, !state.painHold, !context.isCalibration(index, done), ![.loadDown, .painSetBack].contains(code) {
-            expect(!rose, "LOAD-07", here, "a set fell short in \(describe(done)), but it became \(describe(plan))")
+            expect(!rose, "LOAD-07", here, "a set fell short in \(BuildSimText.describe(done)), but it became \(BuildSimText.describe(plan))")
         }
         if state.missStreak >= BuildRules.missStreakForBackoff, !newBlock, !state.painHold {
             expect(![.repsUp, .loadUp, .unratedStep, .volumeRamp, .volumeUp].contains(code), "LOAD-07", here,
-                   "miss streak \(state.missStreak) after \(describe(done)), but planned \(describe(plan))")
+                   "miss streak \(state.missStreak) after \(BuildSimText.describe(done)), but planned \(BuildSimText.describe(plan))")
         }
         // ENG-02: without a tapped rating, one rep or one 5 lb step at most, and never a set.
         if context.reading(index, done).kind == .unrated, !newBlock, !context.isCalibration(index, done) {
             let repCap = max(current, (done.repsDone ?? current) + BuildRules.repsPerStep, exercise.minReps)
             expect((plan.reps ?? 0) <= repCap && (plan.load ?? 0) <= (done.load ?? 0) + BuildRules.stepTenths && plan.sets <= done.plannedSets,
-                   "ENG-02", here, "unrated \(describe(done)) became \(describe(plan))")
+                   "ENG-02", here, "unrated \(BuildSimText.describe(done)) became \(BuildSimText.describe(plan))")
         }
         // BLK-07, VOL-05: the block after return weeks holds the sets from before the break; only pain cuts them.
         if newBlock, context.lastWeek.kind == .return, let preBreak = context.latest(index, in: .build), !state.painHold, !state.painRose,
@@ -287,12 +288,12 @@ struct BuildSimChecker {
         // BLK-07: through the first block after return weeks, the engine raises no load past 10% (at least 5 lb) over
         // the last return load. A heavier weight the lifter chose stays theirs.
         if let cap = firstBlockCap(context, index, newBlock: newBlock), let load = plan.load {
-            expect(load <= max(cap, done.load ?? 0), "BLK-07", here, "planned \(pounds(load)) in the first block after a return, over \(pounds(cap))")
+            expect(load <= max(cap, done.load ?? 0), "BLK-07", here, "planned \(BuildSimText.pounds(load)) in the first block after a return, over \(BuildSimText.pounds(cap))")
         }
         // PAIN-03, BLK-06: a hold released in the week that ends a block resumes from its last exposure.
         if newBlock, state.exposuresSinceRelease == 0, code == .blockRebase, !exercise.repsOnly {
             expect(lighterOrSame(plan.load, than: done.load), "PAIN-03", here,
-                   "released after \(describe(done)), but the new block starts at \(describe(plan))")
+                   "released after \(BuildSimText.describe(done)), but the new block starts at \(BuildSimText.describe(plan))")
         }
         // START-06, LOAD-04, LOAD-06: how far a load may rise in one week. A new block measures from its last build
         // week, except where pain or a released hold keeps the slot where its last exposure left it.
@@ -306,11 +307,11 @@ struct BuildSimChecker {
             case .repeatNotDone, .calibrate: max(base, latest.plannedLoad ?? base)
             default: base
             }
-            expect(load <= cap, "START-06", here, "\(code.rawValue) raised \(pounds(base)) to \(pounds(load)), past \(pounds(cap))")
+            expect(load <= cap, "START-06", here, "\(code.rawValue) raised \(BuildSimText.pounds(base)) to \(BuildSimText.pounds(load)), past \(BuildSimText.pounds(cap))")
         }
         // ENG-01, VOL-07: a set and more weight never come in the same week.
         if !newBlock, plan.sets > done.plannedSets, let load = plan.load, let base = done.load {
-            expect(load <= base, "VOL-07", here, "\(describe(done)) became \(describe(plan)): a set and \(pounds(load - base)) more at once")
+            expect(load <= base, "VOL-07", here, "\(BuildSimText.describe(done)) became \(BuildSimText.describe(plan)): a set and \(BuildSimText.pounds(load - base)) more at once")
         }
     }
 
@@ -339,7 +340,7 @@ struct BuildSimChecker {
         let reference = nested ? context.latest(index, in: .return) ?? before : before
         if let load = plan.load, let preBreak = reference.load {
             let cap = max(BuildRules.stepTenths, BuildEngine.floorToStep(Double(preBreak) * keep))
-            expect(load <= cap, "BLK-07", here, "return week at \(pounds(load)), over \(pounds(cap)) (\(Int(keep * 100))% of \(pounds(preBreak)))")
+            expect(load <= cap, "BLK-07", here, "return week at \(BuildSimText.pounds(load)), over \(BuildSimText.pounds(cap)) (\(Int(keep * 100))% of \(BuildSimText.pounds(preBreak)))")
         }
         let sets = week.blockWeek == 1
             ? BuildEngine.scaled(before.plannedSets, by: BuildRules.returnSetFactor[band - 1])
@@ -421,30 +422,34 @@ struct BuildSimChecker {
 }
 
 //
-// Descriptions for messages and traces
+// Text for messages and traces
 //
-func describe(_ week: BuildWeek) -> String {
-    "\(week.kind.rawValue) \(week.blockWeek)\(week.returnBand > 0 ? " band \(week.returnBand)" : "")"
-}
+enum BuildSimText {
+    /// "225", "47.5", or "bw" for no load.
+    static func pounds(_ tenths: Int?) -> String {
+        guard let tenths else { return "bw" }
+        return tenths % 10 == 0 ? "\(tenths / 10)" : String(format: "%.1f", Double(tenths) / 10)
+    }
 
-func describe(_ week: ProgramWeek) -> String {
-    "\(week.weekKind?.rawValue ?? "unset") \(week.blockWeek)\(week.returnBand > 0 ? " band \(week.returnBand)" : "")"
-}
+    static func describe(_ week: BuildWeek) -> String {
+        "\(week.kind.rawValue) \(week.blockWeek)\(week.returnBand > 0 ? " band \(week.returnBand)" : "")"
+    }
 
-func describe(_ slot: BuildSimSlot) -> String {
-    "\(slot.sets)×\(slot.reps.map(String.init) ?? "?")@\(pounds(slot.load)) aim \(slot.workoutExercise.rirTarget.map(String.init) ?? "?") \(slot.code?.rawValue ?? "nil")"
-}
+    static func describe(_ week: ProgramWeek) -> String {
+        "\(week.weekKind?.rawValue ?? "unset") \(week.blockWeek)\(week.returnBand > 0 ? " band \(week.returnBand)" : "")"
+    }
 
-func describe(_ plan: BuildSlotPlan) -> String {
-    "\(plan.sets)×\(plan.reps.map(String.init) ?? "?")@\(pounds(plan.load)) aim \(plan.rirTarget) \(plan.reason.code.rawValue)"
-}
+    static func describe(_ slot: BuildSimSlot) -> String {
+        "\(slot.sets)×\(slot.reps.map(String.init) ?? "?")@\(pounds(slot.load)) aim \(slot.workoutExercise.rirTarget.map(String.init) ?? "?") "
+            + (slot.code?.rawValue ?? "nil")
+    }
 
-func describe(_ exposure: BuildExposure) -> String {
-    let reps = exposure.done.map { String($0.reps ?? $0.plannedReps ?? 0) }.joined(separator: ",")
-    return "\(exposure.plannedSets)×\(exposure.repTarget.map(String.init) ?? "?")@\(pounds(exposure.plannedLoad)) did \(reps)@\(pounds(exposure.load))"
-}
+    static func describe(_ plan: BuildSlotPlan) -> String {
+        "\(plan.sets)×\(plan.reps.map(String.init) ?? "?")@\(pounds(plan.load)) aim \(plan.rirTarget) \(plan.reason.code.rawValue)"
+    }
 
-func pounds(_ tenths: Int?) -> String {
-    guard let tenths else { return "bw" }
-    return tenths % 10 == 0 ? "\(tenths / 10)" : String(format: "%.1f", Double(tenths) / 10)
+    static func describe(_ exposure: BuildExposure) -> String {
+        let reps = exposure.done.map { String($0.reps ?? $0.plannedReps ?? 0) }.joined(separator: ",")
+        return "\(exposure.plannedSets)×\(exposure.repTarget.map(String.init) ?? "?")@\(pounds(exposure.plannedLoad)) did \(reps)@\(pounds(exposure.load))"
+    }
 }
