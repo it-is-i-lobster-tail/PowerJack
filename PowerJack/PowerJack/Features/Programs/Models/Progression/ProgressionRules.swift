@@ -28,13 +28,15 @@ extension TemplateType {
     /// Writes the weeks of programs of this type.
     var weekPlanner: any WeekPlanner.Type {
         switch self {
-        case .hypertrophy, .strength, .powerJack:
+        case .hypertrophy, .strength:
             ProgressionPlanner.self
+        case .powerJack:
+            PowerJackPlanner.self
         }
     }
 
     /// Decides an exercise's next planned version for programs that use `ProgressionPlanner`.
-    /// Strength and PowerJack share the original rules until they get their own.
+    /// Build and Strengthen share the original rules until they get their own.
     var progressionRules: (ProgressionInput) -> Prescription {
         switch self {
         case .hypertrophy, .strength, .powerJack:
@@ -45,7 +47,9 @@ extension TemplateType {
     /// Effort is rated as reps left on the last set rather than with `LevelOfEffort` words.
     var ratesRepsInReserve: Bool {
         switch self {
-        case .hypertrophy, .strength, .powerJack:
+        case .powerJack:
+            true
+        case .hypertrophy, .strength:
             false
         }
     }
