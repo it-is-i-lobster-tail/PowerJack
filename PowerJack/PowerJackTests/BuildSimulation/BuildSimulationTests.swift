@@ -106,7 +106,26 @@ enum BuildSimulation {
     static let replayProfile = environment["BUILD_SIM_PROFILE"]
 
     static func run(_ profile: BuildSimProfile, seed: UInt64, weeks: Int, keepsTrace: Bool = false) throws -> BuildSimReport {
-        try BuildSimDriver(seed: seed, profile: profile, weeks: weeks, keepsTrace: keepsTrace).run()
+        try quietly {
+            try BuildSimDriver(seed: seed, profile: profile, weeks: weeks, keepsTrace: keepsTrace).run()
+        }
+    }
+
+    /// Runs `body` with the app's own log lines silenced: a year of workouts logs a warning for every skipped
+    /// set, which would bury the test results. BUILD_SIM_APP_LOGS=1 keeps them.
+    static func quietly<Result>(_ body: () throws -> Result) rethrows -> Result {
+        guard environment["BUILD_SIM_APP_LOGS"] == nil else { return try body() }
+        fflush(stderr)
+        let saved = dup(STDERR_FILENO)
+        let silent = open("/dev/null", O_WRONLY)
+        dup2(silent, STDERR_FILENO)
+        defer {
+            fflush(stderr)
+            dup2(saved, STDERR_FILENO)
+            close(saved)
+            close(silent)
+        }
+        return try body()
     }
 
     /// An archetype's own seed, so each one lives a different life.
