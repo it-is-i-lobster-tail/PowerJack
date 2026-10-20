@@ -115,6 +115,8 @@ enum StrengthPlanner: WeekPlanner {
             var plan = history.isEmpty
                 ? StrengthPrescriber.plan(context, record: record, clock: state.clock, at: date)
                 : stored
+            // An exercise switched to bodyweight since its week was planned drops its weights (1.3).
+            if context.grid == nil { plan.sets = plan.sets.map(\.repsOnly) }
 
             if slot.role != .accessory, let grid = context.grid, plan.kind != .returnWeek1 {
                 // A lift the records show trained in the last 14 days is not on a break, which spares searching every

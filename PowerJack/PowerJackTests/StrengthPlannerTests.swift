@@ -273,6 +273,27 @@ struct StrengthPlannerTests {
         #expect(curls.workingSets.map(\.repsPlanned) == [curl.minReps, curl.minReps])
     }
 
+    @Test("An exercise of your own switched to bodyweight drops its planned weights when its workout starts (1.3)")
+    func switchedToBodyweight() throws {
+        let own = Exercise(exerciseName: "Own Carry", exerciseEquipment: .dumbbell, primaryMuscleFocus: .forearms, userCreated: true)
+        context.insert(own)
+        let template = TemplateProgram(templateName: "Carries", workoutsPerWeek: 2, templateMuscleFocus: [.forearms], templateType: .strength)
+        for _ in 0..<2 {
+            template.addTemplateWorkout().addTemplateExercise(exercise: own)
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 2, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+        try finishWeek(of: program) { _ in (50, 10) }
+        #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds != nil })
+
+        own.exerciseEquipment = .bodyweight
+        let workout = try #require(program.nextWorkout)
+        program.prepareToStart(workout)
+        #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })
+    }
+
     @Test("Another break during week 2 back starts the return over (12.1)")
     func breakDuringReturn() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
@@ -348,6 +369,11 @@ struct StrengthPlannerTests {
     private func slot(_ id: String, day: Int, in program: Program, week: Int = 0) throws -> WorkoutExercise {
         let workout = try #require(program.programWeeks[week].workouts.first { $0.order == day })
         return try #require(workout.workoutExercises.first { $0.exercise?.catalogID == id })
+    }
+
+    private func slot(_ exercise: Exercise, day: Int, in program: Program, week: Int = 0) throws -> WorkoutExercise {
+        let workout = try #require(program.programWeeks[week].workouts.first { $0.order == day })
+        return try #require(workout.workoutExercises.first { $0.exercise === exercise })
     }
 
     /// Logs every workout of the current week with `load(catalogID)`: pounds, and reps or the plan's.

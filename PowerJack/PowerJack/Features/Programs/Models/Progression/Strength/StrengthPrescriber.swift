@@ -33,7 +33,9 @@ enum StrengthPrescriber {
         at now: Date
     ) -> StrengthSlotPlan {
         if slot.role == .accessory || slot.grid == nil {
-            return accessoryPlan(slot, deload: clock.upcoming == .deload)
+            var plan = accessoryPlan(slot, deload: clock.upcoming == .deload)
+            if slot.grid == nil { plan.sets = plan.sets.map(\.repsOnly) }
+            return plan
         }
         var plan = loadedPlan(slot, record: record, clock: clock, at: now)
         plan.warmups = warmups(for: plan, slot: slot, record: record)
@@ -214,8 +216,10 @@ enum StrengthPrescriber {
         plan.kind = .returnWeek2
         if !last.missedSets.isEmpty || (last.delta ?? 0) <= StrengthRules.flagDelta {
             plan.rules = ["12.3"]
-            // The stored plan holds any set the lifter added, which had no target: repeat it evenly.
-            plan.sets = StrengthSlotPlan.uniform(plan.sets.count, reps: plan.targetReps, loadKg: plan.loadKg)
+            // The stored plan holds any set the lifter added, which had no target: repeat it evenly, on the grid as
+            // it is now in case the unit or step changed (1.4).
+            let load = plan.loadKg.map { slot.grid?.down($0 + LoadGrid.storedTolerance) ?? $0 }
+            plan.sets = StrengthSlotPlan.uniform(plan.sets.count, reps: plan.targetReps, loadKg: load)
             return plan
         }
         let cut: Double
@@ -518,7 +522,7 @@ enum StrengthPrescriber {
         var rules = ["5.1"]
         if last.isPainful || last.rir == 0 {
             rules.append("hold")
-        } else if logged.contains(where: { ($0.reps ?? 0) < slot.repRange.lowerBound }) {
+        } else if sets.contains(where: { ($0.reps ?? .max) < slot.repRange.lowerBound }) {
             // Short of the range: back to its bottom at the same weight, as today's double progression does.
             sets = sets.map { StrengthPlannedSet(reps: $0.reps.map { max($0, slot.repRange.lowerBound) }, loadKg: $0.loadKg) }
             rules.append("hold")

@@ -53,6 +53,8 @@ enum StrengthPain {
         grid: LoadGrid?
     ) -> Bool {
         let base = plan.intendedKg ?? plan.loadKg ?? lastSession?.ratedSet?.loadKg
+        // A plan made before the unit or step changed, rounded down to the grid as it is now (1.4).
+        let planned = plan.loadKg.map { grid?.down($0 + LoadGrid.storedTolerance) ?? $0 }
         func capped(_ share: Double) -> Double? {
             guard let base else { return plan.loadKg }
             let load = base * share
@@ -86,14 +88,14 @@ enum StrengthPain {
         if state.isRamping {
             plan.kind = .painCut
             if state.rirFloor { plan.rir = max(plan.rir, StrengthRules.painReturnRIR) }
-            let load = [plan.loadKg, state.capShare.flatMap { capped($0) }].compactMap { $0 }.min()
+            let load = [planned, state.capShare.flatMap { capped($0) }].compactMap { $0 }.min()
             plan.sets = StrengthSlotPlan.uniform(plan.sets.count - state.setsDropped, reps: plan.targetReps, loadKg: load)
             plan.rules.append("15.7")
         }
         if state.holds, let last = lastSession, last.trained {
             // Hold load and sets: nothing rises past the last session (15.6), on the grid as it is now (1.4).
             let lastLoad = last.ratedSet?.loadKg.map { grid?.down($0 + LoadGrid.storedTolerance) ?? $0 }
-            let load = [plan.loadKg, lastLoad].compactMap { $0 }.min()
+            let load = [planned, lastLoad].compactMap { $0 }.min()
             plan.sets = StrengthSlotPlan.uniform(min(plan.sets.count, last.completedSets.count), reps: plan.targetReps, loadKg: load)
             if let lastLoad, let intended = plan.intendedKg { plan.intendedKg = min(intended, lastLoad) }
             plan.rules.append("15.6")

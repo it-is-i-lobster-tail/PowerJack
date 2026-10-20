@@ -324,10 +324,12 @@ struct StrengthSimChecker {
         // The last normal week with a load, as the planner reads it: a slot it never wrote, such as a swapped
         // exercise, reads as a by-feel week.
         let rated = { (week: StrengthSimSlot) in week.ratedSet?.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) } }
-        let normal = history.first { week in
-            [.normal, .calibration].contains(week.kind ?? .calibration) && (week.workoutExercise.intendedLoadKg ?? rated(week)) != nil
-        }
-        guard let source = normal ?? history.first else { return }
+        // Weeks the exercise ran as an accessory hold nothing a priority lift deloads from.
+        let history = history.filter { $0.kind != .accessory }
+        let hasLoad = { (week: StrengthSimSlot) in (week.workoutExercise.intendedLoadKg ?? rated(week)) != nil }
+        let normal = history.first { week in [.normal, .calibration].contains(week.kind ?? .calibration) && hasLoad(week) }
+        // With no weight anywhere before, the deload comes from e1RM, as a new lift's first week does (2.6).
+        guard history.contains(where: hasLoad), let source = normal ?? history.first else { return }
         let sets = max(1, source.sets.count / 2)
         expect(slot.sets.count == sets, "10.6", here, "\(slot.sets.count) sets, half of \(source.sets.count) is \(sets)")
         // 90% of the intended load, or of the bar when a cap kept the bar under it.
