@@ -75,7 +75,13 @@ struct ProgressionPlannerTests {
             maxReps: 12
         )
         container.mainContext.insert(exercise)
-        let template = TemplateProgram(templateName: "Test", workoutsPerWeek: 1, templateMuscleFocus: focus)
+        // Every type now has its own planner, so `finishWeeks` builds the next week with this one directly.
+        let template = TemplateProgram(
+            templateName: "Test",
+            workoutsPerWeek: 1,
+            templateMuscleFocus: focus,
+            templateType: .strength
+        )
         template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
         container.mainContext.insert(template)
         let program = Program(programLengthWeeks: weeks, templateProgram: template)
@@ -97,6 +103,12 @@ struct ProgressionPlannerTests {
                 }
                 exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .easy, levelOfPain: .none))
                 exercise.completeAndCascade()
+            }
+            if let week = program.programWeek(containing: workout),
+               week.workouts.allSatisfy({ $0 === workout || $0.isFinished }),
+               let nextWeek = program.programWeeks.first(where: { $0.order == week.order + 1 }),
+               nextWeek.workouts.isEmpty {
+                ProgressionPlanner.build(nextWeek, in: program)
             }
             program.finishWorkout(workout)
         }
