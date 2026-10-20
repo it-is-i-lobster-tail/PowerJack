@@ -115,7 +115,7 @@ struct StrengthSimChecker {
         for slot in StrengthSimSlot.all(in: week) {
             let at = "\(here) \(slot.name)"
             let history = slot.history(in: program)
-            checkSlot(slot, records: records, at: at, checksGrid: true, history: history)
+            checkSlot(slot, records: records, at: at, checksGrid: true)
             if week.weekKind == .deload {
                 checkDeload(slot, history: history, at: at)
             } else {
@@ -140,7 +140,7 @@ struct StrengthSimChecker {
         for slot in StrengthSimSlot.all(in: workout) where slot.workoutExercise.status == .planned {
             let at = "\(here) \(slot.name)"
             let changed = before[ObjectIdentifier(slot.workoutExercise)] != Self.signature(of: slot)
-            checkSlot(slot, records: records, at: at, checksGrid: changed, history: slot.history(in: program))
+            checkSlot(slot, records: records, at: at, checksGrid: changed)
             let lift = truth[slot.key] ?? StrengthSimTruth()
 
             if slot.isLoaded, gridFor(slot.exercise.exerciseEquipment) != nil,
@@ -233,7 +233,7 @@ struct StrengthSimChecker {
     // MARK: Slots
 
     /// What every planned slot must look like, whatever came before (1.1, 1.3, 5.1, 5.2, 5.7, 5.9, 10.6, 15.4).
-    private mutating func checkSlot(_ slot: StrengthSimSlot, records: StrengthState, at here: String, checksGrid: Bool, history: [StrengthSimSlot]) {
+    private mutating func checkSlot(_ slot: StrengthSimSlot, records: StrengthState, at here: String, checksGrid: Bool) {
         guard slot.role != nil, let kind = slot.kind else {
             fail("ENG", here, "no Strengthen plan (role \(slot.role?.rawValue ?? "nil"), code \(slot.workoutExercise.progressionCode ?? "nil"))")
             return
