@@ -7,21 +7,6 @@
 
 import SwiftUI
 
-protocol ScaleSelectorOption:
-    CaseIterable,
-    Hashable,
-    RawRepresentable
-where RawValue == Int {
-
-    var label: String { get }
-    /// The big value on the option. Defaults to the raw value.
-    var valueText: String { get }
-}
-
-extension ScaleSelectorOption {
-    var valueText: String { "\(rawValue)" }
-}
-
 /// A 0–5 style rating laid out as a grid so every label fits on any iPhone.
 struct ScaleSelector<Option: ScaleSelectorOption>: View {
     @Binding var selection: Option?
