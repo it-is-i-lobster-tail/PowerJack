@@ -15,6 +15,11 @@ import Testing
 struct BodyweightSetTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
 
+    init() {
+        // These read weights in pounds, whatever unit the simulator was last left in.
+        UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
+    }
+
     @Test("A bodyweight set shows BW, takes no weight, and completes with reps alone")
     func bodyweightSet() async throws {
         let workoutSet = try makeActiveSet(equipment: .bodyweight)

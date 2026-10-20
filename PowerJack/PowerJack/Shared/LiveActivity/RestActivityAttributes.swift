@@ -54,6 +54,8 @@ nonisolated struct ActivitySet: Codable, Hashable {
     /// `nil` when there is nothing to show yet, e.g. no target in week 1.
     var reps: Int?
     var weightTenthsPounds: Int?
+    /// Shows the weight in kilograms. Weights are always stored in tenths of a pound.
+    var usesKilograms: Bool?
 
     var repsText: String {
         reps.map(String.init) ?? "–"
@@ -62,8 +64,14 @@ nonisolated struct ActivitySet: Codable, Hashable {
     func weightText(repsOnly: Bool) -> String {
         if repsOnly { return "BW" }
         guard let weightTenthsPounds else { return "–" }
-        let pounds = Double(weightTenthsPounds) / 10
-        return pounds.formatted(.number.precision(.fractionLength(0...1)))
+        return Self.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
+    }
+
+    /// e.g. "225" or "102.5". `WeightUnit` isn't compiled into the widget, so the conversion lives here too.
+    static func weight(tenthsPounds: Int, inKilograms: Bool) -> String {
+        let pounds = Double(tenthsPounds) / 10
+        let weight = inKilograms ? pounds * 0.45359237 : pounds
+        return weight.formatted(.number.precision(.fractionLength(0...1)))
     }
 }
 

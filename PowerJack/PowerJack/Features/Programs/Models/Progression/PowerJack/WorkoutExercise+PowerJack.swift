@@ -78,7 +78,7 @@ extension WorkoutExercise {
         guard let exercise else { return .zero }
         // Only PowerJack's planner sets a role. Reading it here, rather than the program's type,
         // keeps the rest timer from reaching up to the Program.
-        guard let role = powerJackRole else { return exercise.restDuration }
+        guard let role = powerJackRole else { return strengthRestDuration ?? exercise.restDuration }
         let latest = workoutSets
             .filter { $0.status == .complete }
             .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
