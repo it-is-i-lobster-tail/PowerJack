@@ -33,7 +33,7 @@ struct WarmupSetTests {
         // Warmups well under the minimum reps would hold progression if they counted.
         log(exercise.warmupSets, reps: 3, weightTenthsPounds: 450)
         log(exercise.workingSets, reps: 11, weightTenthsPounds: 1350)
-        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        exercise.addFeedback(feedback: ExerciseFeedback(repsInReserve: .four, levelOfPain: .none))
 
         let next = try #require(program.finishWorkout(workout)?.workoutExercises.first)
 
