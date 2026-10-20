@@ -10,15 +10,23 @@ import Foundation
 import OSLog
 
 enum PowerJackPlanner: WeekPlanner {
+    /// "Now" for the engine's day windows, such as R2.5's 14 days. Nil is the clock; tests set it to
+    /// replay programs on a simulated calendar.
+    @TaskLocal static var now: Date?
+
     /// Week 1 is copied from the template with 2 sets each. The engine replaces its sets.
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {
+        apply(firstPlan(for: week, in: program), to: week)
+    }
+
+    /// The engine's plan for a program's week 1, from the exercises copied into it.
+    static func firstPlan(for week: ProgramWeek, in program: Program) -> PowerJackWeekPlan {
         let exercises = week.workouts.map { $0.workoutExercises.compactMap(\.exercise) }
-        let plan = PowerJackEngine.firstWeek(
+        return PowerJackEngine.firstWeek(
             exercises.map { $0.map { Self.exercise($0) } },
             warmupsDisabled: week.workouts.map { $0.workoutExercises.map(\.warmupsDisabled) },
             context: context(for: program, exercises: exercises.flatMap { $0 })
         )
-        apply(plan, to: week)
     }
 
     /// Builds the empty `week` from every week before it.
@@ -34,11 +42,7 @@ enum PowerJackPlanner: WeekPlanner {
         let closed = Array(weeks[..<index])
         let source = closed[index - 1]
         let exercises = source.workouts.map { $0.workoutExercises.compactMap(\.exercise) }
-        let logs = weekLogs(closed, programWeeks: program.programLengthWeeks)
-        guard let plan = PowerJackEngine.nextWeek(
-            after: logs,
-            context: context(for: program, exercises: exercises.flatMap { $0 })
-        ) else { return }
+        guard let plan = nextPlan(after: closed, in: program) else { return }
 
         for (workoutIndex, workoutExercises) in exercises.enumerated() {
             guard let workout = week.addWorkout() else { continue }
@@ -49,6 +53,16 @@ enum PowerJackPlanner: WeekPlanner {
         }
         apply(plan, to: week)
         Logger.program.info("Built PowerJack week \(index + 1): \(plan.header.type.rawValue), block \(plan.header.blockNumber)")
+    }
+
+    /// The engine's plan for the week after `closed`, which are every week of the program before it.
+    static func nextPlan(after closed: [ProgramWeek], in program: Program) -> PowerJackWeekPlan? {
+        guard let source = closed.last else { return nil }
+        let exercises = source.workouts.flatMap { $0.workoutExercises.compactMap(\.exercise) }
+        return PowerJackEngine.nextWeek(
+            after: weekLogs(closed, programWeeks: program.programLengthWeeks),
+            context: context(for: program, exercises: exercises)
+        )
     }
 
     // MARK: Writing the plan
@@ -89,12 +103,13 @@ enum PowerJackPlanner: WeekPlanner {
 
     // MARK: Reading the logs
 
-    private static func context(for program: Program, exercises: [Exercise]) -> PowerJackContext {
+    static func context(for program: Program, exercises: [Exercise]) -> PowerJackContext {
         let byID = Dictionary(exercises.map { (AnyHashable(ObjectIdentifier($0)), $0) }, uniquingKeysWith: { first, _ in first })
         var cache: [AnyHashable: [PowerJackExposure]] = [:]
         return PowerJackContext(
             programWeeks: program.programLengthWeeks,
             focusMuscles: Set(program.templateMuscleFocus),
+            now: Self.now ?? .now,
             history: { id in
                 if let cached = cache[id] { return cached }
                 let exposures = (byID[id]?.workoutExercisesValue ?? [])
@@ -139,11 +154,17 @@ enum PowerJackPlanner: WeekPlanner {
     private static func entry(_ workoutExercise: WorkoutExercise) -> PowerJackEntryLog? {
         guard let exercise = workoutExercise.exercise else { return nil }
         let feedback = workoutExercise.feedback
+        // A set added in the session has no planned reps: it's held to the last planned set's (R4.2), of its
+        // own part, so a set added after the TOP sets is a BACK set, never held to TOP reps.
+        let topSets = workoutExercise.topSets
+        var lastPlannedReps: Int?
         return PowerJackEntryLog(
             exercise: Self.exercise(exercise),
-            sets: workoutExercise.workingSets.map { set in
-                PowerJackSetLog(
-                    plannedReps: set.repsPlanned,
+            sets: workoutExercise.workingSets.enumerated().map { index, set in
+                if index == topSets { lastPlannedReps = nil }
+                lastPlannedReps = set.repsPlanned ?? lastPlannedReps
+                return PowerJackSetLog(
+                    plannedReps: set.repsPlanned ?? lastPlannedReps,
                     plannedLoad: set.weightInPoundsPlanned,
                     reps: set.reps,
                     load: set.weightInPounds,
@@ -152,7 +173,7 @@ enum PowerJackPlanner: WeekPlanner {
                     completedAt: set.completedAt
                 )
             },
-            topSets: workoutExercise.topSets,
+            topSets: topSets,
             target: workoutExercise.rirTarget,
             loadTarget: workoutExercise.powerJackLoadTargetValue,
             topLoadTarget: workoutExercise.powerJackTopLoadTargetValue,
@@ -161,7 +182,9 @@ enum PowerJackPlanner: WeekPlanner {
             topRIR: workoutExercise.topSetRepsInReserve?.rawValue,
             legacyEffort: feedback?.repsInReserve == nil ? feedback?.levelOfEffort : nil,
             pain: feedback?.levelOfPain,
-            warmupsDisabled: workoutExercise.warmupsDisabled
+            warmupsDisabled: workoutExercise.warmupsDisabled,
+            role: workoutExercise.powerJackRole.map { PowerJackSlotRole(role: $0, tag: workoutExercise.powerJackTag) },
+            unplanned: workoutExercise.powerJackRoleValue == nil
         )
     }
 

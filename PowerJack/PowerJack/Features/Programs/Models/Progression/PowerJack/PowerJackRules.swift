@@ -48,6 +48,8 @@ enum PowerJackRules {
     static let stepPounds = 5.0
     static let maxJumpPct = 10.0
     static let lookbackDays = 14
+    /// The heaviest load a set can log.
+    static let maxLoadPounds = Double(WorkoutSet.maxWeightPounds)
 
     // R3 Volume
     static let secondaryCredit = 0.5
