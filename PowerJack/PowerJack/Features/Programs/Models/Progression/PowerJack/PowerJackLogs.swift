@@ -55,6 +55,10 @@ struct PowerJackEntryLog: Equatable {
     var legacyEffort: LevelOfEffort?
     var pain: LevelOfPain?
     var warmupsDisabled = false
+    /// The role and tag the engine planned the entry with.
+    var role: PowerJackSlotRole?
+    /// Swapped in during the session: the engine never planned it.
+    var unplanned = false
 }
 
 struct PowerJackWorkoutLog: Equatable {
@@ -157,23 +161,26 @@ struct PowerJackPart: Equatable {
         return gap > tolerance ? .easy : .met
     }
 
-    /// R8.2: the best of a floor from every set and the estimates from rated or short sets.
-    var value: (value: Double, hasEstimate: Bool)? {
-        var best: Double?
-        var hasEstimate = false
+    /// R8.2: the best of a floor from every set and the estimates from rated or short sets, and the best
+    /// floor alone, which R8.4 raises an anchor to.
+    var value: (value: Double, hasEstimate: Bool, floor: Double)? {
+        var floors: [Double] = []
+        var estimates: [Double] = []
         let rated = completed.last
         for set in completed {
-            guard let load = set.load, let reps = set.reps, reps > 0 else { continue }
-            var candidates = [PowerJackPercent.e1RM(load: load, reps: reps, rir: 0)]
+            guard let load = set.load, let reps = set.reps, reps > 0,
+                  let floor = PowerJackPercent.e1RM(load: load, reps: reps, rir: 0)
+            else { continue }
+            floors.append(floor)
             if let planned = set.plannedReps, reps < planned {
-                hasEstimate = true
-            } else if set == rated, source == .tapped, let tap {
-                if tap <= 4 { hasEstimate = true }
-                candidates.append(PowerJackPercent.e1RM(load: load, reps: reps, rir: tap))
+                estimates.append(floor)
+            } else if set == rated, source == .tapped, let tap, let fromTap = PowerJackPercent.e1RM(load: load, reps: reps, rir: tap) {
+                // A 5+ tap is only a lower bound: a floor at reps + 5.
+                if tap <= 4 { estimates.append(fromTap) } else { floors.append(fromTap) }
             }
-            best = (candidates.compactMap { $0 } + [best].compactMap { $0 }).max()
         }
-        return best.map { ($0, hasEstimate) }
+        guard let floor = floors.max() else { return nil }
+        return (max(floor, estimates.max() ?? floor), !estimates.isEmpty, floor)
     }
 }
 

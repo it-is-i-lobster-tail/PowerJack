@@ -327,6 +327,24 @@ struct WarmupSetTests {
         #expect(!next.warmupsDisabled)
     }
 
+    @Test("A set added after the warmups are removed goes after the planned sets")
+    func addedSetAfterRemovedWarmupsGoesLast() throws {
+        // A tie in set order fell back to model identity, which differs run to run, so repeat it.
+        for _ in 0..<12 {
+            let program = try makeProgram(weeks: 1)
+            let workout = try #require(program.nextWorkout)
+            workout.startAndCascade()
+            let exercise = try #require(workout.workoutExercises.first)
+            let planned = exercise.workingSets
+            exercise.disableWarmups()
+
+            let added = try #require(exercise.addSet())
+
+            #expect(exercise.workingSets.map(ObjectIdentifier.init) == (planned + [added]).map(ObjectIdentifier.init))
+            #expect(exercise.workoutSets.map(\.order) == Array(0..<exercise.workoutSets.count))
+        }
+    }
+
     @Test("Enable Warmup adds two when the exercise has no warmups to bring back")
     func enableWarmupsWithNoneBefore() throws {
         let program = try makeProgram(weeks: 2)

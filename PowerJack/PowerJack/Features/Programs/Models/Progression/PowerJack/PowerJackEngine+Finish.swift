@@ -19,6 +19,11 @@ extension PowerJackWeekBuilder {
         case .progress:
             return false
         case .hold:
+            // The same load as last time: what the lifter lifted, never more than was planned.
+            for (index, part) in entry.parts.enumerated() {
+                guard let last = part.heaviestLoad, !entry.exercise.repsOnly else { continue }
+                setLoad(&plan, part: index, of: entry, to: min(part.sets.first?.plannedLoad ?? last, last))
+            }
             plan.reasons.append(.painHold)
             return true
         case .reduce:
@@ -29,7 +34,9 @@ extension PowerJackWeekBuilder {
                 }
                 let floor = prePainLoad(slot, part: index, episodeStart: state.episodeStart, fallback: last) * (1 - PowerJackRules.painMaxTotalCutPct / 100)
                 let cut = PowerJackSteps(origin: last).roundDown(last - max(last * PowerJackRules.painCutPct / 100, steps.step))
-                if cut >= floor { setLoad(&plan, part: index, of: entry, to: cut) }
+                // Past the total cut, it holds where it is, as R10.3's hold does.
+                let held = min(part.sets.first?.plannedLoad ?? last, last)
+                setLoad(&plan, part: index, of: entry, to: cut < last && cut >= floor ? cut : held)
             }
             plan.reasons.append(.painReduce)
             return true
@@ -38,7 +45,7 @@ extension PowerJackWeekBuilder {
             for (index, part) in entry.parts.enumerated() {
                 guard let last = part.heaviestLoad, !entry.exercise.repsOnly else { continue }
                 let cut = PowerJackSteps(origin: last).roundDown(last - max(last * PowerJackRules.painCutPct / 100, steps.step))
-                setLoad(&plan, part: index, of: entry, to: cut)
+                setLoad(&plan, part: index, of: entry, to: min(cut, last))
             }
             let keep = max(1, Int((Double(plan.sets.count) * PowerJackRules.painContinueSetFactor).rounded(.up)))
             plan.sets = Array(plan.sets.prefix(max(keep, plan.topSets > 0 ? plan.topSets + 1 : 1)))
@@ -88,6 +95,25 @@ extension PowerJackWeekBuilder {
         for slot in slots {
             guard var plan = plans[slot] else { continue }
             let pain = painState(exercise(slot))
+            fillReps(&plan, slot: slot)
+            if header.type == .build {
+                // R10.2: no rise while pain holds the exercise, block starts and restarted slots included.
+                if pain.inEpisode || pain.action == .hold(floor: false) {
+                    holdAtLastLoads(&plan, slot: slot)
+                }
+                capLoads(&plan, slot: slot)
+            }
+            // R10.4: Severe or Extreme pain the last time opens the check-in before the next exposure,
+            // whatever the week, until the exercise is done again.
+            if case .checkIn(let level) = pain.action, plan.checkInPain == nil {
+                plan.checkInPain = level
+                plan.reasons.append(.painCheckIn)
+            }
+            // R2.6: a bodyweight exercise carries no load, even one edited to bodyweight since its last plan.
+            let repsOnly = exercise(slot).repsOnly
+            for index in plan.sets.indices {
+                plan.sets[index].load = repsOnly ? nil : plan.sets[index].load.map { min($0, PowerJackRules.maxLoadPounds) }
+            }
             if header.type == .build {
                 var target = PowerJackRules.rirByColumn(role(slot).role, goal)[min(3, max(0, header.column - 1))]
                 let reps = plan.sets.last?.reps ?? 0
@@ -120,6 +146,59 @@ extension PowerJackWeekBuilder {
                 plans[slot]?.target = 0
                 plans[slot]?.repOut = true
             }
+        }
+    }
+
+    /// Every set gets reps: one added in a session or after a swap has none planned. It takes the reps of
+    /// the set before it in its part, else the slot's own (R2.1).
+    private func fillReps(_ plan: inout PowerJackEntryPlan, slot: SlotRef) {
+        for index in plan.sets.indices where plan.sets[index].reps == nil {
+            let isTop = index < plan.topSets
+            let earlier = plan.sets[(isTop ? 0 : plan.topSets)..<index].last { $0.reps != nil }?.reps
+            plan.sets[index].reps = earlier ?? defaultReps(slot, top: isTop)
+        }
+    }
+
+    /// R2.1's reps for a slot: a main lift's by tag, or the bottom of an S or A range.
+    func defaultReps(_ slot: SlotRef, top: Bool) -> Int {
+        guard role(slot).role == .main else { return repRange(slot).lowerBound }
+        return top || role(slot).tag == .heavy ? heavyReps : volumeReps
+    }
+
+    /// R10.2: never above what the exercise last lifted in a BUILD week: in this slot, or where it was
+    /// last done when it's new to the slot. A TOP entry reads a TOP-and-BACK log's TOP sets, a BACK entry
+    /// its BACK sets.
+    private func holdAtLastLoads(_ plan: inout PowerJackEntryPlan, slot: SlotRef) {
+        guard let latest = latestBuildLog(slot) ?? latestBuildExposure(slot) else { return }
+        let parts = latest.parts.map(\.heaviestLoad)
+        let tag = role(slot).tag
+        for index in plan.sets.indices {
+            var partLoad: Double?
+            if latest.isTopAndBack, plan.topSets > 0 {
+                partLoad = parts[index < plan.topSets ? 0 : 1]
+            } else if latest.isTopAndBack, tag == .heavy || tag == .volume {
+                partLoad = parts[tag == .heavy ? 0 : 1]
+            }
+            guard let last = partLoad ?? parts.compactMap({ $0 }).max(), let load = plan.sets[index].load, load > last else { continue }
+            plan.sets[index].load = last
+        }
+    }
+
+    /// The exercise's latest BUILD exposure in any slot, planned with this slot's tag when there is one.
+    private func latestBuildExposure(_ slot: SlotRef) -> PowerJackEntryLog? {
+        let tag = role(slot).tag
+        let builds = context.history(exercise(slot).id).filter { $0.weekType == .build && $0.entry.hasCompletedSets }
+        return (builds.last { $0.tag == tag || $0.tag == .topAndBack } ?? builds.last)?.entry
+    }
+
+    /// R2.5 and R10.7: no load rises past max(10% over the best load of the last 14 days, one step), block
+    /// starts and repeated plans included, except the load set right after a calibrating exposure (decision 30).
+    private func capLoads(_ plan: inout PowerJackEntryPlan, slot: SlotRef) {
+        let exercise = exercise(slot)
+        guard !exercise.repsOnly, let best = bestRecentLoad(exercise) else { return }
+        if let last = weeks.last, let entry = log(slot, in: last), entry.calibrating, entry.hasCompletedSets { return }
+        for index in plan.sets.indices {
+            plan.sets[index].load = plan.sets[index].load.map { PowerJackSteps().capped($0, best: best) }
         }
     }
 

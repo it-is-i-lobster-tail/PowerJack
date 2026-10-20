@@ -70,6 +70,29 @@ struct PowerJackPlannerTests {
         #expect(!next.calibrating)
     }
 
+    @Test("A set added after a lone TOP set is a BACK set: a pain hold plans it at BACK reps, not TOP reps (R4.2)")
+    func setAddedAfterTopIsBack() throws {
+        let program = try makeProgram()
+        let weekOne = try #require(program.nextWorkout)
+        weekOne.startAndCascade()
+        log(weekOne, squatLoads: [2250, 1850, 1850, 1850, 1850], pain: .none)
+        program.finishWorkout(weekOne)
+
+        // Week 2: down to the TOP set, then one set added back, and Moderate pain.
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let squat = try #require(workout.workoutExercises.first)
+        while squat.workingSets.count > 1 { squat.removeLastSet() }
+        let added = try #require(squat.addSet())
+        #expect(added.repsPlanned == nil && !squat.isTopSet(added))
+        log(workout, squatLoads: [2300, 1850], pain: .moderate)
+        program.finishWorkout(workout)
+
+        let next = try #require(program.programWeeks[2].workouts.first?.workoutExercises.first)
+        #expect(next.progressionCode == PowerJackReason.painHold.rawValue)
+        #expect(next.workingSets.map(\.repsPlanned) == [5, 8])
+    }
+
     @Test("Every built-in PowerJack template starts with sets and targets on every exercise")
     func catalogTemplates() throws {
         try ExerciseCatalog.seed(in: container.mainContext)
@@ -93,6 +116,23 @@ struct PowerJackPlannerTests {
     }
 
     // MARK: Helpers
+
+    /// Logs every set at its planned reps (8 when none was planned): the squat at `squatLoads`, the rest
+    /// at 30 lb, rated 3 reps left.
+    private func log(_ workout: Workout, squatLoads: [Int], pain: LevelOfPain) {
+        for exercise in workout.workoutExercises {
+            let isSquat = exercise === workout.workoutExercises.first
+            for (index, set) in exercise.workingSets.enumerated() {
+                set.reps = set.repsPlanned ?? 8
+                set.weightTenthsPounds = isSquat ? squatLoads[index] : 300
+                exercise.completeSet(set)
+                if exercise.needsTopSetRating, exercise.isLastTopSet(set) {
+                    exercise.rateTopSets(.three)
+                }
+            }
+            exercise.addFeedback(feedback: ExerciseFeedback(repsInReserve: .three, levelOfPain: isSquat ? pain : .none))
+        }
+    }
 
     private func makeProgram() throws -> Program {
         let squat = Exercise(exerciseName: "Squat", exerciseEquipment: .barbell, primaryMuscleFocus: .quads, fatigueLevel: .high)
