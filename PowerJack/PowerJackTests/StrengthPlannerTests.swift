@@ -248,6 +248,31 @@ struct StrengthPlannerTests {
         #expect(StrengthLog.latestState(in: context).clock.weeksSinceDeload == 0)
     }
 
+    @Test("Lighter on an accessory with no logged reps plans the bottom of its range, not 3 reps (15.4)")
+    func accessoryLighterReps() throws {
+        let curl = try exercise("dumbbell-curl")
+        let template = TemplateProgram(templateName: "Curls", workoutsPerWeek: 2, templateMuscleFocus: [.biceps], templateType: .strength)
+        for _ in 0..<2 {
+            template.addTemplateWorkout().addTemplateExercise(exercise: curl)
+        }
+        context.insert(template)
+        let program = Program(programLengthWeeks: 3, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+
+        // Week 1: day 2 is skipped, so its curls carry their by-feel plan into week 2.
+        try log(try #require(program.nextWorkout), in: program) { _ in (25, 10) }
+        program.skipWorkout(try #require(program.nextWorkout))
+        // Week 2: Severe pain on day 1 puts day 2's curls behind a check-in.
+        try log(try #require(program.nextWorkout), in: program, pain: { _ in .severe }) { _ in (25, 10) }
+        let dayTwo = try #require(program.nextWorkout)
+        program.prepareToStart(dayTwo)
+
+        let curls = try slot("dumbbell-curl", day: 1, in: program, week: 1)
+        #expect(curls.checkInPending)
+        #expect(curls.workingSets.map(\.repsPlanned) == [curl.minReps, curl.minReps])
+    }
+
     @Test("Another break during week 2 back starts the return over (12.1)")
     func breakDuringReturn() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)

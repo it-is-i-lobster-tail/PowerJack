@@ -360,6 +360,27 @@ struct StrengthEngineTests {
         #expect((state.clock.blockWeek, state.clock.blockType) == (1, .b))
     }
 
+    @Test("One lift back from a break doesn't skip the planned deload; every priority lift back does and restarts the count (10.5, 12.5)")
+    func returnWeekSkipsDeload() {
+        func blockEnd(returning: Set<String>) -> StrengthState {
+            var state = StrengthState()
+            state.clock.blockWeek = 4
+            state.clock.weeksSinceDeload = 3
+            let entries = ["squat", "bench"].map { key in
+                StrengthClosedWeek.Entry(
+                    key: key, role: .primary, zone: .heavy, curve: .main,
+                    session: session(returning.contains(key) ? .returnWeek1 : .normal, reps: 4, rir: 2, intended: 120, sets: Array(repeating: (120, 4), count: 3), rated: 2)
+                )
+            }
+            StrengthWeekClose.close(&state, week: StrengthClosedWeek(entries: entries, priorityKeys: ["squat", "bench"], kind: .build, closedAt: now))
+            return state
+        }
+        #expect(blockEnd(returning: ["squat"]).clock.upcoming == .deload)
+        let whole = blockEnd(returning: ["squat", "bench"])
+        #expect(whole.clock.upcoming == .build && whole.clock.startsBlock)
+        #expect(whole.clock.weeksSinceDeload == 0)
+    }
+
     @Test("No real gain over 8 normal weeks picks the cheapest stall step first (11.3, 11.5)")
     func plateau() {
         var state = StrengthState()
@@ -641,6 +662,10 @@ struct StrengthEngineTests {
         let deloaded = session(.deload, reps: 4, rir: 3, intended: 130, sets: [(130, 4)], rated: 4)
         let block = plan(context(zone: .heavy, history: [deloaded, byFeel]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 1, startsBlock: true))
         #expect((block.kind, block.loadKg) == (.normal, 152.5))
+
+        // A weightless week skipped after the deload has nothing to repeat (7.4), so e1RM sets the load again.
+        let skippedAgain = plan(context(zone: .heavy, history: [byFeel, deloaded]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 2))
+        #expect(skippedAgain.loadKg != nil)
     }
 
     // MARK: Accessories and codes
