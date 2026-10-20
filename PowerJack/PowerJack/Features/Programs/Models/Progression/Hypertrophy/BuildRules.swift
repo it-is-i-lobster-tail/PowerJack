@@ -27,6 +27,8 @@ enum BuildRules {
     // MARK: Load and reps (LOAD)
 
     static let stepTenths = 50
+    /// The heaviest load a set can log, so the most the engine plans.
+    static var maxLoad: Int { WorkoutSet.maxWeightPounds * 10 }
     static let maxJumpPct = 10.0
     static let repsPerStep = 1
     static let repsPerStepEasy = 2

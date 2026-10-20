@@ -13,11 +13,17 @@ import Foundation
 extension BuildEngine {
     /// The plan pain decides on its own, or nil when the slot is free to progress (PAIN-01, PAIN-02).
     static func painPlan(_ context: BuildContext, _ index: Int) -> BuildSlotPlan? {
-        guard let exposure = context.latestDone(index), let pain = exposure.pain else { return nil }
+        guard let exposure = context.latestDone(index) else { return nil }
         let exercise = context.slots[index].exercise
         let state = context.states[index]
         let reps = exposure.repTarget ?? exposure.repsDone
         let load = exercise.repsOnly ? nil : exposure.load
+        guard let pain = exposure.pain else {
+            // Only a pain tap releases a hold, so an exposure left unrated keeps the slot where it is (PAIN-03).
+            guard state.painHold else { return nil }
+            let held = state.previousPain ?? BuildRules.holdAt
+            return BuildSlotPlan(sets: exposure.plannedSets, reps: reps, load: load, rirTarget: 0, reason: .painHold(held))
+        }
 
         if pain.rawValue >= BuildRules.checkInAt.rawValue {
             let cut = lighter(load: load, reps: reps, pct: BuildRules.severeCutPct)
@@ -61,10 +67,12 @@ extension BuildEngine {
             draft.caps.noJump = true
             draft.caps.noRamp = true
         }
-        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02).
+        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02), after a rated exposure:
+        // an unrated or legacy-rated one never gains a set (ENG-02, RIR-02).
         if state.exposuresSinceRelease != nil,
            let target = state.setsBeforePainCut,
            exposure.plannedSets < target,
+           exposure.tappedRIR != nil,
            !draft.caps.noIncrease {
             let exercise = context.slots[index].exercise
             draft.plan = BuildSlotPlan(
@@ -126,8 +134,9 @@ extension BuildEngine {
         if caps.noIncrease, (plan.load ?? 0) > (load ?? 0) || (plan.reps ?? 0) > current || plan.sets > exposure.plannedSets {
             plan = step.plan(reps: current, load: load, reason: .painRising)
         }
-        // The first block after a return keeps loads near the return load; reps climb instead (BLK-07).
-        if let cap = caps.loadCap, let planned = plan.load, planned > cap, let load {
+        // The first block after a return keeps loads near the return load; reps climb instead of a raise past
+        // it (BLK-07). A hold at the lifter's own heavier load stays a hold.
+        if let cap = caps.loadCap, let planned = plan.load, planned > cap, let load, planned > load {
             let reps = min(max(current, (exposure.repsDone ?? current) + BuildRules.repsPerStep), extendedCeiling(exercise))
             plan = step.plan(reps: reps, load: load, reason: .returnCap)
         }
@@ -191,12 +200,13 @@ extension BuildEngine {
     }
 
     /// One 5 lb step when the reps after it still reach the bottom of the range; otherwise a light lift's reps
-    /// climb past the range first (LOAD-04).
+    /// climb past the range first (LOAD-04). A slot at the heaviest load a set can log climbs the same way.
     static func loadStep(_ step: Step) -> BuildSlotPlan {
         guard let load = step.load else { return addReps(step) }
         let newLoad = load + BuildRules.stepTenths
+        let atMax = newLoad > BuildRules.maxLoad
         let predicted = step.exposure.estimatedMax?.reps(atTenths: newLoad, leaving: step.aim) ?? step.exercise.minReps
-        if predicted >= step.exercise.minReps {
+        if predicted >= step.exercise.minReps, !atMax {
             return step.plan(
                 reps: step.reps(at: newLoad),
                 load: newLoad,
@@ -205,17 +215,19 @@ extension BuildEngine {
         }
         let extended = extendedCeiling(step.exercise)
         guard step.current < extended else {
-            return step.plan(reps: step.current, load: load, reason: .stepTooLarge(reps: step.current))
+            let reason: BuildReason = atMax ? .holdAtMaxLoad(reps: step.current) : .stepTooLarge(reps: step.current)
+            return step.plan(reps: step.current, load: load, reason: reason)
         }
         let size = step.reading.kind == .easier && !step.smallStep ? BuildRules.repsPerStepEasy : BuildRules.repsPerStep
         let next = min(max(step.current, step.repsDone + size), extended)
-        return step.plan(reps: next, load: load, reason: .repsBeforeStep(next, jumpPct: jumpPct(load)))
+        let reason: BuildReason = atMax ? .repsAtMaxLoad(next) : .repsBeforeStep(next, jumpPct: jumpPct(load))
+        return step.plan(reps: next, load: load, reason: reason)
     }
 
     /// Far too easy: one step, or after two such weeks a jump sized by the estimated max, at most 20% (LOAD-06).
     static func easyJump(_ context: BuildContext, _ index: Int, _ step: Step) -> BuildSlotPlan {
         guard let load = step.load else { return addReps(step) }
-        let maxLoad = load + max(BuildRules.stepTenths, floorToStep(Double(load) * BuildRules.easyJumpMaxPct / 100))
+        let maxLoad = min(load + max(BuildRules.stepTenths, floorToStep(Double(load) * BuildRules.easyJumpMaxPct / 100)), BuildRules.maxLoad)
         let previousWasEasy = context.doneExposure(index, before: step.exposure).map { previous in
             let reading = context.reading(index, previous)
             return reading.tapped && !previous.missed
@@ -223,7 +235,7 @@ extension BuildEngine {
         } ?? false
         let stepFitsCap = Double(BuildRules.stepTenths) <= Double(load) * BuildRules.easyJumpMaxPct / 100
 
-        if previousWasEasy, stepFitsCap, step.reading.rir <= 4,
+        if previousWasEasy, stepFitsCap, step.reading.rir <= 4, load + BuildRules.stepTenths <= maxLoad,
            let estimatedMax = step.exposure.estimatedMax, !estimatedMax.isLowerBound {
             var jumped = load + BuildRules.stepTenths
             var candidate = jumped + BuildRules.stepTenths
@@ -265,6 +277,10 @@ extension BuildEngine {
             return step.plan(reps: step.current, load: step.load, reason: .unratedHold)
         }
         let newLoad = load + BuildRules.stepTenths
+        guard newLoad <= BuildRules.maxLoad else {
+            let next = min(step.current + BuildRules.repsPerStep, extendedCeiling(exercise))
+            return step.plan(reps: next, load: load, reason: next > step.current ? .repsAtMaxLoad(next) : .holdAtMaxLoad(reps: next))
+        }
         return step.plan(reps: step.reps(at: newLoad), load: newLoad, reason: .unratedLoad)
     }
 
@@ -311,7 +327,7 @@ extension BuildEngine {
         }
         let target = min(max(repsDone, exercise.minReps), exercise.maxReps)
         let solved = estimatedMax.loadTenths(forReps: target, leaving: aim).map { max(BuildRules.stepTenths, floorToStep($0)) } ?? load
-        let newLoad = min(solved, load + floorToStep(Double(load) * BuildRules.calibrationMaxJumpPct / 100))
+        let newLoad = min(solved, load + floorToStep(Double(load) * BuildRules.calibrationMaxJumpPct / 100), BuildRules.maxLoad)
         let newReps = estimatedMax.reps(atTenths: newLoad, leaving: aim) ?? target
         return plan(min(max(newReps, exercise.minReps), exercise.maxReps), newLoad, .calibrated)
     }
@@ -357,18 +373,20 @@ extension BuildEngine {
         )
     }
 
-    /// Return weeks after a break: lighter loads, and half the sets in the first (BLK-07).
-    static func returnPlan(_ context: BuildContext, _ index: Int, band: Int, week: Int) -> BuildSlotPlan {
+    /// Return weeks after a break: lighter loads, and half the sets in the first (BLK-07). Loads come from the last
+    /// build week before the break, or from the return weeks when another break cut them short.
+    static func returnPlan(_ context: BuildContext, _ index: Int, band: Int, week: Int, fromReturn: Bool = false) -> BuildSlotPlan {
         let exercise = context.slots[index].exercise
         guard let before = context.latest(index, in: .build) ?? context.latest(index) else {
             return repeatPlan(context, index)
         }
+        let reference = fromReturn ? context.latest(index, in: .return) ?? before : before
         let bandIndex = min(max(band, 1), 3) - 1
         let keep = (100 - BuildRules.returnLoadCutPct[bandIndex]) / 100
         return BuildSlotPlan(
             sets: week == 1 ? scaled(before.plannedSets, by: BuildRules.returnSetFactor[bandIndex]) : before.plannedSets,
-            reps: before.repTarget ?? before.repsDone,
-            load: exercise.repsOnly ? nil : before.load.map { max(BuildRules.stepTenths, floorToStep(Double($0) * keep)) },
+            reps: reference.repTarget ?? reference.repsDone,
+            load: exercise.repsOnly ? nil : reference.load.map { max(BuildRules.stepTenths, floorToStep(Double($0) * keep)) },
             rirTarget: BuildRules.startRIR,
             reason: .returnWeek(week)
         )
@@ -381,19 +399,29 @@ extension BuildEngine {
         guard let base = context.latest(index, in: kind) ?? context.latest(index) else {
             return repeatPlan(context, index)
         }
-        let weekOne = BuildWeek(kind: .build, blockWeek: 1)
         let current = base.repTarget ?? base.repsDone ?? exercise.minReps
-        let target = aim(for: weekOne, exercise: exercise, reps: current, failureBlocked: true)
-        if let latest = context.latestDone(index), context.isCalibration(index, latest),
+        // Reps leave week 1's entry of the effort ramp, before any high-rep or bodyweight offset to the aim.
+        let target = BuildRules.rirByWeek[0]
+        // Return week 1's half sets were part of the way back; the block holds the sets from before the break (VOL-05),
+        // unless pain is rising, which blocks every increase (PAIN-01).
+        let preBreak = afterReturn && !caps.noIncrease ? context.latest(index, in: .build)?.plannedSets ?? 0 : 0
+        let sets = max(base.plannedSets, preBreak)
+        // Return weeks never calibrate, so a calibration before them is from before the break: the return plan
+        // sizes the block instead (BLK-07).
+        if !afterReturn, let latest = context.latestDone(index), context.isCalibration(index, latest),
            let calibrated = calibrate(context, index, latest, aim: target) {
             return calibrated
         }
         let load = exercise.repsOnly ? nil : base.load
         func plan(_ reps: Int, _ load: Int?) -> BuildSlotPlan {
-            BuildSlotPlan(sets: base.plannedSets, reps: reps, load: load, rirTarget: 0, reason: .blockRebase)
+            BuildSlotPlan(sets: sets, reps: reps, load: load, rirTarget: 0, reason: .blockRebase)
         }
-        // Rising pain or a hold that just ended resume from where they are (PAIN-01, PAIN-03).
-        guard !caps.noIncrease, context.states[index].exposuresSinceRelease != 0 else { return plan(current, load) }
+        // A hold that ended this week resumes from its last exposure, never the load from before the pain (PAIN-03).
+        if context.states[index].exposuresSinceRelease == 0, let latest = context.latestDone(index) {
+            return plan(latest.repTarget ?? latest.repsDone ?? current, exercise.repsOnly ? nil : latest.load)
+        }
+        // Rising pain resumes from where it is (PAIN-01).
+        guard !caps.noIncrease else { return plan(current, load) }
         // Only a rating of 0 to 4 sets a baseline; 5+ is a floor (RIR-05).
         guard let rated = context.slots[index].history.last(where: {
             context.weeks[$0.weekIndex].kind == kind && $0.isDone && ($0.tappedRIR ?? 5) <= 4
@@ -416,7 +444,7 @@ extension BuildEngine {
         if predicted > ceiling {
             // Past the top: LOAD-04 decides between a step and longer sets.
             let stepped = load + BuildRules.stepTenths
-            if let reps = estimatedMax.reps(atTenths: stepped, leaving: target), reps >= exercise.minReps {
+            if stepped <= BuildRules.maxLoad, let reps = estimatedMax.reps(atTenths: stepped, leaving: target), reps >= exercise.minReps {
                 return plan(min(reps, exercise.maxReps), stepped)
             }
             return plan(min(predicted, extendedCeiling(exercise)), load)

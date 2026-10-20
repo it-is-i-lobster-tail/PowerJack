@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D1755B2D81337D9D6F0573FF /* PowerJackWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F9E18113E399465BAEDF4DA4 /* PowerJackWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8B6348D6104EB1B1685F251D /* PowerJackWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		41BB6E6D177D0AA6BA0398EC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA1B3EC12FEC4E2000369E8D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1F14988543D70A99CD0B3851;
+			remoteInfo = PowerJackWatch;
+		};
 		1228DEAED267C77828D61671 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DA1B3EC12FEC4E2000369E8D /* Project object */;
@@ -28,6 +36,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		A41CACB7CEA17C7D3BBE97AF /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				D1755B2D81337D9D6F0573FF /* PowerJackWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BD6E4AE354E35A6852CC25E4 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -42,12 +61,98 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F9E18113E399465BAEDF4DA4 /* PowerJackWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PowerJackWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PowerJackWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		59A1D7D8DDC8443F9093F9F7 /* PowerJackTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PowerJackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA1B3EC92FEC4E2000369E8D /* PowerJack.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PowerJack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C42E78EF313FDFCDA6EDFB6C /* Exceptions for "PowerJack" folder in "PowerJackWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/Exercises/Models/Exercise.swift,
+				Features/Programs/Models/Program.swift,
+				Features/Programs/Models/ProgramWeek.swift,
+				Features/Programs/Models/Progression/Hypertrophy/BuildContext.swift,
+				"Features/Programs/Models/Progression/Hypertrophy/BuildEngine+Slot.swift",
+				"Features/Programs/Models/Progression/Hypertrophy/BuildEngine+Volume.swift",
+				Features/Programs/Models/Progression/Hypertrophy/BuildEngine.swift,
+				Features/Programs/Models/Progression/Hypertrophy/BuildModels.swift,
+				Features/Programs/Models/Progression/Hypertrophy/BuildPlanner.swift,
+				Features/Programs/Models/Progression/Hypertrophy/BuildReason.swift,
+				Features/Programs/Models/Progression/Hypertrophy/BuildRules.swift,
+				Features/Programs/Models/Progression/Hypertrophy/EstimatedMax.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackCalendar.swift,
+				"Features/Programs/Models/Progression/PowerJack/PowerJackEngine+Anchors.swift",
+				"Features/Programs/Models/Progression/PowerJack/PowerJackEngine+Finish.swift",
+				"Features/Programs/Models/Progression/PowerJack/PowerJackEngine+Loads.swift",
+				"Features/Programs/Models/Progression/PowerJack/PowerJackEngine+Volume.swift",
+				Features/Programs/Models/Progression/PowerJack/PowerJackEngine.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackLogs.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackMath.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackPain.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackPlan.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackPlanner.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackRoles.swift,
+				Features/Programs/Models/Progression/PowerJack/PowerJackRules.swift,
+				"Features/Programs/Models/Progression/PowerJack/WorkoutExercise+PowerJack.swift",
+				Features/Programs/Models/Progression/ProgressionEngine.swift,
+				Features/Programs/Models/Progression/ProgressionPlanner.swift,
+				Features/Programs/Models/Progression/ProgressionRules.swift,
+				Features/Programs/Models/Progression/Strength/LoadGrid.swift,
+				Features/Programs/Models/Progression/Strength/StrengthCurve.swift,
+				Features/Programs/Models/Progression/Strength/StrengthEstimate.swift,
+				Features/Programs/Models/Progression/Strength/StrengthLifts.swift,
+				Features/Programs/Models/Progression/Strength/StrengthLog.swift,
+				Features/Programs/Models/Progression/Strength/StrengthPain.swift,
+				Features/Programs/Models/Progression/Strength/StrengthPlanner.swift,
+				Features/Programs/Models/Progression/Strength/StrengthPrescriber.swift,
+				Features/Programs/Models/Progression/Strength/StrengthRules.swift,
+				Features/Programs/Models/Progression/Strength/StrengthSessionRules.swift,
+				Features/Programs/Models/Progression/Strength/StrengthSlot.swift,
+				Features/Programs/Models/Progression/Strength/StrengthState.swift,
+				Features/Programs/Models/Progression/Strength/StrengthWeekClose.swift,
+				"Features/RestTimer/Models/Workout+Activity.swift",
+				"Features/RestTimer/Models/Workout+Rest.swift",
+				Features/Settings/Models/AppSettings.swift,
+				Features/Templates/Models/TemplateExercise.swift,
+				Features/Templates/Models/TemplateProgram.swift,
+				Features/Templates/Models/TemplateWorkout.swift,
+				Features/Volume/Models/WeeklyVolume.swift,
+				Features/Volume/Models/WorkoutLog.swift,
+				Features/Workouts/Models/ExerciseFeedback.swift,
+				Features/Workouts/Models/SetEntry.swift,
+				"Features/Workouts/Models/Workout+Summary.swift",
+				Features/Workouts/Models/Workout.swift,
+				Features/Workouts/Models/WorkoutExercise.swift,
+				Features/Workouts/Models/WorkoutSet.swift,
+				Features/Workouts/Views/Components/FeedbackDraft.swift,
+				"Shared/Extensions/Array+OrderedModel.swift",
+				"Shared/Extensions/Collection+Active.swift",
+				"Shared/Extensions/Duration+PowerJack.swift",
+				Shared/LiveActivity/RestActivityAttributes.swift,
+				Shared/LiveActivity/RestPeriod.swift,
+				"Shared/Logging/Logger+PowerJack.swift",
+				Shared/Models/Equipment.swift,
+				Shared/Models/FatigueLevel.swift,
+				Shared/Models/Muscle.swift,
+				Shared/Models/RepsInReserve.swift,
+				Shared/Models/RestLength.swift,
+				Shared/Models/ScaleSelectorOption.swift,
+				Shared/Models/SetType.swift,
+				Shared/Models/Status.swift,
+				Shared/Models/StatusProviding.swift,
+				Shared/Models/TemplateType.swift,
+				Shared/Models/WeekKind.swift,
+				Shared/Models/WeightUnit.swift,
+				Shared/Persistence/ExerciseCatalog.swift,
+				Shared/Persistence/PowerJackSchema.swift,
+				Shared/Persistence/SettingsSync.swift,
+				Shared/Persistence/TemplateCatalog.swift,
+			);
+			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
+		};
 		6B08A96DFB5CA0AC673629E7 /* Exceptions for "PowerJackWidgets" folder in "PowerJackWidgetsExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -73,6 +178,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		80146C34319EC1CCE7D29977 /* PowerJackWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PowerJackWatch;
+			sourceTree = "<group>";
+		};
 		30224F38AA58816B2C49AFE9 /* PowerJackWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -86,6 +196,7 @@
 			exceptions = (
 				DA1B3ED62FEC4E2200369E8D /* Exceptions for "PowerJack" folder in "PowerJack" target */,
 				7D4B488321D3081790157600 /* Exceptions for "PowerJack" folder in "PowerJackWidgetsExtension" target */,
+				C42E78EF313FDFCDA6EDFB6C /* Exceptions for "PowerJack" folder in "PowerJackWatch" target */,
 			);
 			path = PowerJack;
 			sourceTree = "<group>";
@@ -98,6 +209,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		207E394D9B3FEC19C45B0DDB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3F32E8FBCFF71364A9D06B9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -128,6 +246,7 @@
 				DA1B3ECB2FEC4E2000369E8D /* PowerJack */,
 				E5C506F11B4E40DDAE3CC6A6 /* PowerJackTests */,
 				30224F38AA58816B2C49AFE9 /* PowerJackWidgets */,
+				80146C34319EC1CCE7D29977 /* PowerJackWatch */,
 				DA1B3ECA2FEC4E2000369E8D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -138,6 +257,7 @@
 				DA1B3EC92FEC4E2000369E8D /* PowerJack.app */,
 				59A1D7D8DDC8443F9093F9F7 /* PowerJackTests.xctest */,
 				5268892660F69663E40F9279 /* PowerJackWidgetsExtension.appex */,
+				F9E18113E399465BAEDF4DA4 /* PowerJackWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -145,6 +265,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1F14988543D70A99CD0B3851 /* PowerJackWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 885D327962D7B3B9188C508A /* Build configuration list for PBXNativeTarget "PowerJackWatch" */;
+			buildPhases = (
+				1EBA9C508CD645BF8812A0CB /* Sources */,
+				207E394D9B3FEC19C45B0DDB /* Frameworks */,
+				333B4C148956DC4D234AD4A4 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				80146C34319EC1CCE7D29977 /* PowerJackWatch */,
+			);
+			name = PowerJackWatch;
+			packageProductDependencies = (
+			);
+			productName = PowerJackWatch;
+			productReference = F9E18113E399465BAEDF4DA4 /* PowerJackWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 		5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AF7F4FD11DF925011C9061F8 /* Build configuration list for PBXNativeTarget "PowerJackWidgetsExtension" */;
@@ -175,11 +317,13 @@
 				DA1B3EC62FEC4E2000369E8D /* Frameworks */,
 				DA1B3EC72FEC4E2000369E8D /* Resources */,
 				BD6E4AE354E35A6852CC25E4 /* Embed Foundation Extensions */,
+				A41CACB7CEA17C7D3BBE97AF /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				B40269D51F0CD664382C6823 /* PBXTargetDependency */,
+				5F8C50FBA10448E3C3C84091 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DA1B3ECB2FEC4E2000369E8D /* PowerJack */,
@@ -227,6 +371,9 @@
 					5CD5FB4D5AF94C9D888B0194 = {
 						CreatedOnToolsVersion = 27.0;
 					};
+					1F14988543D70A99CD0B3851 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					DA1B3EC82FEC4E2000369E8D = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -253,11 +400,19 @@
 				DA1B3EC82FEC4E2000369E8D /* PowerJack */,
 				E2A755334A7346F5AC32BC53 /* PowerJackTests */,
 				5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */,
+				1F14988543D70A99CD0B3851 /* PowerJackWatch */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		333B4C148956DC4D234AD4A4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9597029B855940F38A802BFB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -282,6 +437,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1EBA9C508CD645BF8812A0CB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B1B9FA5F41750410A7B19593 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -306,6 +468,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		5F8C50FBA10448E3C3C84091 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
+			targetProxy = 41BB6E6D177D0AA6BA0398EC /* PBXContainerItemProxy */;
+		};
 		B40269D51F0CD664382C6823 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5CD5FB4D5AF94C9D888B0194 /* PowerJackWidgetsExtension */;
@@ -319,6 +486,74 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		7F4E44E5DC42F4215F542F63 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PowerJackWatch/PowerJackWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KWZTWNA57G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PowerJack;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.stanleycloud.PowerJackv1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.21;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		DCCFA77BADE73EB929AFED24 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PowerJackWatch/PowerJackWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KWZTWNA57G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PowerJack;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.stanleycloud.PowerJackv1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.21;
+				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 		0D4AC77E204C4C0BB2B1B76F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -333,7 +568,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -366,7 +601,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -400,7 +635,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -440,7 +675,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -479,7 +714,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -630,7 +865,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.20;
+				MARKETING_VERSION = 1.0.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -649,6 +884,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		885D327962D7B3B9188C508A /* Build configuration list for PBXNativeTarget "PowerJackWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7F4E44E5DC42F4215F542F63 /* Debug */,
+				DCCFA77BADE73EB929AFED24 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		20F7DA3F4B9B49BC9BE71DDB /* Build configuration list for PBXNativeTarget "PowerJackTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

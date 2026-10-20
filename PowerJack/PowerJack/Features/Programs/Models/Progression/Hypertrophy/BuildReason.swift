@@ -111,6 +111,12 @@ extension BuildReason {
         Self(code: .repsUp, message: "Reps up to \(reps) first: 5 lb is a \(jumpPct)% jump.")
     }
     static let returnCap = Self(code: .repsUp, message: "Reps up first: weights stay near your return weeks this block.")
+    static func repsAtMaxLoad(_ reps: Int) -> Self {
+        Self(code: .repsUp, message: "Reps up to \(reps): \(pounds(BuildRules.maxLoad)) is the most a set can log.")
+    }
+    static func holdAtMaxLoad(reps: Int) -> Self {
+        Self(code: .stepTooLarge, message: "Holding at \(reps) reps: \(pounds(BuildRules.maxLoad)) is the most a set can log.")
+    }
     static func loadUp(by tenths: Int, reps: Int, rir: Int) -> Self {
         Self(code: .loadUp, message: "+\(pounds(tenths)): every set hit \(reps) with \(left(rir)).")
     }

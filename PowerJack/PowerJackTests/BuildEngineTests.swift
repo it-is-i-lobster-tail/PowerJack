@@ -139,6 +139,35 @@ struct BuildEngineTests {
         #expect(stuck.reason.code == .stepTooLarge)
     }
 
+    @Test("LOAD-04: at the heaviest load a set can log, reps climb instead of the load passing it")
+    func heaviestLoad() throws {
+        let legPress = BuildExercise(minReps: 5, maxReps: 12, primary: .quads, fatigueLevel: .high)
+        let ready = try slotPlan(legPress, [exposure(0, reps: [12, 12], target: 12, load: 10_000, effort: .tapped(2), aim: 2)])
+        #expect(ready.load == 10_000)
+        #expect(ready.reps == 13)
+        #expect(ready.reason.code == .repsUp)
+
+        // At the end of the longer range it holds, saying why.
+        let longest = try slotPlan(legPress, [exposure(0, reps: [22, 22], target: 22, load: 10_000, effort: .tapped(2), aim: 2)])
+        #expect(longest.load == 10_000)
+        #expect(longest.reps == 22)
+        #expect(longest.reason.code == .stepTooLarge)
+
+        // Two easy weeks jump at most to the heaviest load.
+        let jump = try slotPlan(legPress, [
+            exposure(0, reps: [8, 8], target: 8, load: 9_500, effort: .tapped(5), aim: 2),
+            exposure(1, reps: [8, 8], target: 8, load: 9_500, effort: .tapped(4), aim: 1),
+        ], weeks: [week(2), week(3)])
+        #expect(jump.load == 10_000)
+
+        // A calibration re-derives the load, but no further than a set can log.
+        let calibrated = try slotPlan(legPress, [
+            exposure(0, reps: [20, 20], target: nil, load: 9_000, unplanned: true, effort: .tapped(3), aim: 3, code: .calibrate),
+        ])
+        #expect(calibrated.load == 10_000)
+        #expect(calibrated.reason.code == .calibrated)
+    }
+
     @Test("LOAD-06: far too easy steps 5 lb once, and jumps by the estimated max after two such weeks")
     func easyJump() throws {
         let once = try slotPlan(bench, [
@@ -298,6 +327,61 @@ struct BuildEngineTests {
         ], weeks: [week(1), week(2)])
         #expect(released.load == 2000)
         #expect(released.reps == 10)
+    }
+
+    @Test("PAIN-03: a held exercise left unrated stays held; only a pain tap releases it")
+    func untappedHold() throws {
+        let plan = try slotPlan(bench, [
+            exposure(0, reps: [8, 8], target: 8, load: 1000, effort: .tapped(3), aim: 3, pain: .moderate),
+            exposure(1, reps: [8, 8], target: 8, load: 1000, effort: .missing, aim: 2, pain: nil, code: .painHold),
+        ], weeks: [week(1), week(2)])
+        #expect(plan.load == 1000)
+        #expect(plan.reps == 8)
+        #expect(plan.sets == 2)
+        #expect(plan.reason.code == .painHold)
+    }
+
+    @Test("PAIN-02, ENG-02: a set a severe cut took comes back only after a rated exposure")
+    func setBackNeedsRating() throws {
+        let cut = [
+            exposure(0, sets: 4, reps: 10, target: 10, load: 1000, effort: .tapped(2), aim: 3, pain: .severe),
+            exposure(1, sets: 2, reps: 10, target: 10, load: 800, effort: .tapped(3), aim: 2, code: .painCheckIn),
+        ]
+        let weeks = [week(1), week(2), week(3)]
+        let unrated = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .missing, aim: 2, pain: nil, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(unrated.sets == 3)
+        #expect(unrated.reason.code == .unratedStep)
+        let legacy = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .legacy(2), aim: 2, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(legacy.sets == 3)
+        let rated = try slotPlan(bench, cut + [
+            exposure(2, sets: 3, reps: 10, target: 10, load: 800, effort: .tapped(2), aim: 2, code: .painSetBack),
+        ], weeks: weeks)
+        #expect(rated.sets == 4)
+        #expect(rated.reason.code == .painSetBack)
+    }
+
+    @Test("PAIN-03: a hold released in the deload resumes the next block from the cut, not the load before it")
+    func releasedInDeload() throws {
+        let row = BuildExercise(minReps: 6, maxReps: 12, primary: .back, fatigueLevel: .moderate)
+        var history = (0..<3).map { exposure($0, sets: 1, reps: 10, target: 10, load: 1000, effort: .tapped(2), aim: 2) }
+        history.append(exposure(3, sets: 1, reps: 10, target: 10, load: 1000, effort: .tapped(1), aim: 1, pain: .severe))
+        let deload = BuildEngine.plan(BuildInput(weeks: (1...4).map(week), slots: [BuildSlot(workout: 0, exercise: row, history: history)]))
+        let cut = try #require(deload.slots.first)
+        #expect(deload.week.kind == .deload)
+        #expect(cut.checkInPain == .severe)
+        #expect(cut.load == 800)
+
+        var pending = exposure(4, sets: cut.sets, reps: cut.reps ?? 10, target: cut.reps, load: cut.load, effort: .tapped(5), aim: 3, pain: .mild, code: cut.reason.code)
+        pending.checkIn = .resolved
+        pending.checkInSourcePain = .severe
+        history.append(pending)
+        let next = BuildEngine.plan(BuildInput(weeks: (1...4).map(week) + [deload.week], slots: [BuildSlot(workout: 0, exercise: row, history: history)]))
+        #expect(next.week == week(1))
+        #expect(next.slots.first?.load == 800)
     }
 
     // MARK: Blocks and deloads
@@ -516,6 +600,43 @@ struct BuildEngineTests {
         #expect(bandOne.slots.first?.reason.code == .blockRebase)
     }
 
+    @Test("BLK-07, VOL-05: the block after a one-week return holds the sets from before the break")
+    func setsAfterReturn() throws {
+        let history = [
+            exposure(0, sets: 3, reps: 10, target: 10, load: 1000, effort: .tapped(3), aim: 3),
+            exposure(1, sets: 3, reps: 11, target: 11, load: 1000, effort: .tapped(2), aim: 2),
+            exposure(2, sets: 2, reps: 11, target: 11, load: 900, effort: .tapped(4), aim: 3, code: .returnWeek),
+        ]
+        let plan = BuildEngine.plan(BuildInput(
+            weeks: [week(1), week(2), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2)],
+            slots: [BuildSlot(workout: 0, exercise: bench, history: history)]
+        ))
+        #expect(plan.week == week(1))
+        #expect(plan.slots.first?.sets == 3)
+        #expect(plan.slots.first?.load == 900)
+        #expect(plan.slots.first?.reason.code == .blockRebase)
+    }
+
+    @Test("BLK-07: a break that cuts return weeks short starts again from the return weeks' loads")
+    func breakDuringReturn() throws {
+        let history = [
+            exposure(0, sets: 3, reps: 10, target: 10, load: 1000, effort: .tapped(2), aim: 3),
+            exposure(1, sets: 2, reps: 10, target: 10, load: 800, effort: .tapped(4), aim: 3, code: .returnWeek),
+        ]
+        let input = BuildInput(
+            weeks: [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 3)],
+            slots: [BuildSlot(workout: 0, exercise: bench, history: history)]
+        )
+        // A month off: another return week, 90% of the return load, with half the sets from before the first break.
+        let again = BuildEngine.planAfterBreak(input, band: 2)
+        #expect(again.week == BuildWeek(kind: .return, blockWeek: 1, returnBand: 2))
+        #expect(again.slots.first.map { [$0.sets, $0.load] } == [2, 700])
+        // Three weeks off: a new block from the return load, with the sets from before the first break.
+        let block = BuildEngine.planAfterBreak(input, band: 1)
+        #expect(block.week == week(1))
+        #expect(block.slots.first.map { [$0.sets, $0.load] } == [3, 800])
+    }
+
     @Test("BLK-07: the block after a return keeps loads within 10% of the return load")
     func returnCap() throws {
         let weeks = [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2), week(1)]
@@ -526,6 +647,41 @@ struct BuildEngineTests {
         ], weeks: weeks)
         // One step is within the cap of 35 lb, so it's allowed.
         #expect(plan.load == 350)
+    }
+
+    @Test("BLK-07: in the block after a return, a hold at the lifter's own heavier load stays a hold")
+    func returnCapKeepsHolds() throws {
+        let weeks = [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2), week(1)]
+        // The lifter chose 40 lb, over the 35 lb cap, and pain rose: nothing rises, reps included.
+        let plan = try slotPlan(raise, [
+            exposure(0, reps: [20, 20], target: 20, load: 300, effort: .tapped(2), aim: 3),
+            exposure(1, reps: [20, 20], target: 20, load: 300, effort: .tapped(3), aim: 3, code: .returnWeek),
+            exposure(2, reps: [20, 20], target: 20, load: 400, effort: .tapped(4), aim: 3, pain: .mild),
+        ], weeks: weeks)
+        #expect(plan.load == 400)
+        #expect(plan.reps == 20)
+        #expect(plan.reason.code == .painRising)
+    }
+
+    @Test("BLK-07: a calibration from before a break never sizes the block after the return weeks")
+    func calibrationBeforeReturn() throws {
+        let row = BuildExercise(minReps: 8, maxReps: 12, primary: .back, fatigueLevel: .moderate)
+        let plan = BuildEngine.plan(BuildInput(
+            weeks: [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2)],
+            slots: [
+                BuildSlot(workout: 0, exercise: bench, history: [
+                    exposure(0, reps: [10, 10], target: nil, load: 300, unplanned: true, effort: .tapped(3), aim: 3, code: .calibrate),
+                    exposure(1, sets: 1, reps: 10, target: 10, load: 250, effort: .missing, aim: 3, code: .returnWeek, done: false),
+                ]),
+                BuildSlot(workout: 1, exercise: row, history: [
+                    exposure(0, reps: [10, 10], target: 10, load: 1000, effort: .tapped(3), aim: 3),
+                    exposure(1, sets: 1, reps: 10, target: 10, load: 900, effort: .tapped(4), aim: 3, code: .returnWeek),
+                ]),
+            ]
+        ))
+        #expect(plan.week == week(1))
+        // The return week's 25 lb, with the sets from before the break, not 25% over the old calibration.
+        #expect(plan.slots.first.map { [$0.sets, $0.load] } == [2, 250])
     }
 
     // MARK: Helpers
