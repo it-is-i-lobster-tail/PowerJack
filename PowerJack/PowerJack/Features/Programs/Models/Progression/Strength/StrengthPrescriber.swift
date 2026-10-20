@@ -82,10 +82,14 @@ enum StrengthPrescriber {
         at now: Date
     ) -> StrengthSlotPlan {
         let (reps, rir) = targets(slot, record: record, clock: clock)
-        let lastNormal = slot.history.first { $0.plan.kind == .normal || $0.plan.kind == .calibration }
-        guard let last = slot.history.first else {
+        // The last real week to build on: one that had a load, so a week skipped before it was prepared is passed over.
+        let lastNormal = slot.history.first { ($0.plan.kind == .normal || $0.plan.kind == .calibration) && $0.hasLoad }
+        // A slot with no load yet, such as one whose first week was skipped before it started, plans as a new
+        // lift does: from the lift's e1RM when it has one (2.6), otherwise by feel (2.2).
+        guard let last = slot.history.first, slot.history.contains(where: \.hasLoad) else {
             let first = firstPlan(slot, record: record, reps: reps, rir: rir, at: now)
-            // A new program that starts on a deload week deloads from the e1RM plan.
+            // A new program that starts on a deload week deloads from the e1RM plan. A lift with no e1RM
+            // calibrates by feel instead, so its next week has a load to build on.
             guard clock.upcoming == .deload, first.loadKg != nil else { return first }
             return deload(first, loggedLoadKg: nil, grid: slot.grid)
         }
@@ -101,8 +105,14 @@ enum StrengthPrescriber {
         if record.flagged, last.plan.kind == .normal {
             return microDeload(from: last, slot: slot)
         }
-        if clock.startsBlock, !record.isCalibrating, let lastNormal {
-            return newBlock(from: lastNormal, slot: slot, record: record, clock: clock, reps: reps, rir: rir, sets: sets, at: now)
+        if clock.startsBlock, !record.isCalibrating {
+            if let lastNormal {
+                return newBlock(from: lastNormal, slot: slot, record: record, clock: clock, reps: reps, rir: rir, sets: sets, at: now)
+            }
+            // No normal week before the deload to restart from, so the block starts from e1RM as a new lift does (2.6, 9.4).
+            if record.e1rmKg != nil {
+                return firstPlan(slot, record: record, reps: reps, rir: rir, at: now)
+            }
         }
         return progress(
             slot, record: record, clock: clock, last: last, lastNormal: lastNormal,
@@ -196,6 +206,8 @@ enum StrengthPrescriber {
         plan.kind = .returnWeek2
         if !last.missedSets.isEmpty || (last.delta ?? 0) <= StrengthRules.flagDelta {
             plan.rules = ["12.3"]
+            // The stored plan holds any set the lifter added, which had no target: repeat it evenly.
+            plan.sets = StrengthSlotPlan.uniform(plan.sets.count, reps: plan.targetReps, loadKg: plan.loadKg)
             return plan
         }
         let cut: Double
@@ -453,7 +465,8 @@ enum StrengthPrescriber {
             reps: reps,
             rir: rir,
             sets: StrengthSlotPlan.uniform(sets, reps: reps, loadKg: load),
-            intendedKg: intended,
+            // Past what a set can log, sub-step rises would build up out of reach (1.1).
+            intendedKg: intended.map { min($0, LoadGrid.capKilograms) },
             rules: rules
         )
     }
@@ -470,8 +483,20 @@ enum StrengthPrescriber {
             rir: 2,
             sets: StrengthSlotPlan.uniform(WorkoutExercise.initialSets, reps: nil, loadKg: nil)
         )
+        let logged = last?.completedSets ?? []
+        // A deload week halves the sets whether or not last week's were logged (10.6).
+        if deload {
+            let planned = logged.isEmpty ? (last?.plan ?? first).sets : logged.map { StrengthPlannedSet(reps: $0.reps, loadKg: $0.loadKg) }
+            let kept = max(1, Int(Double(planned.count) * StrengthRules.deloadSetFactor))
+            let sets = planned.prefix(kept).map { set in
+                StrengthPlannedSet(
+                    reps: set.reps,
+                    loadKg: set.loadKg.map { slot.grid?.nearest($0 * StrengthRules.deloadLoadFactor) ?? $0 }
+                )
+            }
+            return StrengthSlotPlan(kind: .deload, reps: sets.first?.reps ?? slot.repRange.lowerBound, rir: 2, sets: sets, rules: ["10.6"])
+        }
         guard let last else { return first }
-        let logged = last.completedSets
         guard !logged.isEmpty else {
             var repeated = last.plan
             repeated.kind = .accessory
@@ -480,16 +505,7 @@ enum StrengthPrescriber {
 
         var sets = logged.map { StrengthPlannedSet(reps: $0.reps, loadKg: $0.loadKg) }
         var rules = ["5.1"]
-        if deload {
-            let kept = max(1, Int(Double(sets.count) * StrengthRules.deloadSetFactor))
-            sets = sets.prefix(kept).map { set in
-                StrengthPlannedSet(
-                    reps: set.reps,
-                    loadKg: set.loadKg.map { slot.grid?.nearest($0 * StrengthRules.deloadLoadFactor) ?? $0 }
-                )
-            }
-            rules = ["10.6"]
-        } else if last.isPainful || last.rir == 0 || logged.contains(where: { ($0.reps ?? 0) < slot.repRange.lowerBound }) {
+        if last.isPainful || last.rir == 0 || logged.contains(where: { ($0.reps ?? 0) < slot.repRange.lowerBound }) {
             rules.append("hold")
         } else {
             let loadReady = Int((0.85 * Double(slot.repRange.upperBound)).rounded(.up))
@@ -500,7 +516,7 @@ enum StrengthPrescriber {
             }
         }
         return StrengthSlotPlan(
-            kind: deload ? .deload : .accessory,
+            kind: .accessory,
             reps: sets.first?.reps ?? slot.repRange.lowerBound,
             rir: 2,
             sets: sets,
@@ -512,7 +528,7 @@ enum StrengthPrescriber {
 
     /// 5.7: 50% × 5, 70% × 3 and 85% × 1 of the first working load on primary slots (the 85% one only when
     /// that load is 80% of e1RM or more), 50% × 5 and 75% × 3 on secondary slots. Calibration keeps today's.
-    private static func warmups(for plan: StrengthSlotPlan, slot: StrengthSlotContext, record: StrengthLiftRecord) -> [StrengthPlannedSet]? {
+    static func warmups(for plan: StrengthSlotPlan, slot: StrengthSlotContext, record: StrengthLiftRecord) -> [StrengthPlannedSet]? {
         guard plan.kind != .calibration, let load = plan.loadKg, let grid = slot.grid else { return nil }
         let scheme = slot.role == .primary ? StrengthRules.primaryWarmups : StrengthRules.secondaryWarmups
         var warmups: [StrengthPlannedSet] = []
@@ -522,7 +538,7 @@ enum StrengthPrescriber {
             }
             let warmup = grid.nearest(load * share)
             // Warm-ups at the bar, or that round to the same load, merge into one set.
-            guard warmup < load, warmup != warmups.last?.loadKg else { continue }
+            guard warmup < load - LoadGrid.storedTolerance, warmup != warmups.last?.loadKg else { continue }
             warmups.append(StrengthPlannedSet(reps: reps, loadKg: warmup))
         }
         return Array(warmups.prefix(WorkoutExercise.maxWarmupSets))

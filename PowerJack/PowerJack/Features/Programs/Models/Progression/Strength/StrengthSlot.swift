@@ -110,6 +110,8 @@ struct StrengthSession: Equatable {
 
     /// Sets that fell short of the target reps.
     var missedSets: [LoggedSet] { completedSets.filter { ($0.reps ?? 0) < plan.targetReps } }
+    /// The plan had a load to build on, or one was lifted.
+    var hasLoad: Bool { plan.intendedKg != nil || ratedSet?.loadKg != nil }
 
     /// Δ, the rep error on the rated set (7.2): (reps + RIR) − (R + I). A short set counts as RIR 0,
     /// and Δ is the lowest over the rated set and any short sets at its load or heavier.

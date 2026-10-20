@@ -15,11 +15,15 @@ protocol WeekPlanner {
     static func build(_ week: ProgramWeek, in program: Program)
     /// Runs right before `workout` starts.
     static func prepareToStart(_ workout: Workout, in program: Program, at date: Date)
+    /// Runs when a week ends with no week after it to build: the program's last week, or the week a stopped
+    /// program was partway through.
+    static func close(_ week: ProgramWeek, in program: Program)
 }
 
 extension WeekPlanner {
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {}
     static func prepareToStart(_ workout: Workout, in program: Program, at date: Date) {}
+    static func close(_ week: ProgramWeek, in program: Program) {}
 }
 
 extension ProgressionPlanner: WeekPlanner {}

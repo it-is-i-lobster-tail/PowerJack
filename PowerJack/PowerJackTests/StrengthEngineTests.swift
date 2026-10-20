@@ -33,6 +33,20 @@ struct StrengthEngineTests {
         #expect(!kgBar.isCoarse(at: 60))
     }
 
+    @Test("Loads never pass the 1,000 lb a set can log, and neither do intended loads (1.1)")
+    func loadCap() {
+        let sled = LoadGrid(unit: .pounds, step: 10, isBarbell: false)
+        #expect(abs(sled.nearest(pounds(1_004)) - pounds(1_000)) < 0.001)
+        #expect(abs(sled.moved(pounds(1_000), bySteps: 1) - pounds(1_000)) < 0.001)
+        #expect(kgBar.maximumKilograms == 452.5)
+
+        // A leg press at 1,000 lb rated 5+ stays there, and its intended load stops at the cap too.
+        let last = session(.normal, reps: 6, rir: 2, intended: pounds(1_000), sets: Array(repeating: (pounds(1_000), 6), count: 3), rated: 5)
+        let next = plan(context(zone: .moderate, grid: sled, history: [last]), record: confident(e1rm: pounds(1_400)), clock: StrengthClock(blockWeek: 3))
+        #expect(abs((next.loadKg ?? 0) - pounds(1_000)) < 0.001)
+        #expect((next.intendedKg ?? .infinity) <= LoadGrid.capKilograms)
+    }
+
     @Test("Each equipment type has its own default step in each unit (1.5)")
     func defaultSteps() {
         #expect(StrengthLoadSteps.defaultStep(for: .barbell, in: .kilograms) == 2.5)
@@ -410,6 +424,13 @@ struct StrengthEngineTests {
         #expect(StrengthSessionRules.loadAfterMiss(setLoadKg: 40, missingReps: 1, plannedKg: 40, grid: kgBar) == 37.5)
     }
 
+    @Test("In kilograms a short set's cut still moves a whole step, though sets store tenths of a pound (6.2)")
+    func missRuleStoredKilograms() {
+        let machine = LoadGrid(unit: .kilograms, step: 5, isBarbell: false)
+        let stored = WeightUnit.kilograms(fromTenthsPounds: WeightUnit.tenthsPounds(fromKilograms: 40))
+        #expect(StrengthSessionRules.loadAfterMiss(setLoadKg: stored, missingReps: 1, plannedKg: stored, grid: machine) == 35)
+    }
+
     // MARK: 15 Pain
 
     @Test("Moderate pain cuts the next session a set and 10%, then each easy session ramps back (15.5, 15.7)")
@@ -453,6 +474,71 @@ struct StrengthEngineTests {
         _ = StrengthPain.apply(pain, to: &next, lastSession: last, grid: kgBar)
         #expect(next.loadKg == 140)
         #expect(next.intendedKg == 140)
+    }
+
+    // MARK: Gaps found by the simulation
+
+    @Test("No warm-up lands on the working weight, though sets store tenths of a pound (5.7)")
+    func warmupsAtTheBar() {
+        let bar = WeightUnit.kilograms(fromTenthsPounds: WeightUnit.tenthsPounds(fromKilograms: 20))
+        let atTheBar = StrengthSlotPlan(kind: .normal, reps: 4, rir: 2, sets: StrengthSlotPlan.uniform(3, reps: 4, loadKg: bar))
+        #expect(StrengthPrescriber.warmups(for: atTheBar, slot: context(zone: .heavy), record: .init()) == [])
+    }
+
+    @Test("A deload week halves an accessory's sets even when last week's went unlogged (10.6)")
+    func accessoryDeloadAfterSkip() {
+        let curls = LoadGrid(unit: .kilograms, step: 2, isBarbell: false)
+        let skipped = StrengthSession(
+            plan: StrengthSlotPlan(kind: .accessory, reps: 10, rir: 2, sets: StrengthSlotPlan.uniform(2, reps: 10, loadKg: 12)),
+            sets: Array(repeating: .init(loadKg: 12, reps: 10, plannedLoadKg: 12, completed: false), count: 2),
+            rir: nil,
+            pain: nil,
+            date: nil
+        )
+        let next = plan(context(role: .accessory, zone: nil, grid: curls, repRange: 8...12, history: [skipped]), record: .init(), clock: StrengthClock(upcoming: .deload))
+        #expect(next.kind == .deload)
+        // One set at 90% of 12 kg, so 10 kg on 2 kg steps.
+        #expect(next.sets == [StrengthPlannedSet(reps: 10, loadKg: 10)])
+    }
+
+    @Test("Week 2 back repeats week 1 evenly, even with a set the lifter added to it (12.3)")
+    func returnRepeatEven() {
+        var weekOne = StrengthSlotPlan(
+            kind: .returnWeek1, reps: 4, rir: 3,
+            sets: StrengthSlotPlan.uniform(2, reps: 4, loadKg: 125) + [StrengthPlannedSet(reps: nil, loadKg: 125)],
+            intendedKg: 126
+        )
+        weekOne.returnBand = 2
+        let last = StrengthSession(
+            plan: weekOne,
+            sets: [4, 3, 3].map { .init(loadKg: 125, reps: $0, plannedLoadKg: 125, completed: true) },
+            rir: 0,
+            pain: 0,
+            date: now
+        )
+        let next = plan(context(zone: .heavy, history: [last, normal(reps: 4, rir: 2, intended: 140)]), record: confident(e1rm: 170), clock: StrengthClock(blockWeek: 2))
+        #expect(next.kind == .returnWeek2)
+        #expect(next.rules == ["12.3"])
+        #expect(next.sets == StrengthSlotPlan.uniform(3, reps: 4, loadKg: 125))
+    }
+
+    @Test("Weeks with no weight yet start from the lift's e1RM, and so does a block with no normal week to build on (2.6, 9.4)")
+    func noLoadHistory() {
+        let byFeel = StrengthSession(
+            plan: StrengthSlotPlan(kind: .calibration, reps: 4, rir: 3, sets: StrengthSlotPlan.uniform(3, reps: 4, loadKg: nil)),
+            sets: Array(repeating: .init(loadKg: nil, reps: nil, plannedLoadKg: nil, completed: false), count: 3),
+            rir: nil,
+            pain: nil,
+            date: nil
+        )
+        // Skipped before it started: 180 × pct(4 + 3) = 153.5, rounded down as a first week is.
+        let skipped = plan(context(zone: .heavy, history: [byFeel]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 1))
+        #expect((skipped.kind, skipped.loadKg) == (.normal, 152.5))
+
+        // Only a deload since: the new block starts from e1RM, not 10% light from the deload.
+        let deloaded = session(.deload, reps: 4, rir: 3, intended: 130, sets: [(130, 4)], rated: 4)
+        let block = plan(context(zone: .heavy, history: [deloaded, byFeel]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 1, startsBlock: true))
+        #expect((block.kind, block.loadKg) == (.normal, 152.5))
     }
 
     // MARK: Accessories and codes
