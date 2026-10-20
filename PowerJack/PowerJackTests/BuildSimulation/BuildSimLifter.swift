@@ -248,35 +248,28 @@ extension BuildSimLifter {
 extension BuildSimLifter {
     /// A typical trained lifter's one-rep max in tenths of a pound, or their most reps for bodyweight.
     static func typicalMax(_ exercise: Exercise) -> Double {
+        let heavy = exercise.fatigueLevel == .high
+        let light = exercise.fatigueLevel == .low
         if exercise.repsOnly {
-            return switch exercise.fatigueLevel {
-            case .low: 30
-            case .moderate: 18
-            case .high: 12
-            }
+            return heavy ? 12 : light ? 30 : 18
         }
-        let pounds: Double = switch (exercise.exerciseEquipment, exercise.fatigueLevel) {
-        case (.legPress, _): 500
-        case (.barbell, .high): 250
-        case (.barbell, _): 100
-        case (.machine, .high): 250
-        case (.machine, _): 150
-        case (.dumbbell, .high): 70
-        case (.dumbbell, .moderate): 60
-        case (.dumbbell, .low): 30
-        case (.cable, .low): 70
-        case (.cable, _): 150
-        case (.kettlebell, _): 60
-        case (.bodyweight, _): 100
+        // A default rather than every case, so new equipment never breaks the simulation.
+        let pounds: Double = switch exercise.exerciseEquipment {
+        case .legPress: 500
+        case .barbell: heavy ? 250 : 100
+        case .machine: heavy ? 250 : 150
+        case .dumbbell: heavy ? 70 : light ? 30 : 60
+        case .cable: light ? 70 : 150
+        default: 60
         }
         return pounds * 10
     }
 
-    /// The smallest change the equipment allows, in tenths of a pound.
+    /// The smallest change the equipment allows, in tenths of a pound: 10 lb on stacks and leg press sleds.
     static func equipmentStep(_ equipment: Equipment) -> Int {
         switch equipment {
-        case .machine, .legPress, .kettlebell: 100
-        case .barbell, .dumbbell, .cable, .bodyweight: 50
+        case .barbell, .dumbbell, .cable: 50
+        default: 100
         }
     }
 
