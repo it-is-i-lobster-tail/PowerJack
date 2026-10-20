@@ -26,6 +26,10 @@ struct BuildSimReport {
     var edits = 0
     var weeksChecked = 0
     var violations: [BuildSimViolation] = []
+    /// The most trained build weeks in a row with no deload, return week or break, across programs.
+    var longestBuildRun = 0
+    /// New-program exercises with no check-in though they were last done with Moderate pain or worse.
+    var painLeftBehind = 0
 
     /// Reps left on a fresh first set at each progressing target, from the lifter's true strength.
     private(set) var slacks: [Double] = []
@@ -80,7 +84,8 @@ struct BuildSimReport {
         return "\(profile) seed \(seed), \(weeks) weeks: \(programs) programs (\(programsFinished) finished, \(programsAbandoned) abandoned), "
             + "\(workouts) workouts, \(workoutsSkipped) skipped, \(breaks) breaks, \(returns) breaks handled, \(edits) edits; "
             + "\(weeksChecked) weeks checked (\(kinds)); targets: median \(String(format: "%.1f", medianSlack)) reps to spare, "
-            + "\(percent(tooHard)) too hard, \(percent(tooEasy)) too easy"
+            + "\(percent(tooHard)) too hard, \(percent(tooEasy)) too easy; longest build run \(longestBuildRun) weeks; "
+            + "\(painLeftBehind) painful exercises started fresh in a new program"
     }
 
     private func percent(_ share: Double) -> String {

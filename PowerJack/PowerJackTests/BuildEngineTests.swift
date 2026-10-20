@@ -626,6 +626,41 @@ struct BuildEngineTests {
         #expect(plan.load == 350)
     }
 
+    @Test("BLK-07: in the block after a return, a hold at the lifter's own heavier load stays a hold")
+    func returnCapKeepsHolds() throws {
+        let weeks = [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2), week(1)]
+        // The lifter chose 40 lb, over the 35 lb cap, and pain rose: nothing rises, reps included.
+        let plan = try slotPlan(raise, [
+            exposure(0, reps: [20, 20], target: 20, load: 300, effort: .tapped(2), aim: 3),
+            exposure(1, reps: [20, 20], target: 20, load: 300, effort: .tapped(3), aim: 3, code: .returnWeek),
+            exposure(2, reps: [20, 20], target: 20, load: 400, effort: .tapped(4), aim: 3, pain: .mild),
+        ], weeks: weeks)
+        #expect(plan.load == 400)
+        #expect(plan.reps == 20)
+        #expect(plan.reason.code == .painRising)
+    }
+
+    @Test("BLK-07: a calibration from before a break never sizes the block after the return weeks")
+    func calibrationBeforeReturn() throws {
+        let row = BuildExercise(minReps: 8, maxReps: 12, primary: .back, fatigueLevel: .moderate)
+        let plan = BuildEngine.plan(BuildInput(
+            weeks: [week(1), BuildWeek(kind: .return, blockWeek: 1, returnBand: 2)],
+            slots: [
+                BuildSlot(workout: 0, exercise: bench, history: [
+                    exposure(0, reps: [10, 10], target: nil, load: 300, unplanned: true, effort: .tapped(3), aim: 3, code: .calibrate),
+                    exposure(1, sets: 1, reps: 10, target: 10, load: 250, effort: .missing, aim: 3, code: .returnWeek, done: false),
+                ]),
+                BuildSlot(workout: 1, exercise: row, history: [
+                    exposure(0, reps: [10, 10], target: 10, load: 1000, effort: .tapped(3), aim: 3),
+                    exposure(1, sets: 1, reps: 10, target: 10, load: 900, effort: .tapped(4), aim: 3, code: .returnWeek),
+                ]),
+            ]
+        ))
+        #expect(plan.week == week(1))
+        // The return week's 25 lb, with the sets from before the break, not 25% over the old calibration.
+        #expect(plan.slots.first.map { [$0.sets, $0.load] } == [2, 250])
+    }
+
     // MARK: Helpers
 
     private func week(_ number: Int) -> BuildWeek {

@@ -265,11 +265,11 @@ struct BuildSimChecker {
             expect(plan.checkInPain != nil, "PAIN-01", here, "\(pain.label) pain after \(describe(done)), but no check-in")
         }
         // LOAD-07: a miss holds, and two in a row never earn more.
-        if done.missed, !newBlock, !state.painHold, !context.isCalibration(index, done), code != .loadDown {
+        if done.missed, !newBlock, !state.painHold, !context.isCalibration(index, done), ![.loadDown, .painSetBack].contains(code) {
             expect(!rose, "LOAD-07", here, "a set fell short in \(describe(done)), but it became \(describe(plan))")
         }
         if state.missStreak >= BuildRules.missStreakForBackoff, !newBlock, !state.painHold {
-            expect(![.repsUp, .loadUp, .unratedStep, .volumeRamp, .volumeUp, .painSetBack].contains(code), "LOAD-07", here,
+            expect(![.repsUp, .loadUp, .unratedStep, .volumeRamp, .volumeUp].contains(code), "LOAD-07", here,
                    "miss streak \(state.missStreak) after \(describe(done)), but planned \(describe(plan))")
         }
         // ENG-02: without a tapped rating, one rep or one 5 lb step at most, and never a set.
@@ -279,7 +279,7 @@ struct BuildSimChecker {
                    "ENG-02", here, "unrated \(describe(done)) became \(describe(plan))")
         }
         // BLK-07, VOL-05: the block after return weeks holds the sets from before the break; only pain cuts them.
-        if newBlock, context.lastWeek.kind == .return, let preBreak = context.latest(index, in: .build), !state.painHold,
+        if newBlock, context.lastWeek.kind == .return, let preBreak = context.latest(index, in: .build), !state.painHold, !state.painRose,
            ![.painCheckIn, .painHold, .painReduce, .painRising, .calibrate, .calibrated].contains(code) {
             expect(plan.sets >= min(preBreak.plannedSets, BuildRules.maxSetsPerExercise), "BLK-07", here,
                    "the block after return weeks plans \(plan.sets) sets, fewer than the \(preBreak.plannedSets) from before the break")
@@ -294,8 +294,11 @@ struct BuildSimChecker {
             expect(lighterOrSame(plan.load, than: done.load), "PAIN-03", here,
                    "released after \(describe(done)), but the new block starts at \(describe(plan))")
         }
-        // START-06, LOAD-04, LOAD-06: how far a load may rise in one week.
-        if let load = plan.load, let base = (newBlock ? blockBase : done).load, load > base {
+        // START-06, LOAD-04, LOAD-06: how far a load may rise in one week. A new block measures from its last build
+        // week, except where pain or a released hold keeps the slot where its last exposure left it.
+        let fromLast = !newBlock || [.painCheckIn, .painHold, .painReduce, .painRising, .painSetBack].contains(code)
+            || state.exposuresSinceRelease == 0
+        if let load = plan.load, let base = fromLast ? done.load : max(blockBase.load ?? 0, done.load ?? 0), load > base {
             let cap: Int = switch code {
             case .calibrated: base + BuildEngine.floorToStep(Double(base) * BuildRules.calibrationMaxJumpPct / 100)
             case .loadUp: base + max(BuildRules.stepTenths, BuildEngine.floorToStep(Double(base) * BuildRules.easyJumpMaxPct / 100))
@@ -326,12 +329,15 @@ struct BuildSimChecker {
         return load + max(BuildRules.stepTenths, BuildEngine.floorToStep(Double(load) * BuildRules.firstBlockLoadCapPct / 100))
     }
 
-    /// Return weeks keep a share of the pre-break load and sets (BLK-07).
+    /// Return weeks keep a share of the pre-break load and sets (BLK-07). A break that cuts return weeks short
+    /// measures from the return weeks instead.
     private mutating func checkReturn(_ context: BuildContext, _ index: Int, _ plan: BuildSlotPlan, week: BuildWeek, at here: String) {
         guard let before = context.latest(index, in: .build) else { return }
         let band = min(max(week.returnBand, 1), 3)
         let keep = (100 - BuildRules.returnLoadCutPct[band - 1]) / 100
-        if let load = plan.load, let preBreak = before.load {
+        let nested = week.blockWeek == 1 && context.lastWeek.kind == .return
+        let reference = nested ? context.latest(index, in: .return) ?? before : before
+        if let load = plan.load, let preBreak = reference.load {
             let cap = max(BuildRules.stepTenths, BuildEngine.floorToStep(Double(preBreak) * keep))
             expect(load <= cap, "BLK-07", here, "return week at \(pounds(load)), over \(pounds(cap)) (\(Int(keep * 100))% of \(pounds(preBreak)))")
         }

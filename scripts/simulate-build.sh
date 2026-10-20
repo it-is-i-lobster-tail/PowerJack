@@ -56,4 +56,4 @@ xcodebuild test \
   -destination "$destination" \
   -parallel-testing-enabled NO \
   -only-testing:"$only" \
-  2>&1 | grep -v -E '^[0-9-]+ [0-9:.]+ PowerJack\[[0-9:]+\]'
+  2>&1 | grep -v -E '^[0-9-]+ [0-9:.+-]+ (PowerJack|xcodebuild)\['

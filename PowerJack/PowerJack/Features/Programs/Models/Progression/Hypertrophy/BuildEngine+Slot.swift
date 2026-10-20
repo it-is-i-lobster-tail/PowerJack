@@ -67,10 +67,12 @@ extension BuildEngine {
             draft.caps.noJump = true
             draft.caps.noRamp = true
         }
-        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02).
+        // Sets a severe cut took come back one per exposure once the hold clears (PAIN-02), after an exposure with
+        // a pain tap: an unrated one never gains a set (ENG-02).
         if state.exposuresSinceRelease != nil,
            let target = state.setsBeforePainCut,
            exposure.plannedSets < target,
+           exposure.pain != nil,
            !draft.caps.noIncrease {
             let exercise = context.slots[index].exercise
             draft.plan = BuildSlotPlan(
@@ -132,8 +134,9 @@ extension BuildEngine {
         if caps.noIncrease, (plan.load ?? 0) > (load ?? 0) || (plan.reps ?? 0) > current || plan.sets > exposure.plannedSets {
             plan = step.plan(reps: current, load: load, reason: .painRising)
         }
-        // The first block after a return keeps loads near the return load; reps climb instead (BLK-07).
-        if let cap = caps.loadCap, let planned = plan.load, planned > cap, let load {
+        // The first block after a return keeps loads near the return load; reps climb instead of a raise past
+        // it (BLK-07). A hold at the lifter's own heavier load stays a hold.
+        if let cap = caps.loadCap, let planned = plan.load, planned > cap, let load, planned > load {
             let reps = min(max(current, (exposure.repsDone ?? current) + BuildRules.repsPerStep), extendedCeiling(exercise))
             plan = step.plan(reps: reps, load: load, reason: .returnCap)
         }
@@ -399,9 +402,13 @@ extension BuildEngine {
         let current = base.repTarget ?? base.repsDone ?? exercise.minReps
         // Reps leave week 1's entry of the effort ramp, before any high-rep or bodyweight offset to the aim.
         let target = BuildRules.rirByWeek[0]
-        // Return week 1's half sets were part of the way back; the block holds the sets from before the break (VOL-05).
-        let sets = afterReturn ? max(base.plannedSets, context.latest(index, in: .build)?.plannedSets ?? 0) : base.plannedSets
+        // Return week 1's half sets were part of the way back; the block holds the sets from before the break (VOL-05),
+        // unless pain is rising, which blocks every increase (PAIN-01).
+        let preBreak = afterReturn && !caps.noIncrease ? context.latest(index, in: .build)?.plannedSets ?? 0 : 0
+        let sets = max(base.plannedSets, preBreak)
+        // A calibration from before return weeks never sizes the block after them; their plan does (BLK-07).
         if let latest = context.latestDone(index), context.isCalibration(index, latest),
+           !afterReturn || context.weeks[latest.weekIndex].kind == .return,
            var calibrated = calibrate(context, index, latest, aim: target) {
             calibrated.sets = afterReturn ? max(calibrated.sets, sets) : calibrated.sets
             return calibrated
