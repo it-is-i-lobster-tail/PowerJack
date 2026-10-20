@@ -1,0 +1,153 @@
+name: Release
+
+# Each push to staging uploads a build to TestFlight for the beta group
+# (the TESTFLIGHT_GROUP repository variable, or "Beta"). Each push to prod uploads a build and submits it for App Store review,
+# released as soon as Apple approves it. Both keep the archive and the .ipa
+# as a run artifact. Creating either branch does not release anything.
+on:
+  push:
+    branches: [staging, prod]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  XCODE_PATH: /Applications/Xcode_26.6.app
+  APP_ID: com.stanleycloud.PowerJackv1
+  BETA_GROUP: ${{ vars.TESTFLIGHT_GROUP || 'Beta' }}
+  BUILD_DIR: ${{ github.workspace }}/build
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    if: >-
+      (github.ref_name == 'staging' || github.ref_name == 'prod') &&
+      (github.event_name == 'workflow_dispatch' || !github.event.created)
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: sudo xcode-select --switch "$XCODE_PATH"
+
+      # The run number is the build number. Staging and prod share this
+      # workflow, so every upload gets a new, higher number.
+      - name: Read version
+        run: |
+          version=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' PowerJack/PowerJack.xcodeproj/project.pbxproj | sort -u)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "Releasing $version (${{ github.run_number }}) from ${{ github.ref_name }}"
+
+      - name: Write App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8" ]; then
+            echo "::error::Add the ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8 repository secrets first."
+            exit 1
+          fi
+
+          mkdir -p "$BUILD_DIR"
+          printf '%s\n' "$ASC_KEY_P8" > "$BUILD_DIR/AuthKey.p8"
+          jq -n --arg id "$ASC_KEY_ID" --arg issuer "$ASC_ISSUER_ID" --arg key "$ASC_KEY_P8" \
+            '{key_id: $id, issuer_id: $issuer, key: $key}' > "$BUILD_DIR/asc-key.json"
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project PowerJack/PowerJack.xcodeproj \
+            -scheme PowerJack \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$BUILD_DIR/PowerJack.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$BUILD_DIR/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD"
+
+      - name: Export
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$BUILD_DIR/PowerJack.xcarchive" \
+            -exportOptionsPlist .github/ExportOptions.plist \
+            -exportPath "$BUILD_DIR/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$BUILD_DIR/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PowerJack-${{ github.ref_name }}-${{ env.VERSION }}-${{ env.BUILD }}
+          path: |
+            build/PowerJack.xcarchive
+            build/export/*.ipa
+
+      - name: Install fastlane
+        run: command -v fastlane || sudo gem install fastlane --no-document
+
+      # What to Test lists the commits from main that this push brought in.
+      - name: Upload to TestFlight for the beta group
+        if: github.ref_name == 'staging'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          range=HEAD~1..HEAD
+          git cat-file -e "$BEFORE" 2>/dev/null && range="$BEFORE..HEAD"
+          git log --no-merges --format='- %s' "$range" | grep -v '^- Bump version' | head -c 3900 > "$BUILD_DIR/changelog.txt" || true
+          [ -s "$BUILD_DIR/changelog.txt" ] || echo "Build $VERSION ($BUILD)" > "$BUILD_DIR/changelog.txt"
+
+          fastlane run upload_to_testflight \
+            api_key_path:"$BUILD_DIR/asc-key.json" \
+            ipa:"$(ls "$BUILD_DIR"/export/*.ipa)" \
+            changelog:"$(cat "$BUILD_DIR/changelog.txt")" \
+            groups:"$BETA_GROUP" \
+            distribute_external:true \
+            notify_external_testers:true
+
+      - name: Upload to App Store Connect
+        if: github.ref_name == 'prod'
+        run: |
+          fastlane run upload_to_testflight \
+            api_key_path:"$BUILD_DIR/asc-key.json" \
+            ipa:"$(ls "$BUILD_DIR"/export/*.ipa)" \
+            skip_submission:true
+
+      - name: Submit for App Store review
+        if: github.ref_name == 'prod'
+        run: |
+          fastlane run upload_to_app_store \
+            api_key_path:"$BUILD_DIR/asc-key.json" \
+            app_identifier:"$APP_ID" \
+            app_version:"$VERSION" \
+            build_number:"$BUILD" \
+            skip_binary_upload:true \
+            skip_metadata:true \
+            skip_screenshots:true \
+            submit_for_review:true \
+            automatic_release:true \
+            run_precheck_before_submit:false \
+            force:true
+
+      - name: Tag version
+        if: github.ref_name == 'prod'
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION is already tagged."
+          else
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
