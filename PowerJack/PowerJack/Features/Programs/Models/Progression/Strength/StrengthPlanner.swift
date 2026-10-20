@@ -112,7 +112,10 @@ enum StrengthPlanner: WeekPlanner {
             let record = state[slot.key]
             let context = slotContext(slot, exercise: exercise, history: history, state: state)
             let stored = storedPlan(of: workoutExercise, role: slot.role)
-            var plan = history.isEmpty
+            // A swap earlier in the week can make an accessory a priority lift, or the reverse: such a slot plans
+            // afresh for its new role.
+            let roleChanged = workoutExercise.strengthRole.map { $0 != slot.role } ?? false
+            var plan = history.isEmpty || roleChanged
                 ? StrengthPrescriber.plan(context, record: record, clock: state.clock, at: date)
                 : stored
             // An exercise switched to bodyweight since its week was planned drops its weights (1.3).
@@ -143,7 +146,7 @@ enum StrengthPlanner: WeekPlanner {
                 lastSession: history.first(where: \.trained),
                 grid: context.grid
             )
-            if plan != stored {
+            if plan != stored || roleChanged {
                 // A break or pain moves the working load, and the warm-ups follow it (5.7).
                 if slot.role != .accessory {
                     plan.warmups = StrengthPrescriber.warmups(for: plan, slot: context, record: record)
