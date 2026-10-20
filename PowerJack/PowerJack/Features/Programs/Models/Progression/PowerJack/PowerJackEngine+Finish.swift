@@ -46,13 +46,13 @@ extension PowerJackWeekBuilder {
             plan.reasons.append(.painCheckIn)
             return true
         case .returning:
-            let classes = weeks.last.flatMap { classes(slot, in: $0) } ?? []
+            let outcomes = weeks.last.flatMap { classes(slot, in: $0) } ?? []
             var climbed = false
             for (index, part) in entry.parts.enumerated() {
                 guard let last = part.firstLoad, !entry.exercise.repsOnly else { return false }
                 let prePain = prePainLoad(slot, part: index, episodeStart: state.episodeStart, fallback: last)
                 guard last < prePain else { return false }
-                let outcome = classes.indices.contains(index) ? classes[index] : .none
+                let outcome = outcomes.indices.contains(index) ? outcomes[index] : .none
                 let allDone = part.completed.allSatisfy { ($0.reps ?? 0) >= ($0.plannedReps ?? 0) }
                 if outcome == .missBig { return false }
                 if outcome.rises || (outcome == .none && allDone) {
