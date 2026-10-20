@@ -19,6 +19,8 @@ struct TemplateProgramListView: View {
         filter: #Predicate<TemplateProgram> { !$0.hiddenValue },
         sort: \TemplateProgram.templateName
     ) private var templatePrograms: [TemplateProgram]
+    // Remembered so returning to Templates keeps the section the lifter was in.
+    @AppStorage(TemplateType.selectionKey) private var templateType: TemplateType = .hypertrophy
     @State private var selectedTemplate: TemplateProgram?
     @State private var templatePendingDelete: TemplateProgram?
     @State private var saveErrorMessage: String?
@@ -82,7 +84,16 @@ struct TemplateProgramListView: View {
                 .scrollContentBackground(.hidden)
                 .background(Color(uiColor: .systemBackground))
             } createDestination: {
-                TemplateProgramNew()
+                TemplateProgramNew(templateType: templateType)
+            }
+            // Outside the scaffold, so the switcher sits above its hint.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                SlidingGlassPicker(
+                    options: TemplateType.allCases,
+                    selection: $templateType,
+                    title: \.name
+                )
+                .padding(.bottom, LayoutMetrics.compactSpacing)
             }
             .navigationDestination(item: $selectedTemplate) { template in
                 TemplateProgramDetailView(templateProgram: template)
@@ -106,10 +117,11 @@ struct TemplateProgramListView: View {
         }
     }
 
-    /// Picking a template for a program hides drafts, since they can't start one.
+    /// The chosen section's templates. Picking one for a program hides drafts, since they can't start one.
     private var visibleTemplates: [TemplateProgram] {
-        guard onSelect != nil else { return templatePrograms }
-        return templatePrograms.filter { !$0.draft }
+        templatePrograms.filter { template in
+            template.templateType == templateType && (onSelect == nil || !template.draft)
+        }
     }
 
     private func delete(_ template: TemplateProgram) {
