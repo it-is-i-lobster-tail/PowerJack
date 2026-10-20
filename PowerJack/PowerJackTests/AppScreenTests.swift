@@ -171,13 +171,14 @@ struct AppScreenTests {
         let bench = try #require(screen.label(startingWith: "Barbell Bench Press"), "\(screen.labels)")
         await screen.tap(bench, settleFor: .milliseconds(800))
         #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
 
         await screen.tap("Day 2", settleFor: .milliseconds(600))
-        #expect(!screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
         #expect(screen.horizontalScrollViews.isEmpty)
 
         await screen.tap("Day 1", settleFor: .milliseconds(600))
-        #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
     @Test("Browsing exercises opens the selected exercise's details")

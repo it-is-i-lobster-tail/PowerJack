@@ -114,6 +114,13 @@ enum ExerciseCatalog {
         Entry("smith-machine-squat", "Smith Machine Squat", .machine, .quads, .high, [.glutes, .abs]),
         Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .high, [.abs]),
         Entry("cable-hip-abduction", "Cable Hip Abduction", .cable, .glutes, .low),
+        // Added for the second set of built-in templates.
+        Entry("hack-squat", "Hack Squat", .machine, .quads, .high, [.glutes]),
+        Entry("chest-supported-dumbbell-row", "Chest Supported Dumbbell Row", .dumbbell, .back, .moderate, [.biceps, .forearms]),
+        Entry("dip", "Dip", .bodyweight, .chest, .moderate, [.triceps, .shoulders]),
+        Entry("close-grip-bench-press", "Close Grip Bench Press", .barbell, .triceps, .high, [.chest, .shoulders]),
+        Entry("incline-dumbbell-curl", "Incline Dumbbell Curl", .dumbbell, .biceps, .low, [.forearms]),
+        Entry("hanging-leg-raise", "Hanging Leg Raise", .bodyweight, .abs, .low, [.forearms]),
     ]
 
     @MainActor

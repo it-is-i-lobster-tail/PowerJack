@@ -24,6 +24,9 @@ struct PowerJackApp: App {
 
     init() {
         Hints.configure()
+        if !Self.runsInMemory {
+            SettingsSync.shared.start()
+        }
     }
 
     var body: some Scene {
