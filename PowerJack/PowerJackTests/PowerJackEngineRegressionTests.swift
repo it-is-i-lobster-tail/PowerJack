@@ -247,6 +247,32 @@ extension PowerJackEngineTests {
         #expect(next.workouts[0][0].reasons.contains(.painHold))
     }
 
+    @Test("A pain cut that would pass 30% under the pre-pain load holds the lifted load, even with nothing planned (R10.3)")
+    func painReduceHoldsAtTheFloor() throws {
+        let now = Date.now
+        func squatEntry(_ load: Double, pain: LevelOfPain, daysAgo: Double, planned: Bool = true) -> PowerJackEntryLog {
+            var logged = entry(squat, sets: [(5, load), (5, load)], target: 2, loadTarget: 300, tap: 2)
+            logged.pain = pain
+            logged.sets = logged.sets.map { set in
+                var set = set
+                set.completedAt = now.addingTimeInterval(-daysAgo * 86_400)
+                // A check-in's Reset leaves sets with nothing planned.
+                if !planned { (set.plannedReps, set.plannedLoad) = (nil, nil) }
+                return set
+            }
+            return logged
+        }
+        // 300 before the pain, then Moderate twice: 220 is cut 10% to 195, under the 210 floor.
+        let entries = [squatEntry(300, pain: .none, daysAgo: 14), squatEntry(300, pain: .moderate, daysAgo: 7), squatEntry(220, pain: .moderate, daysAgo: 0, planned: false)]
+        let history = { (_: AnyHashable) in
+            zip(entries, [14.0, 7, 0]).map { PowerJackExposure(date: now.addingTimeInterval(-$1 * 86_400), entry: $0, weekType: .build) }
+        }
+        let next = try #require(PowerJackEngine.nextWeek(after: entries.map { weekLog([[$0]]) }, context: context(history: history)))
+        let plan = next.workouts[0][0]
+        #expect(plan.reasons.contains(.painReduce))
+        #expect(plan.sets.allSatisfy { $0.load == 220 })
+    }
+
     @Test("A new block never raises an exercise in a pain episode above what it last lifted (R10.2)")
     func blockStartHoldsPain() {
         let now = Date.now

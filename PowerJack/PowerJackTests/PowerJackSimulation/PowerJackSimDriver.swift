@@ -168,11 +168,13 @@ private extension PowerJackSimDriver {
         traceWeek(of: program, index: 0, plan: plan)
     }
 
+    /// A PowerJack template first, then now and then another style's in between. Only a PowerJack
+    /// template runs again back to back, so every lifter keeps coming back to PowerJack.
     func chooseTemplate() -> TemplateProgram {
-        if let lastTemplate, lifter.decides(profile.sameTemplate) {
+        if let lastTemplate, lastTemplate.templateType == .powerJack, lifter.decides(profile.sameTemplate) {
             return lastTemplate
         }
-        if lifter.decides(profile.otherStyle), !otherStyleTemplates.isEmpty {
+        if programNumber > 0, lifter.decides(profile.otherStyle), !otherStyleTemplates.isEmpty {
             return lifter.rng.pick(otherStyleTemplates)
         }
         if lifter.decides(profile.customTemplate) || catalogTemplates.isEmpty {

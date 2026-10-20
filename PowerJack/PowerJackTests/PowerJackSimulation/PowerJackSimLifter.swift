@@ -184,9 +184,10 @@ extension PowerJackSimLifter {
         return min(max(tenths, 1), WorkoutSet.maxWeightPounds * 10)
     }
 
-    /// A lighter weight after a set that didn't allow a single rep, in tenths of a pound.
+    /// A lighter weight after a set that didn't allow a single rep, in tenths of a pound, down to the
+    /// lightest 2.5 lb plate or dumbbell.
     func lighter(_ tenths: Int) -> Int {
-        max(1, Int((Double(tenths) * 0.85 / 50).rounded(.down)) * 50)
+        max(25, Int((Double(tenths) * 0.85 / 50).rounded(.down)) * 50)
     }
 
     /// Reps done on a set, or nil when not even one is possible.

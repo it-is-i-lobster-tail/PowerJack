@@ -34,7 +34,9 @@ extension PowerJackWeekBuilder {
                 }
                 let floor = prePainLoad(slot, part: index, episodeStart: state.episodeStart, fallback: last) * (1 - PowerJackRules.painMaxTotalCutPct / 100)
                 let cut = PowerJackSteps(origin: last).roundDown(last - max(last * PowerJackRules.painCutPct / 100, steps.step))
-                if cut < last, cut >= floor { setLoad(&plan, part: index, of: entry, to: cut) }
+                // Past the total cut, it holds where it is, as R10.3's hold does.
+                let held = min(part.sets.first?.plannedLoad ?? last, last)
+                setLoad(&plan, part: index, of: entry, to: cut < last && cut >= floor ? cut : held)
             }
             plan.reasons.append(.painReduce)
             return true
