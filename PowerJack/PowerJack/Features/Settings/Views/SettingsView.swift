@@ -19,6 +19,8 @@ struct SettingsView: View {
     private var showsHints = AppSettings.Default.hints
     @AppStorage(AppSettings.Key.weightUnit)
     private var weightUnit = WeightUnit.deviceDefault
+    @AppStorage(AppSettings.Key.appearance)
+    private var appearance = AppSettings.Default.appearance
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var iCloudAvailable = true
@@ -97,6 +99,23 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    // A trailing menu, like the weight unit's control.
+                    HStack {
+                        SettingsRowLabel(
+                            systemImage: "circle.lefthalf.filled",
+                            title: "Appearance",
+                            detail: "System switches between light and dark with your iPhone."
+                        )
+                        Picker("Appearance", selection: $appearance) {
+                            ForEach(Appearance.allCases) { appearance in
+                                Text(appearance.name).tag(appearance)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
                     Toggle(isOn: $showsHints) {
                         SettingsRowLabel(
                             systemImage: "lightbulb",
