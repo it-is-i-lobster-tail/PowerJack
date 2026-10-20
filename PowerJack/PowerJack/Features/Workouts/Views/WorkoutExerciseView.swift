@@ -51,6 +51,7 @@ struct WorkoutExerciseView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                ProgressionCue(workoutExercise: workoutExercise)
             }
 
             ScrollView {

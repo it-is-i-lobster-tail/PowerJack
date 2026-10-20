@@ -17,6 +17,11 @@ final class ProgramWeek {
     var lockedValue: Bool = false
     var statusValue: Status = Status.planned
     var programValue: Program?
+    // Where the week sits in its training block. Empty and 0 for programs that don't use blocks.
+    var weekKindValue: String = ""
+    var blockWeekValue: Int = 0
+    // The break band (1-3) when a long break was handled in this week, else 0.
+    var returnBandValue: Int = 0
 
     init(order: Int) {
         self.orderValue = order
@@ -38,6 +43,10 @@ extension ProgramWeek {
     var locked: Bool { self.lockedValue }
     // Status
     var status: Status { statusValue }
+    // Block
+    var weekKind: WeekKind? { WeekKind(rawValue: weekKindValue) }
+    var blockWeek: Int { blockWeekValue }
+    var returnBand: Int { returnBandValue }
 }
 
 //
@@ -55,6 +64,13 @@ extension ProgramWeek {
         )
         workoutsValue = (workoutsValue ?? []) + [newWorkout]
         return newWorkout
+    }
+
+    /// Places the week in its training block. Planners set this when they write the week.
+    func setBlock(kind: WeekKind, blockWeek: Int, returnBand: Int = 0) {
+        weekKindValue = kind.rawValue
+        blockWeekValue = blockWeek
+        returnBandValue = returnBand
     }
 
     func complete() {

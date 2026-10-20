@@ -52,11 +52,20 @@ struct ProgramListView: View {
                 Button {
                     select(program)
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(program.templateName)
-                        Text("\(program.status.rawValue)  |  \(program.percentFinished)%")
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(program.templateName)
+                            Text("\(program.status.rawValue)  |  \(program.percentFinished)%")
+                                .font(.caption)
+                                .foregroundStyle(program === activeProgram ? .green : .blue)
+                        }
+
+                        Spacer()
+
+                        // Gray, so it reads as a label rather than part of the tappable title.
+                        Text(program.templateType.name)
                             .font(.caption)
-                            .foregroundStyle(program === activeProgram ? .green : .blue)
+                            .foregroundStyle(Color.secondary)
                     }
                 }
                 .listRowBackground(

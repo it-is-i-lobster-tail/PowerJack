@@ -1,12 +1,13 @@
 import OSLog
 import SwiftData
 
-/// Built-in templates for experienced lifters chasing hypertrophy.
+/// Built-in templates for experienced lifters, listed under their type's section.
 /// Exercises reference `ExerciseCatalog` IDs, so seed the exercise catalog first.
 enum TemplateCatalog {
     struct Entry {
         let id: String
         let name: String
+        var type: TemplateType = .hypertrophy
         let muscleFocus: [Muscle]
         /// One list of exercise catalog IDs per workout, in order.
         let workouts: [[String]]
@@ -15,7 +16,8 @@ enum TemplateCatalog {
             let template = TemplateProgram(
                 templateName: name,
                 workoutsPerWeek: workouts.count,
-                templateMuscleFocus: muscleFocus
+                templateMuscleFocus: muscleFocus,
+                templateType: type
             )
             template.catalogID = id
 
@@ -149,6 +151,54 @@ enum TemplateCatalog {
                 ["barbell-hip-thrust", "cable-glute-kickback", "cable-hip-abduction", "dumbbell-lateral-raise", "cable-crunch"],
                 ["leg-press", "barbell-hip-thrust", "leg-extension", "seated-leg-curl", "standing-calf-raise", "cable-woodchop"],
                 ["incline-dumbbell-bench-press", "lat-pulldown", "dumbbell-shoulder-press", "dumbbell-reverse-fly", "dumbbell-curl", "cable-overhead-extension"],
+            ]
+        ),
+        // Placeholder Strengthen and PowerJack templates, so their sections have something to show
+        // until their own templates and progression rules land.
+        Entry(
+            id: "full-gym-strength-foundations-3x",
+            name: "Full Gym Strength Foundations",
+            type: .strength,
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
+            workouts: [
+                ["barbell-back-squat", "barbell-bench-press", "barbell-row", "cable-crunch"],
+                ["barbell-deadlift", "barbell-overhead-press", "pull-up", "hanging-knee-raise"],
+                ["barbell-front-squat", "incline-barbell-bench-press", "barbell-row", "side-plank"],
+            ]
+        ),
+        Entry(
+            id: "full-gym-upper-lower-strength-4x",
+            name: "Full Gym Upper Lower Strength",
+            type: .strength,
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
+            workouts: [
+                ["barbell-bench-press", "barbell-row", "barbell-overhead-press", "chin-up", "barbell-skull-crusher"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-press", "standing-calf-raise"],
+                ["barbell-overhead-press", "pull-up", "incline-barbell-bench-press", "barbell-row", "barbell-curl"],
+                ["barbell-deadlift", "barbell-front-squat", "lying-leg-curl", "cable-crunch"],
+            ]
+        ),
+        Entry(
+            id: "powerjack-whole-body-3x",
+            name: "PowerJack Whole Body",
+            type: .powerJack,
+            muscleFocus: [.chest, .back, .quads, .glutes],
+            workouts: [
+                ["barbell-back-squat", "barbell-bench-press", "seated-cable-row", "dumbbell-lateral-raise", "cable-crunch"],
+                ["barbell-deadlift", "incline-dumbbell-bench-press", "lat-pulldown", "leg-extension", "dumbbell-curl"],
+                ["barbell-hip-thrust", "barbell-overhead-press", "one-arm-dumbbell-row", "seated-leg-curl", "cable-triceps-pushdown"],
+            ]
+        ),
+        Entry(
+            id: "powerjack-upper-lower-4x",
+            name: "PowerJack Upper Lower",
+            type: .powerJack,
+            muscleFocus: [.chest, .back, .quads, .hamstrings],
+            workouts: [
+                ["barbell-bench-press", "barbell-row", "dumbbell-shoulder-press", "lat-pulldown", "cable-triceps-pushdown"],
+                ["barbell-back-squat", "barbell-romanian-deadlift", "leg-extension", "seated-leg-curl", "standing-calf-raise"],
+                ["incline-dumbbell-bench-press", "pull-up", "cable-lateral-raise", "cable-face-pull", "dumbbell-hammer-curl"],
+                ["barbell-deadlift", "leg-press", "lying-leg-curl", "barbell-hip-thrust", "hanging-knee-raise"],
             ]
         ),
     ]

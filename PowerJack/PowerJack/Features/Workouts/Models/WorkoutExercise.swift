@@ -44,6 +44,10 @@ final class WorkoutExercise {
     private var warmupsDisabledValue: Bool = false
     // How many warmups Enable Warmup brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
+    // Written with the week by its planner: reps to leave on the last set, and why the plan changed.
+    private var rirTargetValue: Int?
+    private var progressionCodeValue: String?
+    private var progressionNoteValue: String?
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -93,6 +97,10 @@ extension WorkoutExercise {
     var checkInSourcePain: LevelOfPain? { checkInSourcePainValue }
     // Warmups
     var warmupsDisabled: Bool { warmupsDisabledValue }
+    // Progression
+    var rirTarget: Int? { rirTargetValue }
+    var progressionCode: String? { progressionCodeValue }
+    var progressionNote: String? { progressionNoteValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -151,6 +159,9 @@ extension WorkoutExercise {
         return countSetStatus(status: Status.active)
     }
     var checkInPending: Bool { checkInValue == .pending }
+    /// The type of the program this exercise belongs to, which picks its feedback and progression.
+    var templateType: TemplateType? { workoutValue?.programWeekValue?.programValue?.templateType }
+    var programWeek: ProgramWeek? { workoutValue?.programWeekValue }
     // Complete, skipped, or stopped.
     var isFinished: Bool {
         status == .complete || status == .skipped || status == .stopped
@@ -428,6 +439,30 @@ extension WorkoutExercise {
     func inheritWarmupsDisabled(from source: WorkoutExercise) {
         warmupsDisabledValue = source.warmupsDisabledValue
     }
+    /// Records the planner's effort target and reason line on a planned exercise.
+    func setProgression(rirTarget: Int?, code: String?, note: String?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the progression of a planned WorkoutExercise.")
+            return
+        }
+        rirTargetValue = rirTarget
+        progressionCodeValue = code
+        progressionNoteValue = note
+    }
+    /// Replaces a planned exercise's working sets. Warmups stay.
+    func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only replace the sets of a planned WorkoutExercise.")
+            return
+        }
+        for workingSet in workingSets {
+            workoutSetsValue?.removeAll { $0 === workingSet }
+            modelContext?.delete(workingSet)
+        }
+        for set in sets {
+            addPlannedSet(plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
+        }
+    }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
     func requireCheckIn(sourcePain: LevelOfPain) {
         guard status == .planned else {
@@ -501,6 +536,10 @@ extension WorkoutExercise {
         // A check-in belongs to the exercise that caused the pain, not to its replacement.
         checkInValue = .none
         checkInSourcePainValue = nil
+        // So was the old exercise's plan.
+        rirTargetValue = nil
+        progressionCodeValue = nil
+        progressionNoteValue = nil
         deleteAllSets()
         addInitialSets()
     }
