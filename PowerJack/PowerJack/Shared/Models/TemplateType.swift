@@ -22,9 +22,9 @@ enum TemplateType: String, Codable, CaseIterable, Identifiable {
     var name: String {
         switch self {
         case .hypertrophy:
-            "Build"
+            "Hypertrophy"
         case .strength:
-            "Strengthen"
+            "Strength"
         case .powerJack:
             "PowerJack"
         }
