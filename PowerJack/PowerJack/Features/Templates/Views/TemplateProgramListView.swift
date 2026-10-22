@@ -91,7 +91,8 @@ struct TemplateProgramListView: View {
                 SlidingGlassPicker(
                     options: TemplateType.allCases,
                     selection: $templateType,
-                    title: \.name
+                    title: \.name,
+                    centersMiddleOption: true
                 )
                 .padding(.bottom, LayoutMetrics.compactSpacing)
             }

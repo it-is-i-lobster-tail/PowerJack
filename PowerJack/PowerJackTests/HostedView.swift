@@ -75,6 +75,11 @@ final class HostedView {
         labels.first { $0.hasPrefix(prefix) }
     }
 
+    /// Where the element with this label sits on screen, for layout checks.
+    func frame(of label: String) -> CGRect? {
+        elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
+    }
+
     /// Steps the adjustable element at `index` (in screen order), like swiping up or down in VoiceOver.
     @discardableResult
     func adjust(at index: Int, increment: Bool) async -> Bool {

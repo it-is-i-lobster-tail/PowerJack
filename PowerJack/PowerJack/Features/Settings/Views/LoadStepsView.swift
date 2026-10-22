@@ -2,7 +2,7 @@
 //  LoadStepsView.swift
 //  PowerJack
 //
-//  The smallest weight jump per kind of equipment, which Strengthen rounds every planned weight to.
+//  The smallest weight jump per kind of equipment, which Strength rounds every planned weight to.
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ struct LoadStepsView: View {
                         .id("\(equipment.rawValue).\(weightUnit.rawValue)")
                 }
             } footer: {
-                Text("Strengthen rounds every planned weight to these steps. Dumbbell and kettlebell steps are per hand. Kilograms and pounds keep their own steps.")
+                Text("Strength rounds every planned weight to these steps. Dumbbell and kettlebell steps are per hand. Kilograms and pounds keep their own steps.")
             }
         }
         .navigationTitle("Load Steps")
