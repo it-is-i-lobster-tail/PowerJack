@@ -91,7 +91,7 @@ struct SettingsView: View {
                         SettingsRowLabel(
                             systemImage: "plusminus",
                             title: "Load Steps",
-                            detail: "The smallest weight jump for each kind of equipment in Strengthen programs."
+                            detail: "The smallest weight jump for each kind of equipment in Strength programs."
                         )
                     }
                 } header: {

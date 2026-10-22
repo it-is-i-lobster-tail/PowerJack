@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 import Testing
 @testable import PowerJack
 
@@ -12,10 +13,19 @@ import Testing
 struct TemplateTypeTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
 
-    @Test("Sections are named Build, Strengthen and PowerJack, in that order")
+    @Test("Sections are named Hypertrophy, Strength and PowerJack, in that order")
     func sectionNames() {
-        #expect(TemplateType.allCases.map(\.name) == ["Build", "Strengthen", "PowerJack"])
+        #expect(TemplateType.allCases.map(\.name) == ["Hypertrophy", "Strength", "PowerJack"])
         #expect(TemplateType.allCases.map(\.rawValue) == ["hypertrophy", "strength", "powerjack"])
+    }
+
+    @Test("The middle section name sits on the screen's horizontal center")
+    func middleSectionIsCentered() async throws {
+        let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
+        defer { screen.close() }
+
+        let middle = try #require(screen.frame(of: TemplateType.strength.name), "\(screen.labels)")
+        #expect(abs(middle.midX - screen.window.bounds.midX) < 1)
     }
 
     @Test("A new template takes its section's type, and editing it keeps the type")
