@@ -96,6 +96,16 @@ struct TemplateBuilder: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                CopyDayMenu(
+                    options: options,
+                    selection: $selection,
+                    draft: $draft
+                )
+            }
+
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     TemplateBuilderHint().invalidate(reason: .actionPerformed)
                     isShowingWorkoutExerciseSheet = true
