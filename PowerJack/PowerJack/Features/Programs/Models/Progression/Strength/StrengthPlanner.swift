@@ -353,7 +353,8 @@ enum StrengthPlanner: WeekPlanner {
             },
             rir: workoutExercise.feedback?.repsInReserve?.rawValue,
             pain: workoutExercise.feedback?.levelOfPain.rawValue,
-            date: working.filter { $0.status == .complete }.compactMap(\.completedAt).max()
+            date: working.filter { $0.status == .complete }.compactMap(\.completedAt).max(),
+            plannedRole: workoutExercise.strengthRole
         )
     }
 

@@ -195,7 +195,7 @@ struct BuildSimChecker {
         let weekOne = context.nextBuildWeek(blockWeek: 1)
         let expected: [BuildWeek] = switch last.kind {
         case .build where !trained:
-            [context.nextBuildWeek(blockWeek: last.blockWeek)]
+            BuildEngine.repeatFits(context) ? [context.nextBuildWeek(blockWeek: last.blockWeek)] : [deload]
         case .build where last.blockWeek >= last.buildWeeks:
             [deload]
         case .build:
@@ -220,20 +220,26 @@ struct BuildSimChecker {
     /// A program run without a repeated week, a break or an early deload keeps the blocks laid out to fit its
     /// length, so it ends on a deload (BLK-02).
     private mutating func checkFit(_ program: Program, next plan: BuildPlan, at index: Int, here: String) {
-        let weeks = program.programWeeks.prefix(index)
-        let reactive = { (codes: [BuildReason.Code?]) in codes.contains(.deloadReactive) }
+        // A skipped week repeats or gives way to the deload, and an early deload lays the rest out again (FREQ-06, FAT-03).
+        let skipped = program.programWeeks.prefix(index).contains { week in
+            !week.workouts.flatMap(\.workoutExercises).flatMap(\.workingSets).contains { $0.status == .complete }
+        }
+        guard !skipped else { return }
+        let stored = program.programWeeks.prefix(index).map { week in
+            (BuildWeek(kind: week.weekKind ?? .build, blockWeek: week.blockWeek, returnBand: week.returnBand),
+             BuildSimSlot.all(in: week).map(\.code))
+        }
         var lastBlockWeek = 0
-        for week in weeks {
-            guard week.returnBand == 0, week.weekKind != .return else { return }
-            if week.weekKind == .deload {
-                guard !reactive(BuildSimSlot.all(in: week).map(\.code)) else { return }
+        for (week, codes) in stored + [(plan.week, plan.slots.map(\.reason.code))] {
+            guard week.returnBand == 0, week.kind != .return else { return }
+            if week.kind == .deload {
+                guard !codes.contains(.deloadReactive) else { return }
                 lastBlockWeek = 0
             } else {
                 guard week.blockWeek == lastBlockWeek + 1 else { return }
                 lastBlockWeek = week.blockWeek
             }
         }
-        guard !reactive(plan.slots.map(\.reason.code)) else { return }
         let planned = ProgramBlocks.layout(weeks: program.programLengthWeeks, carry: 0)
         guard planned.indices.contains(index) else { return }
         expect(plan.week.kind == planned[index], "BLK-02", here,

@@ -238,6 +238,20 @@ struct StrengthEngineTests {
         #expect(next.intendedKg == 140)
     }
 
+    @Test("A swap to a priority lift plans from its e1RM, not an accessory deload week's high reps (14.6)")
+    func accessoryDeloadIsNoBase() {
+        let deload = StrengthSession(
+            plan: StrengthSlotPlan(kind: .deload, reps: 16, rir: 2, sets: StrengthSlotPlan.uniform(1, reps: 16, loadKg: 45)),
+            sets: [.init(loadKg: 45, reps: 16, plannedLoadKg: 45, completed: true)],
+            rir: 3,
+            pain: 0,
+            date: now,
+            plannedRole: .accessory
+        )
+        let next = plan(context(zone: .heavy, history: [deload]), record: confident(e1rm: 100), clock: StrengthClock(blockWeek: 2))
+        #expect(next.reps == 4)
+    }
+
     @Test("Coarse steps raise reps first, then step the load with reps refit (1.2, T22)")
     func repsMode() {
         // A chest press in 10 lb steps at 90 lb × 9 @ 2 with the offset at 3: E = 90 ÷ pct(11), fit(100) = 4.
