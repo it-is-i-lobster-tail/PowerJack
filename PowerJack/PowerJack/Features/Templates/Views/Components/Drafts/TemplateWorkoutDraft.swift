@@ -69,6 +69,17 @@ extension TemplateWorkoutDraft {
         return newTemplateExerciseDraft
     }
 
+    /// Adds another workout's exercises in their order. Replacing clears this workout first.
+    mutating func copyTemplateExercises(from source: TemplateWorkoutDraft, replacing: Bool) {
+        if replacing {
+            templateExerciseDraftsValue = []
+        }
+
+        for templateExerciseDraft in source.templateExerciseDrafts {
+            addTemplateExerciseDraft(exercise: templateExerciseDraft.exercise)
+        }
+    }
+
     mutating func removeTemplateExercises(at offsets: IndexSet) {
         var ordered = templateExerciseDrafts
         ordered.remove(atOffsets: offsets)
