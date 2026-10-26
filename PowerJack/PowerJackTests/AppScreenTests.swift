@@ -226,7 +226,7 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: build) != nil, "\(screen.labels)")
         #expect(screen.label(startingWith: strength) == nil, "\(screen.labels)")
 
-        #expect(await screen.tap("Strengthen", settleFor: .milliseconds(600)))
+        #expect(await screen.tap("Strength", settleFor: .milliseconds(600)))
         #expect(screen.label(startingWith: strength) != nil, "\(screen.labels)")
 
         #expect(await screen.tap("PowerJack", settleFor: .milliseconds(600)))
