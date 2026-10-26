@@ -44,6 +44,8 @@ final class WorkoutExercise {
     private var warmupsDisabledValue: Bool = false
     // How many warmups Enable Warmup brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
+    // Shared by the exercises stacked into one superset in the template. Nil when the exercise stands alone.
+    private var supersetIDValue: UUID?
     // Written with the week by its planner: reps to leave on the last set, and why the plan changed.
     private var rirTargetValue: Int?
     private var progressionCodeValue: String?
@@ -111,6 +113,8 @@ extension WorkoutExercise {
     var checkInSourcePain: LevelOfPain? { checkInSourcePainValue }
     // Warmups
     var warmupsDisabled: Bool { warmupsDisabledValue }
+    // Superset. Only exercises next to each other with the same ID count as one (see `Workout.exerciseGroups`).
+    var supersetID: UUID? { supersetIDValue }
     // Progression
     var rirTarget: Int? { rirTargetValue }
     var progressionCode: String? { progressionCodeValue }
@@ -459,6 +463,18 @@ extension WorkoutExercise {
     /// Carries a day's disabled warmups into the same day of a newly built week. Call before adding sets.
     func inheritWarmupsDisabled(from source: WorkoutExercise) {
         warmupsDisabledValue = source.warmupsDisabledValue
+    }
+    /// Stacks a planned exercise into the template's superset. Call before the workout starts.
+    func setSuperset(_ supersetID: UUID?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise.")
+            return
+        }
+        supersetIDValue = supersetID
+    }
+    /// Carries a day's superset into the same day of a newly built week.
+    func inheritSuperset(from source: WorkoutExercise) {
+        setSuperset(source.supersetIDValue)
     }
     /// Records the planner's effort target and reason line on a planned exercise.
     func setProgression(rirTarget: Int?, code: String?, note: String?) {
