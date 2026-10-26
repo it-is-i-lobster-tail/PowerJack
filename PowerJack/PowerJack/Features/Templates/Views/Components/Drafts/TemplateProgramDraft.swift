@@ -98,7 +98,8 @@ struct TemplateProgramDraft {
             let newTemplateWorkout = newTemplateProgram.addTemplateWorkout()
             for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
                 newTemplateWorkout.addTemplateExercise(
-                    exercise: templateExerciseDraft.exercise
+                    exercise: templateExerciseDraft.exercise,
+                    supersetID: templateExerciseDraft.supersetID
                 )
             }
         }
@@ -140,7 +141,8 @@ struct TemplateProgramDraft {
             let newTemplateWorkout = templateProgram.addTemplateWorkout()
             for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
                 newTemplateWorkout.addTemplateExercise(
-                    exercise: templateExerciseDraft.exercise
+                    exercise: templateExerciseDraft.exercise,
+                    supersetID: templateExerciseDraft.supersetID
                 )
             }
         }
@@ -153,13 +155,28 @@ struct TemplateProgramDraft {
 // Workout Layout
 //
 extension TemplateProgramDraft {
-    /// The exercises in each enabled workout, in order.
-    private var workoutLayout: [[PersistentIdentifier]] {
-        templateWorkoutDrafts.map { $0.templateExerciseDrafts.map(\.exercise.persistentModelID) }
+    private struct LayoutEntry: Equatable {
+        let exerciseID: PersistentIdentifier
+        let supersetID: UUID?
     }
 
-    private static func workoutLayout(of templateProgram: TemplateProgram) -> [[PersistentIdentifier]] {
-        templateProgram.templateWorkouts.map { $0.templateExercises.compactMap(\.exercise?.persistentModelID) }
+    /// The exercises in each enabled workout, in order, and the supersets they're stacked in.
+    private var workoutLayout: [[LayoutEntry]] {
+        templateWorkoutDrafts.map { workout in
+            workout.templateExerciseDrafts.map {
+                LayoutEntry(exerciseID: $0.exercise.persistentModelID, supersetID: $0.supersetID)
+            }
+        }
+    }
+
+    private static func workoutLayout(of templateProgram: TemplateProgram) -> [[LayoutEntry]] {
+        templateProgram.templateWorkouts.map { workout in
+            workout.templateExercises.compactMap { templateExercise in
+                templateExercise.exercise.map {
+                    LayoutEntry(exerciseID: $0.persistentModelID, supersetID: templateExercise.supersetID)
+                }
+            }
+        }
     }
 }
 

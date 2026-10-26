@@ -67,6 +67,7 @@ enum BuildPlanner: WeekPlanner {
                 guard let workoutExercise = workout.addWorkoutExercise(exercise: exercise) else { continue }
                 // Warmups repeat what was logged last week, including how many. They never progress.
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
+                workoutExercise.inheritSuperset(from: sourceExercise)
                 let sourceWarmups = sourceExercise.warmupSets
                 let warmupCount = sourceWarmups.isEmpty ? WorkoutExercise.initialWarmupSets : sourceWarmups.count
                 for index in 0..<warmupCount {

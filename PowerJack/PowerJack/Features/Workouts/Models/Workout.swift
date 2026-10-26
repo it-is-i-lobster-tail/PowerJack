@@ -106,11 +106,21 @@ extension Workout {
     }
 
     /// Where the user should be: the first exercise still being logged or waiting on feedback.
-    /// Derived from stored state so it survives relaunches.
+    /// In a superset, that's the exercise whose turn it is. Derived from stored state so it survives relaunches.
     var currentExerciseIndex: Int {
         let exercises = workoutExercises
-        return exercises.firstIndex { !$0.isDone }
-            ?? max(0, exercises.count - 1)
+        guard let index = exercises.firstIndex(where: { !$0.isDone }) else {
+            return max(0, exercises.count - 1)
+        }
+        guard
+            !exercises[index].allSetsDone(),
+            let next = currentSet?.workoutExercise,
+            exercises[index].supersetPartners.contains(where: { $0 === next }),
+            let nextIndex = exercises.firstIndex(where: { $0 === next })
+        else {
+            return index
+        }
+        return nextIndex
     }
 
     var allExercisesFinished: Bool {

@@ -50,6 +50,11 @@ struct WorkoutExerciseView: View {
                 Text(workoutExercise.exercise?.exerciseEquipment.rawValue.localizedCapitalized ?? "")
                     .font(.default)
                     .foregroundStyle(.primary)
+                if let supersetText {
+                    Label(supersetText, systemImage: "link")
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                }
                 if workoutExercise.checkInPending {
                     Label("Check-in required", systemImage: "cross.case")
                         .font(.caption)
@@ -82,6 +87,13 @@ struct WorkoutExerciseView: View {
         .onAppear {
             showsWarmupHint = workoutExercise.showsWarmupHint
         }
+    }
+
+    /// e.g. "Superset with Skull Crusher".
+    private var supersetText: String? {
+        let partners = workoutExercise.supersetPartners.compactMap { $0.exercise?.exerciseName }
+        guard !partners.isEmpty else { return nil }
+        return "Superset with \(partners.formatted(.list(type: .and)))"
     }
 
     private var warmupGroup: some View {
