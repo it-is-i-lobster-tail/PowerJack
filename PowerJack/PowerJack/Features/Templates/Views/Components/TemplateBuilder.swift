@@ -182,14 +182,13 @@ struct TemplateWorkoutBuilder: View {
     @ViewBuilder
     private func blockRow(_ block: TemplateExerciseBlock) -> some View {
         if block.isSuperset {
+            // Either way, so a swipe right on a stack never goes back a screen.
             SupersetBuilder(exercises: block.exercises.map(\.exercise))
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    unstackButton(block)
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button {
-                        templateWorkoutDraft.unstack(block)
-                    } label: {
-                        Label("Unstack", systemImage: "square.split.1x2")
-                    }
-                    .tint(.gray)
+                    unstackButton(block)
                 }
         } else {
             let templateExerciseDraft = block.exercises[0]
@@ -221,6 +220,17 @@ struct TemplateWorkoutBuilder: View {
                     .tint(.blue)
                 }
         }
+    }
+}
+
+extension TemplateWorkoutBuilder {
+    private func unstackButton(_ block: TemplateExerciseBlock) -> some View {
+        Button {
+            templateWorkoutDraft.unstack(block)
+        } label: {
+            Label("Unstack", systemImage: "square.split.1x2")
+        }
+        .tint(.gray)
     }
 }
 
