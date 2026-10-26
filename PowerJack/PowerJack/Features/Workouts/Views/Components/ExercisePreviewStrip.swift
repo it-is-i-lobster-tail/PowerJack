@@ -43,6 +43,8 @@ struct ExercisePreviewStrip: View {
                         card("Review", index: workoutExercises.count, isDone: false, width: cardWidth)
                     }
                 }
+                // Room for the superset line, which the scroll view would clip.
+                .padding(.vertical, Self.underlineGap + 2)
                 .scrollTargetLayout()
             }
             .contentMargins(.horizontal, Self.edgeMargin, for: .scrollContent)

@@ -252,7 +252,10 @@ struct SupersetBuilder: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label("Superset", systemImage: "link")
+            HStack(spacing: 4) {
+                Image(systemName: "link")
+                Text("Superset")
+            }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.indigo)
                 .padding(.horizontal, 15)
