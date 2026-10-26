@@ -80,6 +80,12 @@ extension Workout {
         if status == .skipped { return workingSetCount - completedWorkingSets }
         return workoutExercises.reduce(0) { $0 + $1.workingSets.count(where: { $0.status == .skipped }) }
     }
+    /// Completed working sets out of all working sets, 0-100. Warmups and skipped sets don't count.
+    var percentComplete: Int {
+        let total = workingSetCount
+        guard total > 0 else { return 0 }
+        return Int((Double(completedWorkingSets) / Double(total) * 100).rounded())
+    }
     /// Share of working sets completed and skipped. Both count as resolved.
     var setProgress: (completed: Double, skipped: Double) {
         let total = workingSetCount

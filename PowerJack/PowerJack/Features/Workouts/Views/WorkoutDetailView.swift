@@ -109,8 +109,13 @@ struct WorkoutDetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 0) {
-                            Text("Day \(workout.order + 1)")
-                                .font(.headline)
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text("Day \(workout.order + 1)")
+                                    .font(.headline)
+                                Text("\(workout.percentComplete)%")
+                                    .font(.caption)
+                                    .monospacedDigit()
+                            }
 
                             if let weekLabel {
                                 Text(weekLabel)
