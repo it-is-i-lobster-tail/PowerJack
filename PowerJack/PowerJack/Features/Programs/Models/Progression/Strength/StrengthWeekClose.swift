@@ -186,8 +186,11 @@ enum StrengthWeekClose {
         let flaggedLifts = week.priorityKeys.filter { state[$0].flagged }.count
         let anyFlag = loadedKeys.contains { state[$0].flagged }
         let reactive = flaggedLifts >= StrengthRules.globalFlagLifts || clock.rir0Weeks >= StrengthRules.globalRIR0Weeks
-        let blockEnd = !calibrating && clock.blockWeek >= StrengthRules.blockTrainWeeks
-        let broughtForward = !calibrating && clock.blockWeek >= StrengthRules.blockTrainWeeks - 1 && anyFlag
+        let blockEnd = !calibrating && clock.blockWeek >= clock.trainWeeks
+        // A flag brings the deload a week forward, but never makes a block shorter than 3 training weeks (10.4a).
+        let broughtForward = !calibrating
+            && clock.blockWeek >= max(clock.trainWeeks - 1, ProgramBlocks.minBuildWeeks)
+            && anyFlag
         let backstop = clock.weeksSinceDeload >= StrengthRules.deloadMaxGapWeeks
         // A deload, return or missed week in the last 3 skips the planned deload (10.5).
         let recentBreak = clock.recentWeeks.contains { $0.deload || $0.returned || $0.missed }

@@ -11,9 +11,13 @@ import Foundation
 enum BuildRules {
     // MARK: Effort (EFF, START)
 
-    /// Reps to leave on the last set in each build week of a block (EFF.rirByWeek). Its length is the block's build weeks.
-    static let rirByWeek = [3, 2, 2, 1]
-    static var buildWeeks: Int { rirByWeek.count }
+    /// Reps to leave on the last set in a block's build weeks (EFF.rirByWeek): the first week, the last week, and
+    /// every week between. Blocks run 3 to 6 build weeks to fit the program's length.
+    static let rirFirstWeek = 3
+    static let rirMiddleWeeks = 2
+    static let rirLastWeek = 1
+    /// Build weeks of a block that runs past the program's end.
+    static var buildWeeks: Int { ProgramBlocks.buildWeeks }
     /// Block week 1, calibrating exercises and return weeks (START.rirWeek1).
     static let startRIR = 3
     static let tolerance = 1
@@ -102,6 +106,12 @@ enum BuildRules {
     /// How far one exposure's e1RM must fall below the two before it to count as fatigue (FAT.dropBandPct).
     static func dropBandPct(for muscle: Muscle) -> Double {
         1.5 * typicalErrorPct(for: muscle) * 1.5.squareRoot()
+    }
+
+    /// The reps to leave in build week `blockWeek` of a block of `buildWeeks`, so 3, 2, 2, 1 for four weeks.
+    static func rir(blockWeek: Int, of buildWeeks: Int) -> Int {
+        if blockWeek <= 1 { return rirFirstWeek }
+        return blockWeek >= buildWeeks ? rirLastWeek : rirMiddleWeeks
     }
 
     static func isLowerBody(_ muscle: Muscle) -> Bool {
