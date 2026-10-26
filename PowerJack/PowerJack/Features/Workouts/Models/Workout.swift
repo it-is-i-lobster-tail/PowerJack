@@ -18,6 +18,9 @@ final class Workout {
     private var workoutExercisesValue: [WorkoutExercise]? = []
     private var statusValue: Status = Status.planned
     private var lockedValue: Bool = true
+    // When Start Workout was tapped, and when the workout was finished, stopped, or skipped.
+    private var startedAtValue: Date? = nil
+    private var endedAtValue: Date? = nil
     var programWeekValue: ProgramWeek?
 
     init(
@@ -42,6 +45,10 @@ extension Workout {
     var status: Status { statusValue }
     // Locked
     var locked: Bool { lockedValue }
+    // Started At
+    var startedAt: Date? { startedAtValue }
+    // Ended At
+    var endedAt: Date? { endedAtValue }
 }
 
 //
@@ -137,6 +144,7 @@ extension Workout {
         }
         statusValue = Status.complete
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Completed workout")
     }
     func stop() {
@@ -149,6 +157,7 @@ extension Workout {
         }
         statusValue = Status.stopped
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Stopped workout")
     }
     func skip() {
@@ -161,9 +170,10 @@ extension Workout {
         }
         statusValue = Status.skipped
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Skipped workout")
     }
-    func start() {
+    func start(at date: Date = .now) {
         guard
             lockedValue,
             status == .planned
@@ -173,6 +183,7 @@ extension Workout {
         }
         statusValue = Status.active
         lockedValue = false
+        startedAtValue = date
         Logger.workout.debug("Started workout")
     }
     func completeAndCascade() {
@@ -193,8 +204,8 @@ extension Workout {
             workoutExercise.skipAndCascade()
         }
     }
-    func startAndCascade() {
-        start()
+    func startAndCascade(at date: Date = .now) {
+        start(at: date)
 
         for workoutExercise in workoutExercises {
             workoutExercise.startAndCascade()
