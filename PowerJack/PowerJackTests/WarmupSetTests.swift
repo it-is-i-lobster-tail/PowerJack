@@ -90,6 +90,7 @@ struct WarmupSetTests {
 
         #expect(!exercise.allSetsDone())
         #expect(workout.completedWorkingSets == 0)
+        #expect(workout.percentComplete == 0)
     }
 
     @Test("A warmup weight only fills the next warmup")
