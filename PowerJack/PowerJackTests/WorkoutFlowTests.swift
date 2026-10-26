@@ -349,6 +349,7 @@ struct WorkoutFlowTests {
         let sets = workout.workoutExercises.flatMap(\.workingSets)
         #expect(sets.count == 10)
         #expect(workout.setProgress == (0, 0))
+        #expect(workout.percentComplete == 0)
 
         for set in sets.prefix(8) {
             set.reps = 10
@@ -362,6 +363,8 @@ struct WorkoutFlowTests {
         #expect(workout.completedWorkingSets == 8)
         #expect(workout.skippedWorkingSets == 2)
         #expect(workout.setProgress == (0.8, 0.2))
+        // The header's percent counts completed sets only.
+        #expect(workout.percentComplete == 80)
     }
 
     @Test("A skipped workout is fully resolved and entirely skipped")
