@@ -22,6 +22,8 @@ final class WorkoutSet {
     private var lockedValue: Bool = false
     // Starts the rest timer. Cleared when the set is reopened.
     private var completedAtValue: Date? = nil
+    // When the set's clock started: the set logged before it anywhere in the workout, or the workout's start.
+    private var startedAtValue: Date? = nil
     var workoutExerciseValue: WorkoutExercise?
 
     init(
@@ -109,6 +111,8 @@ extension WorkoutSet {
     var locked: Bool { lockedValue }
     // Completed At
     var completedAt: Date? { completedAtValue }
+    // Started At
+    var startedAt: Date? { startedAtValue }
 }
 //
 // Derived Values
@@ -139,6 +143,11 @@ extension WorkoutSet {
     }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
+    /// How long the set took, rest before it included. `nil` until it's logged.
+    var duration: TimeInterval? {
+        guard status == .complete, let startedAtValue, let completedAtValue else { return nil }
+        return max(0, completedAtValue.timeIntervalSince(startedAtValue))
+    }
     // Weight In Pounds
     var weightInPounds: Double? {
         get {
@@ -192,7 +201,7 @@ extension WorkoutSet {
         lockedValue = true
         Logger.workoutSet.debug("WorkoutSet Completed and locked")
     }
-    func complete(at date: Date = .now) {
+    func complete(at date: Date = .now, startedAt: Date? = nil) {
         guard
             !lockedValue,
             status == .active
@@ -202,6 +211,7 @@ extension WorkoutSet {
         }
         statusValue = Status.complete
         completedAtValue = date
+        startedAtValue = startedAt
         Logger.workoutSet.debug("WorkoutSet Completed")
     }
     func skip() {
@@ -230,6 +240,7 @@ extension WorkoutSet {
         let wasPlanned = status == .planned
         statusValue = Status.active
         completedAtValue = nil
+        startedAtValue = nil
         // A set starts out holding its target, so the lifter only edits it when they go off plan.
         if wasPlanned {
             reps = reps ?? repsPlanned

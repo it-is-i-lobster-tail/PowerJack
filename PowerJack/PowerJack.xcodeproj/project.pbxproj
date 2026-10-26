@@ -123,6 +123,7 @@
 				Features/Volume/Models/WorkoutLog.swift,
 				Features/Workouts/Models/ExerciseFeedback.swift,
 				Features/Workouts/Models/SetEntry.swift,
+				"Features/Workouts/Models/Workout+Duration.swift",
 				"Features/Workouts/Models/Workout+Summary.swift",
 				"Features/Workouts/Models/Workout+Superset.swift",
 				Features/Workouts/Models/Workout.swift,
