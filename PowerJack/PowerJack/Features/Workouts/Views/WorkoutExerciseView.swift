@@ -19,6 +19,10 @@ struct WorkoutExerciseView: View {
 
     @Bindable var workoutExercise: WorkoutExercise
 
+    @AppStorage(AppSettings.Key.hints) private var hintsEnabled = AppSettings.Default.hints
+    // Read once on appear; it looks up the lifter's first logged set.
+    @State private var showsWarmupHint = false
+
     // Finished warmups fold away, then the heading gets a check.
     @State private var warmupsCollapsed: Bool
     @State private var warmupsChecked: Bool
@@ -75,6 +79,9 @@ struct WorkoutExerciseView: View {
         .onChange(of: workoutExercise.warmupsDone) { _, isDone in
             isDone ? collapseWarmups() : expandWarmups()
         }
+        .onAppear {
+            showsWarmupHint = workoutExercise.showsWarmupHint
+        }
     }
 
     private var warmupGroup: some View {
@@ -89,9 +96,18 @@ struct WorkoutExerciseView: View {
             // Full width and clipped, so the sets slide up under the heading as the group closes.
             VStack(spacing: 0) {
                 if !warmupsCollapsed {
-                    setRows(workoutExercise.warmupSets)
-                        .padding(.vertical, LayoutMetrics.compactSpacing)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    VStack(spacing: 0) {
+                        // Folds away with the warmups it explains.
+                        if hintsEnabled && showsWarmupHint {
+                            Text(WorkoutExercise.warmupHint)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(width: screenWidth * 0.84, alignment: .leading)
+                        }
+                        setRows(workoutExercise.warmupSets)
+                            .padding(.vertical, LayoutMetrics.compactSpacing)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .frame(maxWidth: .infinity)

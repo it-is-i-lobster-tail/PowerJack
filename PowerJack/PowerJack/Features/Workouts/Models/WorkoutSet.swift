@@ -123,6 +123,16 @@ extension WorkoutSet {
     static func isValidReps(_ reps: Int) -> Bool {
         (1...maxReps).contains(reps)
     }
+
+    /// When the lifter logged their first set in any program, or nil before they've logged one.
+    static func firstCompletedAt(in context: ModelContext) -> Date? {
+        var descriptor = FetchDescriptor<WorkoutSet>(
+            predicate: #Predicate { $0.completedAtValue != nil },
+            sortBy: [SortDescriptor(\.completedAtValue)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first?.completedAt
+    }
     /// Weights above `maxWeightPounds` can never be logged.
     static func isValidWeightTenthsPounds(_ weightTenthsPounds: Int) -> Bool {
         (1...maxWeightPounds * 10).contains(weightTenthsPounds)
