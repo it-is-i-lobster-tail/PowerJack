@@ -166,6 +166,60 @@ struct TemplateDraftTests {
         #expect(draft.makeProgram() == nil)
     }
 
+    @Test("Copying a day fills an empty day with the same exercises in the same order")
+    func copyDayIntoEmptyDay() {
+        let row = makeExercise()
+        let curl = Exercise(exerciseName: "Curl", exerciseEquipment: .dumbbell, primaryMuscleFocus: .biceps)
+        var draft = TemplateProgramDraft()
+        draft.workoutsPerWeek = 3
+        draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: row)
+        draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: curl)
+
+        draft.copyTemplateWorkout(from: 0, to: 2, replacing: true)
+
+        let source = draft.templateWorkoutDraftsValue[0].templateExerciseDrafts
+        let copied = draft.templateWorkoutDraftsValue[2].templateExerciseDrafts
+        #expect(copied.map(\.exercise.exerciseName) == ["Row", "Curl"])
+        #expect(copied.map(\.order) == [0, 1])
+        #expect(source.count == 2, "The day copied from keeps its exercises")
+        // Copies are their own rows, so editing one day leaves the other alone.
+        #expect(Set(copied.map(\.id)).isDisjoint(with: source.map(\.id)))
+        #expect(draft.templateWorkoutDraftsValue[1].templateExerciseDrafts.isEmpty)
+    }
+
+    @Test("Copying onto a day with exercises replaces them or adds to the end")
+    func copyDayOntoFilledDay() {
+        let row = makeExercise()
+        let curl = Exercise(exerciseName: "Curl", exerciseEquipment: .dumbbell, primaryMuscleFocus: .biceps)
+        var draft = TemplateProgramDraft()
+        draft.workoutsPerWeek = 2
+        draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: row)
+        draft.templateWorkoutDraftsValue[1].addTemplateExerciseDraft(exercise: curl)
+
+        var added = draft
+        added.copyTemplateWorkout(from: 0, to: 1, replacing: false)
+        let addedDay = added.templateWorkoutDraftsValue[1].templateExerciseDrafts
+        #expect(addedDay.map(\.exercise.exerciseName) == ["Curl", "Row"])
+        #expect(addedDay.map(\.order) == [0, 1])
+
+        draft.copyTemplateWorkout(from: 0, to: 1, replacing: true)
+        #expect(draft.templateWorkoutDraftsValue[1].templateExerciseDrafts.map(\.exercise.exerciseName) == ["Row"])
+    }
+
+    @Test("Copying a day onto itself or a missing day changes nothing")
+    func copyDayIgnoresBadDays() {
+        var draft = TemplateProgramDraft()
+        draft.workoutsPerWeek = 2
+        draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: makeExercise())
+
+        draft.copyTemplateWorkout(from: 0, to: 0, replacing: false)
+        draft.copyTemplateWorkout(from: 0, to: 9, replacing: false)
+        draft.copyTemplateWorkout(from: -1, to: 1, replacing: true)
+
+        #expect(draft.templateWorkoutDraftsValue[0].templateExerciseDrafts.count == 1)
+        #expect(draft.templateWorkoutDraftsValue[1].templateExerciseDrafts.isEmpty)
+    }
+
     private func makeExercise() -> Exercise {
         Exercise(exerciseName: "Row", exerciseEquipment: .cable, primaryMuscleFocus: .back)
     }

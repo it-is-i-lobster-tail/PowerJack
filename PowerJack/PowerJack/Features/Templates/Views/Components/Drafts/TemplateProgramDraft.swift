@@ -210,7 +210,23 @@ extension TemplateProgramDraft {
 // Mutations
 //
 extension TemplateProgramDraft {
-    
+
+    /// Copies one day's exercises onto another day. Days are indexes into `templateWorkoutDraftsValue`.
+    mutating func copyTemplateWorkout(from source: Int, to destination: Int, replacing: Bool) {
+        guard source != destination,
+              templateWorkoutDraftsValue.indices.contains(source),
+              templateWorkoutDraftsValue.indices.contains(destination)
+        else {
+            return
+        }
+
+        let sourceWorkout = templateWorkoutDraftsValue[source]
+        templateWorkoutDraftsValue[destination].copyTemplateExercises(
+            from: sourceWorkout,
+            replacing: replacing
+        )
+    }
+
     private mutating func updateWorkoutsPerWeek(newValue: Int) {
         for index in templateWorkoutDraftsValue.indices {
             templateWorkoutDraftsValue[index].enabled = templateWorkoutDraftsValue[index].order < newValue
