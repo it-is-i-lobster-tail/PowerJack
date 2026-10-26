@@ -4,6 +4,7 @@
 //
 //  One page per exercise, then the finish page. Scrolling the pages moves between exercises;
 //  logging an exercise's last set asks for its feedback, then moves on to the next one.
+//  In a superset, logging a set moves to the exercise whose turn it is.
 //
 
 import SwiftData
@@ -77,9 +78,15 @@ struct WatchWorkoutView: View {
         save()
         if workoutExercise.needsFeedback {
             sheet = .feedback(workoutExercise)
-        } else if workoutExercise.isDone {
+        } else if workoutExercise.isDone || isPartnersTurn(after: workoutExercise) {
             advance()
         }
+    }
+
+    /// In a superset, the next set belongs to another exercise in it.
+    private func isPartnersTurn(after workoutExercise: WorkoutExercise) -> Bool {
+        guard let next = workout.currentSet?.workoutExercise else { return false }
+        return workoutExercise.supersetPartners.contains { $0 === next }
     }
 
     /// Feedback or a check-in waits on the exercise on screen, e.g. after relaunching mid-workout.

@@ -14,6 +14,8 @@ struct ExercisePreviewStrip: View {
     var showsReview = false
     private static let visibleCards: CGFloat = 3
     private static let edgeMargin: CGFloat = 16
+    /// Space between a superset's cards and the line under them.
+    private static let underlineGap: CGFloat = 6
 
     @Binding var selectedExerciseIndex: Int?
 
@@ -32,6 +34,9 @@ struct ExercisePreviewStrip: View {
                             isDone: workoutExercises[index].isDone,
                             width: cardWidth
                         )
+                        .overlay(alignment: .bottomLeading) {
+                            supersetUnderline(from: index, cardWidth: cardWidth, spacing: spacing)
+                        }
                     }
 
                     if showsReview {
@@ -94,7 +99,23 @@ struct ExercisePreviewStrip: View {
                 )
         }
         .accessibilityValue(isDone ? "Done" : "")
+        .accessibilityHint(workoutExercises.indices.contains(index) && !workoutExercises[index].supersetPartners.isEmpty ? "Superset" : "")
         .id(index)
+    }
+
+    /// One line under all of a superset's cards, drawn from its first card.
+    @ViewBuilder
+    private func supersetUnderline(from index: Int, cardWidth: CGFloat, spacing: CGFloat) -> some View {
+        let workoutExercise = workoutExercises[index]
+        let partners = workoutExercise.supersetPartners
+        if !partners.isEmpty, index == 0 || !partners.contains(where: { $0 === workoutExercises[index - 1] }) {
+            let count = CGFloat(partners.count + 1)
+            Capsule()
+                .fill(Color.accentColor)
+                .frame(width: cardWidth * count + spacing * (count - 1), height: 3)
+                .offset(y: Self.underlineGap)
+                .accessibilityHidden(true)
+        }
     }
 
     private func selectExercise(at index: Int) {

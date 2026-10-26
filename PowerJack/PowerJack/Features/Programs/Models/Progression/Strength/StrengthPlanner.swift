@@ -45,6 +45,7 @@ enum StrengthPlanner: WeekPlanner {
                     let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
                 else { continue }
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
+                workoutExercise.inheritSuperset(from: sourceExercise)
                 // Last week's warmups carry over until the plan writes its own (5.7).
                 for warmup in sourceExercise.warmupSets.prefix(WorkoutExercise.maxWarmupSets) {
                     workoutExercise.addPlannedSet(

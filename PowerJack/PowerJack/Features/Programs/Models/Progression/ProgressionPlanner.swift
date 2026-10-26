@@ -58,6 +58,7 @@ enum ProgressionPlanner {
                 // Warmups repeat what was logged last week, including how many. They never progress.
                 // An exercise with warmups disabled on this day gets none (see `WorkoutExercise.canAddSet`).
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
+                workoutExercise.inheritSuperset(from: sourceExercise)
                 let sourceWarmups = sourceExercise.warmupSets
                 let warmupCount = sourceWarmups.isEmpty ? WorkoutExercise.initialWarmupSets : sourceWarmups.count
                 for index in 0..<warmupCount {
