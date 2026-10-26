@@ -2,8 +2,8 @@
 //  ExerciseSummaryView.swift
 //  PowerJack
 //
-//  Shown after a workout is finished: completed sets per muscle as bars
-//  that grow in one row at a time.
+//  Shown after a workout is finished: the total workout time, and completed sets
+//  per muscle as bars that grow in one row at a time.
 //
 
 import SwiftUI
@@ -11,6 +11,8 @@ import SwiftUI
 struct ExerciseSummaryView: View {
     /// Sorted most sets first, as `Workout.completedSetsByMuscle` returns them.
     let setCounts: [MuscleSetCount]
+    /// `nil` for workouts started before workouts were timed.
+    var duration: TimeInterval?
     let onContinue: () -> Void
 
     var body: some View {
@@ -18,6 +20,10 @@ struct ExerciseSummaryView: View {
             VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                 Text("Workout complete!")
                     .font(.largeTitle.bold())
+
+                if let duration {
+                    WorkoutTimeCard(title: "Total workout time", duration: duration)
+                }
 
                 Text("Today you did")
                     .font(.title2.weight(.semibold))
@@ -54,6 +60,7 @@ struct ExerciseSummaryView: View {
             MuscleSetCount(muscle: .triceps, sets: 2),
             MuscleSetCount(muscle: .biceps, sets: 1),
         ],
+        duration: 3125,
         onContinue: {}
     )
 }

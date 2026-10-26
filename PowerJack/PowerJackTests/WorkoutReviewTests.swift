@@ -113,6 +113,7 @@ struct WorkoutReviewTests {
 
         await screen.tap("Review", settleFor: .milliseconds(800))
         #expect(screen.contains("Finish Workout"), "\(screen.labels)")
+        #expect(screen.labels.contains { $0.hasPrefix("Workout timer") }, "\(screen.labels)")
         #expect(screen.labels.contains { $0.hasPrefix("Bench") && $0.contains("Done") }, "\(screen.labels)")
         #expect(screen.labels.contains { $0.hasPrefix("Row") && $0.contains("Not done") }, "\(screen.labels)")
 
