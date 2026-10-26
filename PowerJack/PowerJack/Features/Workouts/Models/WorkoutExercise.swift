@@ -397,7 +397,7 @@ extension WorkoutExercise {
     /// Completes one of this exercise's sets. Completing the first working set skips the warmups
     /// still to do, so the workout moves on to the next working set instead of back to them.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
-        workoutSet.complete(at: date)
+        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(before: date))
         StrengthPlanner.didComplete(workoutSet, in: self)
         guard
             !workoutSet.isWarmup,

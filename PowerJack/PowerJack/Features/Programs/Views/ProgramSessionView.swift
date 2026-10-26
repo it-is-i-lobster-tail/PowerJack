@@ -18,11 +18,12 @@ struct ProgramSessionView: View {
 
     /// Totals for the workout just finished, shown until the user taps Continue.
     @State private var summary: [MuscleSetCount] = []
+    @State private var summaryDuration: TimeInterval?
 
     var body: some View {
         Group {
             if !summary.isEmpty {
-                ExerciseSummaryView(setCounts: summary, onContinue: continueAfterSummary)
+                ExerciseSummaryView(setCounts: summary, duration: summaryDuration, onContinue: continueAfterSummary)
                     .transition(.push(from: .trailing))
             } else if let workout = program.nextWorkout {
                 WorkoutDetailView(
@@ -52,6 +53,7 @@ struct ProgramSessionView: View {
         if setCounts.isEmpty {
             leave()
         } else {
+            summaryDuration = workout.duration()
             summary = setCounts
         }
     }
