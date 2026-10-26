@@ -60,6 +60,21 @@ struct BuildPlannerTests {
         #expect(kinds == layout)
     }
 
+    @Test("FREQ-06: a skipped week repeats, unless the repeat would push the deload past the program's end")
+    func skippedWeekKeepsTheDeload() throws {
+        let program = try makeProgram(weeks: 6)
+        for week in 0..<5 {
+            if week == 1 || week == 4 {
+                program.skipWorkout(try #require(program.nextWorkout))
+            } else {
+                try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .two)
+            }
+        }
+        // Week 2 repeats; skipping week 5 leaves no room for another build week before the deload.
+        #expect(program.programWeeks.map(\.blockWeek) == [1, 2, 2, 3, 4, 5])
+        #expect(program.programWeeks.map { $0.weekKind == .deload ? "D" : "B" }.joined() == "BBBBBD")
+    }
+
     @Test("EFF-01: reps left ramp 3, 2, then 1 in the last build week, however long the block")
     func aimsStretchToTheBlock() throws {
         let program = try makeProgram(weeks: 6)
