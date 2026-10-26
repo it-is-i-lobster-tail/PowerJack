@@ -48,7 +48,9 @@ enum PowerJackPlanner: WeekPlanner {
             guard let workout = week.addWorkout() else { continue }
             for (entryIndex, exercise) in workoutExercises.enumerated() {
                 guard let workoutExercise = workout.addWorkoutExercise(exercise: exercise) else { continue }
-                workoutExercise.inheritWarmupsDisabled(from: source.workouts[workoutIndex].workoutExercises[entryIndex])
+                let sourceExercise = source.workouts[workoutIndex].workoutExercises[entryIndex]
+                workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
+                workoutExercise.inheritSuperset(from: sourceExercise)
             }
         }
         apply(plan, to: week)

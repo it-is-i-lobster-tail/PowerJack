@@ -41,6 +41,9 @@ struct WorkoutDetailView: View {
     @State private var presentedSheet: WorkoutSheet?
     @State private var exerciseToEdit: Exercise?
 
+    /// Lets a set's check draw in before a superset slides to the next exercise.
+    private static let supersetSlideDelay = 0.35
+
     init(
         workout: Workout,
         weekNumber: Int? = nil,
@@ -180,6 +183,9 @@ struct WorkoutDetailView: View {
             .onChange(of: router?.currentExerciseRequest) {
                 showCurrentExercise()
             }
+            .onChange(of: workout.currentSet?.workoutSet.id) {
+                followSuperset()
+            }
         }
     }
 
@@ -192,6 +198,25 @@ struct WorkoutDetailView: View {
     private func showCurrentExercise() {
         withAnimation(.easeInOut(duration: 0.325)) {
             selectedExerciseIndex = Self.nextIndex(in: workout)
+        }
+    }
+
+    /// In a superset, slides to the exercise whose turn it is once a set is checked off.
+    /// Waits for the check to draw in first.
+    private func followSuperset() {
+        guard
+            !isReadOnly,
+            presentedSheet == nil,
+            let selectedWorkoutExercise,
+            let next = workout.currentSet?.workoutExercise,
+            selectedWorkoutExercise.supersetPartners.contains(where: { $0 === next }),
+            let index = workout.workoutExercises.firstIndex(where: { $0 === next })
+        else {
+            return
+        }
+        focusedSetField = nil
+        withAnimation(.easeInOut(duration: 0.325).delay(Self.supersetSlideDelay)) {
+            selectedExerciseIndex = index
         }
     }
 

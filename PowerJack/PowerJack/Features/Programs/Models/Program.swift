@@ -76,6 +76,7 @@ final class Program {
                     continue
                 }
 
+                newWorkoutExercise.setSuperset(templateExercise.supersetID)
                 newWorkoutExercise.addWarmupSets()
                 for _ in 0..<Self.initialWeekSets {
                     _ = newWorkoutExercise.addSet()

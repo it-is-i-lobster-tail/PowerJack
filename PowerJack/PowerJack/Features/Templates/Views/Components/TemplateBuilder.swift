@@ -17,6 +17,11 @@ struct TemplateBuilder: View {
     @State private var isShowingWorkoutExerciseSheet = false
     @State private var isShowingWorkoutExerciseEditSheet = false
     @State private var exerciseToEdit: Exercise?
+    // One at a time: the superset hint waits for the first to go.
+    @State private var hints = TipGroup(.ordered) {
+        TemplateBuilderHint()
+        SupersetHint()
+    }
 
     init(
         draft: Binding<TemplateProgramDraft>
@@ -41,6 +46,13 @@ struct TemplateBuilder: View {
         }
     }
     
+    /// The superset hint needs two exercises on the day to stack.
+    private var hint: (any Hint)? {
+        guard let hint = hints.currentTip as? any Hint else { return nil }
+        guard hint is SupersetHint else { return hint }
+        return draft.templateWorkoutDraftsValue[selection.index].templateExerciseDrafts.count > 1 ? hint : nil
+    }
+
     private func handleUpdateExercise(_: Exercise) {
         exerciseToEdit = nil
         isShowingWorkoutExerciseEditSheet = false
@@ -63,8 +75,10 @@ struct TemplateBuilder: View {
                 Divider()
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
 
-                HintView(TemplateBuilderHint())
-                    .padding(.horizontal)
+                if let hint {
+                    HintView(hint)
+                        .padding(.horizontal)
+                }
 
                 // Days change only by tapping the picker. Horizontal swipes belong to
                 // the exercise rows, so swipe to edit or delete never flips the day.
@@ -136,41 +150,22 @@ struct TemplateWorkoutBuilder: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(templateWorkoutDraft.templateExerciseDrafts) {
-                    templateExerciseDraft in
-
-                    TemplateExerciseBuilder(
-                        exercise: templateExerciseDraft.exercise
-                    )
-                    .padding(.horizontal, 15)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                        } label: {
-                            Label("Trash", systemImage: "trash")
-                        }
-                        .tint(.red)
-
-                        Button {
-                            handleEdit(templateExerciseDraft.exercise)
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
-                    }
-                    .listRowSeparator(.hidden, edges: .all)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 4,
-                            leading: 0,
-                            bottom: 4,
-                            trailing: 0
+                ForEach(templateWorkoutDraft.blocks) { block in
+                    blockRow(block)
+                        .padding(.horizontal, 15)
+                        .listRowSeparator(.hidden, edges: .all)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: 4,
+                                leading: 0,
+                                bottom: 4,
+                                trailing: 0
+                            )
                         )
-                    )
                 }
                 .onMove { source, destination in
-                    templateWorkoutDraft.moveTemplateExercises(
+                    templateWorkoutDraft.moveBlocks(
                         from: source,
                         to: destination
                     )
@@ -179,8 +174,53 @@ struct TemplateWorkoutBuilder: View {
             .padding(.vertical, 8)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .animation(.default, value: templateWorkoutDraft.blocks.map(\.exercises.count))
         }
         .powerJackGlassCard(interactive: true)
+    }
+
+    @ViewBuilder
+    private func blockRow(_ block: TemplateExerciseBlock) -> some View {
+        if block.isSuperset {
+            SupersetBuilder(exercises: block.exercises.map(\.exercise))
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        templateWorkoutDraft.unstack(block)
+                    } label: {
+                        Label("Unstack", systemImage: "square.split.1x2")
+                    }
+                    .tint(.gray)
+                }
+        } else {
+            let templateExerciseDraft = block.exercises[0]
+            TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise)
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    if templateWorkoutDraft.canStack(block) {
+                        Button {
+                            SupersetHint().invalidate(reason: .actionPerformed)
+                            templateWorkoutDraft.stack(block)
+                        } label: {
+                            Label("Superset", systemImage: "link")
+                        }
+                        .tint(.indigo)
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+                    } label: {
+                        Label("Trash", systemImage: "trash")
+                    }
+                    .tint(.red)
+
+                    Button {
+                        handleEdit(templateExerciseDraft.exercise)
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .tint(.blue)
+                }
+        }
     }
 }
 
@@ -189,30 +229,63 @@ struct TemplateExerciseBuilder: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                Text(exercise.exerciseName.localizedCapitalized)
-                    .foregroundStyle(.blue)
-
-                HStack {
-                    Text(exercise.exerciseEquipment.rawValue.localizedCapitalized)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                        .foregroundStyle(.secondary)
-                    Text("|")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                        .foregroundStyle(.secondary)
-                    Text(exercise.primaryMuscleFocus.rawValue.localizedCapitalized)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 8)
-
+            TemplateExerciseLabel(exercise: exercise)
             Spacer()
         }
         .powerJackGlassPanel()
+    }
+}
+
+/// Exercises stacked into a superset share one card, done one set of each in turn.
+struct SupersetBuilder: View {
+    let exercises: [Exercise]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label("Superset", systemImage: "link")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.indigo)
+                .padding(.horizontal, 15)
+                .padding(.top, 8)
+
+            ForEach(exercises.indices, id: \.self) { index in
+                if index > 0 {
+                    Divider()
+                        .padding(.horizontal, 15)
+                }
+                TemplateExerciseLabel(exercise: exercises[index])
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .powerJackGlassPanel()
+    }
+}
+
+/// An exercise's name, equipment and main muscle.
+private struct TemplateExerciseLabel: View {
+    let exercise: Exercise
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(exercise.exerciseName.localizedCapitalized)
+                .foregroundStyle(.blue)
+
+            HStack {
+                Text(exercise.exerciseEquipment.rawValue.localizedCapitalized)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .foregroundStyle(.secondary)
+                Text("|")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .foregroundStyle(.secondary)
+                Text(exercise.primaryMuscleFocus.rawValue.localizedCapitalized)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 8)
     }
 }
