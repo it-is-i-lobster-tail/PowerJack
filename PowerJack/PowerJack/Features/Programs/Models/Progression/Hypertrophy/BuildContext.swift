@@ -69,14 +69,32 @@ struct BuildContext {
     let blocks: [Int]
     let states: [BuildSlotState]
 
+    /// `input.weeks`, each build week with its block's planned length.
+    let weeks: [BuildWeek]
+
     init(_ input: BuildInput) {
         let blocks = Self.blocks(of: input.weeks)
         self.input = input
         self.blocks = blocks
+        weeks = input.weeks.enumerated().map { index, week in
+            var week = week
+            if week.kind == .build {
+                week.buildWeeks = ProgramBlocks.buildWeeks(blockWeek: week.blockWeek, at: index, programWeeks: input.programWeeks)
+            }
+            return week
+        }
         states = input.slots.map { Self.state(of: $0, weeks: input.weeks, blocks: blocks) }
     }
 
-    var weeks: [BuildWeek] { input.weeks }
+    /// Build week `blockWeek` of a block, planned as the week after the last one, with its block's length.
+    func nextBuildWeek(blockWeek: Int) -> BuildWeek {
+        BuildWeek(
+            kind: .build,
+            blockWeek: blockWeek,
+            buildWeeks: ProgramBlocks.buildWeeks(blockWeek: blockWeek, at: weeks.count, programWeeks: input.programWeeks)
+        )
+    }
+
     var slots: [BuildSlot] { input.slots }
     var lastIndex: Int { weeks.count - 1 }
     var lastWeek: BuildWeek { weeks[lastIndex] }

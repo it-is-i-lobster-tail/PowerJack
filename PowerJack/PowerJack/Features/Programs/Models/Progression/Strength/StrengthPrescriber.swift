@@ -62,8 +62,7 @@ enum StrengthPrescriber {
             if clock.blockType == .b { reps -= StrengthRules.blockBRepShift }
             if slot.zone != .moderate, record.repShiftActive { reps -= StrengthRules.stallRepShift }
             reps = max(reps, min(base, StrengthRules.repsMinNormal))
-            let week = min(max(clock.blockWeek, 1), StrengthRules.rirWave.count)
-            rir += StrengthRules.rirWave[week - 1]
+            rir += StrengthRules.rirWave(blockWeek: clock.blockWeek, of: clock.trainWeeks)
         }
         let cap = slot.role == .secondary ? StrengthRules.secondaryRepsToFailureMax : StrengthRules.primaryRepsToFailureMax
         rir = max(StrengthRules.rirMin, min(rir, cap - reps))

@@ -401,7 +401,7 @@ extension BuildEngine {
         }
         let current = base.repTarget ?? base.repsDone ?? exercise.minReps
         // Reps leave week 1's entry of the effort ramp, before any high-rep or bodyweight offset to the aim.
-        let target = BuildRules.rirByWeek[0]
+        let target = BuildRules.rirFirstWeek
         // Return week 1's half sets were part of the way back; the block holds the sets from before the break (VOL-05),
         // unless pain is rising, which blocks every increase (PAIN-01).
         let preBreak = afterReturn && !caps.noIncrease ? context.latest(index, in: .build)?.plannedSets ?? 0 : 0

@@ -11,20 +11,7 @@ import Foundation
 enum PowerJackCalendar {
     /// R5.2: labels the remaining weeks BUILD or DELOAD so blocks run 4-7 weeks.
     static func layout(weeks: Int, carry: Int) -> [PowerJackWeekType] {
-        guard weeks > 0 else { return [] }
-        if carry >= PowerJackRules.buildWeeks {
-            return [.deload] + layout(weeks: weeks - 1, carry: 0)
-        }
-        let total = weeks + carry
-        if total < PowerJackRules.minBuildWeeks + 1 {
-            return Array(repeating: .build, count: weeks)
-        }
-        var blocks = (Double(total) / Double(PowerJackRules.buildWeeks + 1)).roundedHalfUp
-        blocks = max(blocks, Int((Double(total) / Double(PowerJackRules.maxBuildWeeks + 1)).rounded(.up)))
-        blocks = min(blocks, total / (PowerJackRules.minBuildWeeks + 1))
-        let lengths = (0..<blocks).map { total / blocks + ($0 < total % blocks ? 1 : 0) }
-        let all = lengths.flatMap { Array(repeating: PowerJackWeekType.build, count: $0 - 1) + [.deload] }
-        return Array(all.dropFirst(carry))
+        ProgramBlocks.layout(weeks: weeks, carry: carry).map { $0 == .deload ? .deload : .build }
     }
 
     /// R4.3: the target column of BUILD week `week` of `buildWeeks`, never below `lastColumn`.

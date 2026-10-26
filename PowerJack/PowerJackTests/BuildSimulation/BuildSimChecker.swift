@@ -60,7 +60,11 @@ struct BuildSimChecker {
         let here = "\(place) week 1"
         expect(week.weekKind == .build && week.blockWeek == 1 && week.returnBand == 0, "BLK-02", here,
                "week 1 is \(BuildSimText.describe(week)), not build week 1")
-        let weekOne = BuildWeek(kind: .build, blockWeek: 1)
+        let weekOne = BuildWeek(
+            kind: .build,
+            blockWeek: 1,
+            buildWeeks: ProgramBlocks.buildWeeks(blockStart: 0, programWeeks: program.programLengthWeeks)
+        )
         for slot in BuildSimSlot.all(in: week) {
             checkSlot(slot, in: weekOne, at: here)
             expect(slot.code == .calibrate || slot.code == .startHistory, "START-04", "\(here) \(slot.name)",
@@ -88,6 +92,7 @@ struct BuildSimChecker {
 
         checkStored(slots, week: weeks[index], against: plan, at: here)
         checkClock(context, next: plan.week, at: here)
+        checkFit(program, next: plan, at: index, here: here)
         for (index, slot) in zip(plan.slots.indices, slots) {
             checkSlot(slot, in: plan.week, at: "\(here) \(slot.name)")
             checkProgression(context, index, plan.slots[index], week: plan.week, at: "\(here) \(slot.name)")
@@ -114,7 +119,7 @@ struct BuildSimChecker {
         checkStored(slots, week: week, against: plan, at: here)
 
         let context = BuildContext(input)
-        let expected = band >= 2 ? BuildWeek(kind: .return, blockWeek: 1, returnBand: band) : BuildWeek(kind: .build, blockWeek: 1)
+        let expected = band >= 2 ? BuildWeek(kind: .return, blockWeek: 1, returnBand: band) : context.nextBuildWeek(blockWeek: 1)
         expect(plan.week == expected, "BLK-07", here, "the week became \(BuildSimText.describe(plan.week))")
         for (index, slot) in zip(plan.slots.indices, slots) {
             checkSlot(slot, in: plan.week, at: "\(here) \(slot.name)")
@@ -153,7 +158,7 @@ struct BuildSimChecker {
             let allowed = week.kind == .build ? 0...BuildRules.startRIR : BuildRules.deloadRIR...BuildRules.deloadRIR
             expect(allowed.contains(rir), "EFF-01", here, "aims for \(rir) reps left in a \(week.kind.rawValue) week")
             if rir == 0 {
-                expect(week.blockWeek == BuildRules.buildWeeks && BuildRules.failureFatigueLevels.contains(info.fatigueLevel),
+                expect(week.blockWeek == week.buildWeeks && BuildRules.failureFatigueLevels.contains(info.fatigueLevel),
                        "EFF-04", here, "failure offered in block week \(week.blockWeek) to a \(info.fatigueLevel.name) fatigue exercise")
             }
         } else {
@@ -187,14 +192,14 @@ struct BuildSimChecker {
         let last = context.lastWeek
         let trained = context.slots.indices.contains { context.exposure($0, inWeek: context.lastIndex)?.isDone == true }
         let deload = BuildWeek(kind: .deload, blockWeek: last.blockWeek + 1)
-        let weekOne = BuildWeek(kind: .build, blockWeek: 1)
+        let weekOne = context.nextBuildWeek(blockWeek: 1)
         let expected: [BuildWeek] = switch last.kind {
         case .build where !trained:
-            [BuildWeek(kind: .build, blockWeek: last.blockWeek)]
-        case .build where last.blockWeek >= BuildRules.buildWeeks:
+            [context.nextBuildWeek(blockWeek: last.blockWeek)]
+        case .build where last.blockWeek >= last.buildWeeks:
             [deload]
         case .build:
-            [BuildWeek(kind: .build, blockWeek: last.blockWeek + 1), deload]
+            [context.nextBuildWeek(blockWeek: last.blockWeek + 1), deload]
         case .deload:
             [weekOne]
         case .return where !trained:
@@ -206,8 +211,33 @@ struct BuildSimChecker {
         }
         expect(expected.contains(next), "BLK-02", here,
                "after \(trained ? "" : "an untrained ")\(BuildSimText.describe(last)) came \(BuildSimText.describe(next)), expected \(expected.map(BuildSimText.describe).joined(separator: " or "))")
-        expect(next.kind != .build || next.blockWeek <= BuildRules.buildWeeks, "BLK-02", here,
-               "build week \(next.blockWeek) of a \(BuildRules.buildWeeks)-week block")
+        expect(next.kind != .build || next.blockWeek <= next.buildWeeks, "BLK-02", here,
+               "build week \(next.blockWeek) of a \(next.buildWeeks)-week block")
+        expect(next.kind != .build || (ProgramBlocks.minBuildWeeks...ProgramBlocks.maxBuildWeeks).contains(next.buildWeeks),
+               "BLK-02", here, "a block of \(next.buildWeeks) build weeks")
+    }
+
+    /// A program run without a repeated week, a break or an early deload keeps the blocks laid out to fit its
+    /// length, so it ends on a deload (BLK-02).
+    private mutating func checkFit(_ program: Program, next plan: BuildPlan, at index: Int, here: String) {
+        let weeks = program.programWeeks.prefix(index)
+        let reactive = { (codes: [BuildReason.Code?]) in codes.contains(.deloadReactive) }
+        var lastBlockWeek = 0
+        for week in weeks {
+            guard week.returnBand == 0, week.weekKind != .return else { return }
+            if week.weekKind == .deload {
+                guard !reactive(BuildSimSlot.all(in: week).map(\.code)) else { return }
+                lastBlockWeek = 0
+            } else {
+                guard week.blockWeek == lastBlockWeek + 1 else { return }
+                lastBlockWeek = week.blockWeek
+            }
+        }
+        guard !reactive(plan.slots.map(\.reason.code)) else { return }
+        let planned = ProgramBlocks.layout(weeks: program.programLengthWeeks, carry: 0)
+        guard planned.indices.contains(index) else { return }
+        expect(plan.week.kind == planned[index], "BLK-02", here,
+               "week \(index + 1) of \(program.programLengthWeeks) is a \(plan.week.kind.rawValue) week, laid out as \(planned[index].rawValue)")
     }
 
     /// One exercise's plan against its own log: what may rise, what must hold and what must fall.

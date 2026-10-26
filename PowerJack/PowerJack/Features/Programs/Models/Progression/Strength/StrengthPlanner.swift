@@ -76,7 +76,9 @@ enum StrengthPlanner: WeekPlanner {
         if week.order == 0, !week.workouts.contains(where: isTrained) {
             week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
         }
+        fitBlock(&state.clock, weekIndex: week.order, in: program)
         StrengthWeekClose.close(&state, week: closedWeek(week, at: now))
+        fitBlock(&state.clock, weekIndex: week.order + 1, in: program)
         program.modelContext?.insert(StrengthLog(date: now, state: state))
         return state
     }
@@ -103,6 +105,7 @@ enum StrengthPlanner: WeekPlanner {
         if week.order == 0, !week.workouts.contains(where: { $0 !== workout && isTrained($0) }) {
             week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
         }
+        fitBlock(&state.clock, weekIndex: week.order, in: program)
 
         for workoutExercise in workout.workoutExercises where workoutExercise.status == .planned {
             guard
@@ -161,6 +164,16 @@ enum StrengthPlanner: WeekPlanner {
     }
 
     // MARK: Planning
+
+    /// Sizes the clock's block to fit the program, for the week at `weekIndex`, so the program ends on a
+    /// deload (9.1). A block carried over from the last program counts its weeks before this one.
+    private static func fitBlock(_ clock: inout StrengthClock, weekIndex: Int, in program: Program) {
+        clock.blockTrainWeeks = ProgramBlocks.buildWeeks(
+            blockWeek: clock.blockWeek,
+            at: weekIndex,
+            programWeeks: program.programLengthWeeks
+        )
+    }
 
     private static func plan(_ week: ProgramWeek, history: [ProgramWeek], state: StrengthState, at now: Date) {
         let slots = slotsByExercise(in: week)
