@@ -92,10 +92,17 @@ private struct FAQAnswer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: LayoutMetrics.compactSpacing) {
-            ForEach(entry.paragraphs, id: \.self) { paragraph in
-                Text(paragraph)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            ForEach(entry.answer, id: \.self) { part in
+                switch part {
+                case .text(let paragraph):
+                    Text(paragraph)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .figure(let figure):
+                    FAQFigure(figure: figure)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, LayoutMetrics.compactSpacing)
+                }
             }
 
             if !entry.sources.isEmpty {
