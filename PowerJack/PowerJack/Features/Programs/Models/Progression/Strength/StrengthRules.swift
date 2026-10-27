@@ -92,9 +92,12 @@ enum StrengthRules {
     static let maxSlotSets = 5
 
     // MARK: 9 Blocks
-    static let blockTrainWeeks = 4
-    /// RIR change by block week 1-4 on primary slots (9.2).
-    static let rirWave = [1, 0, 0, -1]
+    /// Training weeks of a block that runs past the program's end. Blocks inside it run 3 to 6 to fit its length.
+    static var blockTrainWeeks: Int { ProgramBlocks.buildWeeks }
+    /// RIR change on primary slots in a block's first week, its last week, and every week between (9.2).
+    static let rirWaveFirst = 1
+    static let rirWaveMiddle = 0
+    static let rirWaveLast = -1
     static let blockBRepShift = 1
     static let newBlockFactor = 1.0
 
@@ -145,4 +148,10 @@ enum StrengthRules {
     /// Everyone starts at 1 training year; each trained week adds 1/52 (17.7).
     static let startingTrainingYears = 1.0
     static let advancedMinYears = 3.0
+
+    /// The primary slots' RIR change in block week `blockWeek` of `trainWeeks`, so +1, 0, 0, -1 for four weeks (9.2).
+    static func rirWave(blockWeek: Int, of trainWeeks: Int) -> Int {
+        if blockWeek <= 1 { return rirWaveFirst }
+        return blockWeek >= trainWeeks ? rirWaveLast : rirWaveMiddle
+    }
 }

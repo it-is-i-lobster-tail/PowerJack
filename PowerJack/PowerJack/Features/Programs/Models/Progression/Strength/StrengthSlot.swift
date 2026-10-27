@@ -103,6 +103,8 @@ struct StrengthSession: Equatable {
     var rir: Int?
     var pain: Int?
     var date: Date?
+    /// The role the session was planned for, when one was stored.
+    var plannedRole: StrengthRole?
 
     var completedSets: [LoggedSet] { sets.filter { $0.completed && ($0.reps ?? 0) > 0 } }
     var trained: Bool { !completedSets.isEmpty }

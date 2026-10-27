@@ -97,6 +97,7 @@
 				Features/Programs/Models/Progression/PowerJack/PowerJackRoles.swift,
 				Features/Programs/Models/Progression/PowerJack/PowerJackRules.swift,
 				"Features/Programs/Models/Progression/PowerJack/WorkoutExercise+PowerJack.swift",
+				Features/Programs/Models/Progression/ProgramBlocks.swift,
 				Features/Programs/Models/Progression/ProgressionEngine.swift,
 				Features/Programs/Models/Progression/ProgressionPlanner.swift,
 				Features/Programs/Models/Progression/ProgressionRules.swift,

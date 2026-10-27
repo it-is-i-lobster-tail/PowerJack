@@ -248,6 +248,35 @@ struct StrengthPlannerTests {
         #expect(StrengthLog.latestState(in: context).clock.weeksSinceDeload == 0)
     }
 
+    @Test("Blocks fit the program's length, so it ends on a deload (9.1)", arguments: [
+        (4, "BBBD"), (6, "BBBBBD"), (8, "BBBDBBBD"), (12, "BBBBBDBBBBBD"),
+    ])
+    func blocksFitTheLength(weeks: Int, layout: String) throws {
+        logCalibratedLifts()
+        let program = try makeProgram(weeks: weeks)
+        for _ in 0..<weeks {
+            try finishWeek(of: program) { id in id == "dumbbell-curl" ? (25, 10) : (nil, nil) }
+        }
+        #expect(kinds(of: program) == layout)
+        #expect(StrengthLog.latestState(in: context).clock.startsBlock)
+    }
+
+    @Test("A block a 2-week program ends inside finishes in the next program, on its deload (9.1)")
+    func shortProgramsShareABlock() throws {
+        logCalibratedLifts()
+        let first = try makeProgram(weeks: 2)
+        for _ in 0..<2 {
+            try finishWeek(of: first) { id in id == "dumbbell-curl" ? (25, 10) : (nil, nil) }
+        }
+        let second = try makeProgram(weeks: 2)
+        for _ in 0..<2 {
+            try finishWeek(of: second) { id in id == "dumbbell-curl" ? (25, 10) : (nil, nil) }
+        }
+        #expect(kinds(of: first) == "BB")
+        #expect(kinds(of: second) == "BD")
+        #expect(second.programWeeks.map(\.blockWeek) == [3, 3])
+    }
+
     @Test("Lighter on an accessory with no logged reps plans the bottom of its range, not 3 reps (15.4)")
     func accessoryLighterReps() throws {
         let curl = try exercise("dumbbell-curl")
@@ -400,6 +429,22 @@ struct StrengthPlannerTests {
         return program
     }
 
+    /// Logs squat and bench records past calibration, so blocks count from week 1.
+    private func logCalibratedLifts() {
+        var state = StrengthState()
+        for (id, pounds) in [("barbell-back-squat", 400.0), ("barbell-bench-press", 300.0)] {
+            var record = StrengthLiftRecord(e1rmKg: pounds * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
+            record.ratedDates = [.now, .now, .now]
+            record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
+            state[id] = record
+        }
+        context.insert(StrengthLog(date: .now.addingTimeInterval(-86_400), state: state))
+    }
+
+    private func kinds(of program: Program) -> String {
+        program.programWeeks.map { $0.weekKind == .deload ? "D" : "B" }.joined()
+    }
+
     private func exercise(_ id: String) throws -> Exercise {
         try #require(try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID == id })).first)
     }
@@ -414,8 +459,8 @@ struct StrengthPlannerTests {
         return try #require(workout.workoutExercises.first { $0.exercise === exercise })
     }
 
-    /// Logs every workout of the current week with `load(catalogID)`: pounds, and reps or the plan's.
-    private func finishWeek(of program: Program, load: (String) -> (pounds: Double, reps: Int?)) throws {
+    /// Logs every workout of the current week with `load(catalogID)`: pounds and reps, or the plan's.
+    private func finishWeek(of program: Program, load: (String) -> (pounds: Double?, reps: Int?)) throws {
         let week = try #require(program.nextWorkout.flatMap { program.programWeek(containing: $0) })
         while let workout = program.nextWorkout, program.programWeek(containing: workout) === week {
             try log(workout, in: program, load: load)
@@ -426,7 +471,7 @@ struct StrengthPlannerTests {
         _ workout: Workout,
         in program: Program,
         pain: (String) -> LevelOfPain = { _ in .none },
-        load: (String) -> (pounds: Double, reps: Int?)
+        load: (String) -> (pounds: Double?, reps: Int?)
     ) throws {
         program.prepareToStart(workout)
         workout.startAndCascade()
@@ -434,7 +479,7 @@ struct StrengthPlannerTests {
             let id = workoutExercise.exercise?.catalogID ?? ""
             let (pounds, reps) = load(id)
             for set in workoutExercise.workingSets {
-                set.weightTenthsPounds = Int(pounds * 10)
+                set.weightTenthsPounds = pounds.map { Int($0 * 10) } ?? set.weightTenthsPlannedPounds
                 set.reps = reps ?? set.repsPlanned
                 workoutExercise.completeSet(set)
             }

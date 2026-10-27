@@ -33,6 +33,8 @@ struct StrengthClock: Codable, Equatable {
     /// Weeks with a strength session. Each adds 1/52 of a training year (rule 17.7).
     var trainedWeeks = 0
     var blockWeek = 1
+    /// The block's planned training weeks, laid out to fit the program by the planner (9.1). Nil runs 4.
+    var blockTrainWeeks: Int?
     var blockType = StrengthBlockType.a
     var weeksSinceDeload = 0
     /// The last few weeks, newest last, for the planned deload's skip rule (10.5).
@@ -50,6 +52,8 @@ struct StrengthClock: Codable, Equatable {
         var returned = false
         var missed = false
     }
+
+    var trainWeeks: Int { blockTrainWeeks ?? StrengthRules.blockTrainWeeks }
 
     /// Nobody is asked: everyone starts at 1 training year, so as an intermediate (rule 17.7).
     var experience: StrengthExperience {

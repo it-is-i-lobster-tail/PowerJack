@@ -29,15 +29,15 @@ struct BuildPlannerTests {
         #expect(exercise.workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })
     }
 
-    @Test("BLK-02: four logged build weeks are followed by a deload, then a new block")
+    @Test("BLK-02: in a 10-week program, four logged build weeks are followed by a deload, then a new block")
     func blockOfFive() throws {
-        let program = try makeProgram(weeks: 6)
+        let program = try makeProgram(weeks: 10)
         for _ in 0..<5 {
             try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .two)
         }
         let weeks = program.programWeeks
-        #expect(weeks.map(\.weekKind) == [.build, .build, .build, .build, .deload, .build])
-        #expect(weeks.map(\.blockWeek) == [1, 2, 3, 4, 5, 1])
+        #expect(weeks.prefix(6).map(\.weekKind) == [.build, .build, .build, .build, .deload, .build])
+        #expect(weeks.prefix(6).map(\.blockWeek) == [1, 2, 3, 4, 5, 1])
 
         let deload = try #require(weeks[4].workouts.first?.workoutExercises.first)
         #expect(deload.progressionCode == BuildReason.Code.deloadPlanned.rawValue)
@@ -46,6 +46,43 @@ struct BuildPlannerTests {
         #expect(deload.workingSets.count <= lastBuild.workingSets.count)
         let deloadLoad = try #require(deload.workingSets.first?.weightTenthsPlannedPounds)
         #expect(deloadLoad < (lastBuild.workingSets.first?.weightTenthsPlannedPounds ?? 0))
+    }
+
+    @Test("Blocks fit the program's length, so every length but 2 weeks ends on a deload", arguments: [
+        (2, "BB"), (4, "BBBD"), (6, "BBBBBD"), (8, "BBBDBBBD"), (10, "BBBBDBBBBD"), (12, "BBBBBDBBBBBD"),
+    ])
+    func blocksFitTheLength(weeks: Int, layout: String) throws {
+        let program = try makeProgram(weeks: weeks)
+        for _ in 0..<weeks {
+            try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .two)
+        }
+        let kinds = program.programWeeks.map { $0.weekKind == .deload ? "D" : "B" }.joined()
+        #expect(kinds == layout)
+    }
+
+    @Test("FREQ-06: a skipped week repeats, unless the repeat would push the deload past the program's end")
+    func skippedWeekKeepsTheDeload() throws {
+        let program = try makeProgram(weeks: 6)
+        for week in 0..<5 {
+            if week == 1 || week == 4 {
+                program.skipWorkout(try #require(program.nextWorkout))
+            } else {
+                try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .two)
+            }
+        }
+        // Week 2 repeats; skipping week 5 leaves no room for another build week before the deload.
+        #expect(program.programWeeks.map(\.blockWeek) == [1, 2, 2, 3, 4, 5])
+        #expect(program.programWeeks.map { $0.weekKind == .deload ? "D" : "B" }.joined() == "BBBBBD")
+    }
+
+    @Test("EFF-01: reps left ramp 3, 2, then 1 in the last build week, however long the block")
+    func aimsStretchToTheBlock() throws {
+        let program = try makeProgram(weeks: 6)
+        for _ in 0..<5 {
+            try finishWeek(of: program, reps: 10, weightTenthsPounds: 1000, repsLeft: .two)
+        }
+        let aims = program.programWeeks.compactMap { $0.workouts.first?.workoutExercises.first?.rirTarget }
+        #expect(aims == [3, 2, 2, 2, 1, 3])
     }
 
     @Test("START-04: an exercise lifted in an earlier program starts from those sets")

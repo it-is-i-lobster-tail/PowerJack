@@ -27,10 +27,12 @@ enum BuildEngine {
         let trained = context.slots.indices.contains { context.exposure($0, inWeek: context.lastIndex)?.isDone == true }
 
         guard trained else {
-            // A skipped build week repeats; a skipped deload still counts as the deload (FREQ-06).
-            return last.kind == .deload
-                ? newBlock(context, review: reviewAfterDeload(context))
-                : repeatWeek(context)
+            // A skipped build week repeats; a skipped deload still counts as the deload (FREQ-06). A repeat that
+            // would push the block's deload past the program's end gives way to the deload.
+            if last.kind == .deload {
+                return newBlock(context, review: reviewAfterDeload(context))
+            }
+            return repeatFits(context) ? repeatWeek(context) : deloadWeek(context, reactive: false)
         }
         switch last.kind {
         case .deload:
@@ -41,7 +43,7 @@ enum BuildEngine {
             }
             return newBlock(context, review: .holdAll, afterReturn: true)
         case .build:
-            if last.blockWeek >= BuildRules.buildWeeks {
+            if last.blockWeek >= last.buildWeeks {
                 return deloadWeek(context, reactive: false)
             }
             if reactiveDeloadDue(context) {
@@ -74,7 +76,7 @@ enum BuildEngine {
     ) -> Int {
         guard week.kind == .build else { return BuildRules.deloadRIR }
         if calibrating { return BuildRules.startRIR }
-        let base = BuildRules.rirByWeek[min(max(week.blockWeek, 1), BuildRules.buildWeeks) - 1]
+        let base = BuildRules.rir(blockWeek: week.blockWeek, of: week.buildWeeks)
         // The final build week may take the last set to failure, but never on the heaviest lifts (EFF-04).
         if base <= 1, !failureBlocked, BuildRules.failureFatigueLevels.contains(exercise.fatigueLevel) {
             return 0
@@ -132,7 +134,7 @@ extension BuildEngine {
     }
 
     static func buildWeek(_ context: BuildContext, blockWeek: Int) -> BuildPlan {
-        let week = BuildWeek(kind: .build, blockWeek: blockWeek)
+        let week = context.nextBuildWeek(blockWeek: blockWeek)
         var drafts = context.slots.indices.map { startDraft(context, $0) }
 
         for index in drafts.indices where drafts[index].plan == nil {
@@ -178,7 +180,7 @@ extension BuildEngine {
         afterReturn: Bool = false,
         breakEnded: Bool = false
     ) -> BuildPlan {
-        let week = BuildWeek(kind: .build, blockWeek: 1)
+        let week = context.nextBuildWeek(blockWeek: 1)
         var drafts = context.slots.indices.map { Draft(plan: nil, sets: context.latest($0)?.plannedSets ?? 0) }
         for index in drafts.indices {
             painLayer(context, index, &drafts[index])
@@ -207,9 +209,17 @@ extension BuildEngine {
         var week = context.lastWeek
         // A break handled in the skipped week doesn't carry over, so the repeat can catch the next one.
         if week.kind == .build {
-            week.returnBand = 0
+            week = context.nextBuildWeek(blockWeek: week.blockWeek)
         }
         return finish(context, drafts, week: week)
+    }
+
+    /// A skipped build week can repeat while its block still fits the program (FREQ-06).
+    static func repeatFits(_ context: BuildContext) -> Bool {
+        let last = context.lastWeek
+        guard last.kind == .build else { return true }
+        let repeated = context.nextBuildWeek(blockWeek: last.blockWeek)
+        return repeated.blockWeek <= repeated.buildWeeks
     }
 
     /// Reviews volume after a deload only when the block had enough build weeks to judge (BLK-05).

@@ -187,7 +187,9 @@ struct StrengthSimChecker {
         at here: String
     ) {
         let clock = state.clock
-        expect((1...StrengthRules.blockTrainWeeks).contains(clock.blockWeek), "9.5", here, "block week \(clock.blockWeek)")
+        expect((1...ProgramBlocks.maxBuildWeeks).contains(clock.blockWeek), "9.5", here, "block week \(clock.blockWeek)")
+        expect((ProgramBlocks.minBuildWeeks...ProgramBlocks.maxBuildWeeks).contains(clock.trainWeeks), "9.1", here,
+               "a block of \(clock.trainWeeks) training weeks")
         if closed == .deload {
             expect(clock.rir0Weeks == 0, "10.4", here, "\(clock.rir0Weeks) RIR 0 weeks still counted after a deload")
         }

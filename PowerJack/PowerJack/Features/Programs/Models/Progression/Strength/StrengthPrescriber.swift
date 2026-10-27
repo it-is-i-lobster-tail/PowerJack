@@ -62,8 +62,7 @@ enum StrengthPrescriber {
             if clock.blockType == .b { reps -= StrengthRules.blockBRepShift }
             if slot.zone != .moderate, record.repShiftActive { reps -= StrengthRules.stallRepShift }
             reps = max(reps, min(base, StrengthRules.repsMinNormal))
-            let week = min(max(clock.blockWeek, 1), StrengthRules.rirWave.count)
-            rir += StrengthRules.rirWave[week - 1]
+            rir += StrengthRules.rirWave(blockWeek: clock.blockWeek, of: clock.trainWeeks)
         }
         let cap = slot.role == .secondary ? StrengthRules.secondaryRepsToFailureMax : StrengthRules.primaryRepsToFailureMax
         rir = max(StrengthRules.rirMin, min(rir, cap - reps))
@@ -84,8 +83,9 @@ enum StrengthPrescriber {
         at now: Date
     ) -> StrengthSlotPlan {
         let (reps, rir) = targets(slot, record: record, clock: clock)
-        // Weeks the exercise ran as an accessory, before a swap made it a priority lift, set no load to build on.
-        let history = slot.history.filter { $0.plan.kind != .accessory }
+        // Weeks the exercise ran as an accessory, deloads included, before a swap made it a priority lift, set no
+        // load to build on.
+        let history = slot.history.filter { $0.plan.kind != .accessory && $0.plannedRole != .accessory }
         // The last real week to build on: one that had a load, so a week skipped before it was prepared is passed over.
         let lastNormal = history.first { ($0.plan.kind == .normal || $0.plan.kind == .calibration) && $0.hasLoad }
         // A slot with no load yet, such as one whose first week was skipped before it started, plans as a new
