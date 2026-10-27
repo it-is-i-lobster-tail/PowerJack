@@ -154,7 +154,7 @@ struct SettingsView: View {
                         SettingsRowLabel(
                             systemImage: "questionmark.circle",
                             title: "Questions and Answers",
-                            detail: "Why PowerJack, how to train for size and strength, and what really helps."
+                            detail: "Where PowerJack came from, how to use it, and how your training progresses."
                         )
                     }
                 }
