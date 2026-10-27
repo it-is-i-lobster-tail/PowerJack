@@ -63,6 +63,8 @@ struct BuildWeek: Equatable {
     var blockWeek: Int
     /// The break band handled in this week, or 0.
     var returnBand: Int = 0
+    /// The planned build weeks of a build week's block, laid out to fit the program (`ProgramBlocks`).
+    var buildWeeks = BuildRules.buildWeeks
 }
 
 /// One week's performance of one slot.
@@ -135,6 +137,8 @@ struct BuildInput: Equatable {
     /// In program order: by workout, then by place in the workout.
     var slots: [BuildSlot]
     var focus: Set<Muscle> = []
+    /// The program's length in weeks. Blocks past it run 4 build weeks, so 0 gives every block 4.
+    var programWeeks = 0
 }
 
 struct BuildPlan: Equatable {

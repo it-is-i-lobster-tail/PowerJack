@@ -99,9 +99,9 @@ enum PowerJackRules {
     static let rirCensor = 5
 
     // R5 Blocks
-    static let buildWeeks = 4
-    static let minBuildWeeks = 3
-    static let maxBuildWeeks = 6
+    static let buildWeeks = ProgramBlocks.buildWeeks
+    static let minBuildWeeks = ProgramBlocks.minBuildWeeks
+    static let maxBuildWeeks = ProgramBlocks.maxBuildWeeks
 
     // R6 Deloads and fatigue
     static let partialShare = 0.5

@@ -17,7 +17,11 @@ enum BuildPlanner: WeekPlanner {
     /// calibrate, leaving the weight to the lifter (START-03, START-04).
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {
         week.setBlock(kind: .build, blockWeek: 1)
-        let weekOne = BuildWeek(kind: .build, blockWeek: 1)
+        let weekOne = BuildWeek(
+            kind: .build,
+            blockWeek: 1,
+            buildWeeks: ProgramBlocks.buildWeeks(blockStart: 0, programWeeks: program.programLengthWeeks)
+        )
         for workout in week.workouts {
             for workoutExercise in workout.workoutExercises {
                 guard let exercise = workoutExercise.exercise else { continue }
@@ -156,7 +160,8 @@ extension BuildPlanner {
         return BuildInput(
             weeks: weeks.enumerated().map { buildWeek($1, index: $0) },
             slots: slots,
-            focus: Set(program.templateMuscleFocus)
+            focus: Set(program.templateMuscleFocus),
+            programWeeks: program.programLengthWeeks
         )
     }
 
