@@ -12,6 +12,8 @@ struct TemplateBuilder: View {
     @Environment(\.dismiss) private var dismiss
     
     @Binding private var draft: TemplateProgramDraft
+    /// Days that can't be edited, with why. Used by a running program, whose finished days stay as they were.
+    private let lockedDays: [Int: String]
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -24,7 +26,8 @@ struct TemplateBuilder: View {
     }
 
     init(
-        draft: Binding<TemplateProgramDraft>
+        draft: Binding<TemplateProgramDraft>,
+        lockedDays: [Int: String] = [:]
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -36,6 +39,7 @@ struct TemplateBuilder: View {
         }
 
         _draft = draft
+        self.lockedDays = lockedDays
         _options = State(initialValue: initialOptions)
         _selection = State(initialValue: initialOptions[0])
     }
@@ -80,13 +84,18 @@ struct TemplateBuilder: View {
                         .padding(.horizontal)
                 }
 
-                // Days change only by tapping the picker. Horizontal swipes belong to
-                // the exercise rows, so swipe to edit or delete never flips the day.
-                TemplateWorkoutBuilder(
-                    templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
-                    handleEdit: handleShowEditExerciseSheet
-                )
-                .id(selection.id)
+                if let message = lockedDays[selection.index] {
+                    ContentUnavailableView(message, systemImage: "lock")
+                        .powerJackGlassCard()
+                } else {
+                    // Days change only by tapping the picker. Horizontal swipes belong to
+                    // the exercise rows, so swipe to edit or delete never flips the day.
+                    TemplateWorkoutBuilder(
+                        templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
+                        handleEdit: handleShowEditExerciseSheet
+                    )
+                    .id(selection.id)
+                }
                 Spacer()
             }
         }
@@ -111,7 +120,7 @@ struct TemplateBuilder: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 CopyDayMenu(
-                    options: options,
+                    options: options.filter { lockedDays[$0.index] == nil },
                     selection: $selection,
                     draft: $draft
                 )
@@ -130,6 +139,7 @@ struct TemplateBuilder: View {
                     }
                 }
                 .accessibilityLabel("Add")
+                .disabled(lockedDays[selection.index] != nil)
             }
         }
     }

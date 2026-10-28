@@ -9,6 +9,11 @@ import SwiftData
 import SwiftUI
 import TipKit
 
+extension EnvironmentValues {
+    /// Space the collapsed rest island needs at the top of the screen, or 0 while it's hidden.
+    @Entry var restIslandHeight: CGFloat = 0
+}
+
 extension View {
     /// Adds the rest timer for the active program's current workout.
     func restTimer(onOpenCurrentExercise: @escaping () -> Void) -> some View {
@@ -66,12 +71,8 @@ private struct RestTimerHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // Keeps the collapsed island from covering navigation bars.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if islandRest != nil {
-                    Color.clear.frame(height: RestIsland.reservedHeight)
-                }
-            }
+            // Tab pages keep the collapsed island clear of their navigation bars (see `powerJackTabPage`).
+            .environment(\.restIslandHeight, islandRest == nil ? 0 : RestIsland.reservedHeight)
             .overlay {
                 if isExpanded {
                     Color.black.opacity(VisualOpacity.subtle)
