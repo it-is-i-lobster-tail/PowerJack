@@ -12,7 +12,7 @@ struct ProgramLayoutDraft {
     /// The days, in the shape the template builder edits.
     var days: TemplateProgramDraft
     /// Days that can't change this week, with why.
-    let lockedDays: [Int: String]
+    let lockedDays: [Int: LockedDay]
 
     /// This week's workout for each day.
     private let workouts: [Workout]
@@ -25,10 +25,10 @@ struct ProgramLayoutDraft {
         days = TemplateProgramDraft(templateType: program.templateType)
         days.workoutsPerWeek = workouts.count
 
-        var lockedDays: [Int: String] = [:]
+        var lockedDays: [Int: LockedDay] = [:]
         for (index, workout) in workouts.enumerated() {
             guard workout.status == .planned else {
-                lockedDays[index] = Self.lockedMessage(for: workout, isLastWeek: week?.order == program.programLengthWeeks - 1)
+                lockedDays[index] = Self.lockedDay(workout, isLastWeek: week?.order == program.programLengthWeeks - 1)
                 continue
             }
             for workoutExercise in workout.workoutExercises {
@@ -55,9 +55,11 @@ struct ProgramLayoutDraft {
         }
     }
 
-    private static func lockedMessage(for workout: Workout, isLastWeek: Bool) -> String {
+    private static func lockedDay(_ workout: Workout, isLastWeek: Bool) -> LockedDay {
         let state = workout.status == .active ? "in progress" : "done for this week"
-        guard !isLastWeek else { return "Day \(workout.order + 1) is \(state)." }
-        return "Day \(workout.order + 1) is \(state). You can change it once next week starts."
+        return LockedDay(
+            title: "Day \(workout.order + 1) is \(state)",
+            detail: isLastWeek ? nil : "You can change it once next week starts."
+        )
     }
 }

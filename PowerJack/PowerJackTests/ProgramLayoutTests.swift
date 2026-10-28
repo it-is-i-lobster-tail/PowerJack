@@ -75,7 +75,7 @@ struct ProgramLayoutTests {
         #expect(program.status == .complete)
     }
 
-    @Test("A finished day's message says when it can change, except in the last week")
+    @Test("A finished day says when it can change, except in the last week")
     func lockedMessages() throws {
         let (container, template) = try makeTemplate("Full Body")
         let program = try startProgram(template, in: container, weeks: 1)
@@ -83,7 +83,8 @@ struct ProgramLayoutTests {
 
         let draft = ProgramLayoutDraft(program: program)
 
-        #expect(draft.lockedDays[0] == "Day 1 is done for this week.")
+        #expect(draft.lockedDays[0]?.title == "Day 1 is done for this week")
+        #expect(draft.lockedDays[0]?.detail == nil)
     }
 
     // MARK: Helpers

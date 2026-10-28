@@ -13,7 +13,7 @@ struct TemplateBuilder: View {
     
     @Binding private var draft: TemplateProgramDraft
     /// Days that can't be edited, with why. Used by a running program, whose finished days stay as they were.
-    private let lockedDays: [Int: String]
+    private let lockedDays: [Int: LockedDay]
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -27,7 +27,7 @@ struct TemplateBuilder: View {
 
     init(
         draft: Binding<TemplateProgramDraft>,
-        lockedDays: [Int: String] = [:]
+        lockedDays: [Int: LockedDay] = [:]
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -84,9 +84,15 @@ struct TemplateBuilder: View {
                         .padding(.horizontal)
                 }
 
-                if let message = lockedDays[selection.index] {
-                    ContentUnavailableView(message, systemImage: "lock")
-                        .powerJackGlassCard()
+                if let lockedDay = lockedDays[selection.index] {
+                    ContentUnavailableView {
+                        Label(lockedDay.title, systemImage: "lock")
+                    } description: {
+                        if let detail = lockedDay.detail {
+                            Text(detail)
+                        }
+                    }
+                    .powerJackGlassCard()
                 } else {
                     // Days change only by tapping the picker. Horizontal swipes belong to
                     // the exercise rows, so swipe to edit or delete never flips the day.
@@ -143,6 +149,12 @@ struct TemplateBuilder: View {
             }
         }
     }
+}
+
+/// A day the builder shows but won't edit.
+struct LockedDay {
+    let title: String
+    var detail: String?
 }
 
 private struct TemplateBuilderPreviewContent: View {

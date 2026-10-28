@@ -41,9 +41,7 @@ private struct TabPageLayout: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: restIslandHeight)
-            }
+            .padding(.top, restIslandHeight)
             .padding(.bottom, bottomBarHeight)
             .ignoresSafeArea(.keyboard, edges: .bottom)
     }
