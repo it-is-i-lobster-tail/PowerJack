@@ -55,8 +55,8 @@ struct WorkoutReviewView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: finish) {
                 Text("Finish Workout")
-                    .font(.title3)
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, minHeight: 28)
             }
             .buttonStyle(.glassProminent)
             .padding(.horizontal, LayoutMetrics.sectionSpacing)
