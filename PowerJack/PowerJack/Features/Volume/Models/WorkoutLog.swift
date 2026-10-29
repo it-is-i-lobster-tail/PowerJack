@@ -40,6 +40,17 @@ extension WorkoutLog {
     // Date
     var date: Date { dateValue }
 
+    /// The log written closest to `date`, within a second of it. A skip writes its log as it ends the workout.
+    static func written(near date: Date, in context: ModelContext?) -> WorkoutLog? {
+        let earliest = date.addingTimeInterval(-1)
+        let latest = date.addingTimeInterval(1)
+        let descriptor = FetchDescriptor<WorkoutLog>(
+            predicate: #Predicate { $0.dateValue >= earliest && $0.dateValue <= latest }
+        )
+        let logs = (try? context?.fetch(descriptor)) ?? []
+        return logs.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
+    }
+
     /// Sets logged for `muscle`. A secondary muscle counts as half a set.
     func sets(for muscle: Muscle) -> Double {
         switch muscle {

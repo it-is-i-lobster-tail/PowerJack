@@ -220,6 +220,31 @@ extension Workout {
             workoutExercise.skipAndCascade()
         }
     }
+    /// Undoes Skip Workout. With a set logged it's in progress again, right where it was left.
+    /// With nothing logged it's planned again, so Start Workout runs as it would have.
+    func unskipAndCascade() {
+        guard status == .skipped else {
+            Logger.workout.warning("Can only unskip a skipped Workout.")
+            return
+        }
+        let wasLogged = workoutExercises.contains { $0.workoutSets.contains { $0.status == .complete } }
+        endedAtValue = nil
+        if wasLogged {
+            statusValue = Status.active
+            lockedValue = false
+            for workoutExercise in workoutExercises {
+                workoutExercise.unskipWorkout()
+            }
+        } else {
+            statusValue = Status.planned
+            lockedValue = true
+            startedAtValue = nil
+            for workoutExercise in workoutExercises {
+                workoutExercise.resetToPlanned()
+            }
+        }
+        Logger.workout.debug("Unskipped workout")
+    }
     func startAndCascade(at date: Date = .now) {
         start(at: date)
 
