@@ -22,7 +22,8 @@ struct WorkoutSetView: View {
     let repsOnly: Bool
     /// 1-based position within the set's type, so working sets count from 1 after the warmups.
     let number: Int
-    let onWeightChange: (Int?) -> Void
+    /// Called with the new weight and the one it replaced.
+    let onWeightChange: (Int?, Int?) -> Void
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
@@ -33,7 +34,7 @@ struct WorkoutSetView: View {
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
-        onWeightChange: @escaping (Int?) -> Void = { _ in }
+        onWeightChange: @escaping (Int?, Int?) -> Void = { _, _ in }
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
@@ -272,9 +273,10 @@ struct WorkoutSetView: View {
         }
         // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
         let newValue = parsedWeight(text).map(weightUnit.tenthsPounds(from:))
-        guard newValue != workoutSet.weightTenthsPounds else { return }
+        let previousValue = workoutSet.weightTenthsPounds
+        guard newValue != previousValue else { return }
         workoutSet.weightTenthsPounds = newValue
-        onWeightChange(workoutSet.weightTenthsPounds)
+        onWeightChange(newValue, previousValue)
     }
 
     private func parsedWeight(_ text: String) -> Double? {
