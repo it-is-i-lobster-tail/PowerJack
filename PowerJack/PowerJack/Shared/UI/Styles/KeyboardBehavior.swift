@@ -52,10 +52,15 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
         max(0, bottomEdge - keyboardTop)
     }
 
+    /// The covered part plus a small gap, so the focused row doesn't sit flush on the keyboard.
+    private var bottomRoom: CGFloat {
+        coveredHeight > 0 ? coveredHeight + LayoutMetrics.compactSpacing : 0
+    }
+
     func body(content: Content) -> some View {
         ScrollViewReader { proxy in
             content
-                .safeAreaPadding(.bottom, coveredHeight)
+                .safeAreaPadding(.bottom, bottomRoom)
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottomEdge = $0 }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
                     guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
