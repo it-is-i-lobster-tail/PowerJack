@@ -66,9 +66,10 @@ extension WorkoutExercise {
 
         workoutSet.reps = entry.reps
         if !repsOnly {
+            let previousWeight = workoutSet.weightTenthsPounds
             workoutSet.weightTenthsPounds = entry.weightTenthsPounds
             if !isTopSet(workoutSet) {
-                applyWeight(workoutSet.weightTenthsPounds, after: workoutSet)
+                applyWeight(workoutSet.weightTenthsPounds, after: workoutSet, replacing: previousWeight)
             }
         }
         completeSet(workoutSet, at: date)

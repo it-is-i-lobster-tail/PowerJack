@@ -144,10 +144,10 @@ struct WorkoutExerciseView: View {
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.exercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
-                    onWeightChange: { weight in
+                    onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }
-                        workoutExercise.applyWeight(weight, after: workoutSet)
+                        workoutExercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
                     }
                 )
                 .frame(width: screenWidth * 0.88, height: 55)

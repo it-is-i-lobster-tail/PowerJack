@@ -621,13 +621,13 @@ extension WorkoutExercise {
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
     }
-    /// Copies a weight entered on `workoutSet` to every later set of the same type still being logged.
-    /// Completed and skipped sets keep what was logged, and warmup weights never reach working sets.
-    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet) {
-        guard let weightTenthsPounds else { return }
-        for laterSet in workoutSets where laterSet.order > workoutSet.order &&
-            laterSet.setType == workoutSet.setType &&
-            laterSet.status == .active {
+    /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
+    /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.
+    /// It stops at the first set that's done or has a weight of its own, and warmup weights never reach working sets.
+    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet, replacing previousWeight: Int?) {
+        guard weightTenthsPounds != previousWeight else { return }
+        for laterSet in workoutSets where laterSet.order > workoutSet.order && laterSet.setType == workoutSet.setType {
+            guard laterSet.status == .active, laterSet.weightTenthsPounds == previousWeight else { return }
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }
