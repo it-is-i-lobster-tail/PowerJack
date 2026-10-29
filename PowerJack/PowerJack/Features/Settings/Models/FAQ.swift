@@ -183,6 +183,7 @@ extension FAQ {
                 answer: [
                     "Use the ••• menu. Change Exercise swaps it for another one for the rest of the program, with weights set for the new exercise. Your template stays as it was.",
                     "Skip Exercise skips what's left of it today, and Skip Workout skips the whole day. Skipped work isn't made up later. Your plan simply carries on.",
+                    "Skipped a workout by mistake? Tap its day in Progress to restore it, as long as its week isn't over.",
                 ]
             ),
             Entry(

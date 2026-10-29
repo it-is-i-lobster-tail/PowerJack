@@ -380,6 +380,83 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
     }
 
+    @Test("Restoring a workout skipped partway picks up where it was left")
+    func restoreWorkoutSkippedPartway() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 3)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let logged = workout.workoutExercises[0]
+        let skippedEarlier = workout.workoutExercises[1]
+        let untouched = workout.workoutExercises[2]
+        #expect(!logged.warmupSets.isEmpty)
+        let loggedSet = try #require(logged.workingSets.first)
+        loggedSet.reps = 8
+        loggedSet.weightTenthsPounds = 1000
+        logged.completeSet(loggedSet)
+        skippedEarlier.skipRemainingSets()
+        program.skipWorkout(workout)
+        #expect(program.canRestoreWorkout(workout))
+
+        program.restoreWorkout(workout)
+
+        #expect(workout.status == .active)
+        #expect(!workout.locked)
+        #expect(workout.startedAt != nil)
+        #expect(workout.endedAt == nil)
+        #expect(program.nextWorkout === workout)
+        #expect(loggedSet.status == .complete && loggedSet.reps == 8 && loggedSet.weightTenthsPounds == 1000)
+        #expect(logged.status == .active && !logged.locked)
+        #expect(logged.workingSets.dropFirst().allSatisfy { $0.status == .active && !$0.locked })
+        // Logging the first working set passed over the warmups, before the skip.
+        #expect(logged.warmupSets.allSatisfy { $0.status == .skipped })
+        // Skip Exercise came before Skip Workout, so it still stands.
+        #expect(skippedEarlier.status == .skipped)
+        #expect(skippedEarlier.workingSets.allSatisfy { $0.status == .skipped })
+        #expect(untouched.status == .active)
+        #expect(untouched.workoutSets.allSatisfy { $0.status == .active && !$0.locked })
+        // The skip's history is taken back, so finishing the workout logs it once.
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).isEmpty)
+        program.finishWorkout(workout)
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).count == 1)
+    }
+
+    @Test("Restoring a workout skipped before it started puts it back up next, not started")
+    func restoreWorkoutSkippedBeforeStart() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let first = program.programWeeks[0].workouts[0]
+        program.skipWorkout(first)
+
+        program.restoreWorkout(first)
+
+        #expect(first.status == .planned)
+        #expect(first.locked)
+        #expect(first.startedAt == nil && first.endedAt == nil)
+        #expect(program.nextWorkout === first)
+        #expect(first.workoutExercises.allSatisfy { $0.status == .planned })
+        #expect(sets(of: first).allSatisfy { $0.status == .planned && !$0.locked && $0.reps == nil })
+
+        first.startAndCascade()
+        #expect(sets(of: first).allSatisfy { $0.status == .active && $0.reps == $0.repsPlanned })
+    }
+
+    @Test("A skip can't be restored once it ended its week or while another workout is underway")
+    func restoreWorkoutLimits() throws {
+        let program = try makeStartedProgram(weeks: 2, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        program.skipWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(!program.canRestoreWorkout(dayOne))
+
+        // Skipping the week's last workout built week 2 from it.
+        program.skipWorkout(dayTwo)
+        #expect(!program.programWeeks[1].workouts.isEmpty)
+        #expect(!program.canRestoreWorkout(dayOne))
+        #expect(!program.canRestoreWorkout(dayTwo))
+        program.restoreWorkout(dayTwo)
+        #expect(dayTwo.status == .skipped)
+    }
+
     @Test("Current workout and exercise are restored from persisted state")
     func restoreFromStore() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 2, exercisesPerWorkout: 2)

@@ -291,6 +291,32 @@ extension WorkoutExercise {
             workoutSet.skip()
         }
     }
+    /// Undoes Skip Workout. Skip Workout locks the exercises it skips, so one skipped earlier with Skip Exercise
+    /// (still open) stays skipped. Warmups passed over by a logged working set stay skipped too.
+    func unskipWorkout() {
+        guard statusValue == .skipped, lockedValue else { return }
+        statusValue = Status.active
+        lockedValue = false
+        let keepsWarmupsSkipped = completedWorkingSets > 0
+        for workoutSet in workoutSets where workoutSet.status == .skipped {
+            if workoutSet.isWarmup && keepsWarmupsSkipped { continue }
+            workoutSet.unskip()
+        }
+        Logger.workoutExercise.debug("WorkoutExercise unskipped")
+    }
+    /// Back to planned, as if its workout never started. A check-in it answered is asked again.
+    func resetToPlanned() {
+        statusValue = Status.planned
+        lockedValue = false
+        if checkInValue == .resolved {
+            checkInValue = .pending
+            lockedValue = true
+        }
+        for workoutSet in workoutSets {
+            workoutSet.resetToPlanned()
+        }
+        Logger.workoutExercise.debug("WorkoutExercise reset to planned")
+    }
     func startAndCascade() {
         guard checkInValue != .pending else {
             // Stays planned and locked until `resolveCheckIn` runs.
