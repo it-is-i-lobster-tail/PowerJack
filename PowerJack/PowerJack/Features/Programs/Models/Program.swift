@@ -259,6 +259,26 @@ extension Program {
         workout.skipAndCascade()
         return advance(after: workout)
     }
+    /// A skipped workout can come back while its week is still underway and no other workout is.
+    /// Skipping a week's last workout builds the next week from it, so that skip stays.
+    func canRestoreWorkout(_ workout: Workout) -> Bool {
+        status == .active
+            && workout.status == .skipped
+            && programWeek(containing: workout)?.status == .active
+            && !programWeeks.contains { $0.workouts.contains { $0.status == .active } }
+    }
+    /// Undoes Skip Workout, taking back the history the skip wrote for its finished sets.
+    func restoreWorkout(_ workout: Workout) {
+        guard canRestoreWorkout(workout) else {
+            Logger.program.warning("Cannot restore this Workout.")
+            return
+        }
+        if let endedAt = workout.endedAt, !workout.loggedSetsByMuscle.isEmpty,
+           let log = WorkoutLog.written(near: endedAt, in: modelContext) {
+            modelContext?.delete(log)
+        }
+        workout.unskipAndCascade()
+    }
     private func advance(after workout: Workout) -> Workout? {
         if let week = programWeek(containing: workout),
            week.workouts.allSatisfy(\.isFinished) {
