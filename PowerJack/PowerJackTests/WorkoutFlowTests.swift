@@ -436,10 +436,53 @@ struct WorkoutFlowTests {
         sets[3].weightTenthsPounds = 1500
         sets[3].complete()
 
-        sets[1].weightTenthsPounds = 2200
-        exercise.applyWeight(2200, after: sets[1])
+        typeWeights([2, 22, 220], on: sets[1], of: exercise)
 
         #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
+    }
+
+    @Test("A carried weight stops at the first later set that already has its own weight")
+    func weightStopsAtEnteredSet() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 4)
+        sets.forEach { $0.weightTenthsPounds = nil }
+        sets[2].weightTenthsPounds = 1500
+
+        typeWeights([2, 20, 200], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [2000, 2000, 1500, nil])
+    }
+
+    @Test("Retyping a set's weight carries to the later sets still showing its old weight")
+    func retypedWeightCarriesOverOldWeight() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 3)
+        sets.forEach { $0.weightTenthsPounds = 1400 }
+
+        // Deleting 140 a digit at a time, then typing 145.
+        typeWeights([14, 1, nil, 1, 14, 145], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [1450, 1450, 1450])
+    }
+
+    /// Types `pounds` into `workoutSet` one keystroke at a time, the way the set row reports each change.
+    private func typeWeights(_ pounds: [Int?], on workoutSet: WorkoutSet, of exercise: WorkoutExercise) {
+        for weight in pounds.map({ $0.map { $0 * 10 } }) {
+            let previousWeight = workoutSet.weightTenthsPounds
+            workoutSet.weightTenthsPounds = weight
+            exercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
+        }
     }
 
     @Test("Starting a workout enters each set's target weight and reps, so the set can be checked off as is")
