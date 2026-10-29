@@ -101,8 +101,9 @@ struct WarmupSetTests {
         let exercise = try #require(workout.workoutExercises.first)
         let first = exercise.workoutSets[0]
 
+        let previousWeight = first.weightTenthsPounds
         first.weightTenthsPounds = 950
-        exercise.applyWeight(950, after: first)
+        exercise.applyWeight(950, after: first, replacing: previousWeight)
 
         #expect(exercise.workoutSets.map(\.weightTenthsPounds) == [950, 950, nil, nil])
     }

@@ -439,8 +439,9 @@ private extension StrengthSimDriver {
             if let load = lifter.load(for: exercise, prefilled: set.weightTenthsPounds, reps: plannedReps, aim: aim, grid: grid),
                load != set.weightTenthsPounds {
                 // A weight typed on a set carries to the sets after it, as the workout screen does.
+                let previousLoad = set.weightTenthsPounds
                 set.weightTenthsPounds = load
-                workoutExercise.applyWeight(load, after: set)
+                workoutExercise.applyWeight(load, after: set, replacing: previousLoad)
             }
             let loadKg = set.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) }
             let capacity = lifter.repsToFailure(exercise, loadKg: loadKg, setIndex: index)
