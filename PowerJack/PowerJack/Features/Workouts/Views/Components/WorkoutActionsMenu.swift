@@ -80,16 +80,28 @@ struct WorkoutActionsMenu: View {
 
                 Divider()
 
-                Button {
-                    selectedWorkoutExercise.skipRemainingSets()
-                    try? modelContext.save()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "forward")
-                        Text("Skip Exercise")
+                if selectedWorkoutExercise.canRestoreSkipped {
+                    Button {
+                        selectedWorkoutExercise.restoreSkipped()
+                        try? modelContext.save()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Restore Exercise")
+                        }
                     }
+                } else {
+                    Button {
+                        selectedWorkoutExercise.skipRemainingSets()
+                        try? modelContext.save()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "forward")
+                            Text("Skip Exercise")
+                        }
+                    }
+                    .disabled(!canModifySelectedExercise || selectedWorkoutExercise.allSetsDone())
                 }
-                .disabled(!canModifySelectedExercise || selectedWorkoutExercise.allSetsDone())
 
                 Divider()
             }
