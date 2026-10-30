@@ -30,6 +30,9 @@ struct MuscleBarChart: View {
     private static let startDelay: TimeInterval = 0.35
     private static let fadeDuration: TimeInterval = 0.35
     private static let growDuration: TimeInterval = 1.0
+    /// Row-by-row timings, kept short so a long list of muscles still finishes quickly.
+    private static let rowFadeDuration: TimeInterval = 0.2
+    private static let rowGrowDuration: TimeInterval = 0.6
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -103,15 +106,15 @@ struct MuscleBarChart: View {
         case .rowByRow:
             // The label appears, then its bar grows to length while the value climbs.
             for index in bars.indices {
-                withAnimation(.easeOut(duration: Self.fadeDuration)) {
+                withAnimation(.easeOut(duration: Self.rowFadeDuration)) {
                     shownRows = index + 1
                 }
-                try await Task.sleep(for: .seconds(Self.fadeDuration))
+                try await Task.sleep(for: .seconds(Self.rowFadeDuration))
 
-                withAnimation(.easeOut(duration: Self.growDuration)) {
+                withAnimation(.easeOut(duration: Self.rowGrowDuration)) {
                     filledRows = index + 1
                 }
-                try await Task.sleep(for: .seconds(Self.growDuration))
+                try await Task.sleep(for: .seconds(Self.rowGrowDuration))
             }
         }
     }
