@@ -115,10 +115,16 @@ struct SetGroupHeader: View {
 
         Divider()
 
-        Button("Skip Exercise", systemImage: "forward") {
-            update { workoutExercise.skipRemainingSets() }
+        if workoutExercise.canRestoreSkipped {
+            Button("Restore Exercise", systemImage: "arrow.counterclockwise") {
+                update { workoutExercise.restoreSkipped() }
+            }
+        } else {
+            Button("Skip Exercise", systemImage: "forward") {
+                update { workoutExercise.skipRemainingSets() }
+            }
+            .disabled(isLocked || workoutExercise.allSetsDone())
         }
-        .disabled(isLocked || workoutExercise.allSetsDone())
     }
 
     private func update(_ change: () -> Void) {
