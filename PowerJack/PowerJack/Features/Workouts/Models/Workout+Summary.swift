@@ -10,22 +10,17 @@ import Foundation
 /// Completed sets for one muscle in a workout.
 struct MuscleSetCount: Identifiable, Equatable {
     let muscle: Muscle
-    let sets: Int
+    let sets: Double
 
     var id: Muscle { muscle }
 }
 
 extension Workout {
-    /// Completed working sets per primary muscle, most sets first.
+    /// Completed working sets per muscle, most sets first, counted like the Volume tab:
+    /// 1 for the primary muscle and 0.5 for each secondary.
     /// Warmups and muscles with no completed sets are left out.
     var completedSetsByMuscle: [MuscleSetCount] {
-        var setsByMuscle: [Muscle: Int] = [:]
-        for workoutExercise in workoutExercises {
-            guard let muscle = workoutExercise.exercise?.primaryMuscleFocus else { continue }
-            setsByMuscle[muscle, default: 0] += workoutExercise.completedWorkingSets
-        }
-
-        return setsByMuscle
+        loggedSetsByMuscle
             .filter { $0.value > 0 }
             .map { MuscleSetCount(muscle: $0.key, sets: $0.value) }
             .sorted { lhs, rhs in
