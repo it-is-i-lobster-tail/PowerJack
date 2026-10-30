@@ -13,7 +13,7 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct WorkoutScreenTests {
-    private let container = PowerJackSeed.makeInMemoryContainer()
+    private let container = HostedView.makeStore()
     private let router = ProgramsRouter()
 
     @Test("Logging every set asks for feedback, then Review, then the summary and back to the program")
