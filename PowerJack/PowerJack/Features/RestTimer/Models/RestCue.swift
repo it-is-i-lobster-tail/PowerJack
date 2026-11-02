@@ -52,6 +52,8 @@ nonisolated struct RestHapticSettings: Equatable {
     /// The choices for how long before the rest ends the heads-up plays, in seconds.
     static let headsUpLeads = [5, 10, 15, 20, 30]
 
+    var onPhone = AppSettings.Default.hapticsOnPhone
+    var onWatch = AppSettings.Default.hapticsOnWatch
     var headsUp = AppSettings.Default.headsUp
     var headsUpLead = AppSettings.Default.headsUpLead
     var headsUpPattern = AppSettings.Default.headsUpPattern
@@ -60,9 +62,12 @@ nonisolated struct RestHapticSettings: Equatable {
     static var current: Self {
         let defaults = UserDefaults.standard
         var settings = Self()
-        if defaults.object(forKey: AppSettings.Key.headsUp) != nil {
-            settings.headsUp = defaults.bool(forKey: AppSettings.Key.headsUp)
+        func bool(_ key: String, _ value: inout Bool) {
+            if defaults.object(forKey: key) != nil { value = defaults.bool(forKey: key) }
         }
+        bool(AppSettings.Key.hapticsOnPhone, &settings.onPhone)
+        bool(AppSettings.Key.hapticsOnWatch, &settings.onWatch)
+        bool(AppSettings.Key.headsUp, &settings.headsUp)
         if defaults.object(forKey: AppSettings.Key.headsUpLead) != nil {
             settings.headsUpLead = defaults.integer(forKey: AppSettings.Key.headsUpLead)
         }
@@ -75,6 +80,15 @@ nonisolated struct RestHapticSettings: Equatable {
         return settings
     }
 
+    /// Whether this device buzzes at all. The iPhone and the watch are switched on apart.
+    var isOnThisDevice: Bool {
+        #if os(watchOS)
+        onWatch
+        #else
+        onPhone
+        #endif
+    }
+
     func pattern(for cue: RestCue) -> HapticPattern {
         switch cue {
         case .headsUp: headsUpPattern
@@ -85,8 +99,9 @@ nonisolated struct RestHapticSettings: Equatable {
 
 extension RestPeriod {
     /// The cues still to come after `date`, with when each plays.
-    /// A rest no longer than the heads-up lead only gets the lift cue.
+    /// None when this device's haptics are off. A rest no longer than the heads-up lead only gets the lift cue.
     func cues(after date: Date, settings: RestHapticSettings) -> [(cue: RestCue, at: Date)] {
+        guard settings.isOnThisDevice else { return [] }
         var all: [(cue: RestCue, at: Date)] = [(.lift, endsAt)]
         if settings.headsUp {
             all.insert((.headsUp, endsAt.addingTimeInterval(-TimeInterval(settings.headsUpLead))), at: 0)

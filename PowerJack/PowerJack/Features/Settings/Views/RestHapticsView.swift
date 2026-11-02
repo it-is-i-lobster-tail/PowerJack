@@ -2,13 +2,17 @@
 //  RestHapticsView.swift
 //  PowerJack
 //
-//  Settings › Rest Timer › Haptics: the heads-up buzz before a rest ends and the buzz when it's time to lift.
-//  Tapping a pattern plays it, so it can be felt before it's picked.
+//  Settings › Rest Timer › Haptics: which devices buzz, the heads-up buzz before a rest ends,
+//  and the buzz when it's time to lift. Tapping a pattern plays it, so it can be felt before it's picked.
 //
 
 import SwiftUI
 
 struct RestHapticsView: View {
+    @AppStorage(AppSettings.Key.hapticsOnPhone)
+    private var onPhone = AppSettings.Default.hapticsOnPhone
+    @AppStorage(AppSettings.Key.hapticsOnWatch)
+    private var onWatch = AppSettings.Default.hapticsOnWatch
     @AppStorage(AppSettings.Key.headsUp)
     private var headsUp = AppSettings.Default.headsUp
     @AppStorage(AppSettings.Key.headsUpLead)
@@ -21,30 +25,41 @@ struct RestHapticsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Heads-Up", isOn: $headsUp.animation())
-                if headsUp {
-                    Picker("When", selection: $headsUpLead) {
-                        ForEach(RestHapticSettings.headsUpLeads, id: \.self) { seconds in
-                            Text("\(seconds) sec before").tag(seconds)
+                Toggle("iPhone", systemImage: "iphone", isOn: $onPhone.animation())
+                Toggle("Apple Watch", systemImage: "applewatch", isOn: $onWatch.animation())
+            } header: {
+                Text("Buzz On")
+            } footer: {
+                Text("Both use the patterns below. They play while PowerJack is open. With your wrist down, Apple Watch taps once for the heads-up and once to lift.")
+            }
+
+            if onPhone || onWatch {
+                Section {
+                    Toggle("Heads-Up", isOn: $headsUp.animation())
+                    if headsUp {
+                        Picker("When", selection: $headsUpLead) {
+                            ForEach(RestHapticSettings.headsUpLeads, id: \.self) { seconds in
+                                Text("\(seconds) sec before").tag(seconds)
+                            }
                         }
                     }
+                } footer: {
+                    Text("A buzz shortly before your rest ends, so you can get set.")
                 }
-            } footer: {
-                Text("A buzz shortly before your rest ends, so you can get set.")
-            }
 
-            if headsUp {
-                Section("Heads-Up Pattern") {
-                    HapticPatternPicker(selection: $headsUpPattern)
+                if headsUp {
+                    Section("Heads-Up Pattern") {
+                        HapticPatternPicker(selection: $headsUpPattern)
+                    }
                 }
-            }
 
-            Section {
-                HapticPatternPicker(selection: $liftPattern)
-            } header: {
-                Text("Time to Lift")
-            } footer: {
-                Text("Tap a pattern to feel it. Buzzes play while PowerJack is open on your iPhone or Apple Watch.")
+                Section {
+                    HapticPatternPicker(selection: $liftPattern)
+                } header: {
+                    Text("Time to Lift")
+                } footer: {
+                    Text("Tap a pattern to feel it.")
+                }
             }
         }
         .navigationTitle("Haptics")
@@ -64,15 +79,16 @@ private struct HapticPatternPicker: View {
             } label: {
                 HStack {
                     Text(pattern.name)
-                        .foregroundStyle(.primary)
                     Spacer()
                     HapticPatternGlyph(pattern: pattern)
                     Image(systemName: "checkmark")
                         .fontWeight(.semibold)
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(Color.accentColor)
                         .opacity(pattern == selection ? 1 : 0)
                 }
             }
+            // Reads like a picker row rather than a blue action button.
+            .tint(.primary)
             .accessibilityAddTraits(pattern == selection ? .isSelected : [])
         }
     }

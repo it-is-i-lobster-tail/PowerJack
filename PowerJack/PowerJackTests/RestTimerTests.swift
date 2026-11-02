@@ -341,6 +341,14 @@ struct RestTimerTests {
         off.headsUp = false
         #expect(rest.cues(after: start, settings: off).map(\.cue) == [.lift])
 
+        // The iPhone and the watch are switched apart; this is the iPhone.
+        var watchOnly = settings
+        watchOnly.onPhone = false
+        #expect(rest.cues(after: start, settings: watchOnly).isEmpty)
+        var phoneOnly = settings
+        phoneOnly.onWatch = false
+        #expect(rest.cues(after: start, settings: phoneOnly).count == 2)
+
         // A rest no longer than the lead only gets the lift cue.
         var short = rest
         short.endsAt = start.addingTimeInterval(15)
@@ -350,7 +358,10 @@ struct RestTimerTests {
     @Test("Haptic settings default to one short heads-up and short, short, long to lift")
     func hapticSettings() throws {
         let defaults = UserDefaults.standard
-        let keys = [AppSettings.Key.headsUp, AppSettings.Key.headsUpLead, AppSettings.Key.headsUpPattern, AppSettings.Key.liftPattern]
+        let keys = [
+            AppSettings.Key.hapticsOnPhone, AppSettings.Key.hapticsOnWatch, AppSettings.Key.headsUp,
+            AppSettings.Key.headsUpLead, AppSettings.Key.headsUpPattern, AppSettings.Key.liftPattern,
+        ]
         let saved = keys.map { defaults.object(forKey: $0) }
         defer {
             for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) }
@@ -362,11 +373,13 @@ struct RestTimerTests {
         #expect(defaultSettings.pattern(for: .headsUp).buzzes == [false])
         #expect(defaultSettings.pattern(for: .lift).buzzes == [false, false, true])
 
+        defaults.set(false, forKey: AppSettings.Key.hapticsOnWatch)
         defaults.set(false, forKey: AppSettings.Key.headsUp)
         defaults.set(10, forKey: AppSettings.Key.headsUpLead)
         defaults.set(HapticPattern.twoShort.rawValue, forKey: AppSettings.Key.headsUpPattern)
         defaults.set(HapticPattern.oneLong.rawValue, forKey: AppSettings.Key.liftPattern)
         let chosen = RestHapticSettings.current
+        #expect(chosen.onPhone && !chosen.onWatch)
         #expect(!chosen.headsUp && chosen.headsUpLead == 10)
         #expect(chosen.pattern(for: .headsUp) == .twoShort)
         #expect(chosen.pattern(for: .lift) == .oneLong)
