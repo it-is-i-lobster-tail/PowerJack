@@ -62,25 +62,54 @@ extension TemplateWorkoutDraft {
         return blocks
     }
 
-    /// An exercise on its own can stack with an exercise on its own next to it.
-    func canStack(_ block: TemplateExerciseBlock) -> Bool {
-        stackPartner(for: block) != nil
-    }
-
-    /// The exercise below, or above for the last one, when it isn't in a superset already.
-    private func stackPartner(for block: TemplateExerciseBlock) -> TemplateExerciseBlock? {
+    /// The exercises in order after dropping the exercises with `ids` on `target`, or nil when nothing would change.
+    /// Dropped onto a card, they join its superset. Dropped above or below it, they move there: a whole superset
+    /// stays together, and exercises pulled out of one stand alone.
+    func dropping(_ ids: [UUID], on target: TemplateExerciseBlock, at placement: StackPlacement) -> [TemplateExerciseDraft]? {
+        let ids = Set(ids)
         let blocks = blocks
-        guard
-            !block.isSuperset,
-            let index = blocks.firstIndex(where: { $0.id == block.id })
-        else {
-            return nil
+        guard let target = blocks.first(where: { $0.id == target.id }) else { return nil }
+        let staying = target.exercises.filter { !ids.contains($0.id) }
+        guard let first = staying.first, let last = staying.last else { return nil }
+
+        var ordered = templateExerciseDrafts
+        var moving = ordered.filter { ids.contains($0.id) }
+        guard !moving.isEmpty else { return nil }
+        ordered.removeAll { ids.contains($0.id) }
+
+        let index: Int
+        switch placement {
+        case .onto:
+            let supersetID = target.isSuperset ? (first.supersetID ?? UUID()) : UUID()
+            let stayingIDs = Set(staying.map(\.id))
+            for i in ordered.indices where stayingIDs.contains(ordered[i].id) {
+                ordered[i].supersetID = supersetID
+            }
+            for i in moving.indices {
+                moving[i].supersetID = supersetID
+            }
+            index = (ordered.firstIndex { $0.id == last.id } ?? ordered.count - 1) + 1
+        case .before, .after:
+            let isWholeSuperset = blocks.contains { $0.isSuperset && Set($0.exercises.map(\.id)) == ids }
+            if !isWholeSuperset {
+                for i in moving.indices {
+                    moving[i].supersetID = nil
+                }
+            }
+            let anchor = placement == .before ? first.id : last.id
+            let anchorIndex = ordered.firstIndex { $0.id == anchor } ?? 0
+            index = placement == .before ? anchorIndex : anchorIndex + 1
         }
-        return [index + 1, index - 1]
-            .filter(blocks.indices.contains)
-            .map { blocks[$0] }
-            .first { !$0.isSuperset }
+        ordered.insert(contentsOf: moving, at: index)
+        Self.reorder(&ordered)
+        Self.clearLoneSupersets(in: &ordered)
+        return ordered == templateExerciseDrafts ? nil : ordered
     }
+}
+
+/// Where an exercise card lands when it's dropped on another: above it, onto it to stack them, or below it.
+enum StackPlacement: Equatable {
+    case before, onto, after
 }
 
 //
@@ -121,7 +150,7 @@ extension TemplateWorkoutDraft {
     mutating func removeTemplateExercises(at offsets: IndexSet) {
         var ordered = templateExerciseDrafts
         ordered.remove(atOffsets: offsets)
-        reorder(&ordered)
+        Self.reorder(&ordered)
         templateExerciseDraftsValue = ordered
         clearLoneSupersets()
     }
@@ -133,32 +162,15 @@ extension TemplateWorkoutDraft {
         guard source.allSatisfy({ ordered.indices.contains($0) }) else { return }
 
         ordered.move(fromOffsets: source, toOffset: destination)
-        reorder(&ordered)
+        Self.reorder(&ordered)
         templateExerciseDraftsValue = ordered
         clearLoneSupersets()
     }
 
-    /// Moves whole blocks, so a superset's exercises stay together.
-    mutating func moveBlocks(from source: IndexSet, to destination: Int) {
-        var blocks = blocks
-
-        guard destination >= 0, destination <= blocks.count else { return }
-        guard source.allSatisfy({ blocks.indices.contains($0) }) else { return }
-
-        blocks.move(fromOffsets: source, toOffset: destination)
-        var ordered = blocks.flatMap(\.exercises)
-        reorder(&ordered)
+    /// Drops the exercises with `ids` on `target` (see `dropping(_:on:at:)`).
+    mutating func drop(_ ids: [UUID], on target: TemplateExerciseBlock, at placement: StackPlacement) {
+        guard let ordered = dropping(ids, on: target, at: placement) else { return }
         templateExerciseDraftsValue = ordered
-    }
-
-    /// Stacks an exercise on its own with the one next to it (see `stackPartner(for:)`).
-    mutating func stack(_ block: TemplateExerciseBlock) {
-        guard let partner = stackPartner(for: block) else { return }
-        let supersetID = UUID()
-        let ids = Set((block.exercises + partner.exercises).map(\.id))
-        for index in templateExerciseDraftsValue.indices where ids.contains(templateExerciseDraftsValue[index].id) {
-            templateExerciseDraftsValue[index].supersetID = supersetID
-        }
     }
 
     /// Splits a superset back into exercises on their own.
@@ -169,7 +181,7 @@ extension TemplateWorkoutDraft {
         }
     }
 
-    private func reorder(_ drafts: inout [TemplateExerciseDraft]) {
+    private static func reorder(_ drafts: inout [TemplateExerciseDraft]) {
         for index in drafts.indices {
             drafts[index].order = index
         }
@@ -177,9 +189,19 @@ extension TemplateWorkoutDraft {
 
     /// Only exercises next to each other share a superset, so an ID left on its own is cleared.
     private mutating func clearLoneSupersets() {
-        let loneIDs = Set(blocks.filter { !$0.isSuperset }.map(\.id))
-        for index in templateExerciseDraftsValue.indices where loneIDs.contains(templateExerciseDraftsValue[index].id) {
-            templateExerciseDraftsValue[index].supersetID = nil
+        var ordered = templateExerciseDrafts
+        Self.clearLoneSupersets(in: &ordered)
+        templateExerciseDraftsValue = ordered
+    }
+
+    /// `drafts` must be in order.
+    private static func clearLoneSupersets(in drafts: inout [TemplateExerciseDraft]) {
+        for index in drafts.indices {
+            guard let supersetID = drafts[index].supersetID else { continue }
+            let hasNeighbor = [index - 1, index + 1].contains { drafts.indices.contains($0) && drafts[$0].supersetID == supersetID }
+            if !hasNeighbor {
+                drafts[index].supersetID = nil
+            }
         }
     }
 }
