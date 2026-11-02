@@ -207,7 +207,11 @@ struct TemplateWorkoutBuilder: View {
         } else {
             TemplateExerciseBuilder(exercise: block.exercises[0].exercise)
                 .contentShape(.rect)
-                .onDrag { startDrag(block.exercises) }
+                .onDrag {
+                    startDrag(block.exercises)
+                } preview: {
+                    DragPreview(exercises: block.exercises)
+                }
                 .contextMenu { exerciseMenu(block.exercises[0]) }
                 .accessibilityActions { supersetWithNextAction(block) }
         }
@@ -362,7 +366,11 @@ struct SupersetBuilder<ExerciseMenu: View>: View {
             .padding(.top, 10)
             .padding(.bottom, 4)
             .contentShape(.rect)
-            .onDrag { drag(exercises) }
+            .onDrag {
+                drag(exercises)
+            } preview: {
+                DragPreview(exercises: exercises)
+            }
             .contextMenu {
                 Button("Unstack", systemImage: "square.split.1x2", action: unstack)
             }
@@ -378,13 +386,32 @@ struct SupersetBuilder<ExerciseMenu: View>: View {
                     .onDrag {
                         drag([templateExerciseDraft])
                     } preview: {
-                        TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise)
+                        DragPreview(exercises: [templateExerciseDraft])
                     }
                     .contextMenu { exerciseMenu(templateExerciseDraft) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .powerJackGlassPanel()
+    }
+}
+
+/// What follows a finger while dragging: the whole card, on a solid background so it stands out over the list.
+private struct DragPreview: View {
+    let exercises: [TemplateExerciseDraft]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(exercises) { templateExerciseDraft in
+                if templateExerciseDraft.id != exercises.first?.id {
+                    Divider()
+                        .padding(.horizontal, 15)
+                }
+                TemplateExerciseLabel(exercise: templateExerciseDraft.exercise)
+            }
+        }
+        .frame(width: 320, alignment: .leading)
+        .background(.regularMaterial, in: .rect(cornerRadius: LayoutMetrics.panelCornerRadius))
     }
 }
 
