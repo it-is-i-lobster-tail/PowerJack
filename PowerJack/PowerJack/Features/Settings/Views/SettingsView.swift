@@ -15,6 +15,8 @@ struct SettingsView: View {
     private var showsInAppRestTimer = AppSettings.Default.inAppRestTimer
     @AppStorage(AppSettings.Key.restLiveActivity)
     private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
+    @AppStorage(AppSettings.Key.restVoice)
+    private var speaksRestEnd = AppSettings.Default.restVoice
     @AppStorage(AppSettings.Key.hints)
     private var showsHints = AppSettings.Default.hints
     @AppStorage(AppSettings.Key.weightUnit)
@@ -50,6 +52,18 @@ struct SettingsView: View {
 
                     if showsRestLiveActivity, !liveActivitiesAllowed {
                         LiveActivitiesOffNote(openSettings: openSystemSettings)
+                    }
+
+                    Toggle(isOn: $speaksRestEnd) {
+                        SettingsRowLabel(
+                            systemImage: "speaker.wave.2",
+                            title: "Voice",
+                            detail: "Says your next set when rest ends, like “\(RestCallout.sample(in: weightUnit))”"
+                        )
+                    }
+                    // Turning it on plays the sample, so there's no separate button to hear it.
+                    .onChange(of: speaksRestEnd) { _, isOn in
+                        if isOn { RestVoice.shared.speak(RestCallout.sample(in: weightUnit)) }
                     }
                 } header: {
                     Text("Rest Timer")

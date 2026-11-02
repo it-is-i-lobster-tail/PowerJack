@@ -2,7 +2,8 @@
 //  RestTimerHost.swift
 //  PowerJack
 //
-//  Shows the active workout's rest in the in-app island and keeps the Live Activity on its current set.
+//  Shows the active workout's rest in the in-app island, keeps the Live Activity on its current set,
+//  and has the voice say the next set when the rest ends.
 //
 
 import SwiftData
@@ -24,6 +25,8 @@ private struct RestTimerHost: ViewModifier {
     private var showsInAppTimer = AppSettings.Default.inAppRestTimer
     @AppStorage(AppSettings.Key.restLiveActivity)
     private var showsLiveActivity = AppSettings.Default.restLiveActivity
+    @AppStorage(AppSettings.Key.restVoice)
+    private var speaksRestEnd = AppSettings.Default.restVoice
 
     @State private var isExpanded = false
     /// Refreshed when a rest starts and when its "Start set" window runs out.
@@ -34,6 +37,7 @@ private struct RestTimerHost: ViewModifier {
     private var activeProgram: Program? { programs.active }
     private var workout: Workout? { activeProgram?.nextWorkout }
     private var rest: RestPeriod? { workout?.currentRest }
+    private var callout: RestCallout? { speaksRestEnd ? workout?.restCallout : nil }
 
     private var restTimerHint: RestTimerHint? {
         guard let activeProgram, let workout,
@@ -103,6 +107,7 @@ private struct RestTimerHost: ViewModifier {
             }
             .task(id: rest) { await refreshClock(for: rest) }
             .task(id: liveActivityInput) { await syncLiveActivity(liveActivityInput) }
+            .onChange(of: callout, initial: true) { _, callout in RestVoice.shared.sync(callout) }
     }
 
     private func collapse() {
