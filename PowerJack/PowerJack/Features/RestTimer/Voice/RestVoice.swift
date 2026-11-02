@@ -4,7 +4,8 @@
 //
 //  Says the next set out loud when a rest ends, dipping any music underneath and bringing it back after.
 //  While a rest counts down it plays silence alongside other audio, so iOS keeps PowerJack running
-//  with the phone locked. Speech is made on the device.
+//  with the phone locked. The voice is recorded (see `RestVoiceClips`); a phrase with no recording,
+//  such as an unusual weight, is spoken by the device instead.
 //
 
 import AVFAudio
@@ -23,6 +24,9 @@ final class RestVoice: NSObject {
         return AVSpeechSynthesisVoice(language: language.hasPrefix("en") ? language : "en-US")
     }()
 
+    private let clips = RestVoiceClips()
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
     private let synthesizer = AVSpeechSynthesizer()
     private var pending: RestCallout?
     private var countdown: Task<Void, Never>?
@@ -67,21 +71,46 @@ final class RestVoice: NSObject {
             // The speech takes over the session, so it isn't ended here.
             keepAlive?.stop()
             keepAlive = nil
-            speak(callout.text)
+            speak(callout.phrase)
         }
     }
 
-    func speak(_ text: String) {
+    func speak(_ phrase: RestPhrase) {
+        // Cuts off anything still being said; its end is counted when it stops.
+        if player.engine != nil { player.stop() }
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
         unfinished += 1
+        let recording = clips?.buffer(for: phrase)
         Task {
             await Self.startSession(options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
-            let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = Self.voice
-            synthesizer.speak(utterance)
+            if let recording {
+                play(recording)
+            } else {
+                let utterance = AVSpeechUtterance(string: phrase.text)
+                utterance.voice = Self.voice
+                synthesizer.speak(utterance)
+            }
         }
+    }
+
+    private func play(_ recording: AVAudioPCMBuffer) {
+        if player.engine == nil {
+            engine.attach(player)
+        }
+        engine.connect(player, to: engine.mainMixerNode, format: recording.format)
+        do {
+            try engine.start()
+        } catch {
+            Logger.restTimer.error("Could not play the rest voice: \(error.localizedDescription)")
+            speechEnded()
+            return
+        }
+        player.scheduleBuffer(recording, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            Task { @MainActor in self?.speechEnded() }
+        }
+        player.play()
     }
 
     private func startKeepAlive() {
@@ -116,6 +145,7 @@ final class RestVoice: NSObject {
 
     private func endSessionIfIdle() {
         guard keepAlive == nil, unfinished == 0 else { return }
+        engine.stop()
         // Lets dipped music come back up to full volume.
         Self.audioQueue.async {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)

@@ -10,34 +10,52 @@ import Foundation
 nonisolated struct RestCallout: Hashable {
     /// When the rest ends and the callout is spoken.
     var endsAt: Date
-    var text: String
+    var phrase: RestPhrase
+}
 
-    static let superset = "Start superset."
+/// Words the voice says, and the recorded clips that say them, in order.
+nonisolated struct RestPhrase: Hashable {
+    /// e.g. "Start set. 225 pounds, 10 reps."
+    var text: String
+    /// e.g. ["start-set", "lb-225", "reps-10"]. See `RestVoiceClips`.
+    var clips: [String]
+
+    static let superset = RestPhrase(text: "Start superset.", clips: ["start-superset"])
 
     /// e.g. "Start set. 225 pounds, 10 reps." The weight is left out when it hasn't changed.
-    static func text(weightTenthsPounds: Int?, reps: Int?, unit: WeightUnit) -> String {
-        let load = [
-            weightTenthsPounds.map { spokenWeight(tenthsPounds: $0, unit: unit) },
-            reps.map { $0 == 1 ? "1 rep" : "\($0) reps" },
-        ]
-        .compactMap(\.self)
-        .joined(separator: ", ")
-        return load.isEmpty ? "Start set." : "Start set. \(load)."
+    static func set(weightTenthsPounds: Int?, reps: Int?, unit: WeightUnit) -> RestPhrase {
+        var load: [(text: String, clip: String)] = []
+        if let weightTenthsPounds {
+            let number = spokenNumber(tenthsPounds: weightTenthsPounds, unit: unit)
+            let name = switch unit {
+            case .pounds: number == "1" ? "pound" : "pounds"
+            case .kilograms: number == "1" ? "kilo" : "kilos"
+            }
+            load.append(("\(number) \(name)", "\(unit == .kilograms ? "kg" : "lb")-\(number)"))
+        }
+        if let reps {
+            load.append((reps == 1 ? "1 rep" : "\(reps) reps", "reps-\(reps)"))
+        }
+
+        let words = load.map(\.text).joined(separator: ", ")
+        return RestPhrase(
+            text: words.isEmpty ? "Start set." : "Start set. \(words).",
+            clips: ["start-set"] + load.map(\.clip)
+        )
     }
 
     /// What the voice sounds like, for Settings.
-    static func sample(in unit: WeightUnit) -> String {
-        text(weightTenthsPounds: unit == .kilograms ? 2205 : 2250, reps: 10, unit: unit)
+    static func sample(in unit: WeightUnit) -> RestPhrase {
+        set(weightTenthsPounds: unit == .kilograms ? 2205 : 2250, reps: 10, unit: unit)
     }
 
-    /// e.g. "225 pounds" or "102.5 kilos". Always written the English way, since the voice is English.
-    private static func spokenWeight(tenthsPounds: Int, unit: WeightUnit) -> String {
+    /// e.g. "225" or "102.5", as the screen shows it. Always written the English way, since the voice is English.
+    private static func spokenNumber(tenthsPounds: Int, unit: WeightUnit) -> String {
         let pounds = Double(tenthsPounds) / 10
         let weight = unit == .kilograms ? pounds * WeightUnit.kilogramsPerPound : pounds
-        let number = weight.formatted(
+        return weight.formatted(
             .number.precision(.fractionLength(0...1)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))
         )
-        return "\(number) \(unit == .kilograms ? "kilos" : "pounds")"
     }
 }
 
@@ -47,7 +65,7 @@ extension Workout {
     var restCallout: RestCallout? {
         guard let rest = currentRest, let current = currentSet else { return nil }
         guard group(of: current.workoutExercise).count == 1 else {
-            return RestCallout(endsAt: rest.endsAt, text: RestCallout.superset)
+            return RestCallout(endsAt: rest.endsAt, phrase: .superset)
         }
 
         let lastWeight = current.workoutExercise.workoutSets
@@ -56,7 +74,7 @@ extension Workout {
         let newWeight = rest.weightTenthsPounds.flatMap { $0 == lastWeight ? nil : $0 }
         return RestCallout(
             endsAt: rest.endsAt,
-            text: RestCallout.text(weightTenthsPounds: newWeight, reps: rest.reps, unit: WeightUnit.current)
+            phrase: .set(weightTenthsPounds: newWeight, reps: rest.reps, unit: WeightUnit.current)
         )
     }
 }
