@@ -32,6 +32,16 @@ struct KeyboardLayoutTests {
         #expect(bottom.before == withoutBar.before - Self.barHeight)
     }
 
+    @Test func focusedRowScrollsAboveTheNumberPad() async throws {
+        let edges = try await focusedRowAroundNumberPad(keepsFocus: true)
+        #expect(edges.rowBottom <= edges.keyboardTop)
+    }
+
+    @Test func focusedRowWithoutKeepsFocusStaysCovered() async throws {
+        let edges = try await focusedRowAroundNumberPad(keepsFocus: false)
+        #expect(edges.rowBottom > edges.keyboardTop)
+    }
+
     private static let barHeight: CGFloat = 60
 
     /// The bottom edge of a pushed screen's content before and after the number pad appears.
@@ -62,6 +72,29 @@ struct KeyboardLayoutTests {
         #expect(before > 0)
         return (before, probe.bottom)
     }
+
+    /// Focuses the last row of a short list that starts out under the number pad,
+    /// and returns where that row and the number pad end up.
+    private func focusedRowAroundNumberPad(keepsFocus: Bool) async throws -> (rowBottom: CGFloat, keyboardTop: CGFloat) {
+        let probe = FocusProbe()
+        let screen = try await ScreenUnderTest(
+            TabView {
+                Tab {
+                    NavigationStack {
+                        Color.clear.navigationDestination(isPresented: .constant(true)) {
+                            FocusProbeScreen(probe: probe, keepsFocus: keepsFocus)
+                        }
+                    }
+                    .powerJackTabPage(bottomBarHeight: Self.barHeight)
+                }
+            }
+            .powerJackKeyboardBehavior()
+        )
+        defer { screen.close() }
+        let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
+        #expect(probe.rowBottom > 0)
+        return (probe.rowBottom, keyboardTop)
+    }
 }
 
 // MARK: - Helpers
@@ -87,21 +120,28 @@ private final class ScreenUnderTest {
         field.keyboardType = .decimalPad
         window.addSubview(field)
         self.field = field
+        try await showKeyboard { field.becomeFirstResponder() }
+    }
 
-        var didShow = false
+    /// Runs `bringUp`, waits for the software keyboard to show and settle, and returns its top edge.
+    @discardableResult
+    func showKeyboard(_ bringUp: () -> Void) async throws -> CGFloat {
+        var keyboardTop: CGFloat?
         let token = NotificationCenter.default.addObserver(
             forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
-        ) { _ in
-            MainActor.assumeIsolated { didShow = true }
+        ) { note in
+            let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            MainActor.assumeIsolated { keyboardTop = frame?.minY }
         }
         defer { NotificationCenter.default.removeObserver(token) }
 
-        field.becomeFirstResponder()
-        for _ in 0..<30 where !didShow {
+        bringUp()
+        for _ in 0..<30 where keyboardTop == nil {
             try await Task.sleep(for: .milliseconds(100))
         }
-        try #require(didShow, "The software keyboard didn't appear. Turn off Simulator > I/O > Keyboard > Connect Hardware Keyboard.")
+        let top = try #require(keyboardTop, "The software keyboard didn't appear. Turn off Simulator > I/O > Keyboard > Connect Hardware Keyboard.")
         try await Task.sleep(for: .milliseconds(500))
+        return top
     }
 
     func close() {
@@ -128,6 +168,48 @@ private struct ProbeScreen: View {
         } else {
             content
         }
+    }
+}
+
+@Observable
+private final class FocusProbe {
+    var focusRequested = false
+    var rowBottom: CGFloat = 0
+}
+
+/// Stands in for a workout's sets: a short list of number fields whose last row
+/// starts out where the number pad will cover it.
+private struct FocusProbeScreen: View {
+    private static let rows = 0..<10
+    let probe: FocusProbe
+    let keepsFocus: Bool
+
+    @FocusState private var focusedRow: Int?
+
+    var body: some View {
+        let list = ScrollView {
+            VStack(spacing: 0) {
+                ForEach(Self.rows, id: \.self) { row in
+                    TextField("Reps", text: .constant(""))
+                        .keyboardType(.numberPad)
+                        .focused($focusedRow, equals: row)
+                        .frame(height: 60)
+                        .id(row)
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottom in
+                            if row == Self.rows.last { probe.rowBottom = bottom }
+                        }
+                }
+            }
+        }
+        Group {
+            if keepsFocus {
+                list.keepsFocusAboveKeyboard(focusedRow)
+            } else {
+                list
+            }
+        }
+        .keyboardSlidesOver()
+        .onChange(of: probe.focusRequested) { focusedRow = Self.rows.last }
     }
 }
 

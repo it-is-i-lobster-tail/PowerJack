@@ -44,6 +44,26 @@ final class WorkoutExercise {
     private var warmupsDisabledValue: Bool = false
     // How many warmups Enable Warmup brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
+    // Shared by the exercises stacked into one superset in the template. Nil when the exercise stands alone.
+    private var supersetIDValue: UUID?
+    // Written with the week by its planner: reps to leave on the last set, and why the plan changed.
+    private var rirTargetValue: Int?
+    private var progressionCodeValue: String?
+    private var progressionNoteValue: String?
+    // Strengthen's slot targets: its role, R before any reps-mode offset, the offset, and the unrounded load (kg).
+    private var strengthRoleValue: String?
+    private var targetRepsValue: Int?
+    private var repOffsetValue: Int?
+    private var intendedLoadKgValue: Double?
+    // PowerJack's plan for this slot (see `PowerJackPlanner`): its role and tag, its TOP sets and their
+    // reps-left tap, the unrounded loads it ramps from, and whether it calibrates a new anchor.
+    var powerJackRoleValue: String?
+    var powerJackTagValue: String?
+    var powerJackTopSetsValue: Int = 0
+    var powerJackTopRIRValue: Int?
+    var powerJackLoadTargetValue: Double?
+    var powerJackTopLoadTargetValue: Double?
+    var powerJackCalibratingValue: Bool = false
     var workoutValue: Workout?
 
     /// Working sets only. Warmups don't count toward this.
@@ -93,6 +113,16 @@ extension WorkoutExercise {
     var checkInSourcePain: LevelOfPain? { checkInSourcePainValue }
     // Warmups
     var warmupsDisabled: Bool { warmupsDisabledValue }
+    // Superset. Only exercises next to each other with the same ID count as one (see `Workout.exerciseGroups`).
+    var supersetID: UUID? { supersetIDValue }
+    // Progression
+    var rirTarget: Int? { rirTargetValue }
+    var progressionCode: String? { progressionCodeValue }
+    var progressionNote: String? { progressionNoteValue }
+    var strengthRole: StrengthRole? { strengthRoleValue.flatMap(StrengthRole.init(rawValue:)) }
+    var targetReps: Int? { targetRepsValue }
+    var repOffset: Int? { repOffsetValue }
+    var intendedLoadKg: Double? { intendedLoadKgValue }
 }
 
 extension WorkoutExercise: OrderedModel {}
@@ -151,6 +181,9 @@ extension WorkoutExercise {
         return countSetStatus(status: Status.active)
     }
     var checkInPending: Bool { checkInValue == .pending }
+    /// The type of the program this exercise belongs to, which picks its feedback and progression.
+    var templateType: TemplateType? { workoutValue?.programWeekValue?.programValue?.templateType }
+    var programWeek: ProgramWeek? { workoutValue?.programWeekValue }
     // Complete, skipped, or stopped.
     var isFinished: Bool {
         status == .complete || status == .skipped || status == .stopped
@@ -258,6 +291,48 @@ extension WorkoutExercise {
             workoutSet.skip()
         }
     }
+    /// Undoes Skip Workout. Skip Workout locks the exercises it skips, so one skipped earlier with Skip Exercise
+    /// (still open) stays skipped. Warmups passed over by a logged working set stay skipped too.
+    func unskipWorkout() {
+        guard statusValue == .skipped, lockedValue else { return }
+        statusValue = Status.active
+        lockedValue = false
+        unskipSets()
+        Logger.workoutExercise.debug("WorkoutExercise unskipped")
+    }
+    /// Skip Exercise can be undone until the workout finishes and locks the exercise.
+    var canRestoreSkipped: Bool { statusValue == .skipped && !lockedValue }
+    /// Undoes Skip Exercise. Sets logged before the skip keep what was logged.
+    func restoreSkipped() {
+        guard canRestoreSkipped else {
+            Logger.workoutExercise.warning("Can only restore a skipped WorkoutExercise that is still open.")
+            return
+        }
+        statusValue = Status.active
+        unskipSets()
+        Logger.workoutExercise.debug("WorkoutExercise restored")
+    }
+    /// Warmups passed over by a logged working set stay skipped.
+    private func unskipSets() {
+        let keepsWarmupsSkipped = completedWorkingSets > 0
+        for workoutSet in workoutSets where workoutSet.status == .skipped {
+            if workoutSet.isWarmup && keepsWarmupsSkipped { continue }
+            workoutSet.unskip()
+        }
+    }
+    /// Back to planned, as if its workout never started. A check-in it answered is asked again.
+    func resetToPlanned() {
+        statusValue = Status.planned
+        lockedValue = false
+        if checkInValue == .resolved {
+            checkInValue = .pending
+            lockedValue = true
+        }
+        for workoutSet in workoutSets {
+            workoutSet.resetToPlanned()
+        }
+        Logger.workoutExercise.debug("WorkoutExercise reset to planned")
+    }
     func startAndCascade() {
         guard checkInValue != .pending else {
             // Stays planned and locked until `resolveCheckIn` runs.
@@ -288,10 +363,9 @@ extension WorkoutExercise {
         if statusValue == .skipped {
             statusValue = .active
         }
-        let nextOrder = totalSets
         let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
         let newSet = WorkoutSet(
-            order: nextOrder,
+            order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
@@ -330,7 +404,7 @@ extension WorkoutExercise {
             return nil
         }
         let newSet = WorkoutSet(
-            order: totalSets,
+            order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds
@@ -338,6 +412,9 @@ extension WorkoutExercise {
         append(newSet)
         return newSet
     }
+    /// After every set, even when a removed warmup left a gap: an order shared with another set would
+    /// sort the two by model identity, which can put a new set ahead of the planned ones.
+    private var nextSetOrder: Int { (workoutSets.last?.order ?? -1) + 1 }
     /// Keeps warmups ahead of working sets, so a warmup added mid-exercise slots in before them.
     private func append(_ newSet: WorkoutSet) {
         workoutSetsValue = (workoutSetsValue ?? []) + [newSet]
@@ -362,7 +439,8 @@ extension WorkoutExercise {
     /// Completes one of this exercise's sets. Completing the first working set skips the warmups
     /// still to do, so the workout moves on to the next working set instead of back to them.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
-        workoutSet.complete(at: date)
+        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(before: date))
+        StrengthPlanner.didComplete(workoutSet, in: self)
         guard
             !workoutSet.isWarmup,
             workoutSet.status == .complete,
@@ -427,6 +505,68 @@ extension WorkoutExercise {
     /// Carries a day's disabled warmups into the same day of a newly built week. Call before adding sets.
     func inheritWarmupsDisabled(from source: WorkoutExercise) {
         warmupsDisabledValue = source.warmupsDisabledValue
+    }
+    /// Stacks a planned exercise into the template's superset. Call before the workout starts.
+    func setSuperset(_ supersetID: UUID?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise.")
+            return
+        }
+        supersetIDValue = supersetID
+    }
+    /// Carries a day's superset into the same day of a newly built week.
+    func inheritSuperset(from source: WorkoutExercise) {
+        setSuperset(source.supersetIDValue)
+    }
+    /// Records the planner's effort target and reason line on a planned exercise.
+    func setProgression(rirTarget: Int?, code: String?, note: String?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the progression of a planned WorkoutExercise.")
+            return
+        }
+        rirTargetValue = rirTarget
+        progressionCodeValue = code
+        progressionNoteValue = note
+    }
+    /// Records Strengthen's slot targets on a planned exercise.
+    func setStrengthTargets(role: StrengthRole, reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only set the targets of a planned WorkoutExercise.")
+            return
+        }
+        strengthRoleValue = role.rawValue
+        targetRepsValue = reps
+        repOffsetValue = repOffset
+        intendedLoadKgValue = intendedLoadKg
+    }
+    /// Replaces a planned exercise's warmups. Working sets stay.
+    func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only replace the warmups of a planned WorkoutExercise.")
+            return
+        }
+        for warmup in warmupSets {
+            workoutSetsValue?.removeAll { $0 === warmup }
+            modelContext?.delete(warmup)
+        }
+        // Disabled warmups stay off (see `canAddSet`).
+        for set in sets {
+            addPlannedSet(type: .warmup, plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
+        }
+    }
+    /// Replaces a planned exercise's working sets. Warmups stay.
+    func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only replace the sets of a planned WorkoutExercise.")
+            return
+        }
+        for workingSet in workingSets {
+            workoutSetsValue?.removeAll { $0 === workingSet }
+            modelContext?.delete(workingSet)
+        }
+        for set in sets {
+            addPlannedSet(plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
+        }
     }
     /// Holds this planned exercise behind a manual check-in (pain was severe last time).
     func requireCheckIn(sourcePain: LevelOfPain) {
@@ -501,6 +641,15 @@ extension WorkoutExercise {
         // A check-in belongs to the exercise that caused the pain, not to its replacement.
         checkInValue = .none
         checkInSourcePainValue = nil
+        // So was the old exercise's plan.
+        rirTargetValue = nil
+        progressionCodeValue = nil
+        progressionNoteValue = nil
+        strengthRoleValue = nil
+        targetRepsValue = nil
+        repOffsetValue = nil
+        intendedLoadKgValue = nil
+        clearPowerJackPlan()
         deleteAllSets()
         addInitialSets()
     }
@@ -514,13 +663,13 @@ extension WorkoutExercise {
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
     }
-    /// Copies a weight entered on `workoutSet` to every later set of the same type still being logged.
-    /// Completed and skipped sets keep what was logged, and warmup weights never reach working sets.
-    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet) {
-        guard let weightTenthsPounds else { return }
-        for laterSet in workoutSets where laterSet.order > workoutSet.order &&
-            laterSet.setType == workoutSet.setType &&
-            laterSet.status == .active {
+    /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
+    /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.
+    /// It stops at the first set that's done or has a weight of its own, and warmup weights never reach working sets.
+    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet, replacing previousWeight: Int?) {
+        guard weightTenthsPounds != previousWeight else { return }
+        for laterSet in workoutSets where laterSet.order > workoutSet.order && laterSet.setType == workoutSet.setType {
+            guard laterSet.status == .active, laterSet.weightTenthsPounds == previousWeight else { return }
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }

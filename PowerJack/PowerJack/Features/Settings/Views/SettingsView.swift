@@ -17,6 +17,10 @@ struct SettingsView: View {
     private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
     @AppStorage(AppSettings.Key.hints)
     private var showsHints = AppSettings.Default.hints
+    @AppStorage(AppSettings.Key.weightUnit)
+    private var weightUnit = WeightUnit.deviceDefault
+    @AppStorage(AppSettings.Key.appearance)
+    private var appearance = AppSettings.Default.appearance
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var iCloudAvailable = true
@@ -64,6 +68,54 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    // A trailing control, like the toggles: lb or kg.
+                    HStack {
+                        SettingsRowLabel(
+                            systemImage: "scalemass",
+                            title: "Weight Unit",
+                            detail: "Weights show and are typed in this unit. Logged weights convert."
+                        )
+                        Picker("Weight Unit", selection: $weightUnit) {
+                            ForEach(WeightUnit.allCases) { unit in
+                                Text(unit.symbol).tag(unit)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
+                    NavigationLink {
+                        LoadStepsView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "plusminus",
+                            title: "Load Steps",
+                            detail: "The smallest weight jump for each kind of equipment in Strength programs."
+                        )
+                    }
+                } header: {
+                    Text("Weights")
+                }
+
+                Section {
+                    // A trailing menu, like the weight unit's control.
+                    HStack {
+                        SettingsRowLabel(
+                            systemImage: "circle.lefthalf.filled",
+                            title: "Appearance",
+                            detail: "System switches between light and dark with your iPhone."
+                        )
+                        Picker("Appearance", selection: $appearance) {
+                            ForEach(Appearance.allCases) { appearance in
+                                Text(appearance.name).tag(appearance)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
                     Toggle(isOn: $showsHints) {
                         SettingsRowLabel(
                             systemImage: "lightbulb",
@@ -102,7 +154,7 @@ struct SettingsView: View {
                         SettingsRowLabel(
                             systemImage: "questionmark.circle",
                             title: "Questions and Answers",
-                            detail: "Why PowerJack, how to train for size and strength, and what really helps."
+                            detail: "Where PowerJack came from, how to use it, and how your training progresses."
                         )
                     }
                 }

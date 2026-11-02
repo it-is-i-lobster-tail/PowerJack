@@ -77,8 +77,8 @@ struct WorkoutFlowTests {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
         let workout = try #require(program.nextWorkout)
         workout.startAndCascade()
-        // Max reps 12 -> load threshold 11; 11 reps at 135 lb earns +5 lb.
-        log(workout, reps: 11, weightTenthsPounds: 1350)
+        // Week 1 calibrates: 11 reps at 135 lb with 4 left sets week 2 at 140 lb for 12.
+        log(workout, reps: 11, weightTenthsPounds: 1350, repsInReserve: .four)
 
         let next = try #require(program.finishWorkout(workout))
 
@@ -88,9 +88,11 @@ struct WorkoutFlowTests {
         #expect(next === weekTwo.workouts.first)
         #expect(next.status == .planned)
         let sets = try #require(next.workoutExercises.first).workingSets
-        #expect(sets.map(\.repsPlanned) == [11, 11])
+        #expect(sets.map(\.repsPlanned) == [12, 12])
         #expect(sets.map(\.weightTenthsPlannedPounds) == [1400, 1400])
         #expect(sets.allSatisfy { $0.status == .planned })
+        #expect(weekTwo.weekKind == .build && weekTwo.blockWeek == 2)
+        #expect(next.workoutExercises.first?.rirTarget == 2)
     }
 
     @Test("Severe pain holds the next exercise behind a check-in until resolved")
@@ -107,7 +109,9 @@ struct WorkoutFlowTests {
         #expect(exercise.checkInSourcePain == .severe)
         #expect(exercise.locked)
         #expect(exercise.status == .planned)
-        #expect(exercise.workingSets.map(\.repsPlanned) == [10, 10])
+        // Severe pain halves the sets and takes 20% off.
+        #expect(exercise.workingSets.map(\.repsPlanned) == [10])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
         #expect(exercise.addSet() == nil)
         #expect(next.currentExerciseIndex == 0)
 
@@ -131,7 +135,7 @@ struct WorkoutFlowTests {
         exercise.resolveCheckIn(.continue)
 
         #expect(exercise.status == .active)
-        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
         #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
     }
 
@@ -211,7 +215,7 @@ struct WorkoutFlowTests {
         #expect(exercise.checkInPending)
         #expect(exercise.checkInSourcePain == .severe)
         #expect(exercise.locked)
-        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [1000, 1000])
+        #expect(exercise.workingSets.map(\.weightTenthsPlannedPounds) == [800])
     }
 
     @Test("A check-in reaches past several skipped workouts to the last completed one")
@@ -345,6 +349,7 @@ struct WorkoutFlowTests {
         let sets = workout.workoutExercises.flatMap(\.workingSets)
         #expect(sets.count == 10)
         #expect(workout.setProgress == (0, 0))
+        #expect(workout.percentComplete == 0)
 
         for set in sets.prefix(8) {
             set.reps = 10
@@ -358,6 +363,8 @@ struct WorkoutFlowTests {
         #expect(workout.completedWorkingSets == 8)
         #expect(workout.skippedWorkingSets == 2)
         #expect(workout.setProgress == (0.8, 0.2))
+        // The header's percent counts completed sets only.
+        #expect(workout.percentComplete == 80)
     }
 
     @Test("A skipped workout is fully resolved and entirely skipped")
@@ -371,6 +378,83 @@ struct WorkoutFlowTests {
         #expect(first.setProgress == (0, 1))
         // The next workout has not been touched.
         #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
+    }
+
+    @Test("Restoring a workout skipped partway picks up where it was left")
+    func restoreWorkoutSkippedPartway() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 3)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let logged = workout.workoutExercises[0]
+        let skippedEarlier = workout.workoutExercises[1]
+        let untouched = workout.workoutExercises[2]
+        #expect(!logged.warmupSets.isEmpty)
+        let loggedSet = try #require(logged.workingSets.first)
+        loggedSet.reps = 8
+        loggedSet.weightTenthsPounds = 1000
+        logged.completeSet(loggedSet)
+        skippedEarlier.skipRemainingSets()
+        program.skipWorkout(workout)
+        #expect(program.canRestoreWorkout(workout))
+
+        program.restoreWorkout(workout)
+
+        #expect(workout.status == .active)
+        #expect(!workout.locked)
+        #expect(workout.startedAt != nil)
+        #expect(workout.endedAt == nil)
+        #expect(program.nextWorkout === workout)
+        #expect(loggedSet.status == .complete && loggedSet.reps == 8 && loggedSet.weightTenthsPounds == 1000)
+        #expect(logged.status == .active && !logged.locked)
+        #expect(logged.workingSets.dropFirst().allSatisfy { $0.status == .active && !$0.locked })
+        // Logging the first working set passed over the warmups, before the skip.
+        #expect(logged.warmupSets.allSatisfy { $0.status == .skipped })
+        // Skip Exercise came before Skip Workout, so it still stands.
+        #expect(skippedEarlier.status == .skipped)
+        #expect(skippedEarlier.workingSets.allSatisfy { $0.status == .skipped })
+        #expect(untouched.status == .active)
+        #expect(untouched.workoutSets.allSatisfy { $0.status == .active && !$0.locked })
+        // The skip's history is taken back, so finishing the workout logs it once.
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).isEmpty)
+        program.finishWorkout(workout)
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).count == 1)
+    }
+
+    @Test("Restoring a workout skipped before it started puts it back up next, not started")
+    func restoreWorkoutSkippedBeforeStart() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let first = program.programWeeks[0].workouts[0]
+        program.skipWorkout(first)
+
+        program.restoreWorkout(first)
+
+        #expect(first.status == .planned)
+        #expect(first.locked)
+        #expect(first.startedAt == nil && first.endedAt == nil)
+        #expect(program.nextWorkout === first)
+        #expect(first.workoutExercises.allSatisfy { $0.status == .planned })
+        #expect(sets(of: first).allSatisfy { $0.status == .planned && !$0.locked && $0.reps == nil })
+
+        first.startAndCascade()
+        #expect(sets(of: first).allSatisfy { $0.status == .active && $0.reps == $0.repsPlanned })
+    }
+
+    @Test("A skip can't be restored once it ended its week or while another workout is underway")
+    func restoreWorkoutLimits() throws {
+        let program = try makeStartedProgram(weeks: 2, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        program.skipWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(!program.canRestoreWorkout(dayOne))
+
+        // Skipping the week's last workout built week 2 from it.
+        program.skipWorkout(dayTwo)
+        #expect(!program.programWeeks[1].workouts.isEmpty)
+        #expect(!program.canRestoreWorkout(dayOne))
+        #expect(!program.canRestoreWorkout(dayTwo))
+        program.restoreWorkout(dayTwo)
+        #expect(dayTwo.status == .skipped)
     }
 
     @Test("Current workout and exercise are restored from persisted state")
@@ -429,10 +513,53 @@ struct WorkoutFlowTests {
         sets[3].weightTenthsPounds = 1500
         sets[3].complete()
 
-        sets[1].weightTenthsPounds = 2200
-        exercise.applyWeight(2200, after: sets[1])
+        typeWeights([2, 22, 220], on: sets[1], of: exercise)
 
         #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
+    }
+
+    @Test("A carried weight stops at the first later set that already has its own weight")
+    func weightStopsAtEnteredSet() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 4)
+        sets.forEach { $0.weightTenthsPounds = nil }
+        sets[2].weightTenthsPounds = 1500
+
+        typeWeights([2, 20, 200], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [2000, 2000, 1500, nil])
+    }
+
+    @Test("Retyping a set's weight carries to the later sets still showing its old weight")
+    func retypedWeightCarriesOverOldWeight() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 3)
+        sets.forEach { $0.weightTenthsPounds = 1400 }
+
+        // Deleting 140 a digit at a time, then typing 145.
+        typeWeights([14, 1, nil, 1, 14, 145], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [1450, 1450, 1450])
+    }
+
+    /// Types `pounds` into `workoutSet` one keystroke at a time, the way the set row reports each change.
+    private func typeWeights(_ pounds: [Int?], on workoutSet: WorkoutSet, of exercise: WorkoutExercise) {
+        for weight in pounds.map({ $0.map { $0 * 10 } }) {
+            let previousWeight = workoutSet.weightTenthsPounds
+            workoutSet.weightTenthsPounds = weight
+            exercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
+        }
     }
 
     @Test("Starting a workout enters each set's target weight and reps, so the set can be checked off as is")
@@ -440,14 +567,14 @@ struct WorkoutFlowTests {
         let program = try makeStartedProgram(weeks: 2, workouts: 1)
         let weekOne = try #require(program.nextWorkout)
         weekOne.startAndCascade()
-        log(weekOne, reps: 11, weightTenthsPounds: 1350)
+        log(weekOne, reps: 11, weightTenthsPounds: 1350, repsInReserve: .four)
         let weekTwo = try #require(program.finishWorkout(weekOne))
         let sets = try #require(weekTwo.workoutExercises.first).workingSets
         #expect(sets.allSatisfy { $0.reps == nil && $0.weightTenthsPounds == nil })
 
         weekTwo.startAndCascade()
 
-        #expect(sets.map(\.reps) == [11, 11])
+        #expect(sets.map(\.reps) == [12, 12])
         #expect(sets.map(\.weightTenthsPounds) == [1400, 1400])
         // The Live Activity's check button still sees the set as on target.
         #expect(sets.allSatisfy { $0.canCompleteAtTarget(repsOnly: false) })
@@ -484,7 +611,7 @@ struct WorkoutFlowTests {
         #expect(set.weightTenthsPounds == 950)
     }
 
-    @Test("The seeded week two matches the documented progression rules")
+    @Test("The seeded week two matches the Build progression rules")
     func seededWeekTwo() {
         let scenario = PowerJackSeed.weekTwoProgression()
         let week = scenario.weekTwoWorkouts
@@ -494,8 +621,9 @@ struct WorkoutFlowTests {
 
         #expect(bench.map(\.weightTenthsPlannedPounds) == [1400, 1400])
         #expect(scenario.checkInExercise.checkInPending)
-        #expect(pullUp.map(\.repsPlanned) == [9, 8])
-        #expect(pulldown.map(\.repsPlanned) == [10, 5])
+        #expect(pullUp.map(\.repsPlanned) == [8, 8])
+        #expect(pulldown.map(\.repsPlanned) == [7, 7])
+        #expect(pulldown.map(\.weightTenthsPlannedPounds) == [1100, 1100])
         #expect(scenario.program.nextWorkout === week[0])
     }
 
@@ -553,7 +681,8 @@ struct WorkoutFlowTests {
         reps: Int,
         weightTenthsPounds: Int,
         pain: LevelOfPain = .none,
-        effort: LevelOfEffort = .challenge
+        effort: LevelOfEffort = .challenge,
+        repsInReserve: RepsInReserve? = nil
     ) {
         for exercise in workout.workoutExercises {
             for set in exercise.workoutSets {
@@ -561,7 +690,10 @@ struct WorkoutFlowTests {
                 set.weightTenthsPounds = weightTenthsPounds
                 set.complete()
             }
-            exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: effort, levelOfPain: pain))
+            exercise.addFeedback(
+                feedback: repsInReserve.map { ExerciseFeedback(repsInReserve: $0, levelOfPain: pain) }
+                    ?? ExerciseFeedback(levelOfEffort: effort, levelOfPain: pain)
+            )
             exercise.completeAndCascade()
         }
     }

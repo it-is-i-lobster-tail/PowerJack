@@ -5,6 +5,7 @@
 //  Created by Brendon on 6/29/26.
 //
 
+import SwiftData
 import SwiftUI
 
 /// The whole program at a glance, laid out like a calendar: weeks down, days across.
@@ -12,9 +13,12 @@ struct ProgramProgressGrid: View {
     let program: Program
 
     @Environment(ProgramsRouter.self) private var router
+    @Environment(\.modelContext) private var modelContext
     @Namespace private var weekLabels
     /// Trails `currentWeek` so the pill can slide there each time the grid is shown.
     @State private var highlightedWeek: Int?
+    /// The skipped workout whose Restore prompt is showing.
+    @State private var workoutToRestore: Workout?
 
     /// The week of the workout to resume or start next. Nil unless the program is active.
     private var currentWeek: Int? {
@@ -82,6 +86,13 @@ struct ProgramProgressGrid: View {
         .onChange(of: currentWeek) { _, week in slideHighlight(to: week, animated: true) }
     }
 
+    private func restore(_ workout: Workout) {
+        withAnimation {
+            program.restoreWorkout(workout)
+        }
+        try? modelContext.save()
+    }
+
     /// Builds speed slowly, then stops hard on the new week with no overshoot.
     private func slideHighlight(to week: Int?, animated: Bool) {
         guard week != highlightedWeek else { return }
@@ -95,6 +106,7 @@ struct ProgramProgressGrid: View {
     }
 
     /// Only the workout underway or one already completed has anything to show.
+    /// A skipped workout that can still come back offers Restore.
     @ViewBuilder
     private func cell(for workout: Workout?, isNext: Bool, label: String) -> some View {
         let dot = ProgramProgressDot(status: workout?.status ?? .planned, isNext: isNext)
@@ -104,6 +116,24 @@ struct ProgramProgressGrid: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(label), \(dot.statusDescription)")
                 .accessibilityHint(workout.status == .active ? "Resumes the workout" : "Shows the workout")
+        } else if let workout, program.canRestoreWorkout(workout) {
+            Button { workoutToRestore = workout } label: { dot }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(label), \(dot.statusDescription)")
+                .accessibilityHint("Restores the workout")
+                .confirmationDialog(
+                    "Restore this workout?",
+                    isPresented: Binding(
+                        get: { workoutToRestore === workout },
+                        set: { if !$0 { workoutToRestore = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    Button("Restore Workout") { restore(workout) }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("It comes back just as it was before you skipped it.")
+                }
         } else {
             dot
                 .accessibilityElement()

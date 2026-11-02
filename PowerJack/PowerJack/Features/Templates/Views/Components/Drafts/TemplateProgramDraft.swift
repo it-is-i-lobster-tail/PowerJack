@@ -21,11 +21,15 @@ struct TemplateProgramDraft {
     var workoutsPerWeekValue: Int?
     var templateMuscleFocusValue: [Muscle]
     var templateWorkoutDraftsValue: [TemplateWorkoutDraft]
+    var templateType: TemplateType
 
+    /// A new template takes `templateType`, the section it was created in.
     init(
-        templateProgram: TemplateProgram? = nil
+        templateProgram: TemplateProgram? = nil,
+        templateType: TemplateType = .hypertrophy
     ) {
         self.templateName = templateProgram?.templateName ?? ""
+        self.templateType = templateProgram?.templateType ?? templateType
         // Drafts store 0 when no count was picked yet.
         self.workoutsPerWeekValue = templateProgram.flatMap { $0.workoutsPerWeek > 0 ? $0.workoutsPerWeek : nil }
         self.templateMuscleFocusValue = templateProgram?.templateMuscleFocus ?? []
@@ -86,14 +90,16 @@ struct TemplateProgramDraft {
         let newTemplateProgram = TemplateProgram(
             templateName: savedName,
             workoutsPerWeek: workoutsPerWeek ?? 0,
-            templateMuscleFocus: templateMuscleFocus
+            templateMuscleFocus: templateMuscleFocus,
+            templateType: templateType
         )
 
         for templateWorkoutDraft in templateWorkoutDrafts {
             let newTemplateWorkout = newTemplateProgram.addTemplateWorkout()
             for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
                 newTemplateWorkout.addTemplateExercise(
-                    exercise: templateExerciseDraft.exercise
+                    exercise: templateExerciseDraft.exercise,
+                    supersetID: templateExerciseDraft.supersetID
                 )
             }
         }
@@ -126,6 +132,7 @@ struct TemplateProgramDraft {
         templateProgram.templateName = savedName
         templateProgram.workoutsPerWeek = workoutsPerWeek ?? 0
         templateProgram.templateMuscleFocus = templateMuscleFocus
+        templateProgram.templateType = templateType
         // Rebuild the workouts only when their exercises changed, so renaming stays cheap.
         guard workoutLayout != Self.workoutLayout(of: templateProgram) else { return true }
         templateProgram.clearAllTemplateWorkoutsValue()
@@ -134,7 +141,8 @@ struct TemplateProgramDraft {
             let newTemplateWorkout = templateProgram.addTemplateWorkout()
             for templateExerciseDraft in templateWorkoutDraft.templateExerciseDrafts {
                 newTemplateWorkout.addTemplateExercise(
-                    exercise: templateExerciseDraft.exercise
+                    exercise: templateExerciseDraft.exercise,
+                    supersetID: templateExerciseDraft.supersetID
                 )
             }
         }
@@ -147,13 +155,28 @@ struct TemplateProgramDraft {
 // Workout Layout
 //
 extension TemplateProgramDraft {
-    /// The exercises in each enabled workout, in order.
-    private var workoutLayout: [[PersistentIdentifier]] {
-        templateWorkoutDrafts.map { $0.templateExerciseDrafts.map(\.exercise.persistentModelID) }
+    private struct LayoutEntry: Equatable {
+        let exerciseID: PersistentIdentifier
+        let supersetID: UUID?
     }
 
-    private static func workoutLayout(of templateProgram: TemplateProgram) -> [[PersistentIdentifier]] {
-        templateProgram.templateWorkouts.map { $0.templateExercises.compactMap(\.exercise?.persistentModelID) }
+    /// The exercises in each enabled workout, in order, and the supersets they're stacked in.
+    private var workoutLayout: [[LayoutEntry]] {
+        templateWorkoutDrafts.map { workout in
+            workout.templateExerciseDrafts.map {
+                LayoutEntry(exerciseID: $0.exercise.persistentModelID, supersetID: $0.supersetID)
+            }
+        }
+    }
+
+    private static func workoutLayout(of templateProgram: TemplateProgram) -> [[LayoutEntry]] {
+        templateProgram.templateWorkouts.map { workout in
+            workout.templateExercises.compactMap { templateExercise in
+                templateExercise.exercise.map {
+                    LayoutEntry(exerciseID: $0.persistentModelID, supersetID: templateExercise.supersetID)
+                }
+            }
+        }
     }
 }
 
@@ -204,7 +227,23 @@ extension TemplateProgramDraft {
 // Mutations
 //
 extension TemplateProgramDraft {
-    
+
+    /// Copies one day's exercises onto another day. Days are indexes into `templateWorkoutDraftsValue`.
+    mutating func copyTemplateWorkout(from source: Int, to destination: Int, replacing: Bool) {
+        guard source != destination,
+              templateWorkoutDraftsValue.indices.contains(source),
+              templateWorkoutDraftsValue.indices.contains(destination)
+        else {
+            return
+        }
+
+        let sourceWorkout = templateWorkoutDraftsValue[source]
+        templateWorkoutDraftsValue[destination].copyTemplateExercises(
+            from: sourceWorkout,
+            replacing: replacing
+        )
+    }
+
     private mutating func updateWorkoutsPerWeek(newValue: Int) {
         for index in templateWorkoutDraftsValue.indices {
             templateWorkoutDraftsValue[index].enabled = templateWorkoutDraftsValue[index].order < newValue

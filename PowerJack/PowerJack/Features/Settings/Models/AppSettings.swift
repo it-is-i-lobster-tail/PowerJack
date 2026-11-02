@@ -12,6 +12,8 @@ enum AppSettings {
         static let restLiveActivity = "settings.restTimer.liveActivity"
         static let iCloudBackup = "settings.iCloudBackup"
         static let hints = "settings.hints"
+        static let weightUnit = "settings.weightUnit"
+        static let appearance = "settings.appearance"
     }
 
     enum Default {

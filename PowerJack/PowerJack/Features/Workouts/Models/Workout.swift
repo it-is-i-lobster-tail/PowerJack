@@ -18,6 +18,9 @@ final class Workout {
     private var workoutExercisesValue: [WorkoutExercise]? = []
     private var statusValue: Status = Status.planned
     private var lockedValue: Bool = true
+    // When Start Workout was tapped, and when the workout was finished, stopped, or skipped.
+    private var startedAtValue: Date? = nil
+    private var endedAtValue: Date? = nil
     var programWeekValue: ProgramWeek?
 
     init(
@@ -42,6 +45,10 @@ extension Workout {
     var status: Status { statusValue }
     // Locked
     var locked: Bool { lockedValue }
+    // Started At
+    var startedAt: Date? { startedAtValue }
+    // Ended At
+    var endedAt: Date? { endedAtValue }
 }
 
 //
@@ -80,6 +87,12 @@ extension Workout {
         if status == .skipped { return workingSetCount - completedWorkingSets }
         return workoutExercises.reduce(0) { $0 + $1.workingSets.count(where: { $0.status == .skipped }) }
     }
+    /// Completed working sets out of all working sets, 0-100. Warmups and skipped sets don't count.
+    var percentComplete: Int {
+        let total = workingSetCount
+        guard total > 0 else { return 0 }
+        return Int((Double(completedWorkingSets) / Double(total) * 100).rounded())
+    }
     /// Share of working sets completed and skipped. Both count as resolved.
     var setProgress: (completed: Double, skipped: Double) {
         let total = workingSetCount
@@ -100,11 +113,21 @@ extension Workout {
     }
 
     /// Where the user should be: the first exercise still being logged or waiting on feedback.
-    /// Derived from stored state so it survives relaunches.
+    /// In a superset, that's the exercise whose turn it is. Derived from stored state so it survives relaunches.
     var currentExerciseIndex: Int {
         let exercises = workoutExercises
-        return exercises.firstIndex { !$0.isDone }
-            ?? max(0, exercises.count - 1)
+        guard let index = exercises.firstIndex(where: { !$0.isDone }) else {
+            return max(0, exercises.count - 1)
+        }
+        guard
+            !exercises[index].allSetsDone(),
+            let next = currentSet?.workoutExercise,
+            exercises[index].supersetPartners.contains(where: { $0 === next }),
+            let nextIndex = exercises.firstIndex(where: { $0 === next })
+        else {
+            return index
+        }
+        return nextIndex
     }
 
     var allExercisesFinished: Bool {
@@ -137,6 +160,7 @@ extension Workout {
         }
         statusValue = Status.complete
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Completed workout")
     }
     func stop() {
@@ -149,6 +173,7 @@ extension Workout {
         }
         statusValue = Status.stopped
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Stopped workout")
     }
     func skip() {
@@ -161,9 +186,10 @@ extension Workout {
         }
         statusValue = Status.skipped
         lockedValue = true
+        endedAtValue = .now
         Logger.workout.debug("Skipped workout")
     }
-    func start() {
+    func start(at date: Date = .now) {
         guard
             lockedValue,
             status == .planned
@@ -173,6 +199,7 @@ extension Workout {
         }
         statusValue = Status.active
         lockedValue = false
+        startedAtValue = date
         Logger.workout.debug("Started workout")
     }
     func completeAndCascade() {
@@ -193,8 +220,33 @@ extension Workout {
             workoutExercise.skipAndCascade()
         }
     }
-    func startAndCascade() {
-        start()
+    /// Undoes Skip Workout. With a set logged it's in progress again, right where it was left.
+    /// With nothing logged it's planned again, so Start Workout runs as it would have.
+    func unskipAndCascade() {
+        guard status == .skipped else {
+            Logger.workout.warning("Can only unskip a skipped Workout.")
+            return
+        }
+        let wasLogged = workoutExercises.contains { $0.workoutSets.contains { $0.status == .complete } }
+        endedAtValue = nil
+        if wasLogged {
+            statusValue = Status.active
+            lockedValue = false
+            for workoutExercise in workoutExercises {
+                workoutExercise.unskipWorkout()
+            }
+        } else {
+            statusValue = Status.planned
+            lockedValue = true
+            startedAtValue = nil
+            for workoutExercise in workoutExercises {
+                workoutExercise.resetToPlanned()
+            }
+        }
+        Logger.workout.debug("Unskipped workout")
+    }
+    func startAndCascade(at date: Date = .now) {
+        start(at: date)
 
         for workoutExercise in workoutExercises {
             workoutExercise.startAndCascade()

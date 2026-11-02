@@ -17,11 +17,13 @@ struct WorkoutSetView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.workoutIsReadOnly) private var isReadOnly
+    @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
     /// 1-based position within the set's type, so working sets count from 1 after the warmups.
     let number: Int
-    let onWeightChange: (Int?) -> Void
+    /// Called with the new weight and the one it replaced.
+    let onWeightChange: (Int?, Int?) -> Void
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
@@ -32,7 +34,7 @@ struct WorkoutSetView: View {
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
-        onWeightChange: @escaping (Int?) -> Void = { _ in }
+        onWeightChange: @escaping (Int?, Int?) -> Void = { _, _ in }
     ) {
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
@@ -40,7 +42,7 @@ struct WorkoutSetView: View {
         self.number = number ?? workoutSet.order + 1
         self.onWeightChange = onWeightChange
         _repsText = State(initialValue: Self.text(forReps: workoutSet.reps))
-        _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightInPounds))
+        _weightText = State(initialValue: Self.text(forWeight: workoutSet.weightTenthsPounds, in: .current))
     }
 
     private var repsIsFocused: Bool {
@@ -83,18 +85,23 @@ struct WorkoutSetView: View {
 
     private var plannedRepsPrompt: Text {
         guard let plannedReps = workoutSet.repsPlanned else {
-            return Text("2RIR")
+            // Build warmups aren't taken near failure, so they have no reps to leave in reserve.
+            if workoutSet.isWarmup && workoutSet.workoutExerciseValue?.templateType == .hypertrophy {
+                return Text("")
+            }
+            // Without a rep target, the prompt is the reps to leave in reserve.
+            return Text("\(workoutSet.workoutExerciseValue?.rirTarget ?? 2)RIR")
         }
 
         return Text(plannedReps, format: .number)
     }
 
     private var plannedWeightPrompt: Text {
-        guard let plannedWeight = workoutSet.weightInPoundsPlanned else {
+        guard let plannedWeight = workoutSet.weightTenthsPlannedPounds else {
             return Text("")
         }
 
-        return Text(plannedWeight, format: .number)
+        return Text(weightUnit.format(tenthsPounds: plannedWeight))
     }
 
     var body: some View {
@@ -223,9 +230,9 @@ struct WorkoutSetView: View {
                 repsText = Self.text(forReps: newValue)
             }
         }
-        .onChange(of: workoutSet.weightTenthsPounds) { _, _ in
-            if parsedWeight(weightText) != workoutSet.weightInPounds {
-                weightText = Self.text(forWeight: workoutSet.weightInPounds)
+        .onChange(of: workoutSet.weightTenthsPounds) { _, newValue in
+            if parsedWeight(weightText).map(weightUnit.tenthsPounds(from:)) != newValue {
+                weightText = Self.text(forWeight: newValue, in: weightUnit)
             }
         }
     }
@@ -259,15 +266,17 @@ struct WorkoutSetView: View {
 
     private func updateWeight(from text: String, previous: String) {
         guard isEditable else { return }
-        let allowed = Self.weightInput(text, previous: previous)
+        let allowed = Self.weightInput(text, previous: previous, unit: weightUnit)
         if allowed != text {
             weightText = allowed
             return
         }
-        let newValue = parsedWeight(text)
-        guard newValue != workoutSet.weightInPounds else { return }
-        workoutSet.weightInPounds = newValue
-        onWeightChange(workoutSet.weightTenthsPounds)
+        // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
+        let newValue = parsedWeight(text).map(weightUnit.tenthsPounds(from:))
+        let previousValue = workoutSet.weightTenthsPounds
+        guard newValue != previousValue else { return }
+        workoutSet.weightTenthsPounds = newValue
+        onWeightChange(newValue, previousValue)
     }
 
     private func parsedWeight(_ text: String) -> Double? {
@@ -286,17 +295,18 @@ struct WorkoutSetView: View {
         return digits
     }
 
-    /// Keeps typed weight from 0 to `WorkoutSet.maxWeightPounds`, to a tenth of a pound; anything else keeps `previous`.
-    static func weightInput(_ text: String, previous: String) -> String {
+    /// Keeps typed weight from 0 to the heaviest weight a set can log in `unit`, to one decimal;
+    /// anything else keeps `previous`.
+    static func weightInput(_ text: String, previous: String, unit: WeightUnit = .pounds) -> String {
         let parts = text.split(omittingEmptySubsequences: false) { $0 == "." || $0 == "," }
         guard parts.count <= 2,
               parts.allSatisfy({ $0.allSatisfy(\.isNumber) }),
-              parts[0].count <= String(WorkoutSet.maxWeightPounds).count,
+              parts[0].count <= String(Int(unit.maxEntry)).count,
               parts.count == 1 || parts[1].count <= 1
         else { return previous }
 
         let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return value <= Double(WorkoutSet.maxWeightPounds) ? text : previous
+        return value <= unit.maxEntry ? text : previous
     }
 
     private func toggleCompletion() {
@@ -322,8 +332,7 @@ struct WorkoutSetView: View {
         reps.map(String.init) ?? ""
     }
 
-    private static func text(forWeight weight: Double?) -> String {
-        guard let weight else { return "" }
-        return weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+    private static func text(forWeight tenthsPounds: Int?, in unit: WeightUnit) -> String {
+        tenthsPounds.map(unit.format(tenthsPounds:)) ?? ""
     }
 }

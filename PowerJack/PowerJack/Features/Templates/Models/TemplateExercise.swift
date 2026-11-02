@@ -13,11 +13,14 @@ final class TemplateExercise {
     @Relationship(deleteRule: .nullify, inverse: \Exercise.templateExercisesValue)
     var exerciseValue: Exercise?
     var orderValue: Int = 0
+    // Shared by the exercises stacked into one superset. Nil when the exercise stands alone.
+    var supersetIDValue: UUID?
     var templateWorkoutValue: TemplateWorkout?
 
-    init(exercise: Exercise, order: Int) {
+    init(exercise: Exercise, order: Int, supersetID: UUID? = nil) {
         self.exerciseValue = exercise
         self.orderValue = order
+        self.supersetIDValue = supersetID
     }
 }
 
@@ -43,6 +46,8 @@ extension TemplateExercise {
             orderValue = newValue
         }
     }
+    // Superset
+    var supersetID: UUID? { supersetIDValue }
 }
 
 extension TemplateExercise: OrderedModel {}

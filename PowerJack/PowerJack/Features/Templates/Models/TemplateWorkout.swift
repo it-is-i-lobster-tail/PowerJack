@@ -37,10 +37,11 @@ extension TemplateWorkout {
 extension TemplateWorkout {
     // Add TemplateExercise
     @discardableResult
-    func addTemplateExercise(exercise: Exercise) -> TemplateExercise {
+    func addTemplateExercise(exercise: Exercise, supersetID: UUID? = nil) -> TemplateExercise {
         let newTemplateExercise = TemplateExercise(
             exercise: exercise,
-            order: templateExercises.count
+            order: templateExercises.count,
+            supersetID: supersetID
         )
         templateExercisesValue = (templateExercisesValue ?? []) + [newTemplateExercise]
         return newTemplateExercise

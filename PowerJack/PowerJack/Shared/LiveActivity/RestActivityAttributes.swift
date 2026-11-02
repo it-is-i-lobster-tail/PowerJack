@@ -5,12 +5,16 @@
 //  The workout Live Activity shown in the Dynamic Island and on the Lock Screen:
 //  the current set, its target, and the rest before it.
 //  Compiled into the widget extension too, along with everything else in this file.
+//  The watch app shares the set text, so the Live Activity parts are iPhone only.
 //
 
+#if os(iOS)
 import ActivityKit
 import AppIntents
+#endif
 import Foundation
 
+#if os(iOS)
 nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
     typealias ContentState = WorkoutActivityState
 
@@ -20,6 +24,7 @@ nonisolated struct RestActivityAttributes: ActivityAttributes, Hashable {
     /// Opens PowerJack on the current exercise of the active workout.
     static let currentExerciseURL = URL(string: "powerjack://workout/current")!
 }
+#endif
 
 /// Every set of the current exercise and, between sets, the rest before the next one.
 nonisolated struct WorkoutActivityState: Codable, Hashable {
@@ -54,6 +59,8 @@ nonisolated struct ActivitySet: Codable, Hashable {
     /// `nil` when there is nothing to show yet, e.g. no target in week 1.
     var reps: Int?
     var weightTenthsPounds: Int?
+    /// Shows the weight in kilograms. Weights are always stored in tenths of a pound.
+    var usesKilograms: Bool?
 
     var repsText: String {
         reps.map(String.init) ?? "–"
@@ -62,11 +69,18 @@ nonisolated struct ActivitySet: Codable, Hashable {
     func weightText(repsOnly: Bool) -> String {
         if repsOnly { return "BW" }
         guard let weightTenthsPounds else { return "–" }
-        let pounds = Double(weightTenthsPounds) / 10
-        return pounds.formatted(.number.precision(.fractionLength(0...1)))
+        return Self.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
+    }
+
+    /// e.g. "225" or "102.5". `WeightUnit` isn't compiled into the widget, so the conversion lives here too.
+    static func weight(tenthsPounds: Int, inKilograms: Bool) -> String {
+        let pounds = Double(tenthsPounds) / 10
+        let weight = inKilograms ? pounds * 0.45359237 : pounds
+        return weight.formatted(.number.precision(.fractionLength(0...1)))
     }
 }
 
+#if os(iOS)
 /// The check button: logs the shown set at its target weight and reps.
 /// Live Activity intents run in the app, so `perform()` lives in CompleteSetIntent+App.swift;
 /// the widget's copy only lets it build the button.
@@ -87,3 +101,4 @@ struct CompleteSetIntent: LiveActivityIntent {
         self.setOrder = setOrder
     }
 }
+#endif

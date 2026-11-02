@@ -61,6 +61,7 @@ final class PreviewRenderingTests: XCTestCase {
             ("FAQ", AnyView(NavigationStack { FAQView() })),
             ("Workout Summary", AnyView(ExerciseSummaryView(
                 setCounts: scenario.weekOneWorkouts[0].completedSetsByMuscle,
+                duration: 2538,
                 onContinue: {}
             ))),
             ("Rest Island", AnyView(RestIslandHost(

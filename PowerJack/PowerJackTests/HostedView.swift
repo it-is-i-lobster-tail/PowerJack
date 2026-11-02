@@ -6,8 +6,10 @@
 //  the same way VoiceOver activates a button, so tests can exercise view actions.
 //
 
+import SwiftData
 import SwiftUI
 import UIKit
+@testable import PowerJack
 
 @MainActor
 final class HostedView {
@@ -32,6 +34,16 @@ final class HostedView {
         window.isHidden = true
         window.rootViewController = nil
     }
+
+    /// A closed screen can still update once more after its test ends. Stores made here are kept
+    /// for the whole run, so that late update never reads a model whose store was already reset.
+    static func makeStore() -> ModelContainer {
+        let container = PowerJackSeed.makeInMemoryContainer()
+        keptStores.append(container)
+        return container
+    }
+
+    private static var keptStores: [ModelContainer] = []
 
     /// Lets SwiftUI lay out, run `onAppear` and `task`, and finish short animations.
     func settle(_ duration: Duration = .milliseconds(300)) async {
@@ -73,6 +85,11 @@ final class HostedView {
     /// The first label that starts with `prefix`, for rows whose label joins a title and detail.
     func label(startingWith prefix: String) -> String? {
         labels.first { $0.hasPrefix(prefix) }
+    }
+
+    /// Where the element with this label sits on screen, for layout checks.
+    func frame(of label: String) -> CGRect? {
+        elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
     }
 
     /// Steps the adjustable element at `index` (in screen order), like swiping up or down in VoiceOver.
@@ -149,6 +166,23 @@ final class HostedView {
             return found
         }
         return search(window)
+    }
+
+    /// Scrolls every vertical list to its end, so rows below the fold get built.
+    func scrollToBottom() async {
+        func search(_ view: UIView) -> [UIScrollView] {
+            var found = view.subviews.flatMap(search)
+            if let scrollView = view as? UIScrollView,
+               scrollView.contentSize.height > scrollView.bounds.height + 1 {
+                found.append(scrollView)
+            }
+            return found
+        }
+        for scrollView in search(window) {
+            let bottom = scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
+            scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: bottom), animated: false)
+        }
+        await settle()
     }
 
     /// Ends editing, like tapping outside the keyboard.

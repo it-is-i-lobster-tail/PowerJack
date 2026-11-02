@@ -22,6 +22,8 @@ final class WorkoutSet {
     private var lockedValue: Bool = false
     // Starts the rest timer. Cleared when the set is reopened.
     private var completedAtValue: Date? = nil
+    // When the set's clock started: the set logged before it anywhere in the workout, or the workout's start.
+    private var startedAtValue: Date? = nil
     var workoutExerciseValue: WorkoutExercise?
 
     init(
@@ -109,6 +111,8 @@ extension WorkoutSet {
     var locked: Bool { lockedValue }
     // Completed At
     var completedAt: Date? { completedAtValue }
+    // Started At
+    var startedAt: Date? { startedAtValue }
 }
 //
 // Derived Values
@@ -123,12 +127,27 @@ extension WorkoutSet {
     static func isValidReps(_ reps: Int) -> Bool {
         (1...maxReps).contains(reps)
     }
+
+    /// When the lifter logged their first set in any program, or nil before they've logged one.
+    static func firstCompletedAt(in context: ModelContext) -> Date? {
+        var descriptor = FetchDescriptor<WorkoutSet>(
+            predicate: #Predicate { $0.completedAtValue != nil },
+            sortBy: [SortDescriptor(\.completedAtValue)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first?.completedAt
+    }
     /// Weights above `maxWeightPounds` can never be logged.
     static func isValidWeightTenthsPounds(_ weightTenthsPounds: Int) -> Bool {
         (1...maxWeightPounds * 10).contains(weightTenthsPounds)
     }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
+    /// How long the set took, rest before it included. `nil` until it's logged.
+    var duration: TimeInterval? {
+        guard status == .complete, let startedAtValue, let completedAtValue else { return nil }
+        return max(0, completedAtValue.timeIntervalSince(startedAtValue))
+    }
     // Weight In Pounds
     var weightInPounds: Double? {
         get {
@@ -182,7 +201,7 @@ extension WorkoutSet {
         lockedValue = true
         Logger.workoutSet.debug("WorkoutSet Completed and locked")
     }
-    func complete(at date: Date = .now) {
+    func complete(at date: Date = .now, startedAt: Date? = nil) {
         guard
             !lockedValue,
             status == .active
@@ -192,6 +211,7 @@ extension WorkoutSet {
         }
         statusValue = Status.complete
         completedAtValue = date
+        startedAtValue = startedAt
         Logger.workoutSet.debug("WorkoutSet Completed")
     }
     func skip() {
@@ -209,6 +229,26 @@ extension WorkoutSet {
     func stop() {
         skip()
     }
+    /// Opens a skipped set again, keeping the reps and weight it was holding.
+    func unskip() {
+        guard status == .skipped else {
+            Logger.workoutSet.warning("Can only unskip a skipped WorkoutSet.")
+            return
+        }
+        statusValue = Status.active
+        lockedValue = false
+        Logger.workoutSet.debug("WorkoutSet unskipped")
+    }
+    /// Back to planned, as if its workout never started. The next start fills in the target again.
+    func resetToPlanned() {
+        statusValue = Status.planned
+        lockedValue = false
+        repsValue = nil
+        weightTenthsPoundsValue = nil
+        completedAtValue = nil
+        startedAtValue = nil
+        Logger.workoutSet.debug("WorkoutSet reset to planned")
+    }
     func start() {
         guard
             !lockedValue
@@ -220,6 +260,7 @@ extension WorkoutSet {
         let wasPlanned = status == .planned
         statusValue = Status.active
         completedAtValue = nil
+        startedAtValue = nil
         // A set starts out holding its target, so the lifter only edits it when they go off plan.
         if wasPlanned {
             reps = reps ?? repsPlanned

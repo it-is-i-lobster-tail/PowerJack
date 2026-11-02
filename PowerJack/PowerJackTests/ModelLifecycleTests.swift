@@ -342,16 +342,23 @@ struct ModelLifecycleTests {
         #expect(workoutExercise.feedback?.levelOfPain == .moderate)
     }
 
-    @Test("A nil weight is never copied to later sets")
-    func exerciseApplyNilWeight() throws {
+    @Test("Clearing a weight clears only the sets it was carried to")
+    func exerciseClearCarriedWeight() throws {
         let workoutExercise = makeWorkoutExercise()
         workoutExercise.start()
         let first = try #require(workoutExercise.addSet())
         let second = try #require(workoutExercise.addSet())
-        second.weightTenthsPounds = 800
+        let third = try #require(workoutExercise.addSet())
+        third.weightTenthsPounds = 800
 
-        workoutExercise.applyWeight(nil, after: first)
-        #expect(second.weightTenthsPounds == 800)
+        first.weightTenthsPounds = 1000
+        workoutExercise.applyWeight(1000, after: first, replacing: nil)
+        #expect(second.weightTenthsPounds == 1000)
+
+        first.weightTenthsPounds = nil
+        workoutExercise.applyWeight(nil, after: first, replacing: 1000)
+        #expect(second.weightTenthsPounds == nil)
+        #expect(third.weightTenthsPounds == 800)
     }
 
     // MARK: Workout

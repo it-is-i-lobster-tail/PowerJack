@@ -24,6 +24,7 @@ final class Program {
     var workoutsPerWeekValue: Int = 0
     var templateNameValue: String = ""
     var templateMuscleFocusValue: [Muscle] = []
+    var templateTypeValue: TemplateType = TemplateType.hypertrophy
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -38,10 +39,14 @@ final class Program {
         self.workoutsPerWeekValue = templateProgram.workoutsPerWeek
         self.templateNameValue = templateProgram.templateName
         self.templateMuscleFocusValue = templateProgram.templateMuscleFocus
+        self.templateTypeValue = templateProgram.templateType
         self.programWeeksValue = []
         self.lockedValue = false
         buildInitialProgramWeeks()
         setupInitialProgramWeek()
+        if let firstWeek = programWeeks.first {
+            templateType.weekPlanner.setUpFirstWeek(firstWeek, in: self)
+        }
     }
 
     private func buildInitialProgramWeeks() {
@@ -71,6 +76,7 @@ final class Program {
                     continue
                 }
 
+                newWorkoutExercise.setSuperset(templateExercise.supersetID)
                 newWorkoutExercise.addWarmupSets()
                 for _ in 0..<Self.initialWeekSets {
                     _ = newWorkoutExercise.addSet()
@@ -127,6 +133,8 @@ extension Program {
         if !templateMuscleFocusValue.isEmpty { return templateMuscleFocusValue }
         return templateProgram?.templateMuscleFocus ?? []
     }
+    /// Picks the progression rules, so it's copied like the rest and never follows template edits.
+    var templateType: TemplateType { templateTypeValue }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
@@ -185,6 +193,12 @@ extension Program {
             Logger.program.warning("Cannot stop a locked Program.")
             return
         }
+        // What was trained in the week left partway through still counts toward its planner's records.
+        if status == .active,
+           let week = nextWorkout.flatMap(programWeek(containing:)),
+           week.workouts.contains(where: { $0.workoutExercises.contains { $0.completedWorkingSets > 0 } }) {
+            templateType.weekPlanner.close(week, in: self)
+        }
         statusValue = Status.stopped
         lockedValue = true
         Logger.program.debug("Stopped Program")
@@ -200,6 +214,11 @@ extension Program {
         statusValue = Status.active
         programWeeks.first?.start()
         Logger.program.debug("Started Program")
+    }
+    /// Lets the program's planner adjust `workout` right before it starts, such as after a long break.
+    func prepareToStart(_ workout: Workout, at date: Date = .now) {
+        guard status == .active, workout.status == .planned else { return }
+        templateType.weekPlanner.prepareToStart(workout, in: self, at: date)
     }
     /// Completes `workout` and moves the program forward.
     /// - Returns: The next workout, already started, or `nil` when the program is finished.
@@ -240,15 +259,37 @@ extension Program {
         workout.skipAndCascade()
         return advance(after: workout)
     }
+    /// A skipped workout can come back while its week is still underway and no other workout is.
+    /// Skipping a week's last workout builds the next week from it, so that skip stays.
+    func canRestoreWorkout(_ workout: Workout) -> Bool {
+        status == .active
+            && workout.status == .skipped
+            && programWeek(containing: workout)?.status == .active
+            && !programWeeks.contains { $0.workouts.contains { $0.status == .active } }
+    }
+    /// Undoes Skip Workout, taking back the history the skip wrote for its finished sets.
+    func restoreWorkout(_ workout: Workout) {
+        guard canRestoreWorkout(workout) else {
+            Logger.program.warning("Cannot restore this Workout.")
+            return
+        }
+        if let endedAt = workout.endedAt, !workout.loggedSetsByMuscle.isEmpty,
+           let log = WorkoutLog.written(near: endedAt, in: modelContext) {
+            modelContext?.delete(log)
+        }
+        workout.unskipAndCascade()
+    }
     private func advance(after workout: Workout) -> Workout? {
         if let week = programWeek(containing: workout),
            week.workouts.allSatisfy(\.isFinished) {
             week.complete()
             if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
                 if nextWeek.workouts.isEmpty {
-                    ProgressionPlanner.build(nextWeek, in: self)
+                    templateType.weekPlanner.build(nextWeek, in: self)
                 }
                 nextWeek.start()
+            } else {
+                templateType.weekPlanner.close(week, in: self)
             }
         }
 

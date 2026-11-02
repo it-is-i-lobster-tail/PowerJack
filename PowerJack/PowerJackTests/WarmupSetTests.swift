@@ -33,7 +33,7 @@ struct WarmupSetTests {
         // Warmups well under the minimum reps would hold progression if they counted.
         log(exercise.warmupSets, reps: 3, weightTenthsPounds: 450)
         log(exercise.workingSets, reps: 11, weightTenthsPounds: 1350)
-        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        exercise.addFeedback(feedback: ExerciseFeedback(repsInReserve: .four, levelOfPain: .none))
 
         let next = try #require(program.finishWorkout(workout)?.workoutExercises.first)
 
@@ -90,6 +90,7 @@ struct WarmupSetTests {
 
         #expect(!exercise.allSetsDone())
         #expect(workout.completedWorkingSets == 0)
+        #expect(workout.percentComplete == 0)
     }
 
     @Test("A warmup weight only fills the next warmup")
@@ -100,8 +101,9 @@ struct WarmupSetTests {
         let exercise = try #require(workout.workoutExercises.first)
         let first = exercise.workoutSets[0]
 
+        let previousWeight = first.weightTenthsPounds
         first.weightTenthsPounds = 950
-        exercise.applyWeight(950, after: first)
+        exercise.applyWeight(950, after: first, replacing: previousWeight)
 
         #expect(exercise.workoutSets.map(\.weightTenthsPounds) == [950, 950, nil, nil])
     }
@@ -325,6 +327,24 @@ struct WarmupSetTests {
         weekTwo.startAndCascade()
         #expect(next.addWarmupSet() != nil)
         #expect(!next.warmupsDisabled)
+    }
+
+    @Test("A set added after the warmups are removed goes after the planned sets")
+    func addedSetAfterRemovedWarmupsGoesLast() throws {
+        // A tie in set order fell back to model identity, which differs run to run, so repeat it.
+        for _ in 0..<12 {
+            let program = try makeProgram(weeks: 1)
+            let workout = try #require(program.nextWorkout)
+            workout.startAndCascade()
+            let exercise = try #require(workout.workoutExercises.first)
+            let planned = exercise.workingSets
+            exercise.disableWarmups()
+
+            let added = try #require(exercise.addSet())
+
+            #expect(exercise.workingSets.map(ObjectIdentifier.init) == (planned + [added]).map(ObjectIdentifier.init))
+            #expect(exercise.workoutSets.map(\.order) == Array(0..<exercise.workoutSets.count))
+        }
     }
 
     @Test("Enable Warmup adds two when the exercise has no warmups to bring back")

@@ -31,6 +31,53 @@ extension View {
     func keyboardSlidesOver() -> some View {
         ignoresSafeArea(.keyboard, edges: .bottom)
     }
+
+    /// Keeps the focused row of a scroll view in sight above a keyboard that slides over it.
+    /// The scroll view gains room at the bottom as tall as the part the keyboard covers,
+    /// and scrolls the row with `focusedID` up into the part still showing.
+    /// Apply to the ScrollView; each row needs a matching `.id(_:)`.
+    func keepsFocusAboveKeyboard(_ focusedID: (some Hashable)?) -> some View {
+        modifier(KeepsFocusAboveKeyboard(focusedID: focusedID))
+    }
+}
+
+private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
+    let focusedID: ID?
+
+    @State private var bottomEdge: CGFloat = 0
+    @State private var keyboardTop: CGFloat = .infinity
+
+    /// How much of the scroll view the keyboard covers.
+    private var coveredHeight: CGFloat {
+        max(0, bottomEdge - keyboardTop)
+    }
+
+    /// The covered part plus a small gap, so the focused row doesn't sit flush on the keyboard.
+    private var bottomRoom: CGFloat {
+        coveredHeight > 0 ? coveredHeight + LayoutMetrics.compactSpacing : 0
+    }
+
+    func body(content: Content) -> some View {
+        ScrollViewReader { proxy in
+            content
+                .safeAreaPadding(.bottom, bottomRoom)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottomEdge = $0 }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                    guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+                    keyboardTop = frame.minY
+                }
+                // Focus changes before the keyboard reports its frame, so scroll after either one.
+                .onChange(of: focusedID) { scrollToFocus(proxy) }
+                .onChange(of: coveredHeight) { scrollToFocus(proxy) }
+        }
+    }
+
+    private func scrollToFocus(_ proxy: ScrollViewProxy) {
+        guard let focusedID, coveredHeight > 0 else { return }
+        withAnimation(.easeOut(duration: 0.25)) {
+            proxy.scrollTo(focusedID)
+        }
+    }
 }
 
 /// Adds a window-wide tap recognizer that ends editing without blocking other taps.

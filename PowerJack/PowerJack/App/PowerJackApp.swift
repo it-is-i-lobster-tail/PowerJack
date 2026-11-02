@@ -24,6 +24,9 @@ struct PowerJackApp: App {
 
     init() {
         Hints.configure()
+        if !Self.runsInMemory {
+            SettingsSync.shared.start()
+        }
     }
 
     var body: some Scene {
@@ -38,8 +41,12 @@ struct PowerJackApp: App {
 struct PowerJackAppContent: View {
     @Environment(PowerJackStore.self) private var store
 
+    @AppStorage(AppSettings.Key.appearance)
+    private var appearance = AppSettings.Default.appearance
+
     var body: some View {
         PowerJackRootView()
             .modelContainer(store.container)
+            .windowAppearance(appearance)
     }
 }

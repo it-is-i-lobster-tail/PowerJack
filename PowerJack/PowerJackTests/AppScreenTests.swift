@@ -19,6 +19,8 @@ struct AppScreenTests {
         container = PowerJackSeed.makeInMemoryContainer()
         try ExerciseCatalog.seed(in: container.mainContext)
         try TemplateCatalog.seed(in: container.mainContext)
+        // Templates open on the section last picked, so start each test on Build.
+        UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey)
     }
 
     @Test("Settings opens from the gear and toggles the rest timer options")
@@ -49,7 +51,8 @@ struct AppScreenTests {
         #expect(defaults.bool(forKey: AppSettings.Key.restLiveActivity) == false)
 
         // In memory, turning backup on swaps the container without touching iCloud.
-        let backup = try #require(screen.label(startingWith: "iCloud Backup"))
+        await screen.scrollToBottom()
+        let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup)
         #expect(store.syncsWithICloud)
@@ -72,6 +75,7 @@ struct AppScreenTests {
 
         await screen.tap("Templates", settleFor: .milliseconds(800))
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        await screen.scrollToBottom()
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
         #expect(store.syncsWithICloud)
@@ -169,13 +173,14 @@ struct AppScreenTests {
         let bench = try #require(screen.label(startingWith: "Barbell Bench Press"), "\(screen.labels)")
         await screen.tap(bench, settleFor: .milliseconds(800))
         #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
 
         await screen.tap("Day 2", settleFor: .milliseconds(600))
-        #expect(!screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
         #expect(screen.horizontalScrollViews.isEmpty)
 
         await screen.tap("Day 1", settleFor: .milliseconds(600))
-        #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
+        #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
     @Test("Browsing exercises opens the selected exercise's details")
@@ -207,6 +212,25 @@ struct AppScreenTests {
         let selectRow = try #require(select.label(startingWith: name), "\(select.labels)")
         await select.tap(selectRow, settleFor: .milliseconds(600))
         #expect(picked.template?.templateName == name)
+    }
+
+    @Test("The Templates switcher shows only the chosen section's templates")
+    func templateSections() async throws {
+        defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
+        let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
+        defer { screen.close() }
+        let build = TemplateCatalog.entries.first { $0.type == .hypertrophy }!.name
+        let strength = TemplateCatalog.entries.first { $0.type == .strength }!.name
+        let powerJack = TemplateCatalog.entries.first { $0.type == .powerJack }!.name
+
+        #expect(screen.label(startingWith: build) != nil, "\(screen.labels)")
+        #expect(screen.label(startingWith: strength) == nil, "\(screen.labels)")
+
+        #expect(await screen.tap("Strength", settleFor: .milliseconds(600)))
+        #expect(screen.label(startingWith: strength) != nil, "\(screen.labels)")
+
+        #expect(await screen.tap("PowerJack", settleFor: .milliseconds(600)))
+        #expect(screen.label(startingWith: powerJack) != nil, "\(screen.labels)")
     }
 
     @Test("New Template has no Save button and saves as soon as the user types")

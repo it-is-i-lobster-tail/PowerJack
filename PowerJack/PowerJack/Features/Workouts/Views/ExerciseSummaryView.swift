@@ -2,8 +2,8 @@
 //  ExerciseSummaryView.swift
 //  PowerJack
 //
-//  Shown after a workout is finished: completed sets per muscle as bars
-//  that grow in one row at a time.
+//  Shown after a workout is finished: the total workout time, and completed sets
+//  per muscle as bars that grow in one row at a time.
 //
 
 import SwiftUI
@@ -11,6 +11,8 @@ import SwiftUI
 struct ExerciseSummaryView: View {
     /// Sorted most sets first, as `Workout.completedSetsByMuscle` returns them.
     let setCounts: [MuscleSetCount]
+    /// `nil` for workouts started before workouts were timed.
+    var duration: TimeInterval?
     let onContinue: () -> Void
 
     var body: some View {
@@ -19,13 +21,18 @@ struct ExerciseSummaryView: View {
                 Text("Workout complete!")
                     .font(.largeTitle.bold())
 
+                if let duration {
+                    WorkoutTimeCard(title: "Total workout time", duration: duration)
+                }
+
                 Text("Today you did")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.secondary)
 
                 MuscleBarChart(
-                    bars: setCounts.map { MuscleBar(muscle: $0.muscle, value: Double($0.sets)) },
+                    bars: setCounts.map { MuscleBar(muscle: $0.muscle, value: $0.sets) },
                     reveal: .rowByRow,
+                    fractionDigits: 1,
                     unit: { $0 == 1 ? "set" : "sets" }
                 )
                 .padding(.top, LayoutMetrics.compactSpacing)
@@ -51,9 +58,11 @@ struct ExerciseSummaryView: View {
         setCounts: [
             MuscleSetCount(muscle: .chest, sets: 6),
             MuscleSetCount(muscle: .back, sets: 3),
-            MuscleSetCount(muscle: .triceps, sets: 2),
-            MuscleSetCount(muscle: .biceps, sets: 1),
+            MuscleSetCount(muscle: .biceps, sets: 3.5),
+            MuscleSetCount(muscle: .triceps, sets: 1),
+            MuscleSetCount(muscle: .forearms, sets: 0.5),
         ],
+        duration: 3125,
         onContinue: {}
     )
 }
