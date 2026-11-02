@@ -2,8 +2,8 @@
 //  RestTimerHost.swift
 //  PowerJack
 //
-//  Shows the active workout's rest in the in-app island, keeps the Live Activity on its current set,
-//  and has the voice say the next set when the rest ends.
+//  Shows the active workout's rest in the in-app island, buzzes as it ends, keeps the Live Activity
+//  on its current set, and has the voice say the next set when the rest ends.
 //
 
 import SwiftData
@@ -106,6 +106,8 @@ private struct RestTimerHost: ViewModifier {
                 if expanded { restTimerHint?.invalidate(reason: .actionPerformed) }
             }
             .task(id: rest) { await refreshClock(for: rest) }
+            // Restarts when the app comes back, so cues missed in the background are skipped.
+            .task(id: scenePhase == .active ? rest?.interval : nil) { await playCues(for: rest) }
             .task(id: liveActivityInput) { await syncLiveActivity(liveActivityInput) }
             .onChange(of: callout, initial: true) { _, callout in RestVoice.shared.sync(callout) }
     }
@@ -123,6 +125,11 @@ private struct RestTimerHost: ViewModifier {
         try? await Task.sleep(for: .seconds(rest.expiresAt.timeIntervalSinceNow))
         guard !Task.isCancelled else { return }
         withAnimation { clock = .now }
+    }
+
+    private func playCues(for rest: RestPeriod?) async {
+        guard scenePhase == .active, let rest else { return }
+        await rest.playCues { RestHaptics.shared.play($0) }
     }
 
     private func syncLiveActivity(_ input: LiveActivityInput) async {

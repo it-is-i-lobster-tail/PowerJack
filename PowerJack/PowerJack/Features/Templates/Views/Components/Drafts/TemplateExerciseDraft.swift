@@ -11,7 +11,7 @@ struct TemplateExerciseDraft: Identifiable, Hashable {
     let id: UUID
     var order: Int
     var exercise: Exercise
-    /// Shared with the exercise it's stacked with. Nil when it stands alone.
+    /// Shared with the exercises it's stacked with. Nil when it stands alone.
     var supersetID: UUID?
 
     init(
