@@ -10,6 +10,7 @@ enum AppSettings {
     enum Key {
         static let inAppRestTimer = "settings.restTimer.inApp"
         static let restLiveActivity = "settings.restTimer.liveActivity"
+        static let restVoice = "settings.restTimer.voice"
         static let iCloudBackup = "settings.iCloudBackup"
         static let hints = "settings.hints"
         static let weightUnit = "settings.weightUnit"
@@ -19,6 +20,7 @@ enum AppSettings {
     enum Default {
         static let inAppRestTimer = true
         static let restLiveActivity = true
+        static let restVoice = false
         static let iCloudBackup = true
         static let hints = true
     }
