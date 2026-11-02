@@ -55,7 +55,7 @@ struct ProgramDetailView: View {
         .navigationTitle(program.templateName)
         .navigationSubtitle(subtitle)
         .toolbar {
-            // Only the days ahead can change, so a finished program has nothing to edit.
+            // A finished program has no days ahead to edit.
             if program.nextWorkout != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(value: ProgramRoute.editDays(program)) {

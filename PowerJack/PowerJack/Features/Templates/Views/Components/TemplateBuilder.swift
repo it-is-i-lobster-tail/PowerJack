@@ -12,8 +12,10 @@ struct TemplateBuilder: View {
     @Environment(\.dismiss) private var dismiss
     
     @Binding private var draft: TemplateProgramDraft
-    /// Days that can't be edited, with why. Used by a running program, whose finished days stay as they were.
+    /// Days that can't be edited, with why. Used by a running program in its last week.
     private let lockedDays: [Int: LockedDay]
+    /// A line shown above a day's exercises, like why a running program's edit starts next week.
+    private let dayNotes: [Int: String]
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -27,7 +29,8 @@ struct TemplateBuilder: View {
 
     init(
         draft: Binding<TemplateProgramDraft>,
-        lockedDays: [Int: LockedDay] = [:]
+        lockedDays: [Int: LockedDay] = [:],
+        dayNotes: [Int: String] = [:]
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -40,6 +43,7 @@ struct TemplateBuilder: View {
 
         _draft = draft
         self.lockedDays = lockedDays
+        self.dayNotes = dayNotes
         _options = State(initialValue: initialOptions)
         _selection = State(initialValue: initialOptions[0])
     }
@@ -82,6 +86,14 @@ struct TemplateBuilder: View {
                 if let hint {
                     HintView(hint)
                         .padding(.horizontal)
+                }
+
+                if let note = dayNotes[selection.index] {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, LayoutMetrics.sectionSpacing)
                 }
 
                 if let lockedDay = lockedDays[selection.index] {

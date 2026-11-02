@@ -22,6 +22,11 @@ final class Workout {
     private var startedAtValue: Date? = nil
     private var endedAtValue: Date? = nil
     var programWeekValue: ProgramWeek?
+    // The day's exercises from next week on, saved when it's edited after it started this week.
+    @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.nextWeekWorkoutValue)
+    private var nextWeekExercisesValue: [TemplateExercise]? = []
+    // Whether `nextWeekExercisesValue` holds an edit, so an edit that removes every exercise still counts.
+    private var hasNextWeekLayoutValue: Bool = false
 
     init(
         order: Int
@@ -310,6 +315,37 @@ extension Workout {
         }
         Logger.workout.debug("Changed the exercises of a planned Workout")
         return ordered
+    }
+    /// The day's exercises from next week on, when it was edited after it started. Nil when no edit is waiting.
+    var nextWeekLayout: [TemplateExercise]? {
+        hasNextWeekLayoutValue ? (nextWeekExercisesValue ?? []).sorted(byOrder: \.order) : nil
+    }
+    /// Saves the exercises this day has from next week on. This week's stay as they were.
+    func setNextWeekLayout(_ layout: [(exercise: Exercise, supersetID: UUID?)]) {
+        clearNextWeekLayout()
+        nextWeekExercisesValue = layout.enumerated().map { order, entry in
+            TemplateExercise(exercise: entry.exercise, order: order, supersetID: entry.supersetID)
+        }
+        hasNextWeekLayoutValue = true
+    }
+    func clearNextWeekLayout() {
+        for row in nextWeekExercisesValue ?? [] {
+            modelContext?.delete(row)
+        }
+        nextWeekExercisesValue = []
+        hasNextWeekLayoutValue = false
+    }
+    /// Gives this newly built workout the exercises its day was edited to last week, then clears that edit.
+    /// Exercises it already has keep the sets the planner gave them.
+    func applyNextWeekLayout(from source: Workout) {
+        guard let layout = source.nextWeekLayout else { return }
+        var unclaimed = workoutExercises
+        applyLayout(layout.compactMap { row in
+            guard let exercise = row.exercise else { return nil }
+            let match = unclaimed.firstIndex { $0.exercise === exercise }.map { unclaimed.remove(at: $0) }
+            return (workoutExercise: match, exercise: exercise, supersetID: row.supersetID)
+        })
+        source.clearNextWeekLayout()
     }
     // Move WorkoutExercises
     func moveWorkoutExercises(from source: IndexSet, to destination: Int) {

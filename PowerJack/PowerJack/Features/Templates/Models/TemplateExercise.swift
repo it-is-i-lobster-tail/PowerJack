@@ -16,6 +16,8 @@ final class TemplateExercise {
     // Shared by the exercises stacked into one superset. Nil when the exercise stands alone.
     var supersetIDValue: UUID?
     var templateWorkoutValue: TemplateWorkout?
+    // Set instead of a template workout when the row is a program day's edit waiting for next week.
+    var nextWeekWorkoutValue: Workout?
 
     init(exercise: Exercise, order: Int, supersetID: UUID? = nil) {
         self.exerciseValue = exercise

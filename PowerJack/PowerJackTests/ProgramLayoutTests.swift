@@ -2,8 +2,8 @@
 //  ProgramLayoutTests.swift
 //  PowerJackTests
 //
-//  A running program's days can be edited in the template builder. Only workouts not started yet change,
-//  and later weeks follow the edit.
+//  A running program's days can be edited in the template builder. Workouts not started yet change now,
+//  days already started change from next week, and later weeks follow the edit.
 //
 
 import Foundation
@@ -13,22 +13,83 @@ import Testing
 
 @MainActor
 struct ProgramLayoutTests {
-    @Test("Days already started this week are locked; the rest open with their exercises and supersets")
-    func lockedDays() throws {
+    @Test("Every day opens with its exercises; days already started say their changes start next week")
+    func startedDaysOpen() throws {
         let (container, template) = try makeTemplate("Full Body")
         let program = try startProgram(template, in: container)
         try finishNextWorkout(of: program)
 
         let draft = ProgramLayoutDraft(program: program)
 
-        #expect(draft.lockedDays.keys.sorted() == [0])
-        #expect(draft.days.templateWorkoutDraftsValue[0].templateExerciseDrafts.isEmpty)
-        let dayTwo = try #require(program.programWeeks.first?.workouts[1])
-        #expect(
-            draft.days.templateWorkoutDraftsValue[1].templateExerciseDrafts.map(\.exercise.exerciseName)
-                == dayTwo.workoutExercises.compactMap(\.exercise?.exerciseName)
-        )
+        #expect(draft.lockedDays.isEmpty)
+        #expect(draft.dayNotes == [0: "Day 1 is done for this week. Changes start next week."])
+        let week = try #require(program.programWeeks.first)
+        for (index, workout) in week.workouts.enumerated() {
+            #expect(
+                draft.days.templateWorkoutDraftsValue[index].templateExerciseDrafts.map(\.exercise.exerciseName)
+                    == workout.workoutExercises.compactMap(\.exercise?.exerciseName)
+            )
+        }
         #expect(draft.days.workoutsPerWeek == template.workoutsPerWeek)
+    }
+
+    @Test("Editing a day already done leaves this week alone and changes it from next week on",
+          arguments: TemplateCatalog.entries.map(\.name))
+    func doneDayChangesNextWeek(templateName: String) throws {
+        let (container, template) = try makeTemplate(templateName)
+        let program = try startProgram(template, in: container)
+        try finishNextWorkout(of: program)
+        let dayOne = try #require(program.programWeeks.first?.workouts[0])
+        let loggedThisWeek = dayOne.workoutExercises.compactMap(\.exercise?.exerciseName)
+        let curl = try #require(try container.mainContext.fetch(FetchDescriptor<Exercise>()).first {
+            $0.exerciseName == "Dumbbell Curl"
+        })
+
+        var draft = ProgramLayoutDraft(program: program)
+        var day = draft.days.templateWorkoutDraftsValue[0]
+        day.removeTemplateExercises(at: IndexSet(integer: 0))
+        day.addTemplateExerciseDraft(exercise: curl)
+        day.stack(day.blocks[0])
+        draft.days.templateWorkoutDraftsValue[0] = day
+        draft.apply()
+        try container.mainContext.save()
+
+        let expected = day.templateExerciseDrafts.map(\.exercise.exerciseName)
+        #expect(dayOne.workoutExercises.compactMap(\.exercise?.exerciseName) == loggedThisWeek)
+        #expect(dayOne.nextWeekLayout?.compactMap(\.exercise?.exerciseName) == expected)
+        // Opening Edit Days again shows the saved edit.
+        #expect(
+            ProgramLayoutDraft(program: program).days.templateWorkoutDraftsValue[0].templateExerciseDrafts
+                .map(\.exercise.exerciseName) == expected
+        )
+
+        // Every later week's day one has the edit, with its sets planned.
+        while let workout = program.nextWorkout {
+            try finishNextWorkout(of: program)
+            guard let week = program.programWeek(containing: workout), week.order > 0, workout.order == 0 else { continue }
+            #expect(workout.workoutExercises.compactMap(\.exercise?.exerciseName) == expected, "\(templateName) week \(week.order + 1)")
+            #expect(workout.workoutExercises[0].supersetPartners.first === workout.workoutExercises[1])
+            #expect(workout.workoutExercises.allSatisfy { !$0.workingSets.isEmpty }, "\(templateName) week \(week.order + 1)")
+        }
+        #expect(dayOne.nextWeekLayout == nil)
+    }
+
+    @Test("Undoing a done day's edit leaves nothing waiting for next week")
+    func undoneEditClears() throws {
+        let (container, template) = try makeTemplate("Full Body")
+        let program = try startProgram(template, in: container)
+        try finishNextWorkout(of: program)
+        let dayOne = try #require(program.programWeeks.first?.workouts[0])
+
+        var draft = ProgramLayoutDraft(program: program)
+        let original = draft.days.templateWorkoutDraftsValue[0]
+        draft.days.templateWorkoutDraftsValue[0].removeTemplateExercises(at: IndexSet(integer: 0))
+        draft.apply()
+        #expect(dayOne.nextWeekLayout != nil)
+
+        draft.days.templateWorkoutDraftsValue[0] = original
+        draft.apply()
+        #expect(dayOne.nextWeekLayout == nil)
     }
 
     @Test("Removing, moving, adding and stacking change the open day and every later week",
@@ -75,7 +136,7 @@ struct ProgramLayoutTests {
         #expect(program.status == .complete)
     }
 
-    @Test("A finished day says when it can change, except in the last week")
+    @Test("In the program's last week, a finished day is locked")
     func lockedMessages() throws {
         let (container, template) = try makeTemplate("Full Body")
         let program = try startProgram(template, in: container, weeks: 1)
