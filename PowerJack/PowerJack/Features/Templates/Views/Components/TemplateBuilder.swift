@@ -81,8 +81,7 @@ struct TemplateBuilder: View {
                         .padding(.horizontal)
                 }
 
-                // Days change only by tapping the picker. Horizontal swipes belong to
-                // the exercise rows, so swipe to edit or delete never flips the day.
+                // Days change only by tapping the picker, so dragging a card sideways never flips the day.
                 TemplateWorkoutBuilder(
                     templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
                     handleEdit: handleShowEditExerciseSheet
@@ -165,37 +164,28 @@ struct TemplateWorkoutBuilder: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(templateWorkoutDraft.blocks) { block in
-                    blockRow(block)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[block.id] = $0 }
-                        .overlay { dropIndicator(on: block) }
-                        .onDrop(
-                            of: [.text],
-                            delegate: StackDropDelegate(
-                                block: block,
-                                height: cardHeights[block.id] ?? 0,
-                                draft: $templateWorkoutDraft,
-                                draggedIDs: $draggedIDs,
-                                target: $dropTarget
+            // A plain scroll view, not a List: a List takes every drop itself, so a card never sees one land on it.
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(templateWorkoutDraft.blocks) { block in
+                        blockRow(block)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[block.id] = $0 }
+                            .overlay { dropIndicator(on: block) }
+                            .onDrop(
+                                of: [.text],
+                                delegate: StackDropDelegate(
+                                    block: block,
+                                    height: cardHeights[block.id] ?? 0,
+                                    draft: $templateWorkoutDraft,
+                                    draggedIDs: $draggedIDs,
+                                    target: $dropTarget
+                                )
                             )
-                        )
-                        .padding(.horizontal, 15)
-                        .listRowSeparator(.hidden, edges: .all)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(
-                            EdgeInsets(
-                                top: 4,
-                                leading: 0,
-                                bottom: 4,
-                                trailing: 0
-                            )
-                        )
+                    }
                 }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 8)
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
             .animation(.snappy(duration: 0.2), value: dropTarget)
             .sensoryFeedback(.selection, trigger: dropTarget)
@@ -203,38 +193,33 @@ struct TemplateWorkoutBuilder: View {
         .powerJackGlassCard(interactive: true)
     }
 
+    /// Touch and hold a card to drag it, or to open its menu without moving.
     @ViewBuilder
     private func blockRow(_ block: TemplateExerciseBlock) -> some View {
         if block.isSuperset {
-            // Either way, so a swipe right on a stack never goes back a screen.
-            SupersetBuilder(exercises: block.exercises, drag: startDrag)
-                .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                    unstackButton(block)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    unstackButton(block)
-                }
-                .accessibilityActions { supersetWithNextAction(block) }
+            SupersetBuilder(
+                exercises: block.exercises,
+                drag: startDrag,
+                unstack: { templateWorkoutDraft.unstack(block) },
+                exerciseMenu: exerciseMenu
+            )
+            .accessibilityActions { supersetWithNextAction(block) }
         } else {
-            let templateExerciseDraft = block.exercises[0]
-            TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise)
+            TemplateExerciseBuilder(exercise: block.exercises[0].exercise)
+                .contentShape(.rect)
                 .onDrag { startDrag(block.exercises) }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button {
-                        templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                    } label: {
-                        Label("Trash", systemImage: "trash")
-                    }
-                    .tint(.red)
-
-                    Button {
-                        handleEdit(templateExerciseDraft.exercise)
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
-                }
+                .contextMenu { exerciseMenu(block.exercises[0]) }
                 .accessibilityActions { supersetWithNextAction(block) }
+        }
+    }
+
+    @ViewBuilder
+    private func exerciseMenu(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button("Edit", systemImage: "pencil") {
+            handleEdit(templateExerciseDraft.exercise)
+        }
+        Button("Remove", systemImage: "trash", role: .destructive) {
+            templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
         }
     }
 
@@ -274,15 +259,6 @@ struct TemplateWorkoutBuilder: View {
 }
 
 extension TemplateWorkoutBuilder {
-    private func unstackButton(_ block: TemplateExerciseBlock) -> some View {
-        Button {
-            templateWorkoutDraft.unstack(block)
-        } label: {
-            Label("Unstack", systemImage: "square.split.1x2")
-        }
-        .tint(.gray)
-    }
-
     /// Drag and drop for VoiceOver: stacks the next card onto this one.
     @ViewBuilder
     private func supersetWithNextAction(_ block: TemplateExerciseBlock) -> some View {
@@ -367,9 +343,11 @@ struct TemplateExerciseBuilder: View {
 
 /// Exercises stacked into a superset share one card, done one set of each in turn.
 /// Drag the header to move the whole superset, or an exercise to lift it out.
-struct SupersetBuilder: View {
+struct SupersetBuilder<ExerciseMenu: View>: View {
     let exercises: [TemplateExerciseDraft]
     let drag: ([TemplateExerciseDraft]) -> NSItemProvider
+    let unstack: () -> Void
+    @ViewBuilder let exerciseMenu: (TemplateExerciseDraft) -> ExerciseMenu
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -385,6 +363,9 @@ struct SupersetBuilder: View {
             .padding(.bottom, 4)
             .contentShape(.rect)
             .onDrag { drag(exercises) }
+            .contextMenu {
+                Button("Unstack", systemImage: "square.split.1x2", action: unstack)
+            }
 
             ForEach(exercises) { templateExerciseDraft in
                 if templateExerciseDraft.id != exercises.first?.id {
@@ -399,6 +380,7 @@ struct SupersetBuilder: View {
                     } preview: {
                         TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise)
                     }
+                    .contextMenu { exerciseMenu(templateExerciseDraft) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
