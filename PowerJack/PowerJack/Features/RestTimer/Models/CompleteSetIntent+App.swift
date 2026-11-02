@@ -30,6 +30,10 @@ extension CompleteSetIntent {
             isEnabled: UserDefaults.standard.object(forKey: AppSettings.Key.restLiveActivity) as? Bool
                 ?? AppSettings.Default.restLiveActivity
         )
+        // Starts the next rest's callout while the phone is still locked.
+        let speaksRestEnd = UserDefaults.standard.object(forKey: AppSettings.Key.restVoice) as? Bool
+            ?? AppSettings.Default.restVoice
+        RestVoice.shared.sync(speaksRestEnd ? workout.restCallout : nil)
         return .result()
     }
 }
