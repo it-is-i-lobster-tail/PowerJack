@@ -51,6 +51,16 @@ struct SettingsView: View {
                     if showsRestLiveActivity, !liveActivitiesAllowed {
                         LiveActivitiesOffNote(openSettings: openSystemSettings)
                     }
+
+                    NavigationLink {
+                        RestHapticsView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "iphone.radiowaves.left.and.right",
+                            title: "Haptics",
+                            detail: "A heads-up buzz before your rest ends, and another when it's time to lift."
+                        )
+                    }
                 } header: {
                     Text("Rest Timer")
                 }
