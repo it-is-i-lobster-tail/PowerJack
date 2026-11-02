@@ -229,6 +229,26 @@ extension WorkoutSet {
     func stop() {
         skip()
     }
+    /// Opens a skipped set again, keeping the reps and weight it was holding.
+    func unskip() {
+        guard status == .skipped else {
+            Logger.workoutSet.warning("Can only unskip a skipped WorkoutSet.")
+            return
+        }
+        statusValue = Status.active
+        lockedValue = false
+        Logger.workoutSet.debug("WorkoutSet unskipped")
+    }
+    /// Back to planned, as if its workout never started. The next start fills in the target again.
+    func resetToPlanned() {
+        statusValue = Status.planned
+        lockedValue = false
+        repsValue = nil
+        weightTenthsPoundsValue = nil
+        completedAtValue = nil
+        startedAtValue = nil
+        Logger.workoutSet.debug("WorkoutSet reset to planned")
+    }
     func start() {
         guard
             !lockedValue

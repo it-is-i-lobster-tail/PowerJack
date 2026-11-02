@@ -380,6 +380,83 @@ struct WorkoutFlowTests {
         #expect(program.programWeeks[0].workouts[1].setProgress == (0, 0))
     }
 
+    @Test("Restoring a workout skipped partway picks up where it was left")
+    func restoreWorkoutSkippedPartway() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2, exercisesPerWorkout: 3)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let logged = workout.workoutExercises[0]
+        let skippedEarlier = workout.workoutExercises[1]
+        let untouched = workout.workoutExercises[2]
+        #expect(!logged.warmupSets.isEmpty)
+        let loggedSet = try #require(logged.workingSets.first)
+        loggedSet.reps = 8
+        loggedSet.weightTenthsPounds = 1000
+        logged.completeSet(loggedSet)
+        skippedEarlier.skipRemainingSets()
+        program.skipWorkout(workout)
+        #expect(program.canRestoreWorkout(workout))
+
+        program.restoreWorkout(workout)
+
+        #expect(workout.status == .active)
+        #expect(!workout.locked)
+        #expect(workout.startedAt != nil)
+        #expect(workout.endedAt == nil)
+        #expect(program.nextWorkout === workout)
+        #expect(loggedSet.status == .complete && loggedSet.reps == 8 && loggedSet.weightTenthsPounds == 1000)
+        #expect(logged.status == .active && !logged.locked)
+        #expect(logged.workingSets.dropFirst().allSatisfy { $0.status == .active && !$0.locked })
+        // Logging the first working set passed over the warmups, before the skip.
+        #expect(logged.warmupSets.allSatisfy { $0.status == .skipped })
+        // Skip Exercise came before Skip Workout, so it still stands.
+        #expect(skippedEarlier.status == .skipped)
+        #expect(skippedEarlier.workingSets.allSatisfy { $0.status == .skipped })
+        #expect(untouched.status == .active)
+        #expect(untouched.workoutSets.allSatisfy { $0.status == .active && !$0.locked })
+        // The skip's history is taken back, so finishing the workout logs it once.
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).isEmpty)
+        program.finishWorkout(workout)
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).count == 1)
+    }
+
+    @Test("Restoring a workout skipped before it started puts it back up next, not started")
+    func restoreWorkoutSkippedBeforeStart() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let first = program.programWeeks[0].workouts[0]
+        program.skipWorkout(first)
+
+        program.restoreWorkout(first)
+
+        #expect(first.status == .planned)
+        #expect(first.locked)
+        #expect(first.startedAt == nil && first.endedAt == nil)
+        #expect(program.nextWorkout === first)
+        #expect(first.workoutExercises.allSatisfy { $0.status == .planned })
+        #expect(sets(of: first).allSatisfy { $0.status == .planned && !$0.locked && $0.reps == nil })
+
+        first.startAndCascade()
+        #expect(sets(of: first).allSatisfy { $0.status == .active && $0.reps == $0.repsPlanned })
+    }
+
+    @Test("A skip can't be restored once it ended its week or while another workout is underway")
+    func restoreWorkoutLimits() throws {
+        let program = try makeStartedProgram(weeks: 2, workouts: 2)
+        let dayOne = program.programWeeks[0].workouts[0]
+        let dayTwo = program.programWeeks[0].workouts[1]
+        program.skipWorkout(dayOne)
+        dayTwo.startAndCascade()
+        #expect(!program.canRestoreWorkout(dayOne))
+
+        // Skipping the week's last workout built week 2 from it.
+        program.skipWorkout(dayTwo)
+        #expect(!program.programWeeks[1].workouts.isEmpty)
+        #expect(!program.canRestoreWorkout(dayOne))
+        #expect(!program.canRestoreWorkout(dayTwo))
+        program.restoreWorkout(dayTwo)
+        #expect(dayTwo.status == .skipped)
+    }
+
     @Test("Current workout and exercise are restored from persisted state")
     func restoreFromStore() throws {
         let program = try makeStartedProgram(weeks: 2, workouts: 2, exercisesPerWorkout: 2)
@@ -436,10 +513,53 @@ struct WorkoutFlowTests {
         sets[3].weightTenthsPounds = 1500
         sets[3].complete()
 
-        sets[1].weightTenthsPounds = 2200
-        exercise.applyWeight(2200, after: sets[1])
+        typeWeights([2, 22, 220], on: sets[1], of: exercise)
 
         #expect(sets.map(\.weightTenthsPounds) == [2000, 2200, 2200, 1500])
+    }
+
+    @Test("A carried weight stops at the first later set that already has its own weight")
+    func weightStopsAtEnteredSet() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 4)
+        sets.forEach { $0.weightTenthsPounds = nil }
+        sets[2].weightTenthsPounds = 1500
+
+        typeWeights([2, 20, 200], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [2000, 2000, 1500, nil])
+    }
+
+    @Test("Retyping a set's weight carries to the later sets still showing its old weight")
+    func retypedWeightCarriesOverOldWeight() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        let sets = exercise.workingSets
+        try #require(sets.count == 3)
+        sets.forEach { $0.weightTenthsPounds = 1400 }
+
+        // Deleting 140 a digit at a time, then typing 145.
+        typeWeights([14, 1, nil, 1, 14, 145], on: sets[0], of: exercise)
+
+        #expect(sets.map(\.weightTenthsPounds) == [1450, 1450, 1450])
+    }
+
+    /// Types `pounds` into `workoutSet` one keystroke at a time, the way the set row reports each change.
+    private func typeWeights(_ pounds: [Int?], on workoutSet: WorkoutSet, of exercise: WorkoutExercise) {
+        for weight in pounds.map({ $0.map { $0 * 10 } }) {
+            let previousWeight = workoutSet.weightTenthsPounds
+            workoutSet.weightTenthsPounds = weight
+            exercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
+        }
     }
 
     @Test("Starting a workout enters each set's target weight and reps, so the set can be checked off as is")

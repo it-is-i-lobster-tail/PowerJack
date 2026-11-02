@@ -75,6 +75,8 @@ struct WorkoutExerciseView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            // The number pad slides over the sets, so the one being typed in scrolls up above it.
+            .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
         }
         .onChange(of: workoutExercise.allSetsDone()) { wasDone, isDone in
             guard !wasDone, isDone else { return }
@@ -144,13 +146,14 @@ struct WorkoutExerciseView: View {
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.exercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
-                    onWeightChange: { weight in
+                    onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }
-                        workoutExercise.applyWeight(weight, after: workoutSet)
+                        workoutExercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
                     }
                 )
                 .frame(width: screenWidth * 0.88, height: 55)
+                .id(workoutSet.id)
 
                 if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {
                     TopSetRating(workoutExercise: workoutExercise)

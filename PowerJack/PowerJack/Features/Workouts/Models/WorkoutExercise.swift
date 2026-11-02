@@ -291,6 +291,48 @@ extension WorkoutExercise {
             workoutSet.skip()
         }
     }
+    /// Undoes Skip Workout. Skip Workout locks the exercises it skips, so one skipped earlier with Skip Exercise
+    /// (still open) stays skipped. Warmups passed over by a logged working set stay skipped too.
+    func unskipWorkout() {
+        guard statusValue == .skipped, lockedValue else { return }
+        statusValue = Status.active
+        lockedValue = false
+        unskipSets()
+        Logger.workoutExercise.debug("WorkoutExercise unskipped")
+    }
+    /// Skip Exercise can be undone until the workout finishes and locks the exercise.
+    var canRestoreSkipped: Bool { statusValue == .skipped && !lockedValue }
+    /// Undoes Skip Exercise. Sets logged before the skip keep what was logged.
+    func restoreSkipped() {
+        guard canRestoreSkipped else {
+            Logger.workoutExercise.warning("Can only restore a skipped WorkoutExercise that is still open.")
+            return
+        }
+        statusValue = Status.active
+        unskipSets()
+        Logger.workoutExercise.debug("WorkoutExercise restored")
+    }
+    /// Warmups passed over by a logged working set stay skipped.
+    private func unskipSets() {
+        let keepsWarmupsSkipped = completedWorkingSets > 0
+        for workoutSet in workoutSets where workoutSet.status == .skipped {
+            if workoutSet.isWarmup && keepsWarmupsSkipped { continue }
+            workoutSet.unskip()
+        }
+    }
+    /// Back to planned, as if its workout never started. A check-in it answered is asked again.
+    func resetToPlanned() {
+        statusValue = Status.planned
+        lockedValue = false
+        if checkInValue == .resolved {
+            checkInValue = .pending
+            lockedValue = true
+        }
+        for workoutSet in workoutSets {
+            workoutSet.resetToPlanned()
+        }
+        Logger.workoutExercise.debug("WorkoutExercise reset to planned")
+    }
     func startAndCascade() {
         guard checkInValue != .pending else {
             // Stays planned and locked until `resolveCheckIn` runs.
@@ -621,13 +663,13 @@ extension WorkoutExercise {
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
     }
-    /// Copies a weight entered on `workoutSet` to every later set of the same type still being logged.
-    /// Completed and skipped sets keep what was logged, and warmup weights never reach working sets.
-    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet) {
-        guard let weightTenthsPounds else { return }
-        for laterSet in workoutSets where laterSet.order > workoutSet.order &&
-            laterSet.setType == workoutSet.setType &&
-            laterSet.status == .active {
+    /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
+    /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.
+    /// It stops at the first set that's done or has a weight of its own, and warmup weights never reach working sets.
+    func applyWeight(_ weightTenthsPounds: Int?, after workoutSet: WorkoutSet, replacing previousWeight: Int?) {
+        guard weightTenthsPounds != previousWeight else { return }
+        for laterSet in workoutSets where laterSet.order > workoutSet.order && laterSet.setType == workoutSet.setType {
+            guard laterSet.status == .active, laterSet.weightTenthsPounds == previousWeight else { return }
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }

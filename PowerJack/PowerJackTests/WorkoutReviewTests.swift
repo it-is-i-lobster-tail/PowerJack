@@ -61,6 +61,79 @@ struct WorkoutReviewTests {
         #expect(!exercise.isDone)
     }
 
+    @Test("Restore Exercise brings back the skipped sets and keeps the logged ones")
+    func restoreSkippedExercise() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        let first = try #require(exercise.workingSets.first)
+        first.reps = 10
+        first.weightTenthsPounds = 1000
+        exercise.completeSet(first)
+        let rest = exercise.workingSets.dropFirst()
+        #expect(!rest.isEmpty)
+
+        exercise.skipRemainingSets()
+        #expect(exercise.canRestoreSkipped)
+        exercise.restoreSkipped()
+
+        #expect(exercise.status == .active)
+        #expect(!exercise.locked)
+        #expect(!exercise.canRestoreSkipped)
+        #expect(!exercise.isDone)
+        #expect(!exercise.needsFeedback)
+        #expect(first.status == .complete && first.reps == 10 && first.weightTenthsPounds == 1000)
+        #expect(rest.allSatisfy { $0.status == .active && !$0.locked })
+        // A logged working set had already passed over the warmups.
+        #expect(exercise.warmupSets.allSatisfy { $0.status == .skipped })
+    }
+
+    @Test("Restoring an exercise skipped before any set brings its warmups back too")
+    func restoreUntouchedExercise() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+
+        exercise.skipRemainingSets()
+        exercise.restoreSkipped()
+
+        #expect(exercise.status == .active)
+        #expect(exercise.workoutSets.allSatisfy { $0.status == .active })
+    }
+
+    @Test("A skipped exercise can't be restored once its workout is finished")
+    func finishedExerciseCantRestore() throws {
+        let program = try makeStartedProgram(exercises: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = workout.workoutExercises[0]
+        exercise.skipRemainingSets()
+        program.finishWorkout(workout)
+
+        #expect(exercise.locked)
+        #expect(!exercise.canRestoreSkipped)
+        exercise.restoreSkipped()
+        #expect(exercise.status == .skipped)
+        #expect(exercise.workingSets.allSatisfy { $0.status == .skipped })
+    }
+
+    @Test("The workout menu offers Restore Exercise once the exercise is skipped")
+    func restoreLabelReplacesSkip() async throws {
+        let program = try makeStartedProgram(exercises: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        workout.workoutExercises[0].skipRemainingSets()
+        try container.mainContext.save()
+
+        let screen = try await HostedView(session(program))
+        defer { screen.close() }
+
+        // The workout opens on the first unfinished exercise, so go back to the skipped one.
+        await screen.tap("Bench", settleFor: .milliseconds(800))
+        #expect(await screen.tap("More", settleFor: .milliseconds(800)), "\(screen.labels)")
+        let labels = screen.labelsInAllWindows
+        #expect(labels.contains("Restore Exercise"), "\(labels)")
+        #expect(!labels.contains("Skip Exercise"), "\(labels)")
+    }
+
     @Test("The workout menu names what each skip covers")
     func skipLabelsNameTheirScope() async throws {
         let program = try makeStartedProgram(exercises: 1)
