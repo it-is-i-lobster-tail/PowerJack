@@ -96,9 +96,6 @@ private struct RestIslandContent: View {
         .contentShape(.rect(cornerRadius: cornerRadius, style: .continuous))
         .onTapGesture { onTap(isReady) }
         .animation(.smooth, value: isReady)
-        .sensoryFeedback(.success, trigger: isReady) { wasReady, nowReady in
-            !wasReady && nowReady
-        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(isReady ? "Opens your current exercise" : "Shows the next set")

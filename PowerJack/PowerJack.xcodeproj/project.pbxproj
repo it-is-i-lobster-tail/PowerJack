@@ -114,6 +114,7 @@
 				Features/Programs/Models/Progression/Strength/StrengthSlot.swift,
 				Features/Programs/Models/Progression/Strength/StrengthState.swift,
 				Features/Programs/Models/Progression/Strength/StrengthWeekClose.swift,
+				Features/RestTimer/Models/RestCue.swift,
 				"Features/RestTimer/Models/Workout+Activity.swift",
 				"Features/RestTimer/Models/Workout+Rest.swift",
 				Features/Settings/Models/AppSettings.swift,

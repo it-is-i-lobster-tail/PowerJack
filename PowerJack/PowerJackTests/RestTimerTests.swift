@@ -3,6 +3,7 @@
 //  PowerJackTests
 //
 
+import CoreHaptics
 import Foundation
 import SwiftData
 import Testing
@@ -311,6 +312,83 @@ struct RestTimerTests {
         #expect(openEnded.prescriptionText == "2 RIR × 225 lb")
         openEnded.weightTenthsPounds = nil
         #expect(openEnded.prescriptionText == "2 RIR")
+    }
+
+    @Test("A rest gives a heads-up before it ends, then the lift cue when it's over")
+    func restCues() throws {
+        let rest = RestPeriod(
+            startedAt: start,
+            endsAt: start.addingTimeInterval(135),
+            exerciseName: "Row",
+            setNumber: 2,
+            setCount: 3
+        )
+        let settings = RestHapticSettings()
+        let headsUp = start.addingTimeInterval(120)
+
+        #expect(settings.headsUp && settings.headsUpLead == 15)
+        #expect(rest.cues(after: start, settings: settings).map(\.cue) == [.headsUp, .lift])
+        #expect(rest.cues(after: start, settings: settings).map(\.at) == [headsUp, rest.endsAt])
+        // Coming back after the heads-up skips straight to the lift cue.
+        #expect(rest.cues(after: headsUp.addingTimeInterval(1), settings: settings).map(\.cue) == [.lift])
+        #expect(rest.cues(after: rest.endsAt.addingTimeInterval(1), settings: settings).isEmpty)
+
+        var earlier = settings
+        earlier.headsUpLead = 30
+        #expect(rest.cues(after: start, settings: earlier).first?.at == start.addingTimeInterval(105))
+
+        var off = settings
+        off.headsUp = false
+        #expect(rest.cues(after: start, settings: off).map(\.cue) == [.lift])
+
+        // The iPhone and the watch are switched apart; this is the iPhone.
+        var watchOnly = settings
+        watchOnly.onPhone = false
+        #expect(rest.cues(after: start, settings: watchOnly).isEmpty)
+        var phoneOnly = settings
+        phoneOnly.onWatch = false
+        #expect(rest.cues(after: start, settings: phoneOnly).count == 2)
+
+        // A rest no longer than the lead only gets the lift cue.
+        var short = rest
+        short.endsAt = start.addingTimeInterval(15)
+        #expect(short.cues(after: start, settings: settings).map(\.cue) == [.lift])
+    }
+
+    @Test("Haptic settings default to one short heads-up and short, short, long to lift")
+    func hapticSettings() throws {
+        let defaults = UserDefaults.standard
+        let keys = [
+            AppSettings.Key.hapticsOnPhone, AppSettings.Key.hapticsOnWatch, AppSettings.Key.headsUp,
+            AppSettings.Key.headsUpLead, AppSettings.Key.headsUpPattern, AppSettings.Key.liftPattern,
+        ]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) }
+        }
+        keys.forEach(defaults.removeObject)
+
+        let defaultSettings = RestHapticSettings.current
+        #expect(defaultSettings == RestHapticSettings())
+        #expect(defaultSettings.pattern(for: .headsUp).buzzes == [false])
+        #expect(defaultSettings.pattern(for: .lift).buzzes == [false, false, true])
+
+        defaults.set(false, forKey: AppSettings.Key.hapticsOnWatch)
+        defaults.set(false, forKey: AppSettings.Key.headsUp)
+        defaults.set(10, forKey: AppSettings.Key.headsUpLead)
+        defaults.set(HapticPattern.twoShort.rawValue, forKey: AppSettings.Key.headsUpPattern)
+        defaults.set(HapticPattern.oneLong.rawValue, forKey: AppSettings.Key.liftPattern)
+        let chosen = RestHapticSettings.current
+        #expect(chosen.onPhone && !chosen.onWatch)
+        #expect(!chosen.headsUp && chosen.headsUpLead == 10)
+        #expect(chosen.pattern(for: .headsUp) == .twoShort)
+        #expect(chosen.pattern(for: .lift) == .oneLong)
+
+        // Every pattern builds, and the lift default runs just under a second.
+        for pattern in HapticPattern.allCases {
+            _ = try RestHaptics.hapticPattern(for: pattern)
+        }
+        #expect(abs(try RestHaptics.hapticPattern(for: .shortShortLong).duration - 0.98) < 0.01)
     }
 
     @Test("Opening the current exercise shows the session and asks it to scroll")
