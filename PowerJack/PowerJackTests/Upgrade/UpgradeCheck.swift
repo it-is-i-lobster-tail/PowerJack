@@ -8,7 +8,6 @@
 
 import Foundation
 import SwiftData
-import Testing
 @testable import PowerJack
 
 /// What a lifter's store holds. Old versions write it next to their store with
@@ -36,42 +35,59 @@ struct UpgradeManifest: Codable {
     }
 }
 
+struct UpgradeProblems: Error, CustomStringConvertible {
+    let version: String
+    let problems: [String]
+    var description: String { "Upgrade from \(version): " + problems.joined(separator: "; ") }
+}
+
 @MainActor
 enum UpgradeCheck {
     /// Compares the upgraded store with what `version` saved, then finishes the running workout.
+    /// Throws every difference at once, so a failed upgrade shows all of what it lost.
     static func verify(_ container: ModelContainer, against saved: UpgradeManifest, from version: String) throws {
         let context = container.mainContext
         let upgraded = try UpgradeManifest(context: context)
+        var problems: [String] = []
+        func check<Value: Equatable>(_ name: String, _ before: Value, _ after: Value) {
+            if before != after { problems.append("\(name): \(before) before, \(after) after") }
+        }
 
-        #expect(upgraded.programs == saved.programs, "Programs from \(version)")
-        #expect(upgraded.completedWorkouts == saved.completedWorkouts, "Finished workouts from \(version)")
-        #expect(upgraded.completedSets == saved.completedSets, "Logged sets from \(version)")
-        #expect(upgraded.loggedVolume == saved.loggedVolume, "Logged weights and reps from \(version)")
-        #expect(upgraded.feedback == saved.feedback, "Exercise feedback from \(version)")
-        #expect(upgraded.workoutLogs == saved.workoutLogs, "Volume history from \(version)")
-        #expect(upgraded.userExercises == saved.userExercises, "Own exercises from \(version)")
-        #expect(upgraded.templates == saved.templates, "Own templates from \(version)")
+        check("Programs", saved.programs, upgraded.programs)
+        check("Finished workouts", saved.completedWorkouts, upgraded.completedWorkouts)
+        check("Logged sets", saved.completedSets, upgraded.completedSets)
+        check("Logged weight x reps", saved.loggedVolume, upgraded.loggedVolume)
+        check("Exercise feedback", saved.feedback, upgraded.feedback)
+        check("Volume history", saved.workoutLogs, upgraded.workoutLogs)
+        check("Own exercises", saved.userExercises, upgraded.userExercises)
+        check("Own templates", saved.templates, upgraded.templates)
 
         // The lifter picks up where they left off.
-        let program = try #require(try context.fetch(FetchDescriptor<Program>()).active, "No running program from \(version)")
-        let workout = try #require(program.nextWorkout, "No next workout from \(version)")
-        if workout.status == .planned {
-            workout.startAndCascade()
-        }
-        for exercise in workout.workoutExercises where exercise.status != .complete {
-            for set in exercise.workoutSets where set.status != .complete {
-                set.reps = 10
-                set.weightTenthsPounds = 1050
-                set.complete()
+        if let program = try context.fetch(FetchDescriptor<Program>()).active, let workout = program.nextWorkout {
+            if workout.status == .planned {
+                workout.startAndCascade()
             }
-            exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
-            exercise.completeAndCascade()
-        }
-        _ = program.finishWorkout(workout)
-        try context.save()
+            for exercise in workout.workoutExercises where exercise.status != .complete {
+                for set in exercise.workoutSets where set.status != .complete {
+                    set.reps = 10
+                    set.weightTenthsPounds = 1050
+                    set.complete()
+                }
+                exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+                exercise.completeAndCascade()
+            }
+            _ = program.finishWorkout(workout)
+            try context.save()
 
-        let trained = try UpgradeManifest(context: context)
-        #expect(trained.completedWorkouts == upgraded.completedWorkouts + 1, "Finishing a workout after upgrading from \(version)")
-        #expect(program.nextWorkout != nil, "The program from \(version) moves on to its next workout")
+            let trained = try UpgradeManifest(context: context)
+            check("Finished workouts after one more", upgraded.completedWorkouts + 1, trained.completedWorkouts)
+            if program.nextWorkout == nil { problems.append("The program doesn't move on to its next workout") }
+        } else {
+            problems.append("No running program with a next workout")
+        }
+
+        guard problems.isEmpty else {
+            throw UpgradeProblems(version: version, problems: problems)
+        }
     }
 }

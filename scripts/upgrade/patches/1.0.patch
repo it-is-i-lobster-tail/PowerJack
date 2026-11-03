@@ -1,3 +1,25 @@
+diff --git a/PowerJack/PowerJack.xcodeproj/project.pbxproj b/PowerJack/PowerJack.xcodeproj/project.pbxproj
+index 4f4babd..99378b2 100644
+--- a/PowerJack/PowerJack.xcodeproj/project.pbxproj
++++ b/PowerJack/PowerJack.xcodeproj/project.pbxproj
+@@ -367,7 +367,7 @@
+ 					"@executable_path/../../Frameworks",
+ 				);
+ 				MARKETING_VERSION = 1.0;
+-				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv0.2.PowerJackWidgets;
++				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				SKIP_INSTALL = YES;
+ 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+@@ -401,7 +401,7 @@
+ 					"@executable_path/../../Frameworks",
+ 				);
+ 				MARKETING_VERSION = 1.0;
+-				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv0.2.PowerJackWidgets;
++				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				SKIP_INSTALL = YES;
+ 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 diff --git a/PowerJack/PowerJack/Shared/Hints/Hint.swift b/PowerJack/PowerJack/Shared/Hints/Hint.swift
 index 88e8505..6c61888 100644
 --- a/PowerJack/PowerJack/Shared/Hints/Hint.swift

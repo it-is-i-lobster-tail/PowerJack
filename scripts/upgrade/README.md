@@ -18,14 +18,16 @@ Each `upgrade-<version>.store` is the real store that version saved after traini
 
 1. builds that version and installs it fresh on a simulator, then opens it, so it creates and seeds its own store,
 2. trains with it through `UpgradeFixtureWriter.swift`, which is copied into that version's tests: a finished program from a built-in template, plus the lifter's own exercise and template with week 1 done and week 2 mid-workout,
-3. installs the new version over it, keeping the data like an App Store update, and opens it,
-4. runs `InstalledUpgradeTests` on the upgraded store with the same checks as the unit tests.
+3. installs the new version over it, keeping the data like an App Store update, and opens it, which upgrades the store (it fails if the app quits),
+4. copies the upgraded store off the simulator.
+
+Then one run of `InstalledUpgradeTests` checks every upgraded store with the same checks as the unit tests.
 
 Versions are split over four runners. PRs into main run it only when they change the upgrade tests.
 
 `UpgradeFixtureWriter.swift` has to compile against every version back to 1.0, so it only uses APIs that 1.0 already had.
 
-A version that no longer builds with CI's Xcode gets the smallest fix that makes it build in `patches/<version>.patch`. A patch must never change how data is saved. 1.0 was built with a newer Xcode than CI's, so `patches/1.0.patch` adds the TipKit defaults 0.1.0 added.
+A version that no longer builds with CI's Xcode gets the smallest fix that makes it build in `patches/<version>.patch`. A patch must never change how data is saved. 1.0 was built with a newer Xcode than CI's, so `patches/1.0.patch` adds the TipKit defaults and the widget bundle ID that 0.1.0 has.
 
 ## Adding a fixture
 
