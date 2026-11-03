@@ -67,8 +67,8 @@ jobs:
 
   # Each merge to main raises the patch version (0.1.0 -> 0.1.1) and commits it
   # back, so Archive builds from main carry the next version. A push that
-  # already changes MARKETING_VERSION keeps the version it set. Either way the
-  # commit that sets a version is tagged v<version>.
+  # already changes MARKETING_VERSION keeps the version it set. Each commit on
+  # main that sets a version is tagged v<version>.
   bump-version:
     name: Bump patch version
     needs: test
@@ -90,17 +90,22 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           if git diff "$BEFORE" HEAD -- PowerJack/PowerJack.xcodeproj/project.pbxproj | grep -q '^+.*MARKETING_VERSION'; then
-            version=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' PowerJack/PowerJack.xcodeproj/project.pbxproj | sort -u)
-            echo "This push sets the version to $version itself, so it is left as is."
+            echo "This push sets the version itself, so it is left as is."
           else
             version=$(scripts/bump-patch-version.sh)
             git commit -am "Bump version to $version"
             git push
           fi
 
-          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "v$version is already tagged."
-          else
-            git tag "v$version"
-            git push origin "v$version"
-          fi
+      # Includes versions set before tagging began, and any a failed run missed.
+      - name: Tag versions
+        run: |
+          project=PowerJack/PowerJack.xcodeproj/project.pbxproj
+          for commit in $(git log --first-parent --format=%H -G'MARKETING_VERSION' HEAD -- "$project"); do
+            version=$(git show "$commit:$project" | sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' | sort -u)
+            if ! git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+              git tag "v$version" "$commit"
+              echo "Tagged v$version"
+            fi
+          done
+          git push origin --tags
