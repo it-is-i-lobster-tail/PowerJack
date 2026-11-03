@@ -29,9 +29,11 @@ struct Feedback: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Exercise Feedback")
+                    // The exercise's name is the title, so the lifter always knows what they're rating.
+                    Text(workoutExercise.exercise?.exerciseName ?? "Exercise Feedback")
                         .font(.title2.bold())
-                    Text("This helps calibrate weight, reps, and sets for next week.")
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Your answers set next week's weight, reps, and sets.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
