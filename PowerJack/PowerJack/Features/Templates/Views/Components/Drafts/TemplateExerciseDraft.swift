@@ -11,7 +11,7 @@ struct TemplateExerciseDraft: Identifiable, Hashable {
     let id: UUID
     var order: Int
     var exercise: Exercise
-    /// Shared with the exercises it's stacked with. Nil when it stands alone.
+    /// Shared with the other exercises in its superset. Nil when it stands alone.
     var supersetID: UUID?
 
     init(
@@ -32,5 +32,6 @@ struct TemplateExerciseBlock: Identifiable {
     var exercises: [TemplateExerciseDraft]
 
     var id: UUID { exercises[0].id }
-    var isSuperset: Bool { exercises.count > 1 }
+    /// A superset can hold a single exercise while it waits for others to join.
+    var isSuperset: Bool { exercises[0].supersetID != nil }
 }
