@@ -87,6 +87,11 @@ final class HostedView {
         labels.first { $0.hasPrefix(prefix) }
     }
 
+    /// The value read out after the label, such as a picker's current choice.
+    func value(of label: String) -> String? {
+        elements().first { $0.accessibilityLabel == label }?.accessibilityValue
+    }
+
     /// Where the element with this label sits on screen, for layout checks.
     func frame(of label: String) -> CGRect? {
         elements().first { $0.accessibilityLabel == label }?.accessibilityFrame

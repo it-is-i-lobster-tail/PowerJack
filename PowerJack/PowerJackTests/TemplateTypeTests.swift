@@ -66,7 +66,7 @@ struct TemplateTypeTests {
 
         #expect(await screen.tap("Add", settleFor: .milliseconds(800)), "\(screen.labels)")
         let type = try #require(screen.label(startingWith: "Type"), "\(screen.labels)")
-        #expect(type.contains("Strength"), "\(type)")
+        #expect(screen.value(of: type) == TemplateType.strength.name, "\(type): \(screen.value(of: type) ?? "no value")")
     }
 
     @Test("Picking a type in the template detail saves it and moves the Templates list to it")
