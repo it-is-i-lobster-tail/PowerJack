@@ -12,6 +12,10 @@ struct TemplateBuilder: View {
     @Environment(\.dismiss) private var dismiss
     
     @Binding private var draft: TemplateProgramDraft
+    /// Days that can't be edited, with why. Used by a running program in its last week.
+    private let lockedDays: [Int: LockedDay]
+    /// A line shown above a day's exercises, like why a running program's edit starts next week.
+    private let dayNotes: [Int: String]
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -24,7 +28,9 @@ struct TemplateBuilder: View {
     }
 
     init(
-        draft: Binding<TemplateProgramDraft>
+        draft: Binding<TemplateProgramDraft>,
+        lockedDays: [Int: LockedDay] = [:],
+        dayNotes: [Int: String] = [:]
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -36,6 +42,8 @@ struct TemplateBuilder: View {
         }
 
         _draft = draft
+        self.lockedDays = lockedDays
+        self.dayNotes = dayNotes
         _options = State(initialValue: initialOptions)
         _selection = State(initialValue: initialOptions[0])
     }
@@ -80,13 +88,32 @@ struct TemplateBuilder: View {
                         .padding(.horizontal)
                 }
 
-                // Days change only by tapping the picker. Horizontal swipes belong to
-                // the exercise rows, so swipe to edit or delete never flips the day.
-                TemplateWorkoutBuilder(
-                    templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
-                    handleEdit: handleShowEditExerciseSheet
-                )
-                .id(selection.id)
+                if let note = dayNotes[selection.index] {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                }
+
+                if let lockedDay = lockedDays[selection.index] {
+                    ContentUnavailableView {
+                        Label(lockedDay.title, systemImage: "lock")
+                    } description: {
+                        if let detail = lockedDay.detail {
+                            Text(detail)
+                        }
+                    }
+                    .powerJackGlassCard()
+                } else {
+                    // Days change only by tapping the picker. Horizontal swipes belong to
+                    // the exercise rows, so swipe to edit or delete never flips the day.
+                    TemplateWorkoutBuilder(
+                        templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
+                        handleEdit: handleShowEditExerciseSheet
+                    )
+                    .id(selection.id)
+                }
                 Spacer()
             }
         }
@@ -111,7 +138,7 @@ struct TemplateBuilder: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 CopyDayMenu(
-                    options: options,
+                    options: options.filter { lockedDays[$0.index] == nil },
                     selection: $selection,
                     draft: $draft
                 )
@@ -130,9 +157,16 @@ struct TemplateBuilder: View {
                     }
                 }
                 .accessibilityLabel("Add")
+                .disabled(lockedDays[selection.index] != nil)
             }
         }
     }
+}
+
+/// A day the builder shows but won't edit.
+struct LockedDay {
+    let title: String
+    var detail: String?
 }
 
 private struct TemplateBuilderPreviewContent: View {

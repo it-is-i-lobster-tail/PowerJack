@@ -10,6 +10,7 @@ import Testing
 @testable import PowerJack
 
 @MainActor
+@Suite(.serialized)
 struct TemplateTypeTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
 
@@ -42,6 +43,52 @@ struct TemplateTypeTests {
         edit.templateName = "Heavier"
         #expect(edit.apply(to: template))
         #expect(template.templateType == .strength)
+    }
+
+    @Test("Changing a template's type saves the new type")
+    func draftChangesType() throws {
+        let template = TemplateProgram(templateName: "Heavy", workoutsPerWeek: 2, templateMuscleFocus: [.quads], templateType: .strength)
+        try container.mainContext.insertAndSave(template)
+
+        var edit = TemplateProgramDraft(templateProgram: template)
+        edit.templateType = .powerJack
+        #expect(edit.apply(to: template))
+        #expect(template.templateType == .powerJack)
+    }
+
+    @Test("A new template from the Strength section starts as Strength")
+    func newTemplateDefaultsToSection() async throws {
+        UserDefaults.standard.set(TemplateType.strength.rawValue, forKey: TemplateType.selectionKey)
+        defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
+        let container = HostedView.makeStore()
+        let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
+        defer { screen.close() }
+
+        #expect(await screen.tap("Add", settleFor: .milliseconds(800)), "\(screen.labels)")
+        let type = try #require(screen.label(startingWith: "Type"), "\(screen.labels)")
+        #expect(screen.value(of: type) == TemplateType.strength.name, "\(type): \(screen.value(of: type) ?? "no value")")
+    }
+
+    @Test("Picking a type in the template detail saves it and moves the Templates list to it")
+    func detailChangesType() async throws {
+        defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
+        let container = HostedView.makeStore()
+        let template = TemplateProgram(templateName: "Pull Days", workoutsPerWeek: 2, templateMuscleFocus: [.back])
+        try container.mainContext.insertAndSave(template)
+        let screen = try await HostedView(
+            NavigationStack { TemplateProgramDetailView(templateProgram: template) }
+                .modelContainer(container)
+        )
+        defer { screen.close() }
+
+        let type = try #require(screen.label(startingWith: "Type"), "\(screen.labels)")
+        await screen.tap(type, settleFor: .milliseconds(800))
+        #expect(await screen.waitUntil { screen.contains(TemplateType.powerJack.name) }, "\(screen.labels)")
+        await screen.tap(TemplateType.powerJack.name, settleFor: .milliseconds(800))
+
+        #expect(template.templateType == .powerJack)
+        #expect(!container.mainContext.hasChanges)
+        #expect(UserDefaults.standard.string(forKey: TemplateType.selectionKey) == TemplateType.powerJack.rawValue)
     }
 
     @Test("A program keeps the type it started with after its template changes")

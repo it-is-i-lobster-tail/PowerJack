@@ -22,6 +22,11 @@ final class Workout {
     private var startedAtValue: Date? = nil
     private var endedAtValue: Date? = nil
     var programWeekValue: ProgramWeek?
+    // The day's exercises from next week on, saved when it's edited after it started this week.
+    @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.nextWeekWorkoutValue)
+    private var nextWeekExercisesValue: [TemplateExercise]? = []
+    // Whether `nextWeekExercisesValue` holds an edit, so an edit that removes every exercise still counts.
+    private var hasNextWeekLayoutValue: Bool = false
 
     init(
         order: Int
@@ -279,6 +284,68 @@ extension Workout {
         workoutExercisesValue?.removeAll { $0 === removed }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(removed)
+    }
+    /// Rebuilds a planned workout's exercises from `layout`, in order. Exercises it keeps keep their planned sets;
+    /// new ones start like a swapped-in exercise, with warmups and two sets. Returns the exercises in order.
+    @discardableResult
+    func applyLayout(_ layout: [(workoutExercise: WorkoutExercise?, exercise: Exercise, supersetID: UUID?)]) -> [WorkoutExercise] {
+        guard status == .planned else {
+            Logger.workout.warning("Can only change the exercises of a planned Workout.")
+            return workoutExercises
+        }
+        let kept = Set(layout.compactMap { $0.workoutExercise.map(ObjectIdentifier.init) })
+        for removed in workoutExercises where !kept.contains(ObjectIdentifier(removed)) {
+            workoutExercisesValue?.removeAll { $0 === removed }
+            // Delete the row too, so it doesn't linger (or sync) as an orphan.
+            modelContext?.delete(removed)
+        }
+
+        let ordered = layout.compactMap { entry -> WorkoutExercise? in
+            if let workoutExercise = entry.workoutExercise { return workoutExercise }
+            guard let added = addWorkoutExercise(exercise: entry.exercise) else { return nil }
+            added.addWarmupSets()
+            for _ in 0..<WorkoutExercise.initialSets {
+                _ = added.addSet()
+            }
+            return added
+        }
+        for (order, (workoutExercise, entry)) in zip(ordered, layout).enumerated() {
+            workoutExercise.order = order
+            workoutExercise.setSuperset(entry.supersetID)
+        }
+        Logger.workout.debug("Changed the exercises of a planned Workout")
+        return ordered
+    }
+    /// The day's exercises from next week on, when it was edited after it started. Nil when no edit is waiting.
+    var nextWeekLayout: [TemplateExercise]? {
+        hasNextWeekLayoutValue ? (nextWeekExercisesValue ?? []).sorted(byOrder: \.order) : nil
+    }
+    /// Saves the exercises this day has from next week on. This week's stay as they were.
+    func setNextWeekLayout(_ layout: [(exercise: Exercise, supersetID: UUID?)]) {
+        clearNextWeekLayout()
+        nextWeekExercisesValue = layout.enumerated().map { order, entry in
+            TemplateExercise(exercise: entry.exercise, order: order, supersetID: entry.supersetID)
+        }
+        hasNextWeekLayoutValue = true
+    }
+    func clearNextWeekLayout() {
+        for row in nextWeekExercisesValue ?? [] {
+            modelContext?.delete(row)
+        }
+        nextWeekExercisesValue = []
+        hasNextWeekLayoutValue = false
+    }
+    /// Gives this newly built workout the exercises its day was edited to last week, then clears that edit.
+    /// Exercises it already has keep the sets the planner gave them.
+    func applyNextWeekLayout(from source: Workout) {
+        guard let layout = source.nextWeekLayout else { return }
+        var unclaimed = workoutExercises
+        applyLayout(layout.compactMap { row in
+            guard let exercise = row.exercise else { return nil }
+            let match = unclaimed.firstIndex { $0.exercise === exercise }.map { unclaimed.remove(at: $0) }
+            return (workoutExercise: match, exercise: exercise, supersetID: row.supersetID)
+        })
+        source.clearNextWeekLayout()
     }
     // Move WorkoutExercises
     func moveWorkoutExercises(from source: IndexSet, to destination: Int) {

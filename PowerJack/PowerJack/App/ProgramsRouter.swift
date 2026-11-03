@@ -13,6 +13,7 @@ enum ProgramRoute: Hashable {
     case detail(Program)
     case session(Program)
     case completedWorkout(Program, Workout)
+    case editDays(Program)
 }
 
 @Observable
@@ -91,6 +92,8 @@ extension View {
                     weekCount: program.programLengthWeeks,
                     isReadOnly: true
                 )
+            case .editDays(let program):
+                ProgramLayoutView(program: program)
             }
         }
     }
