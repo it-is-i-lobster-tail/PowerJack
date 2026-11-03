@@ -286,6 +286,10 @@ extension Program {
             if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
                 if nextWeek.workouts.isEmpty {
                     templateType.weekPlanner.build(nextWeek, in: self)
+                    // Days edited after they started take the edit from this new week on.
+                    for (workout, editedDay) in zip(nextWeek.workouts, week.workouts) {
+                        workout.applyNextWeekLayout(from: editedDay)
+                    }
                 }
                 nextWeek.start()
             } else {

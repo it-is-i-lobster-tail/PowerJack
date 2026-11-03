@@ -20,9 +20,9 @@ extension View {
 
     /// Lays out one page of the root TabView: it stops above the floating bottom bar,
     /// and the keyboard slides over the page instead of squeezing it.
+    /// While the rest island shows, the page's navigation bar moves down below it.
     func powerJackTabPage(bottomBarHeight: CGFloat) -> some View {
-        padding(.bottom, bottomBarHeight)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+        modifier(TabPageLayout(bottomBarHeight: bottomBarHeight))
     }
 
     /// The keyboard slides over this screen instead of squeezing it, so bottom content
@@ -77,6 +77,20 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
         withAnimation(.easeOut(duration: 0.25)) {
             proxy.scrollTo(focusedID)
         }
+    }
+}
+
+private struct TabPageLayout: ViewModifier {
+    // Tab pages don't inherit a safe-area inset set on the TabView, so each page keeps its own.
+    @Environment(\.restIslandHeight) private var restIslandHeight
+
+    let bottomBarHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.top, restIslandHeight)
+            .padding(.bottom, bottomBarHeight)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
