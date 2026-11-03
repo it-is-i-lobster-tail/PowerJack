@@ -3,7 +3,7 @@ name: Release
 # Each push to staging uploads a build to TestFlight for the beta group
 # (the TESTFLIGHT_GROUP repository variable, or "Beta"). Each push to prod uploads a build and submits it for App Store review,
 # released as soon as Apple approves it. Both keep the archive and the .ipa
-# as a run artifact. Creating either branch does not release anything.
+# as a run artifact, and tag the released commit. Creating either branch does not release anything.
 on:
   push:
     branches: [staging, prod]
@@ -142,12 +142,19 @@ jobs:
             run_precheck_before_submit:false \
             force:true
 
-      - name: Tag version
-        if: github.ref_name == 'prod'
+      # testflight/v1.0.33-57 for each TestFlight upload, appstore/v1.0.33 for each
+      # App Store submission. Main tags the commit that set each version v1.0.33.
+      - name: Tag release
         run: |
-          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-            echo "v$VERSION is already tagged."
+          if [ "$GITHUB_REF_NAME" = prod ]; then
+            tag="appstore/v$VERSION"
           else
-            git tag "v$VERSION"
-            git push origin "v$VERSION"
+            tag="testflight/v$VERSION-$BUILD"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag is already tagged."
+          else
+            git tag "$tag"
+            git push origin "$tag"
           fi

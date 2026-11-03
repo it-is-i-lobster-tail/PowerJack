@@ -67,7 +67,8 @@ jobs:
 
   # Each merge to main raises the patch version (0.1.0 -> 0.1.1) and commits it
   # back, so Archive builds from main carry the next version. A push that
-  # already changes MARKETING_VERSION keeps the version it set.
+  # already changes MARKETING_VERSION keeps the version it set. Either way the
+  # commit that sets a version is tagged v<version>.
   bump-version:
     name: Bump patch version
     needs: test
@@ -85,13 +86,21 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
         run: |
-          if git diff "$BEFORE" HEAD -- PowerJack/PowerJack.xcodeproj/project.pbxproj | grep -q '^+.*MARKETING_VERSION'; then
-            echo "This push sets the version itself, so it is left as is."
-            exit 0
-          fi
-
-          version=$(scripts/bump-patch-version.sh)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Bump version to $version"
-          git push
+
+          if git diff "$BEFORE" HEAD -- PowerJack/PowerJack.xcodeproj/project.pbxproj | grep -q '^+.*MARKETING_VERSION'; then
+            version=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' PowerJack/PowerJack.xcodeproj/project.pbxproj | sort -u)
+            echo "This push sets the version to $version itself, so it is left as is."
+          else
+            version=$(scripts/bump-patch-version.sh)
+            git commit -am "Bump version to $version"
+            git push
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged."
+          else
+            git tag "v$version"
+            git push origin "v$version"
+          fi
