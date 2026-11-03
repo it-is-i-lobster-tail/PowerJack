@@ -20,7 +20,7 @@ struct UpgradeFixture: CustomTestStringConvertible, Sendable {
 
     var testDescription: String { version }
 
-    static let all: [UpgradeFixture] = {
+    nonisolated static let all: [UpgradeFixture] = {
         let bundle = Bundle(for: BundleToken.self)
         let stores = (bundle.urls(forResourcesWithExtension: "store", subdirectory: nil) ?? [])
             + (bundle.urls(forResourcesWithExtension: "store", subdirectory: "UpgradeFixtures") ?? [])

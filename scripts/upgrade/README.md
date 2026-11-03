@@ -25,6 +25,8 @@ Versions are split over four runners. PRs into main run it only when they change
 
 `UpgradeFixtureWriter.swift` has to compile against every version back to 1.0, so it only uses APIs that 1.0 already had.
 
+A version that no longer builds with CI's Xcode gets the smallest fix that makes it build in `patches/<version>.patch`. A patch must never change how data is saved. 1.0 was built with a newer Xcode than CI's, so `patches/1.0.patch` adds the TipKit defaults 0.1.0 added.
+
 ## Adding a fixture
 
 When a version changes the saved model, add its store to the unit tests: run the Upgrade tests workflow, download the `upgrade-results-*` artifacts, and copy that version's `upgrade-<version>.store` and `.json` into `PowerJack/PowerJackTests/UpgradeFixtures`.

@@ -41,8 +41,11 @@ run_tests() { # <derived-data> <suite> <log-name>
   xcodebuild test-without-building \
     -xctestrun "$(xctestrun "$1")" \
     -destination "platform=iOS Simulator,id=$udid" \
+    -parallel-testing-enabled NO \
     -only-testing:"PowerJackTests/$2" >"$out/logs/$3.log" 2>&1
   local status=$?
+  # xcodebuild can shut the simulator down when it's done.
+  boot
   [ $status -eq 0 ] || grep -E 'error|failed|Expectation|recorded an issue' "$out/logs/$3.log" | head -30
   return $status
 }
@@ -62,6 +65,11 @@ launch() { # <what>
   xcrun simctl terminate "$udid" "$bundle_id"
 }
 
+boot() {
+  xcrun simctl boot "$udid" 2>/dev/null
+  xcrun simctl bootstatus "$udid" -b >/dev/null
+}
+
 support() {
   echo "$(xcrun simctl get_app_container "$udid" "$bundle_id" data)/Library/Application Support"
 }
@@ -77,7 +85,7 @@ save_fixture() { # <name>
   cp "$dir/upgrade-manifest.json" "$out/upgrade-$1.json"
 }
 
-xcrun simctl bootstatus "$udid" -b >/dev/null
+boot
 
 echo "::group::Build this version"
 candidate="$work/candidate"
@@ -106,6 +114,10 @@ while read -r label commit <&3; do
     git -C "$root" worktree add -q --force --detach "$old_src" "$commit"
   fi
   cp "$root/scripts/upgrade/UpgradeFixtureWriter.swift" "$old_src/PowerJack/PowerJackTests/"
+  # Only to build with today's Xcode. Patches never touch how data is saved.
+  if [ -f "$root/scripts/upgrade/patches/$name.patch" ]; then
+    git -C "$old_src" apply "$root/scripts/upgrade/patches/$name.patch"
+  fi
 
   xcrun simctl uninstall "$udid" "$bundle_id" 2>/dev/null
   if ! build "$old_src" "$old" "$name-build"; then
