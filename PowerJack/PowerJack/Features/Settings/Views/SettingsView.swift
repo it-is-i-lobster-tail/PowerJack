@@ -68,12 +68,12 @@ struct SettingsView: View {
                         SettingsRowLabel(
                             systemImage: "speaker.wave.2",
                             title: "Voice",
-                            detail: "Says your next set when rest ends, like “\(RestCallout.sample(in: weightUnit))”"
+                            detail: "Says your next set when rest ends, like “\(RestPhrase.sample(in: weightUnit).text)”"
                         )
                     }
                     // Turning it on plays the sample, so there's no separate button to hear it.
                     .onChange(of: speaksRestEnd) { _, isOn in
-                        if isOn { RestVoice.shared.speak(RestCallout.sample(in: weightUnit)) }
+                        if isOn { RestVoice.shared.speak(RestPhrase.sample(in: weightUnit)) }
                     }
                 } header: {
                     Text("Rest Timer")
