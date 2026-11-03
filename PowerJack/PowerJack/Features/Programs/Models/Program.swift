@@ -24,7 +24,9 @@ final class Program {
     var workoutsPerWeekValue: Int = 0
     var templateNameValue: String = ""
     var templateMuscleFocusValue: [Muscle] = []
-    var templateTypeValue: TemplateType = TemplateType.hypertrophy
+    // Optional only in storage: rows from before template types (1.0.13 and earlier, also when
+    // iCloud brings them in later) have no value, and upgrading leaves it empty. Read `templateType`.
+    private var templateTypeValue: TemplateType? = TemplateType.hypertrophy
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -134,7 +136,8 @@ extension Program {
         return templateProgram?.templateMuscleFocus ?? []
     }
     /// Picks the progression rules, so it's copied like the rest and never follows template edits.
-    var templateType: TemplateType { templateTypeValue }
+    /// Programs from before template types are Hypertrophy, the only kind there was.
+    var templateType: TemplateType { templateTypeValue ?? .hypertrophy }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }

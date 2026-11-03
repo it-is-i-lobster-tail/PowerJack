@@ -23,7 +23,9 @@ final class TemplateProgram {
     // Hidden from the template list but kept, so programs started from it keep their name and
     // the catalog seed doesn't bring a deleted built-in template back.
     var hiddenValue: Bool = false
-    var templateTypeValue: TemplateType = TemplateType.hypertrophy
+    // Optional only in storage: rows from before template types (1.0.13 and earlier, also when
+    // iCloud brings them in later) have no value, and upgrading leaves it empty. Read `templateType`.
+    private var templateTypeValue: TemplateType? = TemplateType.hypertrophy
 
     init(
         templateName: String,
@@ -44,9 +46,9 @@ final class TemplateProgram {
 // Public Accesors
 //
 extension TemplateProgram {
-    // Template Type
+    // Template Type. Templates from before template types are Hypertrophy, the only kind there was.
     var templateType: TemplateType {
-        get { templateTypeValue }
+        get { templateTypeValue ?? .hypertrophy }
         set { templateTypeValue = newValue }
     }
     // Template Workouts
