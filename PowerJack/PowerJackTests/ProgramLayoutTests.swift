@@ -49,7 +49,8 @@ struct ProgramLayoutTests {
         var day = draft.days.templateWorkoutDraftsValue[0]
         day.removeTemplateExercises(at: IndexSet(integer: 0))
         day.addTemplateExerciseDraft(exercise: curl)
-        day.drop(day.blocks[1].exercises.map(\.id), on: day.blocks[0], at: .onto)
+        day.startSuperset(with: day.blocks[0])
+        day.add(day.blocks[1], to: day.supersets[0])
         draft.days.templateWorkoutDraftsValue[0] = day
         draft.apply()
         try container.mainContext.save()
@@ -108,7 +109,8 @@ struct ProgramLayoutTests {
         day.removeTemplateExercises(at: IndexSet(integer: 0))
         day.moveTemplateExercises(from: IndexSet(integer: day.templateExerciseDrafts.count - 1), to: 0)
         day.addTemplateExerciseDraft(exercise: curl)
-        day.drop(day.blocks[1].exercises.map(\.id), on: day.blocks[0], at: .onto)
+        day.startSuperset(with: day.blocks[0])
+        day.add(day.blocks[1], to: day.supersets[0])
         draft.days.templateWorkoutDraftsValue[1] = day
         draft.apply()
         try container.mainContext.save()
