@@ -51,7 +51,7 @@ struct WorkoutScreenTests {
         #expect(sets.allSatisfy { $0.status == .complete })
 
         // Feedback opens once every set is logged, titled with the exercise's name.
-        #expect(screen.contains("Level of Effort"), "\(screen.labels)")
+        #expect(screen.contains("Level of Pain"), "\(screen.labels)")
         #expect(screen.contains("Bench"), "\(screen.labels)")
         await screen.tap(scaleLabel(LevelOfEffort.challenge))
         await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(800))
