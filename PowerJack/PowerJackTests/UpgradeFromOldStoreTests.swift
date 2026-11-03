@@ -1,47 +1,8 @@
+import CoreData
 import Foundation
 import SwiftData
 import Testing
 @testable import PowerJack
-
-/// Templates and programs as 1.0.13 saved them, before template types existed.
-/// Same entity names as the app's models, so the current schema opens this store as an upgrade.
-enum PreTemplateTypesStore {
-    @Model
-    final class TemplateProgram {
-        var catalogID: String? = nil
-        var templateName: String = ""
-        var workoutsPerWeek: Int = 0
-        var templateMuscleFocusValue: [Muscle] = []
-        var programsValue: [Program]? = []
-        var createdAtValue: Date = Date.distantPast
-        var hiddenValue: Bool = false
-
-        init(catalogID: String, templateName: String) {
-            self.catalogID = catalogID
-            self.templateName = templateName
-            self.workoutsPerWeek = 3
-            self.createdAtValue = .now
-        }
-    }
-
-    @Model
-    final class Program {
-        var programLengthWeeksValue: Int = 1
-        var statusValue: Status = Status.planned
-        @Relationship(deleteRule: .nullify, inverse: \TemplateProgram.programsValue)
-        var templateProgramValue: TemplateProgram?
-        var lockedValue: Bool = false
-        var workoutsPerWeekValue: Int = 0
-        var templateNameValue: String = ""
-        var templateMuscleFocusValue: [Muscle] = []
-
-        init(templateProgram: TemplateProgram) {
-            self.templateProgramValue = templateProgram
-            self.templateNameValue = templateProgram.templateName
-            self.workoutsPerWeekValue = templateProgram.workoutsPerWeek
-        }
-    }
-}
 
 @MainActor
 struct UpgradeFromOldStoreTests {
@@ -51,18 +12,7 @@ struct UpgradeFromOldStoreTests {
             .appending(path: "upgrade-\(UUID().uuidString).store")
         // A built-in template 1.0.13 seeded and that is now retired, so launching changes and saves it.
         let retiredID = try #require(TemplateCatalog.retiredIDs.sorted().first)
-
-        do {
-            let oldSchema = Schema([PreTemplateTypesStore.TemplateProgram.self, PreTemplateTypesStore.Program.self])
-            let oldContainer = try ModelContainer(
-                for: oldSchema,
-                configurations: [ModelConfiguration(schema: oldSchema, url: url, cloudKitDatabase: .none)]
-            )
-            let template = PreTemplateTypesStore.TemplateProgram(catalogID: retiredID, templateName: "Old Template")
-            oldContainer.mainContext.insert(template)
-            oldContainer.mainContext.insert(PreTemplateTypesStore.Program(templateProgram: template))
-            try oldContainer.mainContext.save()
-        }
+        try writeStoreFromBeforeTemplateTypes(at: url, templateCatalogID: retiredID)
 
         let schema = PowerJackSchema.schema
         let container = try ModelContainer(
@@ -85,5 +35,77 @@ struct UpgradeFromOldStoreTests {
         #expect(program.templateType == .hypertrophy)
         #expect(program.templateProgram === template)
         #expect(program.templateName == "Old Template")
+    }
+
+    /// Saves a template and a program the way 1.0.13 did, before template types existed.
+    /// Plain Core Data with the same entity names, so no second set of model classes shares the
+    /// test process with the app's.
+    private func writeStoreFromBeforeTemplateTypes(at url: URL, templateCatalogID: String) throws {
+        let template = NSEntityDescription()
+        template.name = "TemplateProgram"
+        let program = NSEntityDescription()
+        program.name = "Program"
+
+        let programs = NSRelationshipDescription()
+        programs.name = "programsValue"
+        programs.destinationEntity = program
+        programs.minCount = 0
+        programs.maxCount = 0
+        programs.deleteRule = .nullifyDeleteRule
+        programs.isOptional = true
+        let templateOfProgram = NSRelationshipDescription()
+        templateOfProgram.name = "templateProgramValue"
+        templateOfProgram.destinationEntity = template
+        templateOfProgram.maxCount = 1
+        templateOfProgram.deleteRule = .nullifyDeleteRule
+        templateOfProgram.isOptional = true
+        programs.inverseRelationship = templateOfProgram
+        templateOfProgram.inverseRelationship = programs
+
+        template.properties = [
+            attribute("catalogID", .stringAttributeType),
+            attribute("templateName", .stringAttributeType),
+            attribute("workoutsPerWeek", .integer64AttributeType),
+            attribute("createdAtValue", .dateAttributeType),
+            attribute("hiddenValue", .booleanAttributeType),
+            programs,
+        ]
+        program.properties = [
+            attribute("programLengthWeeksValue", .integer64AttributeType),
+            attribute("lockedValue", .booleanAttributeType),
+            attribute("workoutsPerWeekValue", .integer64AttributeType),
+            attribute("templateNameValue", .stringAttributeType),
+            templateOfProgram,
+        ]
+        let model = NSManagedObjectModel()
+        model.entities = [template, program]
+
+        let coordinator = NSPersistentStoreCoordinator(managedObjectModel: model)
+        let store = try coordinator.addPersistentStore(type: .sqlite, at: url)
+        let context = NSManagedObjectContext(.mainQueue)
+        context.persistentStoreCoordinator = coordinator
+
+        let oldTemplate = NSManagedObject(entity: template, insertInto: context)
+        oldTemplate.setValue(templateCatalogID, forKey: "catalogID")
+        oldTemplate.setValue("Old Template", forKey: "templateName")
+        oldTemplate.setValue(3, forKey: "workoutsPerWeek")
+        oldTemplate.setValue(Date.now, forKey: "createdAtValue")
+        oldTemplate.setValue(false, forKey: "hiddenValue")
+        let oldProgram = NSManagedObject(entity: program, insertInto: context)
+        oldProgram.setValue(4, forKey: "programLengthWeeksValue")
+        oldProgram.setValue(false, forKey: "lockedValue")
+        oldProgram.setValue(3, forKey: "workoutsPerWeekValue")
+        oldProgram.setValue("Old Template", forKey: "templateNameValue")
+        oldProgram.setValue(oldTemplate, forKey: "templateProgramValue")
+        try context.save()
+        try coordinator.remove(store)
+    }
+
+    private func attribute(_ name: String, _ type: NSAttributeType) -> NSAttributeDescription {
+        let attribute = NSAttributeDescription()
+        attribute.name = name
+        attribute.attributeType = type
+        attribute.isOptional = true
+        return attribute
     }
 }
