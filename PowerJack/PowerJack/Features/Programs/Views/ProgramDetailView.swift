@@ -54,6 +54,16 @@ struct ProgramDetailView: View {
         }
         .navigationTitle(program.templateName)
         .navigationSubtitle(subtitle)
+        .toolbar {
+            // A finished program has no days ahead to edit.
+            if program.nextWorkout != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: ProgramRoute.editDays(program)) {
+                        Label("Edit Days", systemImage: "square.and.pencil")
+                    }
+                }
+            }
+        }
     }
 }
 
