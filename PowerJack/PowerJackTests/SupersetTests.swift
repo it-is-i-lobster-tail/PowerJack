@@ -43,37 +43,6 @@ struct SupersetTests {
         ])
     }
 
-    @Test("A superset of three goes round all three before resting")
-    func threeExerciseRounds() throws {
-        let workout = Workout(order: 0)
-        let supersetID = UUID()
-        for name in ["A", "B", "C"] {
-            let exercise = Exercise(exerciseName: name, exerciseEquipment: .dumbbell, primaryMuscleFocus: .biceps)
-            let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
-            workoutExercise.setSuperset(supersetID)
-            for _ in 0..<2 {
-                _ = workoutExercise.addSet(plannedReps: 10, plannedWeightTenthsPounds: 300)
-            }
-        }
-        container.mainContext.insert(workout)
-        workout.startAndCascade()
-
-        var order: [String] = []
-        var rests: [Bool] = []
-        var time = start
-        while let current = workout.currentSet {
-            let number = current.workoutExercise.number(of: current.workoutSet)
-            order.append("\(current.workoutExercise.exercise?.exerciseName ?? "") \(number)")
-            current.workoutExercise.completeSet(current.workoutSet, at: time)
-            rests.append(workout.currentRest != nil)
-            time += 60
-        }
-
-        #expect(order == ["A 1", "B 1", "C 1", "A 2", "B 2", "C 2"])
-        // Rest once the round is done, and not after the last set.
-        #expect(rests == [false, false, true, false, false, false])
-    }
-
     @Test("A superset rests once each round is done, for the longer of the two rests")
     func restAfterRound() throws {
         let workout = try makeSupersetWorkout()
@@ -152,89 +121,57 @@ struct SupersetTests {
 
     // MARK: Template builder
 
-    @Test("Dropping a card onto another stacks it, and a superset takes as many as you drop on")
-    func stacking() throws {
+    @Test("Swiping starts superset A, and later exercises join it at its end or start B")
+    func supersetting() throws {
         var day = makeDay(["A", "B", "C", "D"])
+        #expect(day.supersets.isEmpty)
 
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        #expect(names(day) == [["A", "B"], ["C"], ["D"]])
+        day.startSuperset(with: day.blocks[1])
+        #expect(day.blocks.map(\.isSuperset) == [false, true, false, false])
+        #expect(day.supersetLetter(for: day.blocks[1]) == "A")
 
-        // Onto a superset, the dropped exercise joins the end of it, from below or above.
-        day.drop(ids(day.blocks[2]), on: day.blocks[0], at: .onto)
-        #expect(names(day) == [["A", "B", "D"], ["C"]])
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        #expect(names(day) == [["A", "B", "D", "C"]])
-        #expect(Set(day.templateExerciseDrafts.map(\.supersetID)).count == 1)
+        // An exercise above the superset moves down into it.
+        day.add(day.blocks[0], to: day.supersets[0])
+        #expect(day.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["B", "A"], ["C"], ["D"]])
+
+        day.startSuperset(with: day.blocks[2])
+        #expect(day.supersets.map { day.supersetLetter(for: $0) } == ["A", "B"])
+        day.add(day.blocks[1], to: day.supersets[1])
+        #expect(day.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["B", "A"], ["D", "C"]])
     }
 
-    @Test("Dropping a superset onto a card merges them into one")
-    func mergingSupersets() throws {
-        var day = makeDay(["A", "B", "C", "D"])
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        day.drop(ids(day.blocks[2]), on: day.blocks[1], at: .onto)
-        #expect(names(day) == [["A", "B"], ["C", "D"]])
-
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-
-        #expect(names(day) == [["A", "B", "C", "D"]])
-    }
-
-    @Test("Dropping on a card's edge moves the card there, and a superset moves whole")
-    func movingCards() throws {
+    @Test("Letters follow the supersets' order, and stop at Z")
+    func supersetLetters() throws {
         var day = makeDay(["A", "B", "C"])
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
+        day.startSuperset(with: day.blocks[0])
+        day.startSuperset(with: day.blocks[2])
+        day.moveBlocks(from: IndexSet(integer: 2), to: 0)
+        #expect(day.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["C"], ["A"], ["B"]])
+        #expect(day.supersetLetter(for: day.blocks[0]) == "A")
+        #expect(day.supersetLetter(for: day.blocks[1]) == "B")
 
-        day.drop(ids(day.blocks[0]), on: day.blocks[1], at: .after)
-        #expect(names(day) == [["C"], ["A", "B"]])
-
-        day.drop(ids(day.blocks[0]), on: day.blocks[1], at: .after)
-        #expect(names(day) == [["A", "B"], ["C"]])
-
-        day.removeTemplateExercises(at: IndexSet(integer: 2))
-        #expect(names(day) == [["A", "B"]])
+        var full = makeDay((0..<27).map(String.init))
+        for _ in 0..<27 {
+            if let lone = full.blocks.first(where: { !$0.isSuperset }) {
+                full.startSuperset(with: lone)
+            }
+        }
+        #expect(full.supersets.count == 26)
+        #expect(!full.canStartSuperset)
     }
 
-    @Test("Dragging one exercise out of a superset leaves it on its own")
-    func liftingOneOut() throws {
-        var day = makeDay(["A", "B", "C", "D"])
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        #expect(names(day) == [["A", "B", "C"], ["D"]])
-        let b = day.blocks[0].exercises[1].id
-
-        day.drop([b], on: day.blocks[1], at: .after)
-        #expect(names(day) == [["A", "C"], ["D"], ["B"]])
-
-        // Taking one of a pair leaves the other on its own too.
-        let a = day.blocks[0].exercises[0].id
-        day.drop([a], on: day.blocks[0], at: .before)
-        #expect(names(day) == [["A"], ["C"], ["D"], ["B"]])
-        #expect(day.templateExerciseDrafts.allSatisfy { $0.supersetID == nil })
-    }
-
-    @Test("A drop that would change nothing is refused, so no target lights up")
-    func noOpDrops() throws {
+    @Test("Moving a superset moves its exercises together, and removing a neighbor keeps it intact")
+    func movingSupersets() throws {
         var day = makeDay(["A", "B", "C"])
-        #expect(day.dropping(ids(day.blocks[0]), on: day.blocks[0], at: .onto) == nil)
-        #expect(day.dropping(ids(day.blocks[0]), on: day.blocks[1], at: .before) == nil)
-        #expect(day.dropping(ids(day.blocks[1]), on: day.blocks[0], at: .after) == nil)
+        day.startSuperset(with: day.blocks[0])
+        day.add(day.blocks[1], to: day.supersets[0])
 
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-        let b = day.blocks[0].exercises[1].id
-        // B is already in A's superset.
-        #expect(day.dropping([b], on: day.blocks[0], at: .onto) == nil)
-        #expect(day.dropping([b], on: day.blocks[0], at: .after) != nil)
-    }
+        day.moveBlocks(from: IndexSet(integer: 0), to: 2)
+        #expect(day.templateExerciseDrafts.map(\.exercise.exerciseName) == ["C", "A", "B"])
+        #expect(day.blocks.map(\.isSuperset) == [false, true])
 
-    @Test("Moving an exercise out of a superset splits it")
-    func movingOneExerciseSplits() throws {
-        var day = makeDay(["A", "B", "C"])
-        day.drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
-
-        day.moveTemplateExercises(from: IndexSet(integer: 0), to: 3)
-
-        #expect(day.templateExerciseDrafts.map(\.exercise.exerciseName) == ["B", "C", "A"])
-        #expect(day.templateExerciseDrafts.allSatisfy { $0.supersetID == nil })
+        day.removeTemplateExercises(at: IndexSet(integer: 0))
+        #expect(day.blocks.map(\.isSuperset) == [true])
     }
 
     @Test("A saved superset reaches the program's first week", arguments: TemplateType.allCases)
@@ -324,14 +261,6 @@ struct SupersetTests {
         return workoutSet.isWarmup ? "\(name) W\(number)" : "\(name) \(number)"
     }
 
-    private func ids(_ block: TemplateExerciseBlock) -> [UUID] {
-        block.exercises.map(\.id)
-    }
-
-    private func names(_ day: TemplateWorkoutDraft) -> [[String]] {
-        day.blocks.map { $0.exercises.map(\.exercise.exerciseName) }
-    }
-
     private func makeDay(_ names: [String]) -> TemplateWorkoutDraft {
         var day = TemplateWorkoutDraft(enabled: true, order: 0, templateExercises: nil)
         for name in names {
@@ -366,8 +295,11 @@ struct SupersetTests {
             draft.templateWorkoutDraftsValue[0].addTemplateExerciseDraft(exercise: exercise)
             draft.templateWorkoutDraftsValue[1].addTemplateExerciseDraft(exercise: exercise)
         }
-        let day = draft.templateWorkoutDraftsValue[0]
-        draft.templateWorkoutDraftsValue[0].drop(ids(day.blocks[1]), on: day.blocks[0], at: .onto)
+        draft.templateWorkoutDraftsValue[0].startSuperset(with: draft.templateWorkoutDraftsValue[0].blocks[0])
+        draft.templateWorkoutDraftsValue[0].add(
+            draft.templateWorkoutDraftsValue[0].blocks[1],
+            to: draft.templateWorkoutDraftsValue[0].supersets[0]
+        )
         let template = try #require(draft.makeTemplate())
         container.mainContext.insert(template)
         return template
