@@ -21,6 +21,8 @@ struct TemplateForm: View {
     )
     
     @FocusState private var nameIsFocused: Bool
+    // The Templates list follows the template's type, so it's there on the way back.
+    @AppStorage(TemplateType.selectionKey) private var listedType: TemplateType = .hypertrophy
     
     var body: some View {
         GlassFormScaffold(
@@ -36,6 +38,20 @@ struct TemplateForm: View {
                 text: $draft.templateName,
                 isFocused: $nameIsFocused
             )
+
+            GlassPickerField(
+                selection: typeSelection,
+                options: TemplateType.allCases,
+                height: boxHeight
+            ) {
+                FormFieldLabel(
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    title: "Type",
+                    detail: "Sets how programs from it progress"
+                )
+            } optionLabel: { type in
+                Text(type.name)
+            }
             
             TemplateFocusSelectionLink(
                 boxHeight: boxHeight,
@@ -73,6 +89,17 @@ struct TemplateForm: View {
             
         } footer: {
             EmptyView()
+        }
+    }
+
+    /// The picker needs an optional; a template always has a type.
+    private var typeSelection: Binding<TemplateType?> {
+        Binding {
+            draft.templateType
+        } set: { newValue in
+            guard let newValue else { return }
+            draft.templateType = newValue
+            listedType = newValue
         }
     }
 }
