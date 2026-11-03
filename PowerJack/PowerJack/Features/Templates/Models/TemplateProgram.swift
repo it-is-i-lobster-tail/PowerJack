@@ -23,9 +23,7 @@ final class TemplateProgram {
     // Hidden from the template list but kept, so programs started from it keep their name and
     // the catalog seed doesn't bring a deleted built-in template back.
     var hiddenValue: Bool = false
-    // Optional: rows saved before this field existed read nil, and a non-optional enum
-    // crashes on nil. Use `templateType`, which reads nil as Build.
-    var templateTypeValue: TemplateType? = TemplateType.hypertrophy
+    var templateTypeValue: TemplateType = TemplateType.hypertrophy
 
     init(
         templateName: String,
@@ -48,7 +46,7 @@ final class TemplateProgram {
 extension TemplateProgram {
     // Template Type
     var templateType: TemplateType {
-        get { templateTypeValue ?? .hypertrophy }
+        get { templateTypeValue }
         set { templateTypeValue = newValue }
     }
     // Template Workouts

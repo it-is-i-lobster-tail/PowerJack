@@ -24,9 +24,7 @@ final class Program {
     var workoutsPerWeekValue: Int = 0
     var templateNameValue: String = ""
     var templateMuscleFocusValue: [Muscle] = []
-    // Optional: rows saved before this field existed read nil, and a non-optional enum
-    // crashes on nil. Use `templateType`, which reads nil as Build.
-    var templateTypeValue: TemplateType? = TemplateType.hypertrophy
+    var templateTypeValue: TemplateType = TemplateType.hypertrophy
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -136,7 +134,7 @@ extension Program {
         return templateProgram?.templateMuscleFocus ?? []
     }
     /// Picks the progression rules, so it's copied like the rest and never follows template edits.
-    var templateType: TemplateType { templateTypeValue ?? .hypertrophy }
+    var templateType: TemplateType { templateTypeValue }
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
