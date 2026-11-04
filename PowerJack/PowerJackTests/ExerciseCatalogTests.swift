@@ -26,21 +26,25 @@ struct ExerciseCatalogTests {
         }
     }
 
-    @Test("Catalog fatigue levels round borderline lifts up to the longer rest")
+    @Test("Catalog keeps High fatigue for the heaviest squats, deadlifts and leg presses")
     func catalogFatigueLevels() {
         let fatigueByID = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.fatigueLevel) })
-        #expect(fatigueByID["barbell-back-squat"] == .high)
-        #expect(fatigueByID["leg-press"] == .high)
-        #expect(fatigueByID["barbell-hip-thrust"] == .high)
+        let high = ExerciseCatalog.entries.filter { $0.fatigueLevel == .high }.map(\.id)
+        #expect(Set(high) == [
+            "barbell-back-squat", "barbell-front-squat", "smith-machine-squat", "hack-squat",
+            "leg-press", "barbell-deadlift", "barbell-romanian-deadlift",
+        ])
+        #expect(fatigueByID["barbell-bench-press"] == .moderate)
+        #expect(fatigueByID["barbell-overhead-press"] == .moderate)
+        #expect(fatigueByID["barbell-hip-thrust"] == .moderate)
         #expect(fatigueByID["push-up"] == .moderate)
         #expect(fatigueByID["lat-pulldown"] == .moderate)
         #expect(fatigueByID["dumbbell-curl"] == .low)
-        #expect(fatigueByID["smith-machine-squat"] == .high)
         #expect(fatigueByID["dumbbell-goblet-squat"] == .moderate)
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 15, .moderate: 15, .low: 33])
+        #expect(counts == [.high: 7, .moderate: 23, .low: 33])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
@@ -163,5 +167,68 @@ struct ExerciseCatalogTests {
         #expect(tuned.exerciseName == "Renamed Bench")
         #expect(tuned.repRange == 8...12)
         #expect(tuned.fatigueLevel == .low)
+    }
+
+    @Test("An upgrade moves built-in rows off a fatigue level that changed, once, and keeps the user's picks")
+    func fatigueLevelUpgrade() throws {
+        let suite = "ExerciseCatalogTests.fatigueLevelUpgrade"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let context = try PowerJackSchema.makeModelContainer(inMemory: true).mainContext
+
+        // Rows as an older version seeded them, when bench, row and press were High.
+        func oldRow(_ id: String, _ fatigueLevel: FatigueLevel, maxReps: Int) throws -> Exercise {
+            let exercise = try #require(ExerciseCatalog.entries.first(where: { $0.id == id })).makeExercise()
+            exercise.fatigueLevel = fatigueLevel
+            exercise.maxReps = maxReps
+            context.insert(exercise)
+            return exercise
+        }
+        let bench = try oldRow("barbell-bench-press", .high, maxReps: 12)
+        let row = try oldRow("barbell-row", .high, maxReps: 8)
+        let press = try oldRow("barbell-overhead-press", .low, maxReps: 20)
+        let squat = try oldRow("barbell-back-squat", .high, maxReps: 12)
+        try context.save()
+
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
+        #expect(bench.fatigueLevel == .moderate && bench.repRange == 5...15)
+        #expect(bench.restDuration == RestLength.standard.duration)
+        // The user's own max reps and fatigue level stay.
+        #expect(row.fatigueLevel == .moderate && row.repRange == 5...8)
+        #expect(press.fatigueLevel == .low && press.repRange == 5...20)
+        #expect(squat.fatigueLevel == .high && squat.repRange == 5...12)
+
+        // After the move, a level the user picks again stays.
+        bench.fatigueLevel = .high
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
+        #expect(bench.fatigueLevel == .high)
+    }
+
+    @Test("A new device moves rows iCloud brings in from an older version on its next launch")
+    func fatigueLevelUpgradeAfterSync() throws {
+        let suite = "ExerciseCatalogTests.fatigueLevelUpgradeAfterSync"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let context = try PowerJackSchema.makeModelContainer(inMemory: true).mainContext
+
+        // First launch seeds an empty store.
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
+        #expect(defaults.object(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == nil)
+
+        // The older version's bench syncs in. It's older, so it survives the dedupe.
+        let synced = ExerciseCatalog.entries[0].makeExercise()
+        synced.fatigueLevel = .high
+        synced.maxReps = 12
+        synced.createdAtValue = .distantPast
+        context.insert(synced)
+        try context.save()
+
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
+        let benches = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID == "barbell-bench-press" }
+        #expect(benches.count == 1)
+        #expect(benches.first?.fatigueLevel == .moderate)
+        #expect(defaults.integer(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == ExerciseCatalog.fatigueLevelsRevision)
     }
 }

@@ -49,7 +49,7 @@ struct SupersetTests {
         let a = workout.workoutExercises[0]
         let b = workout.workoutExercises[1]
 
-        // A then B: no rest between them, then the longer rest (A's high fatigue, 3:00).
+        // A then B: no rest between them, then the longer rest (A's high fatigue, 2:30).
         a.completeSet(a.warmupSets[0], at: start)
         #expect(workout.currentRest == nil)
         #expect(workout.currentSet?.workoutExercise === b)
@@ -57,7 +57,7 @@ struct SupersetTests {
         b.completeSet(b.warmupSets[0], at: start + 30)
         let rest = try #require(workout.currentRest)
         #expect(rest.startedAt == start + 30)
-        #expect(rest.duration == 180)
+        #expect(rest.duration == 150)
         #expect(rest.exerciseName == "A")
         #expect(rest.isWarmup)
         #expect(rest.setNumber == 2)
@@ -66,7 +66,7 @@ struct SupersetTests {
         a.completeSet(a.warmupSets[1], at: start + 300)
         b.completeSet(b.warmupSets[1], at: start + 330)
         a.completeSet(a.warmupSets[2], at: start + 600)
-        #expect(workout.currentRest?.duration == 180)
+        #expect(workout.currentRest?.duration == 150)
         #expect(workout.currentSet?.workoutSet === a.workingSets[0])
     }
 
@@ -84,8 +84,8 @@ struct SupersetTests {
             workoutExercise?.completeSet(workoutSet, at: time)
             time += 60
         }
-        // B (low fatigue) rests 1:15 on its own.
-        #expect(workout.currentRest?.duration == 75)
+        // B (low fatigue) rests 0:45 on its own.
+        #expect(workout.currentRest?.duration == 45)
 
         b.completeSet(b.workingSets[3], at: time)
         #expect(workout.currentRest == nil)

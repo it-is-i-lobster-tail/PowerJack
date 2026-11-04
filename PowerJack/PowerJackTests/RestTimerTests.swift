@@ -25,10 +25,10 @@ struct RestTimerTests {
         #expect(FatigueLevel.low.restLength == .short)
         #expect(FatigueLevel.moderate.restLength == .standard)
         #expect(FatigueLevel.high.restLength == .long)
-        #expect(RestLength.short.defaultDuration == .seconds(75))
-        #expect(RestLength.standard.defaultDuration == .seconds(135))
-        #expect(RestLength.long.defaultDuration == .seconds(180))
-        #expect(RestLength.standard.defaultDuration.minuteSecondText == "2:15")
+        #expect(RestLength.short.defaultDuration == .seconds(45))
+        #expect(RestLength.standard.defaultDuration == .seconds(90))
+        #expect(RestLength.long.defaultDuration == .seconds(150))
+        #expect(RestLength.standard.defaultDuration.minuteSecondText == "1:30")
     }
 
     @Test("Fatigue levels keep the raw values older stores saved")
@@ -284,7 +284,7 @@ struct RestTimerTests {
         let rest = try #require(scenario.weekOneWorkouts[1].currentRest)
         #expect(rest.exerciseName == "Lat Pulldown")
         #expect(rest.setNumber == 3)
-        #expect(rest.duration == 135)
+        #expect(rest.duration == 90)
     }
 
     @Test("A rest counts down, then offers the next set until its window runs out")

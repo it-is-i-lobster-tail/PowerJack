@@ -42,7 +42,7 @@ extension PowerJackSeed {
                 exerciseEquipment: .barbell,
                 primaryMuscleFocus: .chest,
                 secondaryMuscles: [.triceps, .shoulders],
-                fatigueLevel: .high
+                fatigueLevel: .moderate
             ),
             Exercise(
                 exerciseName: "Barbell Back Squat",
