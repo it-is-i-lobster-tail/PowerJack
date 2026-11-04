@@ -33,9 +33,9 @@ enum RestLength: String, CaseIterable, Identifiable {
 
     var defaultDuration: Duration {
         switch self {
-        case .short: .seconds(75)
-        case .standard: .seconds(135)
-        case .long: .seconds(180)
+        case .short: .seconds(45)
+        case .standard: .seconds(90)
+        case .long: .seconds(150)
         }
     }
 

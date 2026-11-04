@@ -51,7 +51,7 @@ struct PowerJackSimulationTests {
         let report = try PowerJackSimulation.run(.steady, seed: PowerJackSimulation.seed(for: "steady"), weeks: 52)
         #expect(!report.mainLiftTrend.isEmpty, "\(report.headline)")
         for (lift, trend) in report.mainLiftTrend where trend.growth >= 1.08 {
-            #expect(trend.last > trend.first, "\(lift): the lifter got \(Int((trend.growth - 1) * 100))% stronger, but its heavy load went \(trend.first) → \(trend.last)")
+            #expect(trend.peak > trend.first, "\(lift): the lifter got \(Int((trend.growth - 1) * 100))% stronger, but its heavy load peaked at \(trend.peak) from \(trend.first)")
         }
     }
 

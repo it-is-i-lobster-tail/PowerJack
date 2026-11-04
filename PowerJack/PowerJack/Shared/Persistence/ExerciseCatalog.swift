@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 
 enum ExerciseCatalog {
@@ -8,6 +9,8 @@ enum ExerciseCatalog {
         let primaryMuscle: Muscle
         let fatigueLevel: FatigueLevel
         let secondaryMuscles: [Muscle]
+        /// The level earlier versions seeded, when it has since changed.
+        let previousFatigueLevel: FatigueLevel?
 
         init(
             _ id: String,
@@ -15,7 +18,8 @@ enum ExerciseCatalog {
             _ equipment: Equipment,
             _ primaryMuscle: Muscle,
             _ fatigueLevel: FatigueLevel,
-            _ secondaryMuscles: [Muscle] = []
+            _ secondaryMuscles: [Muscle] = [],
+            was previousFatigueLevel: FatigueLevel? = nil
         ) {
             self.id = id
             self.name = name
@@ -23,6 +27,7 @@ enum ExerciseCatalog {
             self.primaryMuscle = primaryMuscle
             self.fatigueLevel = fatigueLevel
             self.secondaryMuscles = secondaryMuscles
+            self.previousFatigueLevel = previousFatigueLevel
         }
 
         var minReps: Int { Exercise.defaultMinReps }
@@ -49,15 +54,27 @@ enum ExerciseCatalog {
             exercise.secondaryMuscles = secondaryMuscles
             return true
         }
+
+        /// Moves a row still on the level earlier versions seeded to the current one. A level the
+        /// user picked is kept. Max reps follows, as it does when the user changes the level.
+        func updateFatigueLevel(_ exercise: Exercise) -> Bool {
+            guard let previousFatigueLevel, exercise.fatigueLevel == previousFatigueLevel else { return false }
+            if exercise.maxReps == previousFatigueLevel.defaultMaxReps {
+                exercise.maxReps = max(fatigueLevel.defaultMaxReps, exercise.minReps)
+            }
+            exercise.fatigueLevel = fatigueLevel
+            return true
+        }
     }
 
     // IDs are permanent: changing a display name must not create another exercise.
     // Secondary muscles come from the original PowerJack reference catalog.
     // Rep ranges are the defaults: 5 reps up to the fatigue level's max.
-    // Borderline fatigue levels round up: too much rest beats too little.
+    // High is kept for big lower-body lifts: squats, deadlifts, leg presses, lunges and hip thrusts.
+    // `was:` marks a level that changed.
     static let entries: [Entry] = [
-        Entry("barbell-bench-press", "Barbell Bench Press", .barbell, .chest, .high, [.triceps, .shoulders]),
-        Entry("incline-barbell-bench-press", "Incline Barbell Bench Press", .barbell, .chest, .high, [.triceps, .shoulders]),
+        Entry("barbell-bench-press", "Barbell Bench Press", .barbell, .chest, .moderate, [.triceps, .shoulders], was: .high),
+        Entry("incline-barbell-bench-press", "Incline Barbell Bench Press", .barbell, .chest, .moderate, [.triceps, .shoulders], was: .high),
         Entry("dumbbell-bench-press", "Dumbbell Bench Press", .dumbbell, .chest, .moderate, [.triceps, .shoulders]),
         Entry("incline-dumbbell-bench-press", "Incline Dumbbell Bench Press", .dumbbell, .chest, .moderate, [.triceps, .shoulders]),
         Entry("cable-chest-fly", "Cable Chest Fly", .cable, .chest, .low, [.shoulders]),
@@ -66,10 +83,10 @@ enum ExerciseCatalog {
         Entry("chin-up", "Chin Up", .bodyweight, .back, .moderate, [.biceps, .forearms, .abs]),
         Entry("lat-pulldown", "Lat Pulldown", .cable, .back, .moderate, [.biceps, .forearms]),
         Entry("seated-cable-row", "Seated Cable Row", .cable, .back, .moderate, [.biceps, .forearms]),
-        Entry("barbell-row", "Barbell Row", .barbell, .back, .high, [.biceps, .forearms, .abs]),
+        Entry("barbell-row", "Barbell Row", .barbell, .back, .moderate, [.biceps, .forearms, .abs], was: .high),
         Entry("one-arm-dumbbell-row", "One Arm Dumbbell Row", .dumbbell, .back, .moderate, [.biceps, .forearms, .abs]),
         Entry("barbell-deadlift", "Barbell Deadlift", .barbell, .back, .high, [.glutes, .hamstrings, .quads, .forearms]),
-        Entry("barbell-overhead-press", "Barbell Overhead Press", .barbell, .shoulders, .high, [.triceps, .abs]),
+        Entry("barbell-overhead-press", "Barbell Overhead Press", .barbell, .shoulders, .moderate, [.triceps, .abs], was: .high),
         Entry("dumbbell-shoulder-press", "Dumbbell Shoulder Press", .dumbbell, .shoulders, .moderate, [.triceps, .abs]),
         Entry("dumbbell-lateral-raise", "Dumbbell Lateral Raise", .dumbbell, .shoulders, .low),
         Entry("cable-lateral-raise", "Cable Lateral Raise", .cable, .shoulders, .low),
@@ -87,7 +104,7 @@ enum ExerciseCatalog {
         Entry("barbell-front-squat", "Barbell Front Squat", .barbell, .quads, .high, [.glutes, .abs]),
         Entry("goblet-squat", "Goblet Squat", .kettlebell, .quads, .moderate, [.glutes, .abs]),
         Entry("dumbbell-bulgarian-split-squat", "Dumbbell Bulgarian Split Squat", .dumbbell, .quads, .high, [.glutes, .hamstrings]),
-        Entry("dumbbell-walking-lunge", "Dumbbell Walking Lunge", .dumbbell, .quads, .moderate, [.glutes, .hamstrings]),
+        Entry("dumbbell-walking-lunge", "Dumbbell Walking Lunge", .dumbbell, .quads, .high, [.glutes, .hamstrings], was: .moderate),
         Entry("leg-press", "Leg Press", .legPress, .quads, .high, [.glutes, .hamstrings]),
         Entry("leg-extension", "Leg Extension", .machine, .quads, .low),
         Entry("barbell-romanian-deadlift", "Barbell Romanian Deadlift", .barbell, .hamstrings, .high, [.glutes, .back, .forearms]),
@@ -118,13 +135,17 @@ enum ExerciseCatalog {
         Entry("hack-squat", "Hack Squat", .machine, .quads, .high, [.glutes]),
         Entry("chest-supported-dumbbell-row", "Chest Supported Dumbbell Row", .dumbbell, .back, .moderate, [.biceps, .forearms]),
         Entry("dip", "Dip", .bodyweight, .chest, .moderate, [.triceps, .shoulders]),
-        Entry("close-grip-bench-press", "Close Grip Bench Press", .barbell, .triceps, .high, [.chest, .shoulders]),
+        Entry("close-grip-bench-press", "Close Grip Bench Press", .barbell, .triceps, .moderate, [.chest, .shoulders], was: .high),
         Entry("incline-dumbbell-curl", "Incline Dumbbell Curl", .dumbbell, .biceps, .low, [.forearms]),
         Entry("hanging-leg-raise", "Hanging Leg Raise", .bodyweight, .abs, .low, [.forearms]),
     ]
 
+    /// Bumped when catalog fatigue levels change, so each device moves its rows once.
+    static let fatigueLevelsRevision = 1
+    static let fatigueLevelsRevisionKey = "catalog.fatigueLevelsRevision"
+
     @MainActor
-    static func seed(in context: ModelContext) throws {
+    static func seed(in context: ModelContext, defaults: UserDefaults = .standard) throws {
         var changed = try removeDuplicates(in: context)
         let existing = try context.fetch(FetchDescriptor<Exercise>())
         let existingByID = Dictionary(
@@ -132,17 +153,27 @@ enum ExerciseCatalog {
             uniquingKeysWith: { first, _ in first }
         )
 
+        let updatesFatigue = defaults.integer(forKey: fatigueLevelsRevisionKey) < fatigueLevelsRevision
+
         for entry in entries {
             if let exercise = existingByID[entry.id] {
                 changed = entry.backfill(exercise) || changed
+                if updatesFatigue {
+                    changed = entry.updateFatigueLevel(exercise) || changed
+                }
             } else {
                 context.insert(entry.makeExercise())
                 changed = true
             }
         }
 
-        guard changed else { return }
-        try context.save()
+        if changed {
+            try context.save()
+        }
+        // An empty store waits a launch, so rows iCloud brings in from an older version move too.
+        if updatesFatigue, !existingByID.isEmpty {
+            defaults.set(fatigueLevelsRevision, forKey: fatigueLevelsRevisionKey)
+        }
     }
 
     /// Merges copies of the same catalog exercise. A new device seeds the catalog before its

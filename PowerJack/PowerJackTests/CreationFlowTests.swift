@@ -42,7 +42,7 @@ struct CreationFlowTests {
         #expect(exercise.exerciseName == "Pulldown")
         #expect(exercise.primaryMuscleFocus == .shoulders)
         #expect(exercise.fatigueLevel == .low)
-        #expect(exercise.restDuration == .seconds(75))
+        #expect(exercise.restDuration == .seconds(45))
     }
 
     @Test("Exercise drafts keep rep ranges between 5 and 30 with min at or below max")

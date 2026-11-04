@@ -25,10 +25,10 @@ struct RestTimerTests {
         #expect(FatigueLevel.low.restLength == .short)
         #expect(FatigueLevel.moderate.restLength == .standard)
         #expect(FatigueLevel.high.restLength == .long)
-        #expect(RestLength.short.defaultDuration == .seconds(75))
-        #expect(RestLength.standard.defaultDuration == .seconds(135))
-        #expect(RestLength.long.defaultDuration == .seconds(180))
-        #expect(RestLength.standard.defaultDuration.minuteSecondText == "2:15")
+        #expect(RestLength.short.defaultDuration == .seconds(45))
+        #expect(RestLength.standard.defaultDuration == .seconds(90))
+        #expect(RestLength.long.defaultDuration == .seconds(150))
+        #expect(RestLength.standard.defaultDuration.minuteSecondText == "1:30")
     }
 
     @Test("Fatigue levels keep the raw values older stores saved")
@@ -73,7 +73,7 @@ struct RestTimerTests {
 
         let rest = try #require(workout.currentRest)
         #expect(rest.startedAt == start)
-        #expect(rest.endsAt == start.addingTimeInterval(180))
+        #expect(rest.endsAt == start.addingTimeInterval(150))
         #expect(rest.exerciseName == "Exercise 1")
         #expect(rest.setNumber == 2)
         #expect(rest.setCount == 3)
@@ -113,9 +113,9 @@ struct RestTimerTests {
         #expect(resting.sets.map(\.progress) == [.done, .current])
         // Done sets show what was logged, not the target.
         #expect(resting.sets[0].repsText == "9")
-        #expect(resting.rest == start...start.addingTimeInterval(180))
+        #expect(resting.rest == start...start.addingTimeInterval(150))
         // Once the rest runs out the set stays up without a timer.
-        #expect(workout.activityState(at: start.addingTimeInterval(180))?.rest == nil)
+        #expect(workout.activityState(at: start.addingTimeInterval(150))?.rest == nil)
 
         workout.workoutExercises[0].workoutSets[1].complete(at: start.addingTimeInterval(200))
         #expect(workout.activityState(at: start) == nil)
@@ -293,7 +293,7 @@ struct RestTimerTests {
         let rest = try #require(scenario.weekOneWorkouts[1].currentRest)
         #expect(rest.exerciseName == "Lat Pulldown")
         #expect(rest.setNumber == 3)
-        #expect(rest.duration == 135)
+        #expect(rest.duration == 90)
     }
 
     @Test("A rest counts down, then offers the next set until its window runs out")

@@ -103,10 +103,10 @@ final class PowerJackSimDriver {
         return report
     }
 
-    /// Each main lift's first and last planned heavy load, and how much stronger the lifter got.
-    private var mainLiftLoads: [String: (first: Double, last: Double, exercise: Exercise)] = [:]
-    private var mainLiftTrend: [String: (first: Double, last: Double, growth: Double)] {
-        mainLiftLoads.mapValues { ($0.first, $0.last, lifter.growth(of: $0.exercise)) }
+    /// Each main lift's first and highest planned heavy load, and how much stronger the lifter got.
+    private var mainLiftLoads: [String: (first: Double, peak: Double, exercise: Exercise)] = [:]
+    private var mainLiftTrend: [String: (first: Double, peak: Double, growth: Double)] {
+        mainLiftLoads.mapValues { ($0.first, $0.peak, lifter.growth(of: $0.exercise)) }
     }
 }
 
@@ -520,7 +520,8 @@ private extension PowerJackSimDriver {
         report.trace("  plan p\(programNumber) w\(index + 1) \(PowerJackSimText.describe(plan.header)): " + entries.joined(separator: "; "))
     }
 
-    /// Keeps each main lift's first and latest planned heavy load (an H slot or a TOP set).
+    /// Keeps each main lift's first and highest planned heavy load (an H slot or a TOP set). The peak, not the
+    /// latest, because a new program opens below the last one's peak and the year can end in its first week.
     func recordMainLifts(_ plan: PowerJackWeekPlan) {
         guard plan.header.type == .build else { return }
         for entry in plan.workouts.joined() where entry.role.role == .main && !entry.calibrating {
@@ -528,7 +529,7 @@ private extension PowerJackSimDriver {
                   let exercise = exercisesByEngineID[entry.exercise.id]
             else { continue }
             let name = exercise.exerciseName
-            mainLiftLoads[name] = (mainLiftLoads[name]?.first ?? load, load, exercise)
+            mainLiftLoads[name] = (mainLiftLoads[name]?.first ?? load, max(mainLiftLoads[name]?.peak ?? load, load), exercise)
         }
     }
 }
