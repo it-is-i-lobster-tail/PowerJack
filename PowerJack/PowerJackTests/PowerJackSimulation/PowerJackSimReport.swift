@@ -33,7 +33,7 @@ struct PowerJackSimReport {
     /// The slowest week the planner built, in seconds.
     var slowestBuild = 0.0
     /// Main lifts' planned heavy loads against the lifter's true max, first and last time each was planned.
-    var mainLiftTrend: [String: (first: Double, last: Double, growth: Double)] = [:]
+    var mainLiftTrend: [String: (first: Double, peak: Double, growth: Double)] = [:]
 
     /// Reps left on a fresh first set at each planned load, from the lifter's true strength.
     private(set) var slacks: [Double] = []
@@ -87,7 +87,7 @@ struct PowerJackSimReport {
         let types = "\(weekTypes[.build] ?? 0) build, \(weekTypes[.deload] ?? 0) deload"
         let trend = mainLiftTrend.keys.sorted().compactMap { name -> String? in
             guard let lift = mainLiftTrend[name] else { return nil }
-            return "\(name) \(PowerJackSimText.pounds(lift.first))→\(PowerJackSimText.pounds(lift.last)) (max ×\(String(format: "%.2f", lift.growth)))"
+            return "\(name) \(PowerJackSimText.pounds(lift.first))→\(PowerJackSimText.pounds(lift.peak)) (max ×\(String(format: "%.2f", lift.growth)))"
         }.prefix(4).joined(separator: ", ")
         return "\(profile) seed \(seed), \(weeks) weeks: \(programs) programs (\(otherStylePrograms) other style, "
             + "\(programsFinished) finished, \(programsAbandoned) abandoned), \(workouts) workouts, \(workoutsSkipped) skipped, "

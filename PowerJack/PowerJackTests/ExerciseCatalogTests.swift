@@ -176,7 +176,9 @@ struct ExerciseCatalogTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
-        let context = try PowerJackSchema.makeModelContainer(inMemory: true).mainContext
+        // The container must outlive its context.
+        let container = try PowerJackSchema.makeModelContainer(inMemory: true)
+        let context = container.mainContext
 
         // Rows as an older version seeded them, when bench, row and press were High.
         func oldRow(_ id: String, _ fatigueLevel: FatigueLevel, maxReps: Int) throws -> Exercise {
@@ -215,7 +217,9 @@ struct ExerciseCatalogTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
-        let context = try PowerJackSchema.makeModelContainer(inMemory: true).mainContext
+        // The container must outlive its context.
+        let container = try PowerJackSchema.makeModelContainer(inMemory: true)
+        let context = container.mainContext
 
         // First launch seeds an empty store.
         try ExerciseCatalog.seed(in: context, defaults: defaults)
