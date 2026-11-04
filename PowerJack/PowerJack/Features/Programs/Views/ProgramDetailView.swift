@@ -11,6 +11,8 @@ import SwiftData
 struct ProgramDetailView: View {
     @Bindable var program: Program
 
+    @Environment(ProgramsRouter.self) private var router
+
     /// Each early workout gets its own hint on Start Workout, shown until it starts.
     private var startWorkoutHint: (any Hint)? {
         guard let workout = program.nextWorkout, workout.status == .planned,
@@ -58,8 +60,14 @@ struct ProgramDetailView: View {
             // A finished program has no days ahead to edit.
             if program.nextWorkout != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(value: ProgramRoute.editDays(program)) {
-                        Label("Edit Days", systemImage: "square.and.pencil")
+                    Menu {
+                        // Pushed through the router like every other Programs screen. A NavigationLink
+                        // here crashed SwiftUI when it wrote to the stack's path.
+                        Button("Edit Days", systemImage: "square.and.pencil") {
+                            router.showEditDays(program)
+                        }
+                    } label: {
+                        Label("More", systemImage: "ellipsis")
                     }
                 }
             }

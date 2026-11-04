@@ -34,6 +34,10 @@ final class ProgramsRouter {
         path.append(.session(program))
     }
 
+    func showEditDays(_ program: Program) {
+        path.append(.editDays(program))
+    }
+
     /// Opens a workout from the progress grid: the active one resumes, a completed one opens read-only.
     func showWorkout(_ workout: Workout, in program: Program) {
         switch workout.status {

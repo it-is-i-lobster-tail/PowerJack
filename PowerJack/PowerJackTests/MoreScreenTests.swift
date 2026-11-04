@@ -78,6 +78,45 @@ struct MoreScreenTests {
         #expect(router.path == [.session(program)])
     }
 
+    @Test("Program detail's More menu offers Edit Days, which opens the days of the running program")
+    func programDetailMoreMenuEditsDays() async throws {
+        let program = try makeProgram()
+        program.start()
+        let router = ProgramsRouter()
+        // Opened the way launch reopens the active program.
+        router.showDetailOnly(program)
+
+        let screen = try await HostedView(
+            RouterHost(router: router) { Color.clear }
+                .modelContainer(container)
+        )
+        defer { screen.close() }
+
+        #expect(await screen.tap("More", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(screen.labelsInAllWindows.contains("Edit Days"), "\(screen.labelsInAllWindows)")
+
+        router.showEditDays(program)
+        #expect(router.path == [.detail(program), .editDays(program)])
+        let opened = await screen.waitUntil { screen.labels.contains("Day 1") }
+        #expect(opened, "\(screen.labels)")
+    }
+
+    @Test("A program with no workout ahead has no More menu")
+    func noMoreMenuWithoutNextWorkout() async throws {
+        let program = try makeProgram()
+        let router = ProgramsRouter()
+        router.showDetailOnly(program)
+
+        let screen = try await HostedView(
+            RouterHost(router: router) { Color.clear }
+                .modelContainer(container)
+        )
+        defer { screen.close() }
+
+        #expect(program.nextWorkout == nil)
+        #expect(!screen.labels.contains("More"), "\(screen.labels)")
+    }
+
     @Test("The router pushes each program screen")
     func routerPushes() throws {
         let program = try makeProgram()
@@ -92,6 +131,10 @@ struct MoreScreenTests {
         #expect(router.currentExerciseRequest == 1)
         router.popToRoot()
         #expect(router.path.isEmpty)
+
+        router.showDetail(program)
+        router.showEditDays(program)
+        #expect(router.path == [.detail(program), .editDays(program)])
     }
 
     @Test("A workout in the progress grid opens only once it is underway or complete")
