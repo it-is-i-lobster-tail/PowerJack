@@ -539,6 +539,27 @@ extension WorkoutExercise {
         repOffsetValue = repOffset
         intendedLoadKgValue = intendedLoadKg
     }
+    /// Clears what a planner wrote on a planned exercise, before it plans the exercise again. Sets stay.
+    /// A check-in comes back if the planner still asks for one.
+    func clearPlannedProgression() {
+        guard status == .planned else {
+            Logger.workoutExercise.warning("Can only clear the progression of a planned WorkoutExercise.")
+            return
+        }
+        rirTargetValue = nil
+        progressionCodeValue = nil
+        progressionNoteValue = nil
+        strengthRoleValue = nil
+        targetRepsValue = nil
+        repOffsetValue = nil
+        intendedLoadKgValue = nil
+        clearPowerJackPlan()
+        if checkInValue == .pending {
+            checkInValue = .none
+            checkInSourcePainValue = nil
+            lockedValue = false
+        }
+    }
     /// Replaces a planned exercise's warmups. Working sets stay.
     func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
         guard status == .planned else {

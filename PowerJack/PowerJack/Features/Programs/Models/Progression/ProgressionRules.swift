@@ -18,12 +18,18 @@ protocol WeekPlanner {
     /// Runs when a week ends with no week after it to build: the program's last week, or the week a stopped
     /// program was partway through.
     static func close(_ week: ProgramWeek, in program: Program)
+    /// Whether `replan` can write `week` again.
+    static func canReplan(_ week: ProgramWeek, in program: Program) -> Bool
+    /// Writes the sets of `workouts`, not started yet, of `week` again, as the planner would plan them now.
+    /// The days keep their exercises.
+    static func replan(_ workouts: [Workout], of week: ProgramWeek, in program: Program)
 }
 
 extension WeekPlanner {
     static func setUpFirstWeek(_ week: ProgramWeek, in program: Program) {}
     static func prepareToStart(_ workout: Workout, in program: Program, at date: Date) {}
     static func close(_ week: ProgramWeek, in program: Program) {}
+    static func canReplan(_ week: ProgramWeek, in program: Program) -> Bool { true }
 }
 
 extension ProgressionPlanner: WeekPlanner {}

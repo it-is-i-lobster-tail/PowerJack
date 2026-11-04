@@ -163,6 +163,16 @@ enum StrengthPlanner: WeekPlanner {
         }
     }
 
+    /// Plans `workouts` again from the lift records the week was planned with. `prepareToStart` still runs
+    /// the break and pain rules as each one starts.
+    static func replan(_ workouts: [Workout], of week: ProgramWeek, in program: Program) {
+        var state = StrengthLog.latestState(in: program.modelContext)
+        fitBlock(&state.clock, weekIndex: week.order, in: program)
+        let earlierWeeks = Array(program.programWeeks.filter { $0.order < week.order }.reversed())
+        plan(week, history: earlierWeeks, state: state, at: currentDate ?? .now, writing: workouts)
+        Logger.program.info("Replanned \(workouts.count) strength workouts of week \(week.order + 1)")
+    }
+
     // MARK: Planning
 
     /// Sizes the clock's block to fit the program, for the week at `weekIndex`, so the program ends on a
@@ -175,8 +185,16 @@ enum StrengthPlanner: WeekPlanner {
         )
     }
 
-    private static func plan(_ week: ProgramWeek, history: [ProgramWeek], state: StrengthState, at now: Date) {
+    /// Plans every slot of `week`, and writes the plans of `workouts`, or of the whole week when nil.
+    private static func plan(
+        _ week: ProgramWeek,
+        history: [ProgramWeek],
+        state: StrengthState,
+        at now: Date,
+        writing workouts: [Workout]? = nil
+    ) {
         let slots = slotsByExercise(in: week)
+        // Every slot is planned, even ones not written, so a lift's heavy and moderate slots still pair up.
         var plans: [(workoutExercise: WorkoutExercise, slot: Slot, plan: StrengthSlotPlan)] = []
         for workout in week.workouts {
             for workoutExercise in workout.workoutExercises {
@@ -200,6 +218,8 @@ enum StrengthPlanner: WeekPlanner {
             plans[index].plan.sets = StrengthSlotPlan.uniform(heavy.plan.sets.count, reps: moderate.targetReps, loadKg: heavy.plan.loadKg)
         }
         for (workoutExercise, slot, plan) in plans {
+            guard workouts?.contains(where: { $0 === workoutExercise.workoutValue }) ?? true else { continue }
+            workoutExercise.clearPlannedProgression()
             write(plan, to: workoutExercise, role: slot.role)
         }
     }

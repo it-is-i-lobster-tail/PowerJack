@@ -73,6 +73,13 @@ extension ProgramWeek {
         returnBandValue = returnBand
     }
 
+    /// Takes the week out of any training block, for planners that don't use them.
+    func clearBlock() {
+        weekKindValue = ""
+        blockWeekValue = 0
+        returnBandValue = 0
+    }
+
     func complete() {
         guard !lockedValue else {
             Logger.programWeek.warning("Cannot complete a locked ProgramWeek.")

@@ -22,10 +22,7 @@ enum ProgressionPlanner {
         }
 
         let sourceWeek = weeks[weekIndex - 1]
-        let olderWeeks = weeks[..<(weekIndex - 1)].reversed().prefix(2).map { $0 }
         let credits = muscleSetCredits(in: sourceWeek)
-        let focusMuscles = Set(program.templateMuscleFocus)
-        let nextPrescription = program.templateType.progressionRules
 
         for sourceWorkout in sourceWeek.workouts {
             guard let workout = week.addWorkout() else { continue }
@@ -37,55 +34,93 @@ enum ProgressionPlanner {
                 else {
                     continue
                 }
-
-                let matches = olderWeeks.map {
-                    matchingExercise(for: sourceExercise, in: sourceWorkout, week: $0)
-                }
-                let prescription = nextPrescription(
-                    ProgressionInput(
-                        current: history(sourceExercise, programWeek: weekIndex),
-                        previous: matches.first.flatMap { $0 }.map { history($0, programWeek: weekIndex - 1) },
-                        twoWeeksAgo: matches.dropFirst().first.flatMap { $0 }.map {
-                            history($0, programWeek: weekIndex - 2)
-                        },
-                        exercise: info(exercise),
-                        focusMuscles: focusMuscles,
-                        programLengthWeeks: program.programLengthWeeks,
-                        currentWeekMuscleSetCredits: credits
-                    )
-                )
-
-                // Warmups repeat what was logged last week, including how many. They never progress.
                 // An exercise with warmups disabled on this day gets none (see `WorkoutExercise.canAddSet`).
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
                 workoutExercise.inheritSuperset(from: sourceExercise)
-                let sourceWarmups = sourceExercise.warmupSets
-                let warmupCount = sourceWarmups.isEmpty ? WorkoutExercise.initialWarmupSets : sourceWarmups.count
-                for index in 0..<warmupCount {
-                    let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
-                    workoutExercise.addPlannedSet(
-                        type: .warmup,
-                        plannedReps: warmup.flatMap { $0.reps ?? $0.repsPlanned },
-                        plannedWeightTenthsPounds: warmup.flatMap { $0.weightTenthsPounds ?? $0.weightTenthsPlannedPounds }
-                    )
-                }
-                for set in prescription.sets.prefix(WorkoutExercise.maxSets) {
-                    workoutExercise.addPlannedSet(
-                        plannedReps: set.plannedReps,
-                        plannedWeightTenthsPounds: set.plannedWeightTenthsPounds
-                    )
-                }
-                let checkInPain = prescription.checkInSourcePain ?? unresolvedCheckInPain(
-                    for: sourceExercise,
-                    in: sourceWorkout,
-                    earlierWeeks: weeks[..<(weekIndex - 1)].reversed()
-                )
-                if let sourcePain = checkInPain {
-                    workoutExercise.requireCheckIn(sourcePain: sourcePain)
-                }
+                plan(workoutExercise, from: sourceExercise, in: sourceWorkout, weekIndex: weekIndex, credits: credits, program: program)
             }
         }
         Logger.program.info("Built ProgramWeek \(weekIndex + 1) from week \(weekIndex)")
+    }
+
+    /// Week 1 is copied from the template, so there's no week before it to progress from.
+    static func canReplan(_ week: ProgramWeek, in program: Program) -> Bool {
+        week.order > 0
+    }
+
+    /// Plans each of `workouts` again from the same day of the week before, as `build` would now.
+    /// Exercises that day didn't have keep their sets.
+    static func replan(_ workouts: [Workout], of week: ProgramWeek, in program: Program) {
+        let weeks = program.programWeeks
+        guard let weekIndex = weeks.firstIndex(where: { $0 === week }), weekIndex > 0 else {
+            Logger.program.warning("Can only replan a ProgramWeek that follows another week.")
+            return
+        }
+        let sourceWeek = weeks[weekIndex - 1]
+        let credits = muscleSetCredits(in: sourceWeek)
+        // These rules don't use blocks, so a week the Build engine wrote drops its block.
+        week.clearBlock()
+
+        for workout in workouts {
+            guard let sourceWorkout = sourceWeek.workouts.first(where: { $0.order == workout.order }) else { continue }
+            for (workoutExercise, sourceExercise) in workout.slotPairs(with: sourceWorkout) {
+                workoutExercise.clearPlannedProgression()
+                plan(workoutExercise, from: sourceExercise, in: sourceWorkout, weekIndex: weekIndex, credits: credits, program: program)
+            }
+        }
+        Logger.program.info("Replanned \(workouts.count) workouts of ProgramWeek \(weekIndex + 1)")
+    }
+
+    /// Writes the planned sets of `workoutExercise` from `sourceExercise`, the same slot the week before.
+    private static func plan(
+        _ workoutExercise: WorkoutExercise,
+        from sourceExercise: WorkoutExercise,
+        in sourceWorkout: Workout,
+        weekIndex: Int,
+        credits: [Muscle: Double],
+        program: Program
+    ) {
+        guard let exercise = sourceExercise.exercise else { return }
+        let weeks = program.programWeeks
+        let olderWeeks = weeks[..<(weekIndex - 1)].reversed().prefix(2).map { $0 }
+        let matches = olderWeeks.map {
+            matchingExercise(for: sourceExercise, in: sourceWorkout, week: $0)
+        }
+        let prescription = program.templateType.progressionRules(
+            ProgressionInput(
+                current: history(sourceExercise, programWeek: weekIndex),
+                previous: matches.first.flatMap { $0 }.map { history($0, programWeek: weekIndex - 1) },
+                twoWeeksAgo: matches.dropFirst().first.flatMap { $0 }.map {
+                    history($0, programWeek: weekIndex - 2)
+                },
+                exercise: info(exercise),
+                focusMuscles: Set(program.templateMuscleFocus),
+                programLengthWeeks: program.programLengthWeeks,
+                currentWeekMuscleSetCredits: credits
+            )
+        )
+
+        // Warmups repeat what was logged last week, including how many. They never progress.
+        let sourceWarmups = sourceExercise.warmupSets
+        let warmupCount = sourceWarmups.isEmpty ? WorkoutExercise.initialWarmupSets : sourceWarmups.count
+        workoutExercise.replacePlannedWarmups((0..<warmupCount).map { index in
+            let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
+            return (
+                reps: warmup.flatMap { $0.reps ?? $0.repsPlanned },
+                weightTenthsPounds: warmup.flatMap { $0.weightTenthsPounds ?? $0.weightTenthsPlannedPounds }
+            )
+        })
+        workoutExercise.replacePlannedWorkingSets(prescription.sets.prefix(WorkoutExercise.maxSets).map {
+            (reps: $0.plannedReps, weightTenthsPounds: $0.plannedWeightTenthsPounds)
+        })
+        let checkInPain = prescription.checkInSourcePain ?? unresolvedCheckInPain(
+            for: sourceExercise,
+            in: sourceWorkout,
+            earlierWeeks: weeks[..<(weekIndex - 1)].reversed()
+        )
+        if let sourcePain = checkInPain {
+            workoutExercise.requireCheckIn(sourcePain: sourcePain)
+        }
     }
 
     /// Completed working set credits per muscle for one week (primary 1, secondary 0.5).

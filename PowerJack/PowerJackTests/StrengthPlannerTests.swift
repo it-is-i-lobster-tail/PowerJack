@@ -409,6 +409,27 @@ struct StrengthPlannerTests {
         #expect(curl.restDuration == curl.exercise?.restDuration)
     }
 
+    @Test("Reset Progression plans this week's unstarted workouts again from the same lift records")
+    func resetProgression() throws {
+        let program = try makeProgram()
+        try finishWeek(of: program) { id in id == "dumbbell-curl" ? (25, 10) : (300, nil) }
+        let weekTwo = program.programWeeks[1].workouts
+        let built = weekTwo.map(\.planSummary)
+
+        let squat = try slot("barbell-back-squat", day: 1, in: program, week: 1)
+        squat.replacePlannedWorkingSets([(reps: 1, weightTenthsPounds: 100)])
+        squat.setProgression(rirTarget: 5, code: "edited", note: "Edited")
+        #expect(weekTwo[1].planSummary != built[1])
+
+        #expect(program.canResetProgression)
+        program.resetProgression()
+
+        #expect(weekTwo.map(\.planSummary) == built)
+        #expect(squat.progressionNote == nil)
+        // Resetting reads the lift records; it doesn't log the week again.
+        #expect(try context.fetch(FetchDescriptor<StrengthLog>()).count == 1)
+    }
+
     // MARK: Helpers
 
     /// Day 1: squat, bench. Day 2: squat, front squat, curl.
