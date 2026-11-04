@@ -61,8 +61,7 @@ struct ProgramDetailView: View {
             if program.nextWorkout != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        // Pushed through the router like every other Programs screen. A NavigationLink
-                        // here crashed SwiftUI when it wrote to the stack's path.
+                        // Pushed through the router like every other Programs screen.
                         Button("Edit Days", systemImage: "square.and.pencil") {
                             router.showEditDays(program)
                         }

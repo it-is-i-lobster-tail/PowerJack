@@ -99,6 +99,10 @@ struct MoreScreenTests {
         #expect(router.path == [.detail(program), .editDays(program)])
         let opened = await screen.waitUntil { screen.labels.contains("Copy Day") }
         #expect(opened, "\(screen.labels)")
+        // It stays open. A NavigationStack nested in the builder used to throw the push away.
+        await screen.settle(.milliseconds(800))
+        #expect(router.path == [.detail(program), .editDays(program)])
+        #expect(screen.labels.contains("Copy Day"), "\(screen.labels)")
     }
 
     @Test("A program with no workout ahead has no More menu")
