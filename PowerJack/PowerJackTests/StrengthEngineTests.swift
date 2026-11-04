@@ -324,6 +324,12 @@ struct StrengthEngineTests {
         let light = topSession(top: (100, 3), back: [(92.5, 3), (92.5, 3), (92.5, 3)], rated: 4)
         let fromLight = plan(context(zone: .heavy, history: [light]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 4, upcoming: .deload))
         #expect(fromLight.loadKg == 90)
+
+        // A lighter week back from a break counts too, though it isn't a normal week: 110 × 0.9 = 99, so 100.
+        var back = topSession(top: (110, 3), back: [(100, 3), (100, 3)], rated: 3)
+        back.plan.kind = .returnWeek2
+        let afterReturn = plan(context(zone: .heavy, history: [back, last]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 4, upcoming: .deload))
+        #expect(afterReturn.loadKg == 100)
     }
 
     @Test("A secondary slot's deload halves sets, takes 90% of the load and adds 2 RIR (T9)")
