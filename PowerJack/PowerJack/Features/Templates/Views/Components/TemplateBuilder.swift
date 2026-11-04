@@ -195,34 +195,34 @@ struct TemplateWorkoutBuilder: View {
     @State private var exerciseToSuperset: TemplateExerciseBlock?
     
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(templateWorkoutDraft.blocks) { block in
-                    blockRow(block)
-                        .padding(.horizontal, 15)
-                        .listRowSeparator(.hidden, edges: .all)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(
-                            EdgeInsets(
-                                top: 4,
-                                leading: 0,
-                                bottom: 4,
-                                trailing: 0
-                            )
+        // No NavigationStack of its own: Edit Days shows this inside the Programs stack, whose typed
+        // path a nested stack breaks (a crash from a link, or a pop to the list from the router).
+        List {
+            ForEach(templateWorkoutDraft.blocks) { block in
+                blockRow(block)
+                    .padding(.horizontal, 15)
+                    .listRowSeparator(.hidden, edges: .all)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 4,
+                            leading: 0,
+                            bottom: 4,
+                            trailing: 0
                         )
-                }
-                .onMove { source, destination in
-                    templateWorkoutDraft.moveBlocks(
-                        from: source,
-                        to: destination
                     )
-                }
             }
-            .padding(.vertical, 8)
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
+            .onMove { source, destination in
+                templateWorkoutDraft.moveBlocks(
+                    from: source,
+                    to: destination
+                )
+            }
         }
+        .padding(.vertical, 8)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
         .powerJackGlassCard(interactive: true)
     }
 
