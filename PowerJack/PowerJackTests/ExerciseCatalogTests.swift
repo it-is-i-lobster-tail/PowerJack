@@ -26,17 +26,18 @@ struct ExerciseCatalogTests {
         }
     }
 
-    @Test("Catalog keeps High fatigue for the heaviest squats, deadlifts and leg presses")
+    @Test("Catalog keeps High fatigue for big lower-body lifts")
     func catalogFatigueLevels() {
         let fatigueByID = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.fatigueLevel) })
         let high = ExerciseCatalog.entries.filter { $0.fatigueLevel == .high }.map(\.id)
         #expect(Set(high) == [
             "barbell-back-squat", "barbell-front-squat", "smith-machine-squat", "hack-squat",
             "leg-press", "barbell-deadlift", "barbell-romanian-deadlift",
+            "dumbbell-bulgarian-split-squat", "dumbbell-walking-lunge", "barbell-hip-thrust", "smith-machine-hip-thrust",
         ])
         #expect(fatigueByID["barbell-bench-press"] == .moderate)
         #expect(fatigueByID["barbell-overhead-press"] == .moderate)
-        #expect(fatigueByID["barbell-hip-thrust"] == .moderate)
+        #expect(fatigueByID["close-grip-bench-press"] == .moderate)
         #expect(fatigueByID["push-up"] == .moderate)
         #expect(fatigueByID["lat-pulldown"] == .moderate)
         #expect(fatigueByID["dumbbell-curl"] == .low)
@@ -44,7 +45,7 @@ struct ExerciseCatalogTests {
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 7, .moderate: 23, .low: 33])
+        #expect(counts == [.high: 11, .moderate: 19, .low: 33])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
@@ -189,6 +190,7 @@ struct ExerciseCatalogTests {
         let row = try oldRow("barbell-row", .high, maxReps: 8)
         let press = try oldRow("barbell-overhead-press", .low, maxReps: 20)
         let squat = try oldRow("barbell-back-squat", .high, maxReps: 12)
+        let lunge = try oldRow("dumbbell-walking-lunge", .moderate, maxReps: 15)
         try context.save()
 
         try ExerciseCatalog.seed(in: context, defaults: defaults)
@@ -198,6 +200,8 @@ struct ExerciseCatalogTests {
         #expect(row.fatigueLevel == .moderate && row.repRange == 5...8)
         #expect(press.fatigueLevel == .low && press.repRange == 5...20)
         #expect(squat.fatigueLevel == .high && squat.repRange == 5...12)
+        // Lunges moved up to High.
+        #expect(lunge.fatigueLevel == .high && lunge.repRange == 5...12)
 
         // After the move, a level the user picks again stays.
         bench.fatigueLevel = .high

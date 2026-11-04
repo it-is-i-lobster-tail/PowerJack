@@ -70,7 +70,8 @@ enum ExerciseCatalog {
     // IDs are permanent: changing a display name must not create another exercise.
     // Secondary muscles come from the original PowerJack reference catalog.
     // Rep ranges are the defaults: 5 reps up to the fatigue level's max.
-    // High is kept for the heaviest squats, deadlifts and leg presses. `was:` marks a level that changed.
+    // High is kept for big lower-body lifts: squats, deadlifts, leg presses, lunges and hip thrusts.
+    // `was:` marks a level that changed.
     static let entries: [Entry] = [
         Entry("barbell-bench-press", "Barbell Bench Press", .barbell, .chest, .moderate, [.triceps, .shoulders], was: .high),
         Entry("incline-barbell-bench-press", "Incline Barbell Bench Press", .barbell, .chest, .moderate, [.triceps, .shoulders], was: .high),
@@ -102,15 +103,15 @@ enum ExerciseCatalog {
         Entry("barbell-back-squat", "Barbell Back Squat", .barbell, .quads, .high, [.glutes, .hamstrings, .abs]),
         Entry("barbell-front-squat", "Barbell Front Squat", .barbell, .quads, .high, [.glutes, .abs]),
         Entry("goblet-squat", "Goblet Squat", .kettlebell, .quads, .moderate, [.glutes, .abs]),
-        Entry("dumbbell-bulgarian-split-squat", "Dumbbell Bulgarian Split Squat", .dumbbell, .quads, .moderate, [.glutes, .hamstrings], was: .high),
-        Entry("dumbbell-walking-lunge", "Dumbbell Walking Lunge", .dumbbell, .quads, .moderate, [.glutes, .hamstrings]),
+        Entry("dumbbell-bulgarian-split-squat", "Dumbbell Bulgarian Split Squat", .dumbbell, .quads, .high, [.glutes, .hamstrings]),
+        Entry("dumbbell-walking-lunge", "Dumbbell Walking Lunge", .dumbbell, .quads, .high, [.glutes, .hamstrings], was: .moderate),
         Entry("leg-press", "Leg Press", .legPress, .quads, .high, [.glutes, .hamstrings]),
         Entry("leg-extension", "Leg Extension", .machine, .quads, .low),
         Entry("barbell-romanian-deadlift", "Barbell Romanian Deadlift", .barbell, .hamstrings, .high, [.glutes, .back, .forearms]),
         Entry("dumbbell-romanian-deadlift", "Dumbbell Romanian Deadlift", .dumbbell, .hamstrings, .moderate, [.glutes, .back, .forearms]),
         Entry("seated-leg-curl", "Seated Leg Curl", .machine, .hamstrings, .low),
         Entry("lying-leg-curl", "Lying Leg Curl", .machine, .hamstrings, .low),
-        Entry("barbell-hip-thrust", "Barbell Hip Thrust", .barbell, .glutes, .moderate, [.hamstrings, .abs], was: .high),
+        Entry("barbell-hip-thrust", "Barbell Hip Thrust", .barbell, .glutes, .high, [.hamstrings, .abs]),
         Entry("glute-bridge", "Glute Bridge", .bodyweight, .glutes, .low, [.hamstrings]),
         Entry("cable-glute-kickback", "Cable Glute Kickback", .cable, .glutes, .low, [.hamstrings]),
         Entry("cable-pull-through", "Cable Pull Through", .cable, .glutes, .low, [.hamstrings]),
@@ -128,7 +129,7 @@ enum ExerciseCatalog {
         Entry("dumbbell-goblet-squat", "Dumbbell Goblet Squat", .dumbbell, .quads, .moderate, [.glutes, .abs]),
         Entry("sliding-leg-curl", "Sliding Leg Curl", .bodyweight, .hamstrings, .low),
         Entry("smith-machine-squat", "Smith Machine Squat", .machine, .quads, .high, [.glutes, .abs]),
-        Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .moderate, [.abs], was: .high),
+        Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .high, [.abs]),
         Entry("cable-hip-abduction", "Cable Hip Abduction", .cable, .glutes, .low),
         // Added for the second set of built-in templates.
         Entry("hack-squat", "Hack Squat", .machine, .quads, .high, [.glutes]),
