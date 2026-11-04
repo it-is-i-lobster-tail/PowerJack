@@ -319,6 +319,11 @@ struct StrengthEngineTests {
         #expect(next.kind == .deload)
         #expect((next.topSets, next.reps, next.rir) == (1, 3, 4))
         #expect(next.sets == [StrengthPlannedSet(reps: 3, loadKg: 145), StrengthPlannedSet(reps: 3, loadKg: 132.5)])
+
+        // After a top set lighter than e1RM gives, the deload cuts from that instead: 100 × 0.9 = 90.
+        let light = topSession(top: (100, 3), back: [(92.5, 3), (92.5, 3), (92.5, 3)], rated: 4)
+        let fromLight = plan(context(zone: .heavy, history: [light]), record: confident(e1rm: 180), clock: StrengthClock(blockWeek: 4, upcoming: .deload))
+        #expect(fromLight.loadKg == 90)
     }
 
     @Test("A secondary slot's deload halves sets, takes 90% of the load and adds 2 RIR (T9)")

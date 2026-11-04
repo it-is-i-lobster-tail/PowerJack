@@ -42,8 +42,8 @@ extension PowerJackSeed {
         // Keyed by template position: [day][exercise].
         let logs: [[SeedLog]] = [
             [
-                // Bench: all sets near the top of the range -> +5 lb.
-                SeedLog(sets: [(12, 1350), (11, 1350)], repsLeft: .four, pain: .none),
+                // Bench (5-15 at Moderate fatigue): all sets near the top of the range -> +5 lb.
+                SeedLog(sets: [(13, 1350), (13, 1350)], repsLeft: .four, pain: .none),
                 // Squat: severe pain -> repeat and require a check-in.
                 SeedLog(sets: [(8, 2250), (8, 2250)], repsLeft: .one, pain: .severe),
             ],

@@ -140,9 +140,12 @@ enum StrengthPrescriber {
         }
 
         if clock.upcoming == .deload {
-            // 10.6: block week 1's shape at 90% of the load, one back-off, 2 more reps in reserve.
+            // 10.6: block week 1's shape at 90% of the load, one back-off, 2 more reps in reserve. It cuts from the
+            // last top set when that was lighter, so a deload is never heavier than the week before it.
             let first = StrengthRules.topSetScheme(zone: slot.zone, blockWeek: 1, of: StrengthRules.blockTrainWeeks)
-            let intended = e1rm * slot.curve.share(repsToFailure: first.reps + first.rir) * StrengthRules.deloadLoadFactor
+            let fromE1rm = e1rm * slot.curve.share(repsToFailure: first.reps + first.rir)
+            let lastTop = lastNormal?.plan.loadKg ?? lastNormal?.ratedSet?.loadKg
+            let intended = min(fromE1rm, lastTop ?? fromE1rm) * StrengthRules.deloadLoadFactor
             let deloadRIR = max(first.rir + StrengthRules.deloadRIRAdd, StrengthRules.deloadRIRMin)
             return topPlan(.deload, scheme: first, rir: deloadRIR, backSets: 1, intended: intended, slot: slot, rules: ["10.6"])
         }
