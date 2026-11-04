@@ -33,7 +33,7 @@ extension TemplateType {
     var weekPlanner: any WeekPlanner.Type {
         switch self {
         case .hypertrophy:
-            BuildPlanner.self
+            ProgressionPlanner.self
         case .strength:
             StrengthPlanner.self
         case .powerJack:
@@ -42,7 +42,7 @@ extension TemplateType {
     }
 
     /// Decides an exercise's next planned version for programs that use `ProgressionPlanner`.
-    /// Every type now has its own planner, so only `ProgressionPlanner`'s own tests still use these.
+    /// Build programs use these: each set progresses from its own logged reps.
     var progressionRules: (ProgressionInput) -> Prescription {
         switch self {
         case .hypertrophy, .strength, .powerJack:

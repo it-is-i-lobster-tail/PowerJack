@@ -22,6 +22,7 @@ import Testing
 @testable import PowerJack
 
 @MainActor
+@Suite(.disabled("Build programs use ProgressionPlanner again, so programs no longer reach the Build engine."))
 struct BuildSimulationTests {
     @Test("Every kind of lifter trains a year of Build programs without breaking a rule", arguments: BuildSimProfile.archetypes.map(\.name))
     func archetype(_ name: String) throws {

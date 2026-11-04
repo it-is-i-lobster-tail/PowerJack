@@ -108,7 +108,7 @@ struct TemplateCatalogTests {
         }
     }
 
-    @Test("Every built-in template starts a program with sets on every exercise and targets on all but Strengthen accessories")
+    @Test("Every built-in template starts a program with sets on every exercise and targets on all but Build and Strengthen accessories")
     func catalogProgramsStart() throws {
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
         try ExerciseCatalog.seed(in: container.mainContext)
@@ -122,8 +122,8 @@ struct TemplateCatalogTests {
             #expect(exercises.count == template.templateWorkouts.flatMap(\.templateExercises).count, "\(template.templateName)")
             for exercise in exercises {
                 #expect(!exercise.workingSets.isEmpty, "\(template.templateName)")
-                // Strengthen accessories keep a simple double progression with no reps-left target (rule 14.6).
-                if exercise.strengthRole != .accessory {
+                // Build programs and Strengthen accessories progress each set's reps with no reps-left target (rule 14.6).
+                if template.templateType != .hypertrophy && exercise.strengthRole != .accessory {
                     #expect(exercise.rirTarget != nil, "\(template.templateName)")
                 }
             }

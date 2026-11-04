@@ -193,16 +193,19 @@ private extension WeekKind {
     }
 }
 
-/// Reps climb through the range, then the weight goes up.
+/// Each set holds, gains a set, gains weight or gains a rep, from what was logged on it.
 private struct HypertrophyChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FlowQuestion(title: "How did it feel?", detail: "Compared with its aim")
-            FlowOutcome(tone: .hold, when: "Harder, or reps short", title: "Same weight and reps", detail: "Short two weeks running? The weight comes down about 5%.")
-            FlowArrow(label: "On the aim or easier")
-            FlowQuestion(title: "At the top of the rep range?")
-            FlowOutcome(tone: .stepUp, when: "Not yet", title: "Add reps", detail: "One more, or two if it felt easier. If it keeps feeling much easier, the weight goes up sooner.")
-            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "A small jump in weight, and your reps start lower in the range again.", isLast: true)
+            FlowQuestion(title: "How did it go?")
+            FlowOutcome(tone: .hold, when: "Moderate pain or worse, 0 reps left, or under the range", title: "Same again", detail: "Each set repeats what you did. A set under the range comes back at the bottom of it.")
+            FlowArrow(label: "Otherwise")
+            FlowQuestion(title: "Easy two weeks running?", detail: "Three for muscles you're not focusing on. Easy is 3 or more reps left early in the program, 2 by the middle and 1 near the end.")
+            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add a set", detail: "At the same weight, 3 reps lower. Up to 25 sets a week for each muscle.")
+            FlowArrow(label: "No")
+            FlowQuestion(title: "Every set near the top of the range?")
+            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "5 lb more, same reps.")
+            FlowOutcome(tone: .stepUp, when: "Not yet", title: "Add a rep", detail: "One more on every set.", isLast: true)
         }
     }
 }
