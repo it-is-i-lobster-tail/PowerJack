@@ -17,7 +17,7 @@ extension CompleteSetIntent {
         guard
             let program = try context.fetch(FetchDescriptor<Program>()).active,
             let workout = program.nextWorkout,
-            workout.completeCurrentSetAtTarget(exerciseOrder: exerciseOrder, setOrder: setOrder)
+            workout.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder)
         else {
             return .result()
         }

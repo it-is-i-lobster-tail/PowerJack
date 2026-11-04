@@ -2,7 +2,7 @@
 //  Workout+Activity.swift
 //  PowerJack
 //
-//  What the Live Activity shows for the active workout, and logging a set at its target.
+//  What the Live Activity shows for the active workout, and logging a set from it.
 //
 
 import Foundation
@@ -34,14 +34,14 @@ extension Workout {
                 )
             },
             repsOnly: repsOnly,
-            canCompleteAtTarget: workoutSet.canCompleteAtTarget(repsOnly: repsOnly),
+            canCompleteAtTarget: workoutSet.canCompleteAsEntered(repsOnly: repsOnly),
             rest: currentRest.flatMap { $0.isResting(at: now) ? $0.interval : nil }
         )
     }
 
-    /// Logs the current set at its target, if it is the set at these positions and has a full target.
+    /// Logs the current set as entered, if it is the set at these positions and has weight and reps to log.
     @discardableResult
-    func completeCurrentSetAtTarget(exerciseOrder: Int, setOrder: Int, at date: Date = .now) -> Bool {
+    func completeCurrentSet(exerciseOrder: Int, setOrder: Int, at date: Date = .now) -> Bool {
         guard
             let current = currentSet,
             current.workoutExercise.order == exerciseOrder,
@@ -50,44 +50,44 @@ extension Workout {
         else {
             return false
         }
-        return current.workoutSet.completeAtTarget(repsOnly: exercise.repsOnly, at: date)
+        return current.workoutSet.completeAsEntered(repsOnly: exercise.repsOnly, at: date)
     }
 }
 
 extension WorkoutSet {
-    /// What was logged once the set is done, its target until then.
+    /// What the lifter typed in, else the set's target. The voice and Live Activity always say this.
+    var upcomingReps: Int? { reps ?? repsPlanned }
+    var upcomingWeightTenthsPounds: Int? { weightTenthsPounds ?? weightTenthsPlannedPounds }
+
+    /// What was logged once the set is done, what's entered until then.
     func activitySet(label: String, isCurrent: Bool, repsOnly: Bool) -> ActivitySet {
         let progress: ActivitySet.Progress = switch status {
         case .complete: .done
         case .skipped, .stopped: .skipped
         default: isCurrent ? .current : .upcoming
         }
-        let isLogged = progress == .done
         return ActivitySet(
             label: label,
             progress: progress,
-            reps: isLogged ? reps : repsPlanned,
-            weightTenthsPounds: repsOnly ? nil : (isLogged ? weightTenthsPounds : weightTenthsPlannedPounds),
+            reps: upcomingReps,
+            weightTenthsPounds: repsOnly ? nil : upcomingWeightTenthsPounds,
             usesKilograms: WeightUnit.current == .kilograms
         )
     }
 
-    /// Has a target to log (reps, plus weight unless reps only) and nothing different typed in yet.
-    func canCompleteAtTarget(repsOnly: Bool) -> Bool {
-        guard status == .active, !locked, let repsPlanned else { return false }
-        guard reps == nil || reps == repsPlanned else { return false }
-        if repsOnly { return true }
-        guard let weightTenthsPlannedPounds else { return false }
-        return weightTenthsPounds == nil || weightTenthsPounds == weightTenthsPlannedPounds
+    /// Has reps to log, plus weight unless reps only.
+    func canCompleteAsEntered(repsOnly: Bool) -> Bool {
+        guard status == .active, !locked, upcomingReps != nil else { return false }
+        return repsOnly || upcomingWeightTenthsPounds != nil
     }
 
-    /// Logs the target weight and reps and completes the set.
+    /// Logs the weight and reps entered, else the target, and completes the set.
     @discardableResult
-    func completeAtTarget(repsOnly: Bool, at date: Date = .now) -> Bool {
-        guard canCompleteAtTarget(repsOnly: repsOnly) else { return false }
-        reps = repsPlanned
+    func completeAsEntered(repsOnly: Bool, at date: Date = .now) -> Bool {
+        guard canCompleteAsEntered(repsOnly: repsOnly) else { return false }
+        reps = upcomingReps
         if !repsOnly {
-            weightTenthsPounds = weightTenthsPlannedPounds
+            weightTenthsPounds = upcomingWeightTenthsPounds
         }
         complete(at: date)
         return true

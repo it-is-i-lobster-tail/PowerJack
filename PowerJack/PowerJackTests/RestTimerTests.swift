@@ -198,28 +198,37 @@ struct RestTimerTests {
         #expect(state.sets[0].weightText(repsOnly: false) == "–")
         #expect(state.sets[0].repsText == "–")
         #expect(!state.canCompleteAtTarget)
-        #expect(!workout.completeCurrentSetAtTarget(exerciseOrder: 0, setOrder: 0))
+        #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0))
     }
 
-    @Test("Checking a set from the Live Activity logs exactly its target")
-    func completeAtTarget() throws {
-        let workout = try makeWorkout([(.moderate, 2)])
+    @Test("The Live Activity shows and checks off what the lifter typed in, not the plan")
+    func completeAsEntered() throws {
+        let workout = try makeWorkout([(.moderate, 3)])
         let sets = workout.workoutExercises[0].workoutSets
 
         // Only the set the activity showed.
-        #expect(!workout.completeCurrentSetAtTarget(exerciseOrder: 0, setOrder: 1))
+        #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 1))
 
-        #expect(workout.completeCurrentSetAtTarget(exerciseOrder: 0, setOrder: 0, at: start))
+        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, at: start))
         #expect(sets[0].status == .complete)
         #expect(sets[0].reps == 8)
         #expect(sets[0].weightTenthsPounds == 2250)
         #expect(sets[0].completedAt == start)
 
-        // Something else typed in the app has to be finished in the app.
+        // Typed in the app, off plan.
         sets[1].reps = 6
-        #expect(!sets[1].canCompleteAtTarget(repsOnly: false))
-        #expect(!workout.completeCurrentSetAtTarget(exerciseOrder: 0, setOrder: 1))
-        #expect(sets[1].status == .active)
+        sets[1].weightTenthsPounds = 2300
+        let state = try #require(workout.activityState(at: start))
+        #expect(state.sets[1].repsText == "6")
+        #expect(state.sets[1].weightText(repsOnly: false) == "230")
+        // Sets still to do show what's entered too.
+        #expect(state.sets[2].repsText == "8")
+        #expect(state.canCompleteAtTarget)
+
+        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 1, at: start.addingTimeInterval(200)))
+        #expect(sets[1].status == .complete)
+        #expect(sets[1].reps == 6)
+        #expect(sets[1].weightTenthsPounds == 2300)
     }
 
     @Test("There is no rest before the first set, after the last set, or outside a running workout")

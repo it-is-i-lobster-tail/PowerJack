@@ -54,7 +54,7 @@ extension Workout {
         let nextSet = current.workoutSet
         let sets = current.workoutExercise.workoutSets
         let loggedWeight = sets.last { $0.status == .complete && $0.weightTenthsPounds != nil }?.weightTenthsPounds
-        let weight = nextSet.weightTenthsPlannedPounds ?? nextSet.weightTenthsPounds ?? loggedWeight
+        let weight = nextSet.upcomingWeightTenthsPounds ?? loggedWeight
 
         return RestPeriod(
             startedAt: latest.completedAt,
@@ -63,7 +63,7 @@ extension Workout {
             setNumber: current.workoutExercise.number(of: nextSet),
             setCount: current.workoutExercise.count(sameTypeAs: nextSet),
             isWarmup: nextSet.isWarmup,
-            reps: nextSet.repsPlanned ?? nextSet.reps,
+            reps: nextSet.upcomingReps,
             weightTenthsPounds: exercise.repsOnly ? nil : weight,
             usesKilograms: WeightUnit.current == .kilograms
         )
