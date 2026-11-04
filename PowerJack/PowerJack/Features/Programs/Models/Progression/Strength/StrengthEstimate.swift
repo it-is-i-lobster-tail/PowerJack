@@ -3,7 +3,7 @@
 //  PowerJack
 //
 //  Each lift's estimated one-rep max (module 4): one smoothed value, updated once a week
-//  from rated sets with at most 10 reps to failure.
+//  from the week's best rated set with at most 10 reps to failure.
 //
 
 import Foundation
@@ -65,7 +65,8 @@ enum StrengthEstimate {
             record.ratedDates.removeAll { $0 <= start }
         }
 
-        let weekly = median(values.compactMap(\.e1rmKg))
+        // The week's best session: a top set on an off day says less about strength than one on a good day.
+        let weekly = values.compactMap(\.e1rmKg).max()
         let bound = values.compactMap(\.boundKg).max()
         let fast = calibrating || record.fastUpdatesLeft > 0
         let alpha = fast ? StrengthRules.alphaFast : StrengthRules.alpha
@@ -108,10 +109,4 @@ enum StrengthEstimate {
         record.e1rmKg = current + alpha * (value - current)
     }
 
-    private static func median(_ values: [Double]) -> Double? {
-        guard !values.isEmpty else { return nil }
-        let sorted = values.sorted()
-        let middle = sorted.count / 2
-        return sorted.count.isMultiple(of: 2) ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
-    }
 }

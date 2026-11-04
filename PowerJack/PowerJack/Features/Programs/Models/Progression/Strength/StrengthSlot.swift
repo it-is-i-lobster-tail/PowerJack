@@ -44,11 +44,13 @@ struct StrengthPlannedSet: Equatable {
 /// What the planner writes on one slot.
 struct StrengthSlotPlan: Equatable {
     var kind: StrengthSlotKind
-    /// R, the target reps before any reps-mode offset.
+    /// R, the target reps before any reps-mode offset. On a top-set plan, the top set's reps.
     var reps: Int
-    /// I, the reps to leave on the last working set.
+    /// I, the reps to leave on the rated set: the top set when there is one, otherwise the last working set.
     var rir: Int
     var sets: [StrengthPlannedSet]
+    /// 1 when the first working set is a top set and the rest are back-offs; 0 for straight sets.
+    var topSets = 0
     /// Reps mode's offset on R while one load step is too coarse (1.2).
     var repOffset = 0
     /// The unrounded load target, so sub-step nudges build up (7.5). `nil` while loads are picked by feel.
@@ -61,6 +63,13 @@ struct StrengthSlotPlan: Equatable {
     var warmups: [StrengthPlannedSet]?
 
     var targetReps: Int { reps + repOffset }
+    /// The back-offs' share of the top set's load, as planned. By-feel weeks plan no loads, so they take the default.
+    var backShare: Double {
+        guard topSets > 0, let top = sets.first?.loadKg, top > 0, let back = sets.dropFirst(topSets).first?.loadKg else {
+            return StrengthRules.backShareByFeel
+        }
+        return back / top
+    }
     var repsToFailure: Int { reps + rir }
     var loadKg: Double? { sets.first?.loadKg }
 
@@ -85,6 +94,21 @@ struct StrengthSlotPlan: Equatable {
     static func uniform(_ count: Int, reps: Int?, loadKg: Double?) -> [StrengthPlannedSet] {
         Array(repeating: StrengthPlannedSet(reps: reps, loadKg: loadKg), count: max(1, count))
     }
+
+    /// A top set, then `backSets` back-offs.
+    static func topAndBack(reps: Int, loadKg: Double?, backSets: Int, backReps: Int, backLoadKg: Double?) -> [StrengthPlannedSet] {
+        [StrengthPlannedSet(reps: reps, loadKg: loadKg)]
+            + Array(repeating: StrengthPlannedSet(reps: backReps, loadKg: backLoadKg), count: max(0, backSets))
+    }
+
+    /// The top set and its back-offs moved to `share` of their load, on `grid`, with `dropping` back-offs fewer
+    /// (at least one stays). Straight sets scale the same way.
+    func scaled(by share: Double, grid: LoadGrid?, dropping: Int = 0) -> [StrengthPlannedSet] {
+        let kept = topSets > 0 ? Array(sets.prefix(max(topSets + 1, sets.count - dropping))) : Array(sets.prefix(max(1, sets.count - dropping)))
+        return kept.map { set in
+            StrengthPlannedSet(reps: set.reps, loadKg: set.loadKg.map { grid?.nearest($0 * share) ?? $0 * share })
+        }
+    }
 }
 
 /// One finished run of a slot: the plan it ran and what was logged.
@@ -95,6 +119,8 @@ struct StrengthSession: Equatable {
         /// What the planner had prefilled, to tell a user's change from the plan.
         var plannedLoadKg: Double?
         var completed: Bool
+
+        var isDone: Bool { completed && (reps ?? 0) > 0 }
     }
 
     var plan: StrengthSlotPlan
@@ -106,15 +132,24 @@ struct StrengthSession: Equatable {
     /// The role the session was planned for, when one was stored.
     var plannedRole: StrengthRole?
 
-    var completedSets: [LoggedSet] { sets.filter { $0.completed && ($0.reps ?? 0) > 0 } }
+    var completedSets: [LoggedSet] { sets.filter(\.isDone) }
     var trained: Bool { !completedSets.isEmpty }
-    /// The rated set is the last completed working set (3.1).
-    var ratedSet: LoggedSet? { completedSets.last }
+    /// The rated set is the top set when the plan has one, otherwise the last completed working set (3.1).
+    var ratedSet: LoggedSet? {
+        if plan.topSets > 0, let top = sets.first, top.isDone { return top }
+        return completedSets.last
+    }
     /// Moderate pain or worse: the session feeds nothing (15.8).
     var isPainful: Bool { (pain ?? 0) >= StrengthRules.painHold.rawValue }
 
-    /// Sets that fell short of the target reps.
-    var missedSets: [LoggedSet] { completedSets.filter { ($0.reps ?? 0) < plan.targetReps } }
+    /// Sets that fell short of their own planned reps (a top set and its back-offs plan different reps).
+    var missedSets: [LoggedSet] {
+        sets.indices.filter { sets[$0].isDone && (sets[$0].reps ?? 0) < plannedReps(at: $0) }.map { sets[$0] }
+    }
+
+    private func plannedReps(at index: Int) -> Int {
+        plan.sets.indices.contains(index) ? plan.sets[index].reps ?? plan.targetReps : plan.targetReps
+    }
     /// The plan had a load to build on, or one was lifted.
     var hasLoad: Bool { plan.intendedKg != nil || ratedSet?.loadKg != nil }
 

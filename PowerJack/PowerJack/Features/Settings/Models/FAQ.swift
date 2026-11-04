@@ -252,7 +252,7 @@ extension FAQ {
                 answer: [
                     "If you've done an exercise in PowerJack in the last few months, even in another program, it starts from those sets.",
                     "If the exercise is new to you, week 1 finds your level. Pick a weight you think leaves about as many reps in the tank as the exercise's aim, and log what you actually did. Your weights for week 2 come from there.",
-                    "In Hypertrophy and PowerJack programs, week 1 has fewer sets on purpose, and they build up over the weeks that follow. Strength programs use the first two weeks to dial in your main lifts.",
+                    "In Hypertrophy and PowerJack programs, week 1 has fewer sets on purpose, and they build up over the weeks that follow. In Strength programs, week 1's top sets find your level for your main lifts.",
                 ]
             ),
             Entry(
@@ -266,10 +266,10 @@ extension FAQ {
             Entry(
                 question: "How do Strength programs progress?",
                 answer: [
-                    "More weight, same reps. Your main lifts, up to four, like the squat, bench press, deadlift and the first big lift of each day, stay heavy at around 4 to 6 reps. The weight is what changes week to week.",
+                    "Heavier through each block. Your main lifts, up to four, like the squat, bench press, deadlift and the first big lift of each day, start with one heavy top set, then lighter back-off sets.",
                     .figure(.strength),
-                    "Weights round to your Load Steps in Settings. When the next step is a big jump for that weight, you add a rep or two first, then take the jump.",
-                    "Your other exercises add reps first, then weight, like in Hypertrophy programs.",
+                    "The top set builds from triples to a heavy single close to your max. After a lighter week, the next block starts again from triples, a little heavier.",
+                    "Weights round to your Load Steps in Settings. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
                     "If one lift keeps feeling harder than planned, it gets a short lighter week of its own. If a lift stalls for a couple of months, PowerJack changes things up to get it moving again.",
                 ]
             ),
