@@ -1,0 +1,130 @@
+name: Upgrade tests
+
+# Every earlier version must upgrade to the one being released. For each version, this
+# installs it on a simulator, trains with it, installs the new version over it like an
+# App Store or TestFlight update, and checks the lifter's data is all there and still works.
+# See scripts/upgrade/README.md. Branch protection requires the "Upgrade tests" check on staging.
+on:
+  pull_request:
+    branches: [staging, main]
+  workflow_dispatch:
+
+concurrency:
+  group: upgrade-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_PATH: /Applications/Xcode_26.6.app
+  SIMULATOR: iPhone 17 Pro
+  SHARDS: 4
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  # PRs into main run this only when they change the upgrade tests themselves.
+  scope:
+    name: Choose versions
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: scope
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          run=true
+          if [ "$BASE" = main ]; then
+            git diff --name-only "origin/main...$HEAD_SHA" \
+              | grep -qE '^(scripts/upgrade/|PowerJack/PowerJackTests/Upgrade|\.github/workflows/upgrade-tests\.yml)' || run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Run upgrade tests: $run"
+          scripts/upgrade/versions.sh "$HEAD_SHA" origin/staging origin/prod
+
+  upgrade:
+    name: Upgrade (part ${{ matrix.shard }})
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: macos-26
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select --switch "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Create simulator
+        run: |
+          runtime=$(xcrun simctl list runtimes --json | jq -r --arg device "$SIMULATOR" '
+            [.runtimes[]
+              | select(.platform == "iOS" and .isAvailable)
+              | select(any(.supportedDeviceTypes[]; .name == $device))]
+            | sort_by(.version | split(".") | map(tonumber))
+            | last | .identifier // empty')
+
+          if [ -z "$runtime" ]; then
+            echo "::error::No iOS runtime on this runner supports $SIMULATOR."
+            exit 1
+          fi
+
+          udid=$(xcrun simctl create "CI $SIMULATOR" "$SIMULATOR" "$runtime")
+          xcrun simctl boot "$udid"
+          echo "Created $SIMULATOR on $runtime ($udid)"
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+
+      # Neighboring versions go to the same part, so each builds on the last one's build.
+      - name: Upgrade from earlier versions
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          scripts/upgrade/versions.sh "$HEAD_SHA" origin/staging origin/prod > "$RUNNER_TEMP/versions.txt"
+          total=$(wc -l < "$RUNNER_TEMP/versions.txt")
+          per=$(( (total + SHARDS - 1) / SHARDS ))
+          awk -v from=$(( (SHARD - 1) * per )) -v to=$(( SHARD * per )) 'NR > from && NR <= to' \
+            "$RUNNER_TEMP/versions.txt" | tee "$RUNNER_TEMP/part.txt"
+          scripts/upgrade/upgrade-test.sh "$SIMULATOR_UDID" upgrade-results < "$RUNNER_TEMP/part.txt"
+
+      - name: Upload stores and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-results-${{ matrix.shard }}
+          path: upgrade-results
+
+  result:
+    name: Upgrade tests
+    needs: [scope, upgrade]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every upgrade passed
+        env:
+          SCOPE: ${{ needs.scope.result }}
+          RUN: ${{ needs.scope.outputs.run }}
+          UPGRADE: ${{ needs.upgrade.result }}
+        run: |
+          if [ "$SCOPE" != success ]; then
+            echo "::error::Couldn't list the earlier versions."
+            exit 1
+          fi
+          if [ "$RUN" != true ]; then
+            echo "This pull request doesn't change the upgrade tests, so they were skipped."
+            exit 0
+          fi
+          if [ "$UPGRADE" != success ]; then
+            echo "::error::An earlier version doesn't upgrade cleanly. See the failed part's summary."
+            exit 1
+          fi
+          echo "Every earlier version upgrades to this one."
