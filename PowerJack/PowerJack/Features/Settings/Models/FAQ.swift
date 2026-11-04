@@ -258,10 +258,9 @@ extension FAQ {
             Entry(
                 question: "How do Hypertrophy programs progress?",
                 answer: [
-                    "Reps first, then weight. Each exercise has a rep range, like 8–12. You add reps week to week until you reach the top of the range. Then the weight goes up, and your reps start lower in the range again.",
+                    "Reps first, then weight, one set at a time. Each set's next target comes from what you logged on it, so 7 and 5 reps become 8 and 6.",
                     .figure(.hypertrophy),
-                    "When the next weight up would be a big jump, like moving up a dumbbell, the range stretches so you can add more reps first.",
-                    "Sets grow as well. Each muscle works up to about 10 hard sets a week. At the end of each block, a muscle that's progressing and recovering well can get more sets, up to about 20 a week, or 25 for focus muscles. One that's struggling gets fewer.",
+                    "Hypertrophy programs have no blocks or lighter weeks. Each week is built from the one before it.",
                 ]
             ),
             Entry(
