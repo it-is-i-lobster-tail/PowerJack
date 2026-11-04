@@ -576,8 +576,8 @@ struct WorkoutFlowTests {
 
         #expect(sets.map(\.reps) == [12, 12])
         #expect(sets.map(\.weightTenthsPounds) == [1400, 1400])
-        // The Live Activity's check button still sees the set as on target.
-        #expect(sets.allSatisfy { $0.canCompleteAtTarget(repsOnly: false) })
+        // The Live Activity's check button can log the set as is.
+        #expect(sets.allSatisfy { $0.canCompleteAsEntered(repsOnly: false) })
     }
 
     @Test("Bodyweight sets start with their target reps")

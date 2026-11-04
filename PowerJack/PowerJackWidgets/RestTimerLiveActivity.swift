@@ -2,8 +2,8 @@
 //  RestTimerLiveActivity.swift
 //  PowerJackWidgets
 //
-//  The active workout in the Dynamic Island and on the Lock Screen: the current set, its target,
-//  and a check to log it at that target. Between sets of an exercise the rest counts down on its own;
+//  The active workout in the Dynamic Island and on the Lock Screen: the current set, its weight and reps,
+//  and a check to log it as entered. Between sets of an exercise the rest counts down on its own;
 //  once the activity goes stale (the end of the rest) it shows "Start set" instead.
 //  Tapping anywhere else opens PowerJack on the current exercise.
 //
@@ -145,7 +145,7 @@ private struct SetHeading: View {
 }
 
 /// Every set of the exercise side by side, the current one highlighted,
-/// and the check that logs the current set at exactly its target.
+/// and the check that logs the current set as entered.
 private struct SetTargets: View {
     let state: WorkoutActivityState
 
@@ -166,13 +166,13 @@ private struct SetTargets: View {
                         .background(.green, in: .circle)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Complete set at target")
+                .accessibilityLabel("Complete set")
             }
         }
     }
 }
 
-/// One set: its label ("W1" for a warmup), then weight and reps. Done sets show what was logged, the rest their target.
+/// One set: its label ("W1" for a warmup), then weight and reps. Done sets show what was logged, the rest what's entered.
 private struct SetChip: View {
     let activitySet: ActivitySet
     let repsOnly: Bool

@@ -3,7 +3,7 @@
 //  PowerJack
 //
 //  The workout Live Activity shown in the Dynamic Island and on the Lock Screen:
-//  the current set, its target, and the rest before it.
+//  the current set, its weight and reps, and the rest before it.
 //  Compiled into the widget extension too, along with everything else in this file.
 //  The watch app shares the set text, so the Live Activity parts are iPhone only.
 //
@@ -36,7 +36,7 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     var setOrder: Int
     var sets: [ActivitySet]
     var repsOnly: Bool
-    /// The current set can be checked off at its target without opening the app.
+    /// The current set can be checked off as entered without opening the app.
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
@@ -47,7 +47,7 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     }
 }
 
-/// One set as the Live Activity shows it: what was logged once done, its target until then.
+/// One set as the Live Activity shows it: what was logged once done, what's entered until then.
 nonisolated struct ActivitySet: Codable, Hashable {
     enum Progress: String, Codable {
         case done, skipped, current, upcoming
@@ -81,11 +81,11 @@ nonisolated struct ActivitySet: Codable, Hashable {
 }
 
 #if os(iOS)
-/// The check button: logs the shown set at its target weight and reps.
+/// The check button: logs the shown set at the weight and reps entered.
 /// Live Activity intents run in the app, so `perform()` lives in CompleteSetIntent+App.swift;
 /// the widget's copy only lets it build the button.
 struct CompleteSetIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Complete Set at Target"
+    static let title: LocalizedStringResource = "Complete Set"
     static let isDiscoverable = false
 
     @Parameter(title: "Exercise")
