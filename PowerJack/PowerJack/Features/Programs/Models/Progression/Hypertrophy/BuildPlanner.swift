@@ -46,6 +46,10 @@ enum BuildPlanner: WeekPlanner {
         }
     }
 
+    /// Build programs now progress with `ProgressionPlanner`, which also resets them, so this engine never replans.
+    static func canReplan(_ week: ProgramWeek, in program: Program) -> Bool { false }
+    static func replan(_ workouts: [Workout], of week: ProgramWeek, in program: Program) {}
+
     /// Fills an empty week once the week before it is finished (CLOCK 2).
     static func build(_ week: ProgramWeek, in program: Program) {
         let weeks = program.programWeeks

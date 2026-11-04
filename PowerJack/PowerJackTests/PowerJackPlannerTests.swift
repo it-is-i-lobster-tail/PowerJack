@@ -115,6 +115,30 @@ struct PowerJackPlannerTests {
         }
     }
 
+    @Test("Reset Progression plans an unstarted week again, in week 1 and after it")
+    func resetProgression() throws {
+        let program = try makeProgram()
+        let weekOne = try #require(program.nextWorkout)
+        let builtWeekOne = weekOne.planSummary
+        let squat = try #require(weekOne.workoutExercises.first)
+        squat.replacePlannedWorkingSets([(reps: 1, weightTenthsPounds: 100)])
+        #expect(program.canResetProgression)
+        program.resetProgression()
+        #expect(weekOne.planSummary == builtWeekOne)
+
+        weekOne.startAndCascade()
+        log(weekOne, squatLoads: [2250, 1850, 1850, 1850, 1850], pain: .none)
+        let weekTwo = try #require(program.finishWorkout(weekOne))
+        let builtWeekTwo = weekTwo.planSummary
+        let curl = try #require(weekTwo.workoutExercises.last)
+        curl.replacePlannedWorkingSets([(reps: 30, weightTenthsPounds: 50)])
+        curl.setProgression(rirTarget: 0, code: "edited", note: "Edited")
+
+        program.resetProgression()
+
+        #expect(weekTwo.planSummary == builtWeekTwo)
+    }
+
     // MARK: Helpers
 
     /// Logs every set at its planned reps (8 when none was planned): the squat at `squatLoads`, the rest

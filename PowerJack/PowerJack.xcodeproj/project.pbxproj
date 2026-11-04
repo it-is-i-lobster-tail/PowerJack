@@ -72,6 +72,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Features/Exercises/Models/Exercise.swift,
+				"Features/Programs/Models/Program+ResetProgression.swift",
 				Features/Programs/Models/Program.swift,
 				Features/Programs/Models/ProgramWeek.swift,
 				Features/Programs/Models/Progression/Hypertrophy/BuildContext.swift,

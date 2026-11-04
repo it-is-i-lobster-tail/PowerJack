@@ -25,7 +25,7 @@ enum PowerJackPlanner: WeekPlanner {
         return PowerJackEngine.firstWeek(
             exercises.map { $0.map { Self.exercise($0) } },
             warmupsDisabled: week.workouts.map { $0.workoutExercises.map(\.warmupsDisabled) },
-            context: context(for: program, exercises: exercises.flatMap { $0 })
+            context: context(for: program, exercises: exercises.flatMap { $0 }, before: week)
         )
     }
 
@@ -58,13 +58,45 @@ enum PowerJackPlanner: WeekPlanner {
     }
 
     /// The engine's plan for the week after `closed`, which are every week of the program before it.
-    static func nextPlan(after closed: [ProgramWeek], in program: Program) -> PowerJackWeekPlan? {
+    /// Training already logged in `week`, the one being planned, is left out.
+    static func nextPlan(after closed: [ProgramWeek], in program: Program, for week: ProgramWeek? = nil) -> PowerJackWeekPlan? {
         guard let source = closed.last else { return nil }
         let exercises = source.workouts.flatMap { $0.workoutExercises.compactMap(\.exercise) }
         return PowerJackEngine.nextWeek(
             after: weekLogs(closed, programWeeks: program.programLengthWeeks),
-            context: context(for: program, exercises: exercises)
+            context: context(for: program, exercises: exercises, before: week)
         )
+    }
+
+    /// Plans `workouts` again as the engine planned their week: week 1 from its own exercises, later weeks
+    /// from every week before. Each exercise takes the plan of the same exercise on the same day.
+    static func replan(_ workouts: [Workout], of week: ProgramWeek, in program: Program) {
+        let weeks = program.programWeeks
+        guard let index = weeks.firstIndex(where: { $0 === week }) else { return }
+        let source = index == 0 ? week : weeks[index - 1]
+        let plan: PowerJackWeekPlan? = index == 0
+            ? firstPlan(for: week, in: program)
+            : nextPlan(after: Array(weeks[..<index]), in: program, for: week)
+        guard let plan else { return }
+
+        for workout in workouts {
+            guard
+                let dayIndex = source.workouts.firstIndex(where: { $0.order == workout.order }),
+                plan.workouts.indices.contains(dayIndex)
+            else { continue }
+            let sourceWorkout = source.workouts[dayIndex]
+            // The plan has an entry for each of the day's exercises that has one.
+            let planned = sourceWorkout.workoutExercises.filter { $0.exercise != nil }
+            let entries = plan.workouts[dayIndex]
+            for (workoutExercise, sourceExercise) in workout.slotPairs(with: sourceWorkout) {
+                guard let entryIndex = planned.firstIndex(where: { $0 === sourceExercise }),
+                      entries.indices.contains(entryIndex)
+                else { continue }
+                workoutExercise.clearPlannedProgression()
+                write(entries[entryIndex], in: plan.header, to: workoutExercise)
+            }
+        }
+        Logger.program.info("Replanned \(workouts.count) PowerJack workouts of week \(index + 1)")
     }
 
     // MARK: Writing the plan
@@ -73,19 +105,23 @@ enum PowerJackPlanner: WeekPlanner {
         week.setBlock(kind: plan.header.type == .deload ? .deload : .build, blockWeek: plan.header.blockWeek)
         for (workout, entries) in zip(week.workouts, plan.workouts) {
             for (workoutExercise, entry) in zip(workout.workoutExercises, entries) {
-                workoutExercise.replacePlannedWarmups(entry.warmups.map { tenths($0) })
-                workoutExercise.replacePlannedWorkingSets(entry.sets.map { tenths($0) })
-                workoutExercise.setProgression(
-                    // A deload aims at reps left on every set (R6.3).
-                    rirTarget: plan.header.type == .deload ? PowerJackRules.deloadRIR : entry.target,
-                    code: entry.reasons.last?.rawValue,
-                    note: note(for: entry, in: plan.header)
-                )
-                workoutExercise.setPowerJackPlan(entry)
-                if let pain = entry.checkInPain {
-                    workoutExercise.requireCheckIn(sourcePain: pain)
-                }
+                write(entry, in: plan.header, to: workoutExercise)
             }
+        }
+    }
+
+    private static func write(_ entry: PowerJackEntryPlan, in header: PowerJackWeekPlanHeader, to workoutExercise: WorkoutExercise) {
+        workoutExercise.replacePlannedWarmups(entry.warmups.map { tenths($0) })
+        workoutExercise.replacePlannedWorkingSets(entry.sets.map { tenths($0) })
+        workoutExercise.setProgression(
+            // A deload aims at reps left on every set (R6.3).
+            rirTarget: header.type == .deload ? PowerJackRules.deloadRIR : entry.target,
+            code: entry.reasons.last?.rawValue,
+            note: note(for: entry, in: header)
+        )
+        workoutExercise.setPowerJackPlan(entry)
+        if let pain = entry.checkInPain {
+            workoutExercise.requireCheckIn(sourcePain: pain)
         }
     }
 
@@ -105,7 +141,8 @@ enum PowerJackPlanner: WeekPlanner {
 
     // MARK: Reading the logs
 
-    static func context(for program: Program, exercises: [Exercise]) -> PowerJackContext {
+    /// `week`, when given, is the week being planned: what's been logged in it so far isn't history yet.
+    static func context(for program: Program, exercises: [Exercise], before week: ProgramWeek? = nil) -> PowerJackContext {
         let byID = Dictionary(exercises.map { (AnyHashable(ObjectIdentifier($0)), $0) }, uniquingKeysWith: { first, _ in first })
         var cache: [AnyHashable: [PowerJackExposure]] = [:]
         return PowerJackContext(
@@ -115,6 +152,7 @@ enum PowerJackPlanner: WeekPlanner {
             history: { id in
                 if let cached = cache[id] { return cached }
                 let exposures = (byID[id]?.workoutExercisesValue ?? [])
+                    .filter { week == nil || $0.workoutValue?.programWeekValue !== week }
                     .compactMap { Self.exposure($0) }
                     .sorted { $0.date < $1.date }
                 cache[id] = exposures

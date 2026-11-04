@@ -12,6 +12,9 @@ struct ProgramDetailView: View {
     @Bindable var program: Program
 
     @Environment(ProgramsRouter.self) private var router
+    @Environment(\.modelContext) private var modelContext
+    @State private var isConfirmingReset = false
+    @State private var saveErrorMessage: String?
 
     /// Each early workout gets its own hint on Start Workout, shown until it starts.
     private var startWorkoutHint: (any Hint)? {
@@ -65,11 +68,33 @@ struct ProgramDetailView: View {
                         Button("Edit Days", systemImage: "square.and.pencil") {
                             router.showEditDays(program)
                         }
+                        if program.canResetProgression {
+                            Button("Reset Progression", systemImage: "arrow.counterclockwise") {
+                                isConfirmingReset = true
+                            }
+                        }
                     } label: {
                         Label("More", systemImage: "ellipsis")
                     }
                 }
             }
+        }
+        .alert("Reset Progression?", isPresented: $isConfirmingReset) {
+            Button("Reset", role: .destructive, action: resetProgression)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Reruns the progression system to determine reps, sets, and weight for any workouts this week not started. This is a development tool and in most cases will change nothing.")
+        }
+        .saveErrorAlert($saveErrorMessage)
+    }
+
+    private func resetProgression() {
+        program.resetProgression()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = "Progression couldn't be reset. Please try again."
         }
     }
 }

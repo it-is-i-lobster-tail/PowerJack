@@ -104,7 +104,69 @@ struct BuildProgramTests {
         #expect(feedback.effortScaleVersion == RepsInReserve.scaleVersion)
     }
 
+    @Test("Reset Progression plans this week's unstarted workouts again and leaves a started one alone")
+    func resetRewritesUnstartedWorkouts() throws {
+        let program = try makeProgram(weeks: 2, exercises: [[bench()], [pullUp()]])
+        #expect(!program.canResetProgression)
+
+        while let workout = program.nextWorkout, program.programWeek(containing: workout)?.order == 0 {
+            log(workout, reps: [10, 8], weightTenthsPounds: 1000, repsLeft: .two)
+            program.finishWorkout(workout)
+        }
+        let weekTwo = program.programWeeks[1].workouts
+        let built = weekTwo.map(\.planSummary)
+
+        // Day 1 is underway with a weight changed; day 2 hasn't started and its sets were changed.
+        let started = weekTwo[0]
+        started.startAndCascade()
+        let startedSet = try #require(started.workoutExercises.first?.workingSets.first)
+        startedSet.weightTenthsPounds = 1234
+        let edited = try #require(weekTwo[1].workoutExercises.first)
+        edited.replacePlannedWorkingSets([(reps: 3, weightTenthsPounds: 500)])
+        edited.setProgression(rirTarget: 4, code: "edited", note: "Edited")
+        #expect(weekTwo[1].planSummary != built[1])
+
+        #expect(program.canResetProgression)
+        program.resetProgression()
+
+        #expect(weekTwo[1].planSummary == built[1])
+        #expect(edited.progressionNote == nil)
+        #expect(started.status == .active)
+        #expect(startedSet.weightTenthsPounds == 1234)
+        #expect(started.workoutExercises.first?.workingSets.count == 2)
+    }
+
+    @Test("Reset Progression rewrites a week the Build engine planned with the per-set rules")
+    func resetMovesBuildEngineWeekToPerSetRules() throws {
+        let fresh = try makeProgram(weeks: 2, exercise: bench())
+        let fromEngine = try makeProgram(weeks: 2, exercise: bench())
+        for program in [fresh, fromEngine] {
+            let weekOne = try #require(program.nextWorkout)
+            log(weekOne, reps: [10, 9], weightTenthsPounds: 1000, repsLeft: .two)
+            if program === fromEngine {
+                // Before Build went back to the per-set rules, the Build engine wrote week 2.
+                BuildPlanner.build(program.programWeeks[1], in: program)
+            }
+            program.finishWorkout(weekOne)
+        }
+        let engineWeek = fromEngine.programWeeks[1]
+        let engineWorkout = try #require(engineWeek.workouts.first)
+        #expect(engineWeek.weekKind == .build)
+        #expect(engineWorkout.workoutExercises.first?.rirTarget != nil)
+
+        fromEngine.resetProgression()
+
+        let freshWorkout = try #require(fresh.programWeeks[1].workouts.first)
+        #expect(engineWorkout.planSummary == freshWorkout.planSummary)
+        #expect(engineWorkout.workoutExercises.first?.progressionNote == nil)
+        #expect(engineWeek.weekKind == nil)
+    }
+
     // MARK: Helpers
+
+    private func pullUp() -> Exercise {
+        Exercise(exerciseName: "Pull Up", exerciseEquipment: .bodyweight, primaryMuscleFocus: .back)
+    }
 
     private func bench() -> Exercise {
         Exercise(
@@ -119,10 +181,20 @@ struct BuildProgramTests {
 
     /// A Build program with one workout of `exercise`. Chest isn't a focus muscle, so no sets are added.
     private func makeProgram(weeks: Int, exercise: Exercise) throws -> Program {
+        try makeProgram(weeks: weeks, exercises: [[exercise]])
+    }
+
+    /// A Build program with a workout for each list of `exercises`.
+    private func makeProgram(weeks: Int, exercises: [[Exercise]]) throws -> Program {
         let context = container.mainContext
-        context.insert(exercise)
-        let template = TemplateProgram(templateName: "Build", workoutsPerWeek: 1, templateMuscleFocus: [.back])
-        template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
+        let template = TemplateProgram(templateName: "Build", workoutsPerWeek: exercises.count, templateMuscleFocus: [.back])
+        for day in exercises {
+            let workout = template.addTemplateWorkout()
+            for exercise in day {
+                context.insert(exercise)
+                workout.addTemplateExercise(exercise: exercise)
+            }
+        }
         context.insert(template)
         let program = Program(programLengthWeeks: weeks, templateProgram: template)
         try context.insertAndSave(program)
