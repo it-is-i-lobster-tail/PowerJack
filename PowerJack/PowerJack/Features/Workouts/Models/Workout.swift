@@ -68,6 +68,11 @@ extension Workout {
     var endedAt: Date? { endedAtValue }
     // Started On: the device Start Workout was tapped on, nil for workouts started before it was kept.
     var startedOn: String? { startedOnValue }
+    /// The other device, while this workout is in progress after starting there.
+    var inProgressElsewhere: String? {
+        guard status == .active, let startedOnValue, startedOnValue != SyncDevice.current else { return nil }
+        return startedOnValue
+    }
 }
 
 //

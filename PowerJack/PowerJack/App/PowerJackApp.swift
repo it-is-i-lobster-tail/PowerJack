@@ -25,7 +25,7 @@ struct PowerJackApp: App {
     init() {
         Hints.configure()
         if !Self.runsInMemory {
-            SettingsSync.shared.start()
+            PhoneSync.shared.start(store: Self.store)
         }
     }
 

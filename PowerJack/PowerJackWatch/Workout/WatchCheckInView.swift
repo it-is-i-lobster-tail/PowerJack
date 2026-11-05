@@ -9,6 +9,8 @@ import SwiftData
 import SwiftUI
 
 struct WatchCheckInView: View {
+    @Environment(WatchSync.self) private var sync
+
     @Bindable var workoutExercise: WorkoutExercise
     let onResolved: () -> Void
 
@@ -28,7 +30,7 @@ struct WatchCheckInView: View {
             Section {
                 ForEach(decisions) { decision in
                     Button {
-                        workoutExercise.resolveCheckIn(decision)
+                        sync.perform { $0.resolveCheckIn(of: workoutExercise, with: decision) }
                         onResolved()
                     } label: {
                         Label(title(for: decision), systemImage: systemImage(for: decision))

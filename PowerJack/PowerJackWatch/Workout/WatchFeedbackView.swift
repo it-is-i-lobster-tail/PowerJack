@@ -10,6 +10,8 @@ import SwiftData
 import SwiftUI
 
 struct WatchFeedbackView: View {
+    @Environment(WatchSync.self) private var sync
+
     @Bindable var workoutExercise: WorkoutExercise
     let onFinished: () -> Void
 
@@ -75,10 +77,7 @@ struct WatchFeedbackView: View {
 
     private func save() {
         guard let feedback = draft.makeFeedback() else { return }
-        if let topSetRepsInReserve = draft.topSetRepsInReserve {
-            workoutExercise.rateTopSets(topSetRepsInReserve)
-        }
-        workoutExercise.addFeedback(feedback: feedback)
+        sync.perform { $0.rate(workoutExercise, feedback: feedback, topSet: draft.topSetRepsInReserve) }
         onFinished()
     }
 }
