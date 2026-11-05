@@ -438,10 +438,13 @@ private extension StrengthSimDriver {
             plannedReps = set.repsPlanned ?? plannedReps
             if let load = lifter.load(for: exercise, prefilled: set.weightTenthsPounds, reps: plannedReps, aim: aim, grid: grid),
                load != set.weightTenthsPounds {
-                // A weight typed on a set carries to the sets after it, as the workout screen does.
+                // A weight typed on a set carries to the sets after it, as the workout screen does, except from a
+                // top set, which is heavier than its back-offs.
                 let previousLoad = set.weightTenthsPounds
                 set.weightTenthsPounds = load
-                workoutExercise.applyWeight(load, after: set, replacing: previousLoad)
+                if !workoutExercise.isTopSet(set) {
+                    workoutExercise.applyWeight(load, after: set, replacing: previousLoad)
+                }
             }
             let loadKg = set.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) }
             let capacity = lifter.repsToFailure(exercise, loadKg: loadKg, setIndex: index)
@@ -452,7 +455,12 @@ private extension StrengthSimDriver {
             let nextBefore = sets.dropFirst(index + 1).first?.weightTenthsPounds
             let at = clock
             act(at: at) { workoutExercise.completeSet(set, at: at) }
-            if isStrength, let planned = set.repsPlanned, reps < planned {
+            // The top set's rating sits under it while the lifter rests, and sets the back-offs (5.10).
+            if workoutExercise.needsTopSetRating, !lifter.decides(profile.noRating) {
+                let rating = lifter.rating(repsLeft: capacity - Double(reps))
+                act(at: at) { workoutExercise.rateTopSets(rating) }
+            }
+            if isStrength, !workoutExercise.isTopSet(set), let planned = set.repsPlanned, reps < planned {
                 checker.checkMiss(StrengthSimSlot(workoutExercise: workoutExercise, exercise: exercise), short: set,
                                   nextWeightBefore: nextBefore, at: "\(checker.place) \(Self.dayText(at))")
             }

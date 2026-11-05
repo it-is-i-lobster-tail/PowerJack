@@ -528,8 +528,9 @@ extension WorkoutExercise {
         progressionCodeValue = code
         progressionNoteValue = note
     }
-    /// Records Strengthen's slot targets on a planned exercise.
-    func setStrengthTargets(role: StrengthRole, reps: Int?, repOffset: Int?, intendedLoadKg: Double?) {
+    /// Records Strengthen's slot targets on a planned exercise. A priority lift's first working set is its top set,
+    /// rated on its own like a PowerJack TOP set, so it shares those fields.
+    func setStrengthTargets(role: StrengthRole, reps: Int?, repOffset: Int?, intendedLoadKg: Double?, topSets: Int = 0) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only set the targets of a planned WorkoutExercise.")
             return
@@ -538,6 +539,8 @@ extension WorkoutExercise {
         targetRepsValue = reps
         repOffsetValue = repOffset
         intendedLoadKgValue = intendedLoadKg
+        powerJackTopSetsValue = topSets
+        powerJackTopRIRValue = nil
     }
     /// Clears what a planner wrote on a planned exercise, before it plans the exercise again. Sets stay.
     /// A check-in comes back if the planner still asks for one.

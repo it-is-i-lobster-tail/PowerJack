@@ -44,32 +44,15 @@ enum StrengthPrescriber {
 
     // MARK: Targets
 
-    /// R and I for the week: module 5's slot targets, block type and RIR wave (9.2), a stall's rep shift
-    /// (11.5), the zone caps and spotter rule (5.2), and the pain RIR floor, which comes before scaling (fix 3).
+    /// R and I for a secondary slot: 6 @ 2 (5.1), with the pain RIR floor. Priority lifts take theirs from
+    /// `StrengthRules.topSetScheme`.
     static func targets(
         _ slot: StrengthSlotContext,
         record: StrengthLiftRecord,
         clock: StrengthClock
     ) -> (reps: Int, rir: Int) {
-        var reps: Int
-        var rir = 2
-        if slot.role == .secondary {
-            reps = 6
-        } else {
-            let advanced = clock.experience == .advanced
-            let base = slot.zone == .moderate ? (advanced ? 5 : 6) : (advanced ? 3 : 4)
-            reps = base
-            if clock.blockType == .b { reps -= StrengthRules.blockBRepShift }
-            if slot.zone != .moderate, record.repShiftActive { reps -= StrengthRules.stallRepShift }
-            reps = max(reps, min(base, StrengthRules.repsMinNormal))
-            rir += StrengthRules.rirWave(blockWeek: clock.blockWeek, of: clock.trainWeeks)
-        }
-        let cap = slot.role == .secondary ? StrengthRules.secondaryRepsToFailureMax : StrengthRules.primaryRepsToFailureMax
-        rir = max(StrengthRules.rirMin, min(rir, cap - reps))
-        if slot.needsSpotter, reps + rir <= StrengthRules.spotterRepsToFailure {
-            // No spotter check is built yet, so near-max squat and bench sets are planned as if it said No.
-            rir = max(rir, StrengthRules.spotterRepsToFailure + 1 - reps, 2)
-        }
+        let reps = 6
+        var rir = max(StrengthRules.rirMin, min(2, StrengthRules.secondaryRepsToFailureMax - reps))
         if record.pain.rirFloor { rir = max(rir, StrengthRules.painReturnRIR) }
         return (reps, rir)
     }
@@ -82,6 +65,9 @@ enum StrengthPrescriber {
         clock: StrengthClock,
         at now: Date
     ) -> StrengthSlotPlan {
+        if slot.role == .primary {
+            return topSetPlan(slot, record: record, clock: clock)
+        }
         let (reps, rir) = targets(slot, record: record, clock: clock)
         // Weeks the exercise ran as an accessory, deloads included, before a swap made it a priority lift, set no
         // load to build on.
@@ -122,6 +108,127 @@ enum StrengthPrescriber {
             slot, record: record, clock: clock, last: last, lastNormal: lastNormal,
             reps: reps, rir: rir, sets: sets, at: now
         )
+    }
+
+    // MARK: Top sets
+
+    /// A priority lift's week: one top set as heavy as the block week calls for, from e1RM, then back-offs at a
+    /// share of it. Heavier loads build more strength, and reps left don't once load is counted (Robinson 2024),
+    /// so the top set climbs to a single at about 96% while every set keeps reps in reserve.
+    private static func topSetPlan(_ slot: StrengthSlotContext, record: StrengthLiftRecord, clock: StrengthClock) -> StrengthSlotPlan {
+        let history = slot.history.filter { $0.plan.kind != .accessory && $0.plannedRole != .accessory }
+        let lastNormal = history.first { ($0.plan.kind == .normal || $0.plan.kind == .calibration) && $0.hasLoad }
+        let scheme = StrengthRules.topSetScheme(zone: slot.zone, blockWeek: clock.blockWeek, of: clock.trainWeeks)
+        var rir = scheme.rir
+        if record.pain.rirFloor { rir = max(rir, StrengthRules.painReturnRIR) }
+
+        // Back-offs keep last week's count; a stall step at a block's start adds or takes one (11.4, 11.5).
+        var backSets = lastNormal.map { $0.plan.topSets > 0 ? $0.plan.sets.count - $0.plan.topSets : scheme.backSets } ?? scheme.backSets
+        if clock.startsBlock {
+            switch record.stepThisWeek {
+            case .sets: backSets += 1
+            case .fewerSets: backSets -= 1
+            default: break
+            }
+        }
+        backSets = min(max(backSets, StrengthRules.minBackSets), StrengthRules.maxBackSets)
+
+        guard let grid = slot.grid, let e1rm = record.e1rmKg ?? lastNormal.flatMap({ estimate(from: $0, curve: slot.curve) }) else {
+            // By feel (2.2): the first heavy set is block week 1's, so a new lift starts on a triple, not a single.
+            let first = StrengthRules.topSetScheme(zone: slot.zone, blockWeek: 1, of: StrengthRules.blockTrainWeeks)
+            return topPlan(.calibration, scheme: first, rir: max(rir, first.rir), backSets: first.backSets, intended: nil, slot: slot, rules: ["2.2", "5.10"])
+        }
+
+        if clock.upcoming == .deload {
+            // 10.6: block week 1's shape at 90% of the load, one back-off, 2 more reps in reserve. It cuts from the
+            // last top set when that was lighter, a return or pain week's included, so a deload is never heavier than
+            // the weeks before it.
+            let first = StrengthRules.topSetScheme(zone: slot.zone, blockWeek: 1, of: StrengthRules.blockTrainWeeks)
+            let fromE1rm = e1rm * slot.curve.share(repsToFailure: first.reps + first.rir)
+            let lastTops = [lastNormal, history.first(where: \.hasLoad)].compactMap { $0?.plan.loadKg ?? $0?.ratedSet?.loadKg }
+            let intended = lastTops.reduce(fromE1rm, min) * StrengthRules.deloadLoadFactor
+            let deloadRIR = max(first.rir + StrengthRules.deloadRIRAdd, StrengthRules.deloadRIRMin)
+            return topPlan(.deload, scheme: first, rir: deloadRIR, backSets: 1, intended: intended, slot: slot, rules: ["10.6"])
+        }
+
+        let kind: StrengthSlotKind = record.isCalibrating ? .calibration : .normal
+        var intended = e1rm * slot.curve.share(repsToFailure: scheme.reps + rir)
+        var rules = ["5.10"]
+        if clock.startsBlock, record.stepThisWeek == .reset {
+            intended *= 1 - StrengthRules.resetCut
+            rules.append("11.5")
+        } else if record.rebuildWeeksLeft > 0, let last = lastNormal, let lastIntended = last.plan.intendedKg {
+            // After a reset, rises stay at the nudge for a few weeks (11.5).
+            let scaled = lastIntended * slot.curve.scale(from: last.plan.repsToFailure, to: scheme.reps + rir)
+            intended = min(intended, scaled * (1 + StrengthRules.nudgeIntermediate))
+            rules.append("11.5")
+        }
+
+        if let last = history.first, last.plan.kind == .returnWeek1, last.trained {
+            // 12.2-12.3: week 2 back. A missed rep or a top set 2+ reps harder than aimed repeats week 1.
+            if !last.missedSets.isEmpty || (last.delta ?? 0) <= StrengthRules.flagDelta {
+                var plan = last.plan
+                plan.kind = .returnWeek2
+                plan.rules = ["12.3"] + plan.rules.filter { $0 == "5.2" }
+                // A set the lifter added had no target: it repeats the set before it. Loads go on the grid as it
+                // is now in case the unit or step changed (1.4).
+                var previous = StrengthPlannedSet(reps: plan.reps, loadKg: plan.loadKg)
+                plan.sets = plan.sets.map { set in
+                    previous = StrengthPlannedSet(reps: set.reps ?? previous.reps, loadKg: set.loadKg ?? previous.loadKg)
+                    return StrengthPlannedSet(reps: previous.reps, loadKg: previous.loadKg.map { grid.down($0 + LoadGrid.storedTolerance) })
+                }
+                return plan
+            }
+            let (cut, rirAdd): (Double, Int) = switch last.plan.returnBand {
+            case 2: (0.05, 0)
+            case 3: (0.10, 1)
+            default: (0, 0)
+            }
+            if cut > 0 {
+                var plan = topPlan(.returnWeek2, scheme: scheme, rir: rir + rirAdd, backSets: backSets, intended: intended * (1 - cut), slot: slot, rules: ["12.2"])
+                plan.returnBand = last.plan.returnBand
+                return plan
+            }
+        }
+        if record.flagged, let last = history.first, last.plan.kind == .normal {
+            // 10.3: one lighter week for a flagged lift, 5% lighter and a back-off fewer.
+            return topPlan(.microDeload, scheme: scheme, rir: rir, backSets: max(StrengthRules.minBackSets, backSets - StrengthRules.microSetCut),
+                           intended: intended * (1 - StrengthRules.microLoadCut), slot: slot, rules: ["10.2", "10.3"])
+        }
+        return topPlan(kind, scheme: scheme, rir: rir, backSets: backSets, intended: intended, slot: slot, rules: rules)
+    }
+
+    /// e1RM from a session's rated set when the record has none yet, at the planned reps in reserve if unrated.
+    private static func estimate(from session: StrengthSession, curve: StrengthCurve) -> Double? {
+        guard let rated = session.ratedSet, let reps = rated.reps, let load = rated.loadKg, load > 0 else { return nil }
+        return curve.oneRepMax(loadKg: load, repsToFailure: reps + (session.rir ?? session.plan.rir))
+    }
+
+    private static func topPlan(
+        _ kind: StrengthSlotKind,
+        scheme: StrengthRules.TopSetScheme,
+        rir: Int,
+        backSets: Int,
+        intended: Double?,
+        slot: StrengthSlotContext,
+        rules: [String]
+    ) -> StrengthSlotPlan {
+        let intended = intended.map { min($0, LoadGrid.capKilograms) }
+        let top = intended.flatMap { slot.grid?.nearest($0) }
+        let back = top.map { slot.grid?.nearest($0 * scheme.backShare) ?? $0 * scheme.backShare }
+        var rules = rules
+        // No spotter check is built yet: near-max squats and benches carry a reminder instead (5.2).
+        if slot.needsSpotter, scheme.reps + rir <= StrengthRules.spotterRepsToFailure { rules.append("5.2") }
+        var plan = StrengthSlotPlan(
+            kind: kind,
+            reps: scheme.reps,
+            rir: rir,
+            sets: StrengthSlotPlan.topAndBack(reps: scheme.reps, loadKg: top, backSets: backSets, backReps: scheme.backReps, backLoadKg: back),
+            intendedKg: intended,
+            rules: rules
+        )
+        plan.topSets = 1
+        return plan
     }
 
     /// Normal weeks keep last week's sets; a stall step adds or removes one per slot (8.4, 11.4, 11.5).
@@ -432,8 +539,6 @@ enum StrengthPrescriber {
                 offset = 0
             } else if offset < StrengthRules.repOffsetMax {
                 offset += 1
-            } else if slot.role == .primary, fitUp < StrengthRules.repsMinNormal {
-                // The next step would leave too few reps; hold until smaller plates exist.
             } else {
                 newLoad = up
                 offset = fitUp - reps

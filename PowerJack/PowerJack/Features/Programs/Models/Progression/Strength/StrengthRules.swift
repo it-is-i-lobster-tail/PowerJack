@@ -10,7 +10,7 @@ import Foundation
 
 enum StrengthRules {
     /// Logged with every plan, so a change of numbers can be traced.
-    static let version = "strength-1"
+    static let version = "strength-2"
 
     // MARK: 1 Units and load steps
     /// A slot moves to reps mode when one load step is more than this share of its load (1.2).
@@ -21,8 +21,8 @@ enum StrengthRules {
     static let fitMaxReps = 12
 
     // MARK: 2 Calibration
-    /// Weeks a new lift calibrates: 2, since everyone starts as an intermediate (2.4, 17.7).
-    static let calibrationWeeks = 2
+    /// Weeks a new lift calibrates. A rated top set pins down e1RM, so one is enough.
+    static let calibrationWeeks = 1
     /// A close variant starts at this share of its parent's ratio-scaled e1RM (2.3).
     static let variantFactor = 0.90
     /// Extra reps in reserve on a variant's first week (2.3).
@@ -51,10 +51,9 @@ enum StrengthRules {
 
     // MARK: 5 Prescription defaults
     static let slotSets = 3
-    static let primaryRepsToFailureMax = 8
     static let secondaryRepsToFailureMax = 10
     static let rirMin = 1
-    /// Normal weeks never plan fewer reps on a primary slot (5.2).
+    /// The fewest reps a stored plan falls back to when it has no target.
     static let repsMinNormal = 3
     /// Squat and bench sets at or under this many reps to failure need a spotter or safety arms (5.2).
     static let spotterRepsToFailure = 4
@@ -67,6 +66,46 @@ enum StrengthRules {
     static let heavyWarmupGate = 0.80
     /// The most priority lifts a program has (Inputs).
     static let maxPriorityLifts = 4
+
+    // MARK: Top sets
+    /// A priority lift's session: one top set, then back-off sets at a share of it. The heavy day's top set
+    /// runs a triple, then a double, then a single as the block nears its end; the volume day keeps 4-5 reps.
+    struct TopSetScheme: Equatable {
+        var reps: Int
+        var rir: Int
+        var backSets: Int
+        var backReps: Int
+        /// Back-off load as a share of the top set's.
+        var backShare: Double
+    }
+
+    /// The scheme for block week `blockWeek` of `trainWeeks`. Weeks before the last two repeat the first.
+    static func topSetScheme(zone: StrengthZone?, blockWeek: Int, of trainWeeks: Int) -> TopSetScheme {
+        let weeksLeft = max(0, trainWeeks - blockWeek)
+        if zone == .moderate {
+            switch weeksLeft {
+            case 0: return TopSetScheme(reps: 4, rir: 2, backSets: 3, backReps: 4, backShare: 0.93)
+            case 1: return TopSetScheme(reps: 5, rir: 2, backSets: 3, backReps: 5, backShare: 0.93)
+            default: return TopSetScheme(reps: 5, rir: 3, backSets: 3, backReps: 5, backShare: 0.93)
+            }
+        }
+        switch weeksLeft {
+        case 0: return TopSetScheme(reps: 1, rir: 1, backSets: 3, backReps: 3, backShare: 0.87)
+        case 1: return TopSetScheme(reps: 2, rir: 2, backSets: 3, backReps: 3, backShare: 0.90)
+        default: return TopSetScheme(reps: 3, rir: 2, backSets: 3, backReps: 3, backShare: 0.92)
+        }
+    }
+
+    /// Back-offs whose top set had no planned weight (a by-feel week) take this share of it.
+    static let backShareByFeel = 0.92
+    /// Each rep the top set was easier than its aim lifts the back-offs this share, up to `backEasyMaxReps` reps.
+    static let backEasyStep = 0.025
+    static let backEasyMaxReps = 2
+    /// Each rep harder, or missed, lowers them this share, up to `backHardMaxReps` reps.
+    static let backHardStep = 0.04
+    static let backHardMaxReps = 3
+    static let maxBackSets = 4
+    static let minBackSets = 1
 
     // MARK: 6 In-session
     /// Each missing rep cuts the sets still to do by this share (6.2).
@@ -94,11 +133,6 @@ enum StrengthRules {
     // MARK: 9 Blocks
     /// Training weeks of a block that runs past the program's end. Blocks inside it run 3 to 6 to fit its length.
     static var blockTrainWeeks: Int { ProgramBlocks.buildWeeks }
-    /// RIR change on primary slots in a block's first week, its last week, and every week between (9.2).
-    static let rirWaveFirst = 1
-    static let rirWaveMiddle = 0
-    static let rirWaveLast = -1
-    static let blockBRepShift = 1
     static let newBlockFactor = 1.0
 
     // MARK: 10 Fatigue and deload
@@ -125,7 +159,6 @@ enum StrengthRules {
     static let stallWindowAdvanced = 12
     static let stallMinGain = 0.01
     static let stallMinAdherence = 0.75
-    static let stallRepShift = 2
     static let stallSetLimit = 10
     static let resetCut = 0.10
     static let resetRebuildWeeks = 4
@@ -148,10 +181,4 @@ enum StrengthRules {
     /// Everyone starts at 1 training year; each trained week adds 1/52 (17.7).
     static let startingTrainingYears = 1.0
     static let advancedMinYears = 3.0
-
-    /// The primary slots' RIR change in block week `blockWeek` of `trainWeeks`, so +1, 0, 0, -1 for four weeks (9.2).
-    static func rirWave(blockWeek: Int, of trainWeeks: Int) -> Int {
-        if blockWeek <= 1 { return rirWaveFirst }
-        return blockWeek >= trainWeeks ? rirWaveLast : rirWaveMiddle
-    }
 }

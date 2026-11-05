@@ -211,6 +211,7 @@ enum StrengthPlanner: WeekPlanner {
         for index in plans.indices where plans[index].slot.zone == .heavy {
             let heavy = plans[index]
             guard let moderate = plans.first(where: { $0.slot.key == heavy.slot.key && $0.slot.zone == .moderate })?.plan,
+                  heavy.plan.topSets == 0, moderate.topSets == 0,
                   heavy.plan.loadKg != nil, heavy.plan.loadKg == moderate.loadKg,
                   heavy.plan.targetReps > moderate.targetReps
             else { continue }
@@ -235,13 +236,17 @@ enum StrengthPlanner: WeekPlanner {
             role: role,
             reps: loaded ? plan.reps : nil,
             repOffset: loaded ? plan.repOffset : nil,
-            intendedLoadKg: plan.intendedKg
+            intendedLoadKg: plan.intendedKg,
+            topSets: plan.topSets
         )
     }
 
-    /// The line under an exercise's aim that says why its plan looks the way it does.
+    /// The line under an exercise's aim that says why its plan looks the way it does, and a spotter reminder on a
+    /// near-max squat or bench top set (5.2).
     static func note(for plan: StrengthSlotPlan) -> String? {
-        switch plan.kind {
+        let why: String? = switch plan.kind {
+        case .calibration where plan.loadKg == nil && plan.topSets > 0:
+            "Top set: work up to a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps). Back-off sets follow from it."
         case .calibration where plan.loadKg == nil:
             "Pick a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps)."
         case .deload: "Deload week: lighter, to shed fatigue."
@@ -252,6 +257,9 @@ enum StrengthPlanner: WeekPlanner {
         case .normal where plan.rules.contains("11.5"): "Changed up to get past a plateau."
         default: nil
         }
+        let spotter = plan.rules.contains("5.2") && plan.topSets > 0 ? "Heavy top set: use a spotter or set the safety arms." : nil
+        let lines = [why, spotter].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: " ")
     }
 
     // MARK: Reading the program
@@ -347,7 +355,7 @@ enum StrengthPlanner: WeekPlanner {
         }
         // An accessory stores no target, so its reps are its first set's, or the bottom of its range.
         let fallbackReps = role == .accessory ? workoutExercise.exercise?.repRange.lowerBound : nil
-        return StrengthSlotPlan(
+        var plan = StrengthSlotPlan(
             kind: parsed?.kind ?? (role == .accessory ? .accessory : .calibration),
             reps: workoutExercise.targetReps ?? sets.first?.reps ?? fallbackReps ?? StrengthRules.repsMinNormal,
             rir: workoutExercise.rirTarget ?? 2,
@@ -357,6 +365,8 @@ enum StrengthPlanner: WeekPlanner {
             returnBand: parsed?.returnBand ?? 0,
             rules: parsed?.rules ?? []
         )
+        plan.topSets = workoutExercise.topSets
+        return plan
     }
 
     private static func session(of workoutExercise: WorkoutExercise, role: StrengthRole) -> StrengthSession {
@@ -371,7 +381,10 @@ enum StrengthPlanner: WeekPlanner {
                     completed: $0.status == .complete
                 )
             },
-            rir: workoutExercise.feedback?.repsInReserve?.rawValue,
+            // A top set is rated on its own, right after it; the feedback's rating is the last set's.
+            rir: workoutExercise.topSets > 0
+                ? (workoutExercise.topSetRepsInReserve ?? workoutExercise.feedback?.repsInReserve)?.rawValue
+                : workoutExercise.feedback?.repsInReserve?.rawValue,
             pain: workoutExercise.feedback?.levelOfPain.rawValue,
             date: working.filter { $0.status == .complete }.compactMap(\.completedAt).max(),
             plannedRole: workoutExercise.strengthRole
@@ -401,11 +414,12 @@ enum StrengthPlanner: WeekPlanner {
     // MARK: In session
 
     /// 6.2: a working set short of its target reps lowers the prefilled loads of the sets still to do.
-    /// Sets the lifter already changed keep their weight.
+    /// Sets the lifter already changed keep their weight. A top set's back-offs follow its rating instead.
     static func didComplete(_ workoutSet: WorkoutSet, in workoutExercise: WorkoutExercise) {
         guard
             workoutExercise.strengthRole != nil,
             !workoutSet.isWarmup,
+            !workoutExercise.isTopSet(workoutSet),
             workoutSet.status == .complete,
             let planned = workoutSet.repsPlanned,
             let reps = workoutSet.reps, reps < planned,
@@ -426,6 +440,47 @@ enum StrengthPlanner: WeekPlanner {
             )
             later.weightTenthsPounds = WeightUnit.tenthsPounds(fromKilograms: cut)
         }
+    }
+}
+
+extension StrengthPlanner {
+    /// 5.10: once the top set is rated, the back-offs still to do take their share of the weight it was lifted at,
+    /// 2.5% more for each rep easier than its aim (up to 2) and 4% less for each rep harder or missed (up to 3).
+    /// Back-offs the lifter already changed keep their weight. By-feel weeks get their back-off weights here.
+    static func didRateTopSet(in workoutExercise: WorkoutExercise) {
+        guard
+            workoutExercise.strengthRole == .primary,
+            workoutExercise.topSets > 0,
+            let rated = workoutExercise.topSetRepsInReserve?.rawValue,
+            let top = workoutExercise.workingSets.first, top.status == .complete,
+            let reps = top.reps, reps > 0,
+            let lifted = top.weightTenthsPounds,
+            let exercise = workoutExercise.exercise,
+            let grid = LoadGrid(equipment: exercise.exerciseEquipment)
+        else { return }
+        let backs = workoutExercise.workingSets.dropFirst(workoutExercise.topSets)
+        let liftedKg = WeightUnit.kilograms(fromTenthsPounds: lifted)
+        let backKg = StrengthSessionRules.backOffLoad(
+            topKg: liftedKg,
+            share: backShare(top: top, back: backs.first),
+            reps: reps,
+            plannedReps: top.repsPlanned ?? reps,
+            rated: rated,
+            aim: workoutExercise.rirTarget ?? StrengthRules.rirMin,
+            grid: grid
+        )
+        for back in backs where back.status == .active {
+            guard [nil, back.weightTenthsPlannedPounds].contains(back.weightTenthsPounds) else { continue }
+            back.weightTenthsPounds = WeightUnit.tenthsPounds(fromKilograms: backKg)
+        }
+    }
+
+    /// The back-offs' planned share of the top set, or the by-feel default when either had no planned weight.
+    private static func backShare(top: WorkoutSet, back: WorkoutSet?) -> Double {
+        guard let topPlanned = top.weightTenthsPlannedPounds, topPlanned > 0, let backPlanned = back?.weightTenthsPlannedPounds else {
+            return StrengthRules.backShareByFeel
+        }
+        return Double(backPlanned) / Double(topPlanned)
     }
 }
 

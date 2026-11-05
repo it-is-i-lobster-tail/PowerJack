@@ -87,14 +87,12 @@ struct StrengthLiftRecord: Codable, Equatable {
 
     // 11 Plateaus
     var stallPoints: [StallPoint] = []
-    /// The last ordered step taken: 1 for the rep zone, 2 for a set; a reset starts over at 0 (11.5).
+    /// The last ordered step taken: 2 for a set; a reset starts over at 0 (11.5).
     var plateauStage = 0
     /// A step found at a block's end, applied when the next block starts.
     var pendingStep: StallStep?
     /// The step the week being planned applies.
     var stepThisWeek: StallStep?
-    /// Stall step 1: the heavy slot runs 2 fewer reps for this block.
-    var repShiftActive = false
     /// Normal weeks left whose rises are capped at the nudge after a reset (11.5).
     var rebuildWeeksLeft = 0
 
@@ -126,7 +124,8 @@ struct StallPoint: Codable, Equatable {
 
 /// One change for a stalled lift, cheapest first (11.4, 11.5).
 enum StallStep: String, Codable {
-    /// The heavy slot runs 2 fewer reps for one block.
+    /// No longer chosen, since top sets already run 1-3 reps. Kept so a step saved by an older version still
+    /// reads, as a set (11.5).
     case repZone
     /// One more set per slot.
     case sets

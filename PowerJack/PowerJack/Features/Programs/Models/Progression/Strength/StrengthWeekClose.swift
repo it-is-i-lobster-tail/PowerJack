@@ -182,14 +182,13 @@ enum StrengthWeekClose {
         }
 
         clock.weeksSinceDeload = returnWeek ? 0 : clock.weeksSinceDeload + 1
-        let calibrating = week.entries.contains { $0.role == .primary && $0.session.plan.kind == .calibration }
+        // A calibration week is block week 1 too: its top set is block week 1's, by feel.
         let flaggedLifts = week.priorityKeys.filter { state[$0].flagged }.count
         let anyFlag = loadedKeys.contains { state[$0].flagged }
         let reactive = flaggedLifts >= StrengthRules.globalFlagLifts || clock.rir0Weeks >= StrengthRules.globalRIR0Weeks
-        let blockEnd = !calibrating && clock.blockWeek >= clock.trainWeeks
+        let blockEnd = clock.blockWeek >= clock.trainWeeks
         // A flag brings the deload a week forward, but never makes a block shorter than 3 training weeks (10.4a).
-        let broughtForward = !calibrating
-            && clock.blockWeek >= max(clock.trainWeeks - 1, ProgramBlocks.minBuildWeeks)
+        let broughtForward = clock.blockWeek >= max(clock.trainWeeks - 1, ProgramBlocks.minBuildWeeks)
             && anyFlag
         let backstop = clock.weeksSinceDeload >= StrengthRules.deloadMaxGapWeeks
         // A deload, return or missed week in the last 3 skips the planned deload (10.5).
@@ -214,7 +213,7 @@ enum StrengthWeekClose {
         } else {
             clock.upcoming = .build
             clock.startsBlock = false
-            if !calibrating { clock.blockWeek += 1 }
+            clock.blockWeek += 1
         }
         state.clock = clock
     }
@@ -227,15 +226,14 @@ enum StrengthWeekClose {
         clock.blockType = flip ? (clock.blockType == .a ? .b : .a) : .a
         for key in state.lifts.keys {
             var record = state[key]
-            record.repShiftActive = record.pendingStep == .repZone
-            record.stepThisWeek = record.pendingStep
-            switch record.pendingStep {
-            case .repZone: record.plateauStage = 1
+            let step: StallStep? = record.pendingStep == .repZone ? .sets : record.pendingStep
+            record.stepThisWeek = step
+            switch step {
             case .sets: record.plateauStage = 2
             case .reset:
                 record.plateauStage = 0
                 record.rebuildWeeksLeft = StrengthRules.resetRebuildWeeks
-            case .fewerSets, nil: break
+            case .repZone, .fewerSets, nil: break
             }
             record.pendingStep = nil
             state[key] = record
@@ -277,11 +275,10 @@ enum StrengthWeekClose {
                 record.pendingStep = .fewerSets
                 continue
             }
-            // Steps 3 and 4 (a session, a variant) are not built, so they always count as failed (Decisions).
-            // Advanced heavy slots already run 3 reps, so step 1 has nothing to shift (11.5).
-            let canShiftReps = record.plateauStage == 0 && experience == .intermediate
+            // Steps 3 and 4 (a session, a variant) are not built, so they always count as failed (Decisions). Top sets
+            // already run 1-3 reps, so step 1's rep shift has nothing to shift: a stall adds a back-off, then resets.
             let canAddSets = record.plateauStage <= 1 && last.completedSets < StrengthRules.stallSetLimit
-            record.pendingStep = canShiftReps ? .repZone : canAddSets ? .sets : .reset
+            record.pendingStep = canAddSets ? .sets : .reset
         }
     }
 }
