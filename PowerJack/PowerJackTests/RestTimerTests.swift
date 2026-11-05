@@ -186,6 +186,31 @@ struct RestTimerTests {
         #expect(lastSet.sets.map(\.progress) == [.done, .current])
     }
 
+    @Test("Warmups skipped by logging the first working set leave the Live Activity")
+    func activityHidesSkippedWarmups() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(
+            exerciseName: "Squat",
+            exerciseEquipment: .barbell,
+            primaryMuscleFocus: .quads,
+            fatigueLevel: .moderate
+        )
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        container.mainContext.insert(workout)
+        workout.startAndCascade()
+        let workingSets = workoutExercise.workingSets
+
+        workoutExercise.completeSet(workingSets[0], at: start)
+        #expect(workoutExercise.warmupSets.allSatisfy { $0.status == .skipped })
+        let skippedWarmups = try #require(workout.activityState(at: start))
+        #expect(skippedWarmups.sets.map(\.label) == ["1", "2"])
+        #expect(skippedWarmups.sets.map(\.progress) == [.done, .current])
+    }
+
     @Test("The rest island and Live Activity count warmups and working sets apart")
     func restSetLabelsAfterWarmups() throws {
         let workout = Workout(order: 0)
