@@ -3,6 +3,7 @@
 //  PowerJack
 //
 
+import SwiftData
 import SwiftUI
 
 /// One superset's own list: drag to change the order, swipe to take an exercise out.
