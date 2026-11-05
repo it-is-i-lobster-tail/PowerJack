@@ -20,6 +20,8 @@ final class WorkoutMirroring: NSObject {
     private var session: HKWorkoutSession?
 
     #if os(watchOS)
+    private static let askedForHealthKey = "sync.askedForHealth"
+
     /// Takes the program the iPhone sent back. Set by `WatchSync`.
     var onData: ((Data) -> Void)?
 
@@ -34,7 +36,12 @@ final class WorkoutMirroring: NSObject {
                 adopt(recovered)
                 return
             }
-            try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [])
+            // Asked once, as the first workout opens. Without permission the link works on its own.
+            if !UserDefaults.standard.bool(forKey: Self.askedForHealthKey) {
+                UserDefaults.standard.set(true, forKey: Self.askedForHealthKey)
+                try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [])
+            }
+            guard healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return }
             let configuration = HKWorkoutConfiguration()
             configuration.activityType = .traditionalStrengthTraining
             configuration.locationType = .indoor
