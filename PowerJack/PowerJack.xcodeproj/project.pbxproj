@@ -155,6 +155,10 @@
 				Shared/Persistence/PowerJackSchema.swift,
 				Shared/Persistence/SettingsSync.swift,
 				Shared/Persistence/TemplateCatalog.swift,
+				Shared/Sync/SetReceipt.swift,
+				Shared/Sync/SetReferee.swift,
+				Shared/Sync/SyncMerge.swift,
+				Shared/Sync/SyncState.swift,
 			);
 			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
 		};

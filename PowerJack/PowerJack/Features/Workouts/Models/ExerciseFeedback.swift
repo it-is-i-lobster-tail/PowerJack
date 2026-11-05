@@ -97,3 +97,23 @@ extension ExerciseFeedback {
         }
     }
 }
+
+//
+// Sync
+//
+extension ExerciseFeedback {
+    var syncState: FeedbackState {
+        FeedbackState(levelOfEffort: levelOfEffortValue, levelOfPain: levelOfPainValue, effortScaleVersion: effortScaleVersionValue)
+    }
+
+    convenience init(snapshot state: FeedbackState) {
+        self.init(levelOfEffort: state.levelOfEffort, levelOfPain: state.levelOfPain)
+        apply(state)
+    }
+
+    func apply(_ state: FeedbackState) {
+        levelOfEffortValue = state.levelOfEffort
+        levelOfPainValue = state.levelOfPain
+        effortScaleVersionValue = state.effortScaleVersion
+    }
+}

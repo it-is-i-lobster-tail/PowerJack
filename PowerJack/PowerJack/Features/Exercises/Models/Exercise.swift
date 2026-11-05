@@ -35,6 +35,10 @@ final class Exercise {
     // No longer read: warmups are now turned off per program day (`WorkoutExercise.warmupsDisabled`).
     // Kept so the synced CloudKit schema only ever grows.
     var warmupDisabledValue: Bool = false
+    // Names the lifter's own exercises the same on the iPhone and the watch (built-ins use `catalogID`).
+    var syncIDValue: UUID?
+    // True when the watch made this row from the iPhone's snapshot.
+    var fromSnapshotValue: Bool = false
 
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
@@ -99,4 +103,72 @@ extension Exercise {
         set { customRestTimeValue = newValue }
     }
     var restDuration: Duration { customRestTime.map { .seconds($0) } ?? fatigueLevel.restLength.duration }
+}
+
+//
+// Sync
+//
+extension Exercise {
+    /// Names this exercise the same way on every device: its catalog ID, or its sync ID for the lifter's own.
+    var syncKey: String? {
+        if let catalogID { return "catalog:\(catalogID)" }
+        return syncIDValue.map { "own:\($0.uuidString)" }
+    }
+
+    /// Only the iPhone does this, so both devices agree on it.
+    func assignSyncID() {
+        if catalogID == nil, syncIDValue == nil { syncIDValue = UUID() }
+    }
+
+    var syncState: ExerciseState? {
+        guard let syncKey else { return nil }
+        return ExerciseState(
+            key: syncKey,
+            catalogID: catalogID,
+            syncID: syncIDValue,
+            name: exerciseName,
+            equipment: exerciseEquipment,
+            primaryMuscle: primaryMuscleFocus,
+            secondaryMuscles: secondaryMusclesValue,
+            userCreated: userCreatedValue,
+            createdAt: createdAtValue,
+            minReps: minRepsValue,
+            maxReps: maxRepsValue,
+            fatigueLevel: fatigueLevelValue,
+            customRestTime: customRestTimeValue
+        )
+    }
+
+    /// The watch's copy of an exercise it got from the iPhone. It counts as a second later, so the
+    /// catalog's tidy-up keeps the iPhone's own row once iCloud brings it.
+    convenience init(snapshot state: ExerciseState) {
+        self.init(exerciseName: state.name, exerciseEquipment: state.equipment, primaryMuscleFocus: state.primaryMuscle)
+        fromSnapshotValue = true
+        apply(state)
+    }
+
+    func apply(_ state: ExerciseState) {
+        catalogID = state.catalogID
+        syncIDValue = state.syncID
+        exerciseName = state.name
+        exerciseEquipment = state.equipment
+        primaryMuscleFocus = state.primaryMuscle
+        secondaryMusclesValue = state.secondaryMuscles
+        userCreatedValue = state.userCreated
+        createdAtValue = state.createdAt.addingTimeInterval(1)
+        minRepsValue = state.minReps
+        maxRepsValue = state.maxReps
+        fatigueLevelValue = state.fatigueLevel
+        customRestTimeValue = state.customRestTime
+    }
+
+    /// Points every row using `duplicate` at this exercise, so `duplicate` can be deleted.
+    func takeOverRows(of duplicate: Exercise) {
+        for row in duplicate.templateExercisesValue ?? [] {
+            row.exercise = self
+        }
+        for row in duplicate.workoutExercisesValue ?? [] {
+            row.replaceDuplicateExercise(with: self)
+        }
+    }
 }

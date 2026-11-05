@@ -27,6 +27,15 @@ final class Workout {
     private var nextWeekExercisesValue: [TemplateExercise]? = []
     // Whether `nextWeekExercisesValue` holds an edit, so an edit that removes every exercise still counts.
     private var hasNextWeekLayoutValue: Bool = false
+    // The same on the iPhone and the watch (see `SyncState`). Nil on rows saved before it existed.
+    var syncIDValue: UUID?
+    // True when the watch made this row from the iPhone's snapshot.
+    var fromSnapshotValue: Bool = false
+    // When and on which device (`SyncDevice`) the row was made, so a day planned twice keeps one copy.
+    private var createdAtValue: Date?
+    private var createdOnValue: String?
+    // The device Start Workout was tapped on.
+    private var startedOnValue: String?
 
     init(
         order: Int
@@ -35,6 +44,9 @@ final class Workout {
         self.workoutExercisesValue = []
         self.statusValue = .planned
         self.lockedValue = true
+        self.syncIDValue = UUID()
+        self.createdAtValue = .now
+        self.createdOnValue = SyncDevice.current
     }
 }
 
@@ -54,6 +66,8 @@ extension Workout {
     var startedAt: Date? { startedAtValue }
     // Ended At
     var endedAt: Date? { endedAtValue }
+    // Started On: the device Start Workout was tapped on, nil for workouts started before it was kept.
+    var startedOn: String? { startedOnValue }
 }
 
 //
@@ -194,7 +208,7 @@ extension Workout {
         endedAtValue = .now
         Logger.workout.debug("Skipped workout")
     }
-    func start(at date: Date = .now) {
+    func start(at date: Date = .now, on device: String = SyncDevice.current) {
         guard
             lockedValue,
             status == .planned
@@ -205,6 +219,7 @@ extension Workout {
         statusValue = Status.active
         lockedValue = false
         startedAtValue = date
+        startedOnValue = device
         Logger.workout.debug("Started workout")
     }
     func completeAndCascade() {
@@ -244,14 +259,15 @@ extension Workout {
             statusValue = Status.planned
             lockedValue = true
             startedAtValue = nil
+            startedOnValue = nil
             for workoutExercise in workoutExercises {
                 workoutExercise.resetToPlanned()
             }
         }
         Logger.workout.debug("Unskipped workout")
     }
-    func startAndCascade(at date: Date = .now) {
-        start(at: date)
+    func startAndCascade(at date: Date = .now, on device: String = SyncDevice.current) {
+        start(at: date, on: device)
 
         for workoutExercise in workoutExercises {
             workoutExercise.startAndCascade()
@@ -354,4 +370,121 @@ extension Workout {
         workoutExercisesValue = ordered
     }
 
+}
+
+//
+// Sync
+//
+extension Workout {
+    var syncID: UUID? { syncIDValue }
+    var isFromSnapshot: Bool { fromSnapshotValue }
+    var createdAt: Date? { createdAtValue }
+    var createdOn: String? { createdOnValue }
+
+    /// Gives this row and everything under it sync IDs, for rows saved before they existed. Only the iPhone does this.
+    func assignSyncIDs() {
+        if syncIDValue == nil { syncIDValue = UUID() }
+        for workoutExercise in workoutExercises {
+            workoutExercise.assignSyncIDs()
+        }
+        for row in nextWeekExercisesValue ?? [] {
+            row.exercise?.assignSyncID()
+        }
+    }
+
+    var syncState: WorkoutState? {
+        guard let syncIDValue else { return nil }
+        return WorkoutState(
+            syncID: syncIDValue,
+            order: orderValue,
+            status: statusValue,
+            locked: lockedValue,
+            startedAt: startedAtValue,
+            endedAt: endedAtValue,
+            createdAt: createdAtValue,
+            createdOn: createdOnValue,
+            startedOn: startedOnValue,
+            nextWeekLayout: nextWeekLayout?.compactMap { row in
+                row.exercise?.syncKey.map { WorkoutState.LayoutEntry(exerciseKey: $0, supersetID: row.supersetID) }
+            },
+            exercises: workoutExercises.compactMap(\.syncState)
+        )
+    }
+
+    /// A row the watch makes for a workout it hasn't got yet.
+    convenience init(snapshot state: WorkoutState) {
+        self.init(order: state.order)
+        fromSnapshotValue = true
+    }
+
+    /// Makes this row match the iPhone's copy of it. Exercises are matched by the caller.
+    func apply(_ state: WorkoutState, exercises: [String: Exercise]) {
+        syncIDValue = state.syncID
+        orderValue = state.order
+        statusValue = state.status
+        lockedValue = state.locked
+        startedAtValue = state.startedAt
+        endedAtValue = state.endedAt
+        createdAtValue = state.createdAt
+        createdOnValue = state.createdOn
+        startedOnValue = state.startedOn
+        // Rewritten only when it changed, since rewriting deletes and inserts its rows.
+        let wanted = state.nextWeekLayout?.map { "\($0.exerciseKey)|\($0.supersetID?.uuidString ?? "")" }
+        let current = nextWeekLayout?.map { "\($0.exercise?.syncKey ?? "")|\($0.supersetID?.uuidString ?? "")" }
+        guard wanted != current else { return }
+        if let entries = state.nextWeekLayout {
+            setNextWeekLayout(entries.compactMap { entry in
+                exercises[entry.exerciseKey].map { (exercise: $0, supersetID: entry.supersetID) }
+            })
+        } else {
+            clearNextWeekLayout()
+        }
+    }
+
+    func attach(_ workoutExercise: WorkoutExercise) {
+        workoutExercisesValue = (workoutExercisesValue ?? []) + [workoutExercise]
+    }
+
+    func detach(_ workoutExercise: WorkoutExercise) {
+        workoutExercisesValue?.removeAll { $0 === workoutExercise }
+    }
+
+    /// Folds another copy of this day into it: its exercises merge or move over, and it keeps
+    /// whichever copy got further (started, finished).
+    func merge(_ other: Workout, matching: SyncMatch) {
+        if other.statusValue.progress > statusValue.progress {
+            statusValue = other.statusValue
+            lockedValue = other.lockedValue
+            startedAtValue = other.startedAtValue ?? startedAtValue
+            endedAtValue = other.endedAtValue ?? endedAtValue
+            startedOnValue = other.startedOnValue ?? startedOnValue
+        }
+        if !hasNextWeekLayoutValue, other.hasNextWeekLayoutValue {
+            nextWeekExercisesValue = other.nextWeekExercisesValue
+            other.nextWeekExercisesValue = []
+            hasNextWeekLayoutValue = true
+        }
+        SyncMerge.fold(
+            other.workoutExercises,
+            into: workoutExercises,
+            key: { workoutExercise in
+                matching == .syncID
+                    ? workoutExercise.syncID.map(AnyHashable.init)
+                    : AnyHashable("\(workoutExercise.order)-\(workoutExercise.exercise?.syncKey ?? "")")
+            },
+            merge: { $0.merge($1, matching: matching) },
+            move: { other.detach($0); self.attach($0) }
+        )
+    }
+
+    var hasLoggedSets: Bool { workoutExercises.contains(where: \.hasLoggedSets) }
+
+    /// When its latest set was logged, or nil before any set was.
+    var lastLoggedAt: Date? {
+        workoutExercises.flatMap(\.workoutSets).compactMap { $0.log?.completedAt }.max()
+    }
+
+    static func fromSnapshot(in context: ModelContext) throws -> [Workout] {
+        try context.fetch(FetchDescriptor<Workout>(predicate: #Predicate { $0.fromSnapshotValue }))
+    }
 }

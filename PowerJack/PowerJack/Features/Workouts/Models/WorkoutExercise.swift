@@ -16,7 +16,7 @@ enum ManualCheckIn: String, Codable {
     case resolved
 }
 
-enum ManualCheckInDecision: CaseIterable, Identifiable {
+enum ManualCheckInDecision: String, CaseIterable, Identifiable {
     /// Keep the held prescription and log it.
     case `continue`
     /// Replace the held prescription with two fresh sets.
@@ -65,6 +65,10 @@ final class WorkoutExercise {
     var powerJackTopLoadTargetValue: Double?
     var powerJackCalibratingValue: Bool = false
     var workoutValue: Workout?
+    // The same on the iPhone and the watch (see `SyncState`). Nil on rows saved before it existed.
+    var syncIDValue: UUID?
+    // True when the watch made this row from the iPhone's snapshot.
+    var fromSnapshotValue: Bool = false
 
     /// Working sets only. Warmups don't count toward this.
     static let maxSets = 5
@@ -83,6 +87,7 @@ final class WorkoutExercise {
         self.workoutSetsValue = []
         self.statusValue = .planned
         self.lockedValue = false
+        self.syncIDValue = UUID()
     }
 }
 
@@ -438,8 +443,12 @@ extension WorkoutExercise {
     }
     /// Completes one of this exercise's sets. Completing the first working set skips the warmups
     /// still to do, so the workout moves on to the next working set instead of back to them.
-    func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now) {
+    /// Every log writes a `SetReceipt` naming the device it was made on.
+    func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now, on device: String = SyncDevice.current) {
         workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(before: date))
+        if workoutSet.status == .complete {
+            modelContext?.insert(SetReceipt(for: workoutSet, device: device))
+        }
         StrengthPlanner.didComplete(workoutSet, in: self)
         guard
             !workoutSet.isWarmup,
@@ -704,5 +713,138 @@ extension WorkoutExercise {
             return
         }
         feedbackValue = feedback
+    }
+}
+
+//
+// Sync
+//
+extension WorkoutExercise {
+    var syncID: UUID? { syncIDValue }
+    var isFromSnapshot: Bool { fromSnapshotValue }
+
+    /// Gives this row and its sets sync IDs, for rows saved before they existed. Only the iPhone does this.
+    func assignSyncIDs() {
+        if syncIDValue == nil { syncIDValue = UUID() }
+        exercise?.assignSyncID()
+        for workoutSet in workoutSets {
+            workoutSet.assignSyncID()
+        }
+    }
+
+    var syncState: WorkoutExerciseState? {
+        guard let syncIDValue else { return nil }
+        return WorkoutExerciseState(
+            syncID: syncIDValue,
+            exerciseKey: exerciseValue?.syncKey,
+            order: orderValue,
+            status: statusValue,
+            locked: lockedValue,
+            feedback: feedbackValue?.syncState,
+            checkIn: checkInValue,
+            checkInSourcePain: checkInSourcePainValue,
+            warmupsDisabled: warmupsDisabledValue,
+            warmupRestoreCount: warmupRestoreCountValue,
+            supersetID: supersetIDValue,
+            rirTarget: rirTargetValue,
+            progressionCode: progressionCodeValue,
+            progressionNote: progressionNoteValue,
+            strengthRole: strengthRoleValue,
+            targetReps: targetRepsValue,
+            repOffset: repOffsetValue,
+            intendedLoadKg: intendedLoadKgValue,
+            powerJackRole: powerJackRoleValue,
+            powerJackTag: powerJackTagValue,
+            powerJackTopSets: powerJackTopSetsValue,
+            powerJackTopRIR: powerJackTopRIRValue,
+            powerJackLoadTarget: powerJackLoadTargetValue,
+            powerJackTopLoadTarget: powerJackTopLoadTargetValue,
+            powerJackCalibrating: powerJackCalibratingValue,
+            sets: workoutSets.compactMap(\.syncState)
+        )
+    }
+
+    /// A row the watch makes for an exercise it hasn't got yet. Its sets are added by the caller.
+    convenience init(snapshot state: WorkoutExerciseState, exercise: Exercise) {
+        self.init(exercise: exercise, order: state.order)
+        fromSnapshotValue = true
+    }
+
+    /// Makes this row match the iPhone's copy of it. Sets are matched by the caller.
+    func apply(_ state: WorkoutExerciseState, exercise: Exercise?) {
+        syncIDValue = state.syncID
+        if let exercise { exerciseValue = exercise }
+        orderValue = state.order
+        statusValue = state.status
+        lockedValue = state.locked
+        if let feedback = state.feedback {
+            if let feedbackValue {
+                feedbackValue.apply(feedback)
+            } else {
+                feedbackValue = ExerciseFeedback(snapshot: feedback)
+            }
+        } else if let feedbackValue {
+            self.feedbackValue = nil
+            modelContext?.delete(feedbackValue)
+        }
+        checkInValue = state.checkIn
+        checkInSourcePainValue = state.checkInSourcePain
+        warmupsDisabledValue = state.warmupsDisabled
+        warmupRestoreCountValue = state.warmupRestoreCount
+        supersetIDValue = state.supersetID
+        rirTargetValue = state.rirTarget
+        progressionCodeValue = state.progressionCode
+        progressionNoteValue = state.progressionNote
+        strengthRoleValue = state.strengthRole
+        targetRepsValue = state.targetReps
+        repOffsetValue = state.repOffset
+        intendedLoadKgValue = state.intendedLoadKg
+        powerJackRoleValue = state.powerJackRole
+        powerJackTagValue = state.powerJackTag
+        powerJackTopSetsValue = state.powerJackTopSets
+        powerJackTopRIRValue = state.powerJackTopRIR
+        powerJackLoadTargetValue = state.powerJackLoadTarget
+        powerJackTopLoadTargetValue = state.powerJackTopLoadTarget
+        powerJackCalibratingValue = state.powerJackCalibrating
+    }
+
+    func attach(_ workoutSet: WorkoutSet) {
+        workoutSetsValue = (workoutSetsValue ?? []) + [workoutSet]
+    }
+
+    func detach(_ workoutSet: WorkoutSet) {
+        workoutSetsValue?.removeAll { $0 === workoutSet }
+    }
+
+    /// Folds another copy of this exercise into it: its sets merge or move over, and whatever it got
+    /// further with (status, feedback, a check-in answer) is kept.
+    func merge(_ other: WorkoutExercise, matching: SyncMatch) {
+        if other.statusValue.progress > statusValue.progress {
+            statusValue = other.statusValue
+            lockedValue = other.lockedValue
+        }
+        if feedbackValue == nil, let feedback = other.feedbackValue {
+            other.feedbackValue = nil
+            feedbackValue = feedback
+        }
+        if checkInValue == .pending, other.checkInValue == .resolved {
+            checkInValue = .resolved
+        }
+        if powerJackTopRIRValue == nil {
+            powerJackTopRIRValue = other.powerJackTopRIRValue
+        }
+        SyncMerge.fold(
+            other.workoutSets,
+            into: workoutSets,
+            key: { matching == .syncID ? $0.syncID.map(AnyHashable.init) : AnyHashable("\($0.setType.rawValue)-\($0.order)") },
+            merge: { $0.merge($1) },
+            move: { other.detach($0); self.attach($0) }
+        )
+    }
+
+    var hasLoggedSets: Bool { workoutSets.contains { $0.status == .complete } }
+
+    static func fromSnapshot(in context: ModelContext) throws -> [WorkoutExercise] {
+        try context.fetch(FetchDescriptor<WorkoutExercise>(predicate: #Predicate { $0.fromSnapshotValue }))
     }
 }

@@ -189,12 +189,7 @@ enum ExerciseCatalog {
             let oldestFirst = copies.sorted { $0.createdAtValue < $1.createdAtValue }
             let survivor = oldestFirst[0]
             for duplicate in oldestFirst.dropFirst() {
-                for row in duplicate.templateExercisesValue ?? [] {
-                    row.exercise = survivor
-                }
-                for row in duplicate.workoutExercisesValue ?? [] {
-                    row.replaceDuplicateExercise(with: survivor)
-                }
+                survivor.takeOverRows(of: duplicate)
                 context.delete(duplicate)
             }
             changed = true
