@@ -238,6 +238,21 @@ struct WatchPhoneSyncTests {
         #expect(phoneSet.reps == 9)
     }
 
+    @Test("A change naming a program the iPhone doesn't have never lands on the running one")
+    func unknownProgramIgnored() throws {
+        let (devices, watchSet, watchExercise) = try startedOnWatch()
+        logOnWatch(devices, watchSet, of: watchExercise, reps: 8, at: t0)
+        var changes = devices.replica.pending
+        for index in changes.indices {
+            changes[index].row.program = UUID()
+            changes[index].row.set = UUID()
+        }
+
+        _ = try devices.referee.receive(changes, in: devices.phoneContext)
+
+        #expect(try devices.onPhone(watchSet).status == .active)
+    }
+
     @Test("Apart with iCloud Backup off, the watch keeps every change until the iPhone is back")
     func apartHoldsChanges() throws {
         let devices = try TwoDevices()

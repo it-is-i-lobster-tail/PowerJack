@@ -16,7 +16,7 @@ enum SyncTidyUp {
     /// How far back receipts are checked. A device that syncs late is still caught up.
     static let receiptWindow: TimeInterval = 30 * 24 * 60 * 60
 
-    /// - Parameter running: the program the iPhone said is running, when the watch heard from it.
+    /// - Parameter running: on the watch, the program the iPhone last said is running.
     /// - Returns: Whether anything changed. Changes are saved.
     @discardableResult
     static func run(in context: ModelContext, running: UUID? = nil, now: Date = .now) throws -> Bool {
@@ -102,7 +102,8 @@ enum SyncTidyUp {
 
     /// A day planned on both devices while they were apart shows up twice in its week once iCloud
     /// brings both. One stays (see `ranksFirst`) and the other folds into it by place, so its logged
-    /// sets move over, the later log winning where both logged the same set.
+    /// sets move over, the later log winning where both logged the same set. Whichever copy was
+    /// logged, the day keeps every log.
     private static func mergeDuplicateDays(in context: ModelContext) throws -> Bool {
         var changed = false
         for week in try context.fetch(FetchDescriptor<ProgramWeek>()) {
@@ -119,11 +120,10 @@ enum SyncTidyUp {
         return changed
     }
 
-    /// Whether day `a` stays over day `b`: one with logged sets (the latest logged when both have),
-    /// else the iPhone's, else the older. Nil when nothing tells them apart.
+    /// Whether day `a` stays over day `b`: the iPhone's, else the older. It's decided only from what
+    /// never changes, not from what's logged, so both devices pick the same copy however far their
+    /// syncing has got and never delete one each. Nil when nothing tells them apart.
     static func ranksFirst(_ a: Workout, over b: Workout) -> Bool? {
-        if a.hasLoggedSets != b.hasLoggedSets { return a.hasLoggedSets }
-        if let aLogged = a.lastLoggedAt, let bLogged = b.lastLoggedAt, aLogged != bLogged { return aLogged > bLogged }
         if (a.createdOn == SyncDevice.iPhone) != (b.createdOn == SyncDevice.iPhone) { return a.createdOn == SyncDevice.iPhone }
         let aCreated = a.createdAt ?? .distantPast, bCreated = b.createdAt ?? .distantPast
         if aCreated != bCreated { return aCreated < bCreated }
@@ -157,14 +157,19 @@ enum SyncTidyUp {
 
     // MARK: Running program
 
-    /// Only one program runs. When syncing leaves two, the one the iPhone says is running stays,
-    /// else the one with logged workouts (the latest logged when both have). The other is stopped,
-    /// never deleted.
+    /// Only one program runs. When syncing leaves two, the iPhone keeps the one with logged workouts
+    /// (the latest logged when both have) and stops the other, never deleting it. Only the iPhone
+    /// decides, so the two devices never stop one each: the watch follows the one the iPhone said.
     private static func keepOneRunningProgram(in context: ModelContext, running: UUID?) throws -> Bool {
         let active = try context.fetch(FetchDescriptor<Program>()).filter { $0.status == .active }
         guard active.count > 1 else { return false }
-        let referee = running.flatMap { id in active.first { $0.syncID == id } }
-        guard let keep = referee ?? first(of: active, by: { programRanksFirst($0, over: $1) }) else { return false }
+        let keep: Program?
+        if SyncDevice.current == SyncDevice.iPhone {
+            keep = first(of: active, by: { programRanksFirst($0, over: $1) })
+        } else {
+            keep = running.flatMap { id in active.first { $0.syncID == id } }
+        }
+        guard let keep else { return false }
         for program in active where program !== keep {
             program.stop()
             program.stopAndCascade()

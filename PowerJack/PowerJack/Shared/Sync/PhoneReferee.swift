@@ -38,7 +38,8 @@ final class PhoneReferee {
         for change in changes.sorted(by: { $0.id < $1.id }) {
             let install = change.install.uuidString
             guard change.id > applied[install, default: 0] else { continue }
-            let program = programs.first { $0.syncID != nil && $0.syncID == change.row.program } ?? programs.active
+            // A program the iPhone doesn't have is never mistaken for the running one.
+            let program = change.row.program.map { id in programs.first { $0.syncID == id } } ?? programs.active
             if program.map({ change.apply(to: $0, in: context) }) != true {
                 // Counted as applied all the same, so one the iPhone can't place never holds up the rest.
                 Logger.sync.warning("Couldn't find the row a watch change names")

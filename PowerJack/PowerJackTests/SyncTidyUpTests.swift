@@ -133,7 +133,7 @@ struct SyncTidyUpTests {
         #expect(try devices.phoneContext.fetch(FetchDescriptor<Workout>()).allSatisfy { $0.syncID != duplicateID })
     }
 
-    @Test("A day planned on both devices keeps the copy with logged sets")
+    @Test("A day planned on both devices keeps the logged sets of whichever copy was logged")
     func duplicateDayKeepsLogged() throws {
         let devices = try TwoDevices()
         let week = try devices.phoneProgram.programWeeks[0]
@@ -145,9 +145,35 @@ struct SyncTidyUpTests {
 
         try SyncTidyUp.run(in: devices.phoneContext)
 
+        // The iPhone's copy stays, so both devices pick the same one, and the watch's log moved into it.
         #expect(week.workouts.filter { $0.order == 0 }.count == 1)
-        #expect(week.workouts[0] === duplicate)
-        #expect(workoutSet.status == .complete)
+        #expect(week.workouts[0] === original)
+        #expect(original.status == .active)
+        let kept = try #require(original.workoutExercises[0].workingSets.first)
+        #expect(kept.status == .complete)
+        #expect(kept.reps == 8)
+    }
+
+    @Test("Days saved before sync IDs that nothing tells apart both stay")
+    func ambiguousDaysStay() throws {
+        let devices = try TwoDevices()
+        let week = try devices.phoneProgram.programWeeks[0]
+        let original = week.workouts[0]
+        let count = week.workouts.count
+        let duplicate = try addDuplicate(of: original, in: devices, createdOn: SyncDevice.iPhone)
+        // As rows saved before these were kept: no sync ID, device or time.
+        for day in [original, duplicate] {
+            var state = try #require(day.syncState)
+            state.createdOn = nil
+            state.createdAt = nil
+            day.apply(state, exercises: [:])
+            day.syncIDValue = nil
+        }
+        try devices.phoneContext.save()
+
+        try SyncTidyUp.run(in: devices.phoneContext)
+
+        #expect(week.workouts.count == count + 1)
     }
 
     @Test("A day logged on both devices keeps the latest run and folds the earlier one's other logs into it")
@@ -169,7 +195,7 @@ struct SyncTidyUpTests {
 
         #expect(week.workouts.filter { $0.order == 0 }.count == 1)
         let kept = week.workouts[0]
-        #expect(kept === duplicate)
+        #expect(kept === original)
         let sets = kept.workoutExercises[0].workingSets
         #expect(sets[0].reps == 9)
         #expect(sets[1].status == .complete)
@@ -233,7 +259,7 @@ struct SyncTidyUpTests {
         #expect(workoutSet.status == .complete)
     }
 
-    @Test("Two running programs keep the one the iPhone says is running")
+    @Test("On the watch, two running programs keep the one the iPhone says is running, and stay without its word")
     func twoRunningProgramsFollowIPhone() throws {
         let devices = try TwoDevices()
         let context = devices.phoneContext
@@ -244,8 +270,12 @@ struct SyncTidyUpTests {
         second.start()
         try context.save()
 
-        try SyncTidyUp.run(in: context, running: second.syncID)
+        // Only the iPhone decides which program runs.
+        try devices.onWatch { _ in try SyncTidyUp.run(in: context) }
+        #expect(second.status == .active)
+        #expect(trained.status == .active)
 
+        try devices.onWatch { _ in try SyncTidyUp.run(in: context, running: second.syncID) }
         #expect(second.status == .active)
         #expect(trained.status == .stopped)
     }

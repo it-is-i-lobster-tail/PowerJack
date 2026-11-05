@@ -180,8 +180,8 @@ extension ProgramSnapshot {
         )
     }
 
-    /// Matches each state to a row: one with its sync ID (the iPhone's own before a copy), else one
-    /// saved before sync IDs in the same place, which takes the ID, else a new row. Rows left over
+    /// Matches each state to a row: one with its sync ID (the iPhone's own before a copy), else the one
+    /// row saved before sync IDs in the same place, which takes the ID, else a new row. Rows left over
     /// that the iPhone doesn't have are removed, unless `keeps` holds for them.
     private static func sync<Row: AnyObject, State>(
         _ states: [State],
@@ -200,9 +200,16 @@ extension ProgramSnapshot {
         func take(_ matches: (Row) -> Bool) -> Row? {
             unmatched.firstIndex(where: matches).map { unmatched.remove(at: $0) }
         }
+        /// A row saved before sync IDs takes one only when nothing else shares its place, so two days
+        /// that were already duplicated never swap IDs.
+        func unnumbered(in place: State) -> Row? {
+            let rows = unmatched.filter { rowID($0) == nil && samePlace($0, place) }
+            guard rows.count == 1, states.count(where: { samePlace(rows[0], $0) }) == 1 else { return nil }
+            return take { $0 === rows[0] }
+        }
         for state in states {
             let id = stateID(state)
-            if let row = take({ rowID($0) == id && !isCopy($0) }) ?? take({ rowID($0) == id }) ?? take({ rowID($0) == nil && samePlace($0, state) }) {
+            if let row = take({ rowID($0) == id && !isCopy($0) }) ?? take({ rowID($0) == id }) ?? unnumbered(in: state) {
                 update(row, state)
             } else if let row = make(state) {
                 attach(row)
