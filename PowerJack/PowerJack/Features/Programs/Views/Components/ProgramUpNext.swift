@@ -45,6 +45,13 @@ struct ProgramUpNext: View {
 
             ProgramStartWorkout(program: program, workout: workout)
                 .popoverHint(startHint)
+
+            if let device = workout.inProgressElsewhere {
+                Text("In progress on \(device)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .padding(LayoutMetrics.sectionSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
