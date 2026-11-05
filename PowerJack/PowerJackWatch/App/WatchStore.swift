@@ -2,8 +2,9 @@
 //  WatchStore.swift
 //  PowerJackWatch
 //
-//  The watch's copy of the user's data, synced with the iPhone through iCloud.
-//  Follows the iPhone's iCloud Backup setting, which `SettingsSync` brings over.
+//  The watch's copy of the user's data. `WatchSync` keeps it in step with the iPhone directly,
+//  and when iCloud Backup is on it also syncs through iCloud. Follows the iPhone's iCloud Backup
+//  setting, which `DeviceLink` brings over; with it off the store stays on the watch.
 //
 
 import CoreData
@@ -39,6 +40,7 @@ final class WatchStore {
         syncsWithICloud = syncs
         container = Self.makeContainer(syncsWithICloud: syncs)
         followICloudBackupSetting()
+        tidyUpAfterImports()
         logSyncErrors()
     }
 
@@ -50,6 +52,22 @@ final class WatchStore {
                 syncsWithICloud = Self.iCloudBackupSetting
                 container = Self.makeContainer(syncsWithICloud: syncsWithICloud)
                 Logger.sync.info("iCloud Backup turned \(self.syncsWithICloud ? "on" : "off") from iPhone")
+            }
+        }
+    }
+
+    /// iCloud can bring the iPhone's own copy of rows the watch already copied from it directly,
+    /// so tidy up each time iCloud changes the store (see `SyncTidyUp`).
+    private func tidyUpAfterImports() {
+        Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
+                guard let context = self?.container.mainContext else { continue }
+                do {
+                    if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
+                    try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone)
+                } catch {
+                    Logger.sync.error("Could not tidy up after an iCloud import: \(error.localizedDescription)")
+                }
             }
         }
     }

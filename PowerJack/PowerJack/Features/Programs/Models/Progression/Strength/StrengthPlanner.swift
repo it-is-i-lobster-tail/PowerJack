@@ -79,7 +79,7 @@ enum StrengthPlanner: WeekPlanner {
         fitBlock(&state.clock, weekIndex: week.order, in: program)
         StrengthWeekClose.close(&state, week: closedWeek(week, at: now))
         fitBlock(&state.clock, weekIndex: week.order + 1, in: program)
-        program.modelContext?.insert(StrengthLog(date: now, state: state))
+        program.modelContext?.insert(StrengthLog(date: now, state: state, sessionID: week.syncID))
         return state
     }
 

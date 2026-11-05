@@ -155,6 +155,17 @@
 				Shared/Persistence/PowerJackSchema.swift,
 				Shared/Persistence/SettingsSync.swift,
 				Shared/Persistence/TemplateCatalog.swift,
+				Shared/Sync/DeviceLink.swift,
+				Shared/Sync/ProgramSnapshot.swift,
+				Shared/Sync/SetReceipt.swift,
+				Shared/Sync/SetReferee.swift,
+				Shared/Sync/SyncMerge.swift,
+				Shared/Sync/SyncState.swift,
+				Shared/Sync/SyncTidyUp.swift,
+				Shared/Sync/WatchActions.swift,
+				Shared/Sync/WatchChange.swift,
+				Shared/Sync/WatchReplica.swift,
+				Shared/Sync/WorkoutMirroring.swift,
 			);
 			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
 		};
@@ -180,11 +191,21 @@
 			);
 			target = DA1B3EC82FEC4E2000369E8D /* PowerJack */;
 		};
+		5E2C1A7B9D3F4E6A8B0C2D41 /* Exceptions for "PowerJackWatch" folder in "PowerJackWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		80146C34319EC1CCE7D29977 /* PowerJackWatch */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5E2C1A7B9D3F4E6A8B0C2D41 /* Exceptions for "PowerJackWatch" folder in "PowerJackWatch" target */,
+			);
 			path = PowerJackWatch;
 			sourceTree = "<group>";
 		};
@@ -501,6 +522,7 @@
 				DEVELOPMENT_TEAM = KWZTWNA57G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PowerJackWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PowerJack;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -535,6 +557,7 @@
 				DEVELOPMENT_TEAM = KWZTWNA57G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PowerJackWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PowerJack;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";

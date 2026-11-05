@@ -12,7 +12,7 @@ import SwiftData
 
 /// What a lifter's store holds. Old versions write it next to their store with
 /// scripts/upgrade/UpgradeFixtureWriter.swift, which reads the same fields the same way.
-struct UpgradeManifest: Codable {
+struct UpgradeManifest: Codable, Equatable {
     var programs: [String]
     var completedWorkouts: Int
     var completedSets: Int
@@ -61,6 +61,7 @@ enum UpgradeCheck {
         check("Volume history", saved.workoutLogs, upgraded.workoutLogs)
         check("Own exercises", saved.userExercises, upgraded.userExercises)
         check("Own templates", saved.templates, upgraded.templates)
+        problems += try checkSync(context, upgraded: upgraded)
 
         // The lifter picks up where they left off.
         if let program = try context.fetch(FetchDescriptor<Program>()).active, let workout = program.nextWorkout {
@@ -89,5 +90,32 @@ enum UpgradeCheck {
         guard problems.isEmpty else {
             throw UpgradeProblems(version: version, problems: problems)
         }
+    }
+
+    /// Syncing with the watch changes nothing the lifter did: the iPhone gives the old rows sync IDs as it
+    /// sends them, the tidy-up leaves the data as it was, and the program reaches a watch that never
+    /// synced with every logged set.
+    private static func checkSync(_ context: ModelContext, upgraded: UpgradeManifest) throws -> [String] {
+        var problems: [String] = []
+        let snapshot = try ProgramSnapshot.make(in: context, applied: [:])
+        try SyncTidyUp.run(in: context)
+        let afterSync = try UpgradeManifest(context: context)
+        if afterSync != upgraded { problems.append("Syncing changed the data: \(upgraded) before, \(afterSync) after") }
+
+        guard let program = try context.fetch(FetchDescriptor<Program>()).active else { return problems }
+        let watch = try PowerJackSchema.makeModelContainer(inMemory: true)
+        try snapshot.apply(to: watch.mainContext)
+        try SyncTidyUp.run(in: watch.mainContext, running: program.syncID)
+        guard let copy = try watch.mainContext.fetch(FetchDescriptor<Program>()).active else {
+            return problems + ["The running program didn't reach the watch"]
+        }
+        func logged(_ program: Program) -> [Int?] {
+            program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises).flatMap(\.workoutSets)
+                .filter { $0.status == .complete }.map(\.reps)
+        }
+        if copy.syncID != program.syncID { problems.append("The watch's program has another sync ID") }
+        if logged(copy) != logged(program) { problems.append("The watch's program lost logged sets") }
+        if copy.nextWorkout?.syncID != program.nextWorkout?.syncID { problems.append("The watch shows another next workout") }
+        return problems
     }
 }

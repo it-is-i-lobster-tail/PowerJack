@@ -21,6 +21,7 @@ enum PowerJackSchema {
         TemplateExercise.self,
         WorkoutLog.self,
         StrengthLog.self,
+        SetReceipt.self,
     ]
 
     static let schema = Schema(modelTypes)

@@ -14,6 +14,8 @@ struct WatchExerciseView: View {
         case weight, reps
     }
 
+    @Environment(WatchSync.self) private var sync
+
     @Bindable var workoutExercise: WorkoutExercise
     let onSetLogged: () -> Void
 
@@ -145,7 +147,7 @@ struct WatchExerciseView: View {
         HStack(spacing: 6) {
             if workoutSet.isWarmup {
                 Button("Skip Warmups", systemImage: "forward") {
-                    workoutExercise.skipWarmups()
+                    sync.perform { $0.skipWarmups(of: workoutExercise) }
                     onSetLogged()
                 }
                 .labelStyle(.iconOnly)
@@ -154,7 +156,7 @@ struct WatchExerciseView: View {
 
             Button("Log Set", systemImage: "checkmark") {
                 guard let entry else { return }
-                workoutExercise.log(entry, on: workoutSet)
+                sync.perform { $0.log(entry, on: workoutSet, of: workoutExercise) }
                 onSetLogged()
             }
             .labelStyle(.iconOnly)

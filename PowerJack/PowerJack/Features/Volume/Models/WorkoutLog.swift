@@ -24,9 +24,12 @@ final class WorkoutLog {
     private var glutesValue: Double = 0
     private var calvesValue: Double = 0
     private var hamstringsValue: Double = 0
+    // The workout's sync ID, so the same workout finished on two devices keeps one log.
+    private var sessionIDValue: UUID?
 
-    init(date: Date, setsByMuscle: [Muscle: Double]) {
+    init(date: Date, setsByMuscle: [Muscle: Double], sessionID: UUID? = nil) {
         self.dateValue = date
+        self.sessionIDValue = sessionID
         for (muscle, sets) in setsByMuscle {
             setSets(sets, for: muscle)
         }
@@ -39,6 +42,12 @@ final class WorkoutLog {
 extension WorkoutLog {
     // Date
     var date: Date { dateValue }
+    var sessionID: UUID? { sessionIDValue }
+
+    /// Logs that name the workout they came from. Older logs don't, and are never merged.
+    static func withSession(in context: ModelContext) throws -> [WorkoutLog] {
+        try context.fetch(FetchDescriptor<WorkoutLog>(predicate: #Predicate { $0.sessionIDValue != nil }))
+    }
 
     /// The log written closest to `date`, within a second of it. A skip writes its log as it ends the workout.
     static func written(near date: Date, in context: ModelContext?) -> WorkoutLog? {

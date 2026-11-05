@@ -20,6 +20,7 @@ private enum WorkoutSheet: Identifiable, Hashable {
 
 struct WatchWorkoutView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(WatchSync.self) private var sync
 
     let program: Program
     @Bindable var workout: Workout
@@ -72,6 +73,10 @@ struct WatchWorkoutView: View {
         .task(id: workout.currentRest?.endsAt) {
             await RestAlert.schedule(for: workout.currentRest)
         }
+        .task {
+            // Keeps the app on screen and links it to the iPhone while the workout runs.
+            await WorkoutMirroring.shared.begin()
+        }
     }
 
     private func setLogged(on workoutExercise: WorkoutExercise) {
@@ -115,9 +120,8 @@ struct WatchWorkoutView: View {
 
     /// Skips anything still unlogged, then moves the program on. Finishing a week plans the next one.
     private func finish() {
-        workout.skipRemainingSets()
-        program.finishWorkout(workout)
-        save()
+        sync.perform { $0.finish(workout, in: program) }
+        WorkoutMirroring.shared.end()
         Task { await RestAlert.schedule(for: nil) }
         onFinished()
     }

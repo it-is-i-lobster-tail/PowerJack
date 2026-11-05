@@ -99,13 +99,24 @@ final class PowerJackStore {
         }
     }
 
-    /// A new iPhone seeds the built-in catalog before its synced data arrives,
-    /// so merge any duplicates each time iCloud changes the store.
+    /// A new iPhone seeds the built-in catalog before its synced data arrives, and the watch can
+    /// sync the same workout through iCloud and straight from the watch, so tidy up each time
+    /// iCloud changes the store.
     private func mergeDuplicatesAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
                 self?.mergeCatalogDuplicates()
+                self?.tidyUpAfterSync()
             }
+        }
+    }
+
+    /// See `SyncTidyUp`.
+    func tidyUpAfterSync() {
+        do {
+            try SyncTidyUp.run(in: container.mainContext)
+        } catch {
+            Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }
     }
 

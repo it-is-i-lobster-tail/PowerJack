@@ -27,6 +27,10 @@ final class Program {
     // Optional only in storage: rows from before template types (1.0.13 and earlier, also when
     // iCloud brings them in later) have no value, and upgrading leaves it empty. Read `templateType`.
     private var templateTypeValue: TemplateType? = TemplateType.hypertrophy
+    // The same on the iPhone and the watch (see `SyncState`). Nil on rows saved before it existed.
+    var syncIDValue: UUID?
+    // True when the watch made this row from the iPhone's snapshot.
+    var fromSnapshotValue: Bool = false
 
     private static var programWeekValueMax = 12
     private static var initialWeekSets = 2
@@ -44,11 +48,20 @@ final class Program {
         self.templateTypeValue = templateProgram.templateType
         self.programWeeksValue = []
         self.lockedValue = false
+        self.syncIDValue = UUID()
         buildInitialProgramWeeks()
         setupInitialProgramWeek()
         if let firstWeek = programWeeks.first {
             templateType.weekPlanner.setUpFirstWeek(firstWeek, in: self)
         }
+    }
+
+    /// The watch's copy of a program it got from the iPhone, filled in by `apply(_:)`. It has no
+    /// template: a program keeps its own copy of what it needs from one.
+    init(snapshot state: ProgramState) {
+        self.programWeeksValue = []
+        self.fromSnapshotValue = true
+        apply(state)
     }
 
     private func buildInitialProgramWeeks() {
@@ -242,7 +255,7 @@ extension Program {
     private func logSets(of workout: Workout) {
         let setsByMuscle = workout.loggedSetsByMuscle
         guard !setsByMuscle.isEmpty else { return }
-        modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle))
+        modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle, sessionID: workout.syncID))
     }
     /// Skips the rest of `workout` and moves the program forward.
     /// Completed sets stay completed and count toward history; only unfinished sets are skipped.
@@ -357,5 +370,88 @@ extension Program {
             return
         }
         modelContext?.delete(self)
+    }
+}
+
+//
+// Sync
+//
+extension Program {
+    var syncID: UUID? { syncIDValue }
+    var isFromSnapshot: Bool { fromSnapshotValue }
+
+    /// Gives this program and everything under it sync IDs, for rows saved before they existed.
+    /// Only the iPhone does this, so the watch always takes the iPhone's IDs.
+    func assignSyncIDs() {
+        if syncIDValue == nil { syncIDValue = UUID() }
+        for programWeek in programWeeks {
+            programWeek.assignSyncIDs()
+        }
+    }
+
+    var syncState: ProgramState? {
+        guard let syncIDValue else { return nil }
+        return ProgramState(
+            syncID: syncIDValue,
+            programLengthWeeks: programLengthWeeksValue,
+            status: statusValue,
+            locked: lockedValue,
+            workoutsPerWeek: workoutsPerWeekValue,
+            templateName: templateNameValue,
+            templateMuscleFocus: templateMuscleFocusValue,
+            templateType: templateType,
+            weeks: programWeeks.compactMap(\.syncState)
+        )
+    }
+
+    /// Makes this row match the iPhone's copy of it. Weeks are matched by the caller.
+    func apply(_ state: ProgramState) {
+        syncIDValue = state.syncID
+        programLengthWeeksValue = state.programLengthWeeks
+        statusValue = state.status
+        lockedValue = state.locked
+        workoutsPerWeekValue = state.workoutsPerWeek
+        templateNameValue = state.templateName
+        templateMuscleFocusValue = state.templateMuscleFocus
+        templateTypeValue = state.templateType
+    }
+
+    func attach(_ programWeek: ProgramWeek) {
+        programWeeksValue = (programWeeksValue ?? []) + [programWeek]
+    }
+
+    func detach(_ programWeek: ProgramWeek) {
+        programWeeksValue?.removeAll { $0 === programWeek }
+    }
+
+    /// Folds another copy of this program into it: its weeks merge or move over.
+    func merge(_ other: Program) {
+        if other.statusValue.progress > statusValue.progress {
+            statusValue = other.statusValue
+            lockedValue = other.lockedValue
+        }
+        SyncMerge.fold(
+            other.programWeeks,
+            into: programWeeks,
+            key: { $0.syncID.map(AnyHashable.init) },
+            merge: { $0.merge($1) },
+            move: { other.detach($0); self.attach($0) }
+        )
+    }
+
+    /// Stops this program because the iPhone, which referees, says another one is running.
+    /// The iPhone already closed its week, so only the status changes here.
+    func stopForReferee() {
+        guard status == .planned || status == .active else { return }
+        statusValue = .stopped
+        lockedValue = true
+    }
+
+    var hasLoggedSets: Bool { programWeeks.contains { $0.workouts.contains(where: \.hasLoggedSets) } }
+
+    var lastLoggedAt: Date? { programWeeks.flatMap(\.workouts).compactMap(\.lastLoggedAt).max() }
+
+    static func fromSnapshot(in context: ModelContext) throws -> [Program] {
+        try context.fetch(FetchDescriptor<Program>(predicate: #Predicate { $0.fromSnapshotValue }))
     }
 }

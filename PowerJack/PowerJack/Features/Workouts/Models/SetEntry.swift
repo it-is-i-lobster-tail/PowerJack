@@ -60,19 +60,25 @@ extension WorkoutExercise {
     /// Logs `entry` on `workoutSet` and completes it. As when typing it on the phone, the weight carries
     /// to the later sets still to do, except from a TOP set, which is heavier than the BACK sets after it.
     func log(_ entry: SetEntry, on workoutSet: WorkoutSet, at date: Date = .now) {
-        guard workoutSet.status == .active, !workoutSet.locked, WorkoutSet.isValidReps(entry.reps) else { return }
-        let repsOnly = exercise?.repsOnly ?? false
-        guard repsOnly || entry.weightTenthsPounds != nil else { return }
+        log(weightTenthsPounds: entry.weightTenthsPounds, reps: entry.reps, on: workoutSet, at: date)
+    }
 
-        workoutSet.reps = entry.reps
+    /// Logs `reps` at `weightTenthsPounds` on `workoutSet`, as `log(_:on:at:)` does. The iPhone runs
+    /// this too for a set logged on the watch, naming the watch as the `device`.
+    func log(weightTenthsPounds: Int?, reps: Int, on workoutSet: WorkoutSet, at date: Date = .now, device: String = SyncDevice.current) {
+        guard workoutSet.status == .active, !workoutSet.locked, WorkoutSet.isValidReps(reps) else { return }
+        let repsOnly = exercise?.repsOnly ?? false
+        guard repsOnly || weightTenthsPounds != nil else { return }
+
+        workoutSet.reps = reps
         if !repsOnly {
             let previousWeight = workoutSet.weightTenthsPounds
-            workoutSet.weightTenthsPounds = entry.weightTenthsPounds
+            workoutSet.weightTenthsPounds = weightTenthsPounds
             if !isTopSet(workoutSet) {
                 applyWeight(workoutSet.weightTenthsPounds, after: workoutSet, replacing: previousWeight)
             }
         }
-        completeSet(workoutSet, at: date)
+        completeSet(workoutSet, at: date, on: device)
     }
 
     /// The set to log next on this exercise. Once every working set is done, leftover warmups aren't waiting.
