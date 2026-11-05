@@ -304,6 +304,32 @@ struct WatchPhoneSyncTests {
         #expect(weekTwo.workouts[0].workoutExercises[0].workoutSets.contains { $0.status == .complete && $0.reps == loggedReps })
     }
 
+    @Test("Rows saved before sync IDs take the iPhone's IDs on the watch instead of being copied")
+    func oldRowsAdoptIDs() throws {
+        let devices = try TwoDevices()
+        // Both devices hold the program from iCloud, saved by a version without sync IDs.
+        try ICloud.bring(devices.phoneProgram, into: devices.watchContext, asSnapshotCopies: false)
+        for context in [devices.phoneContext, devices.watchContext] {
+            for program in try context.fetch(FetchDescriptor<Program>()) { program.syncIDValue = nil }
+            for week in try context.fetch(FetchDescriptor<ProgramWeek>()) { week.syncIDValue = nil }
+            for workout in try context.fetch(FetchDescriptor<Workout>()) { workout.syncIDValue = nil }
+            for workoutExercise in try context.fetch(FetchDescriptor<WorkoutExercise>()) { workoutExercise.syncIDValue = nil }
+            for workoutSet in try context.fetch(FetchDescriptor<WorkoutSet>()) { workoutSet.syncIDValue = nil }
+            try context.save()
+        }
+
+        try devices.sendProgram()
+
+        let watch = devices.watchContext
+        #expect(try watch.fetchCount(FetchDescriptor<Program>()) == 1)
+        #expect(try WorkoutSet.fromSnapshot(in: watch).isEmpty)
+        #expect(try watch.fetchCount(FetchDescriptor<WorkoutSet>()) == devices.phoneContext.fetchCount(FetchDescriptor<WorkoutSet>()))
+        let phoneIDs = Set(try devices.phoneContext.fetch(FetchDescriptor<WorkoutSet>()).compactMap(\.syncID))
+        let watchIDs = Set(try watch.fetch(FetchDescriptor<WorkoutSet>()).compactMap(\.syncID))
+        #expect(!phoneIDs.isEmpty)
+        #expect(watchIDs == phoneIDs)
+    }
+
     @Test("A program the iPhone stopped stops on the watch too, and the new one runs")
     func stoppedProgramFollowsIPhone() throws {
         let devices = try TwoDevices()

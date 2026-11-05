@@ -87,6 +87,15 @@ enum ICloud {
     @discardableResult
     static func bring(_ program: Program, into context: ModelContext, asSnapshotCopies: Bool) throws -> Program {
         let state = try #require(program.syncState)
+        // Exercises come over too, when the store doesn't have them yet.
+        let known = Set(try context.fetch(FetchDescriptor<Exercise>()).compactMap(\.syncKey))
+        let used = program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises).compactMap(\.exercise)
+        for exerciseState in Dictionary(used.compactMap { $0.syncState.map { ($0.key, $0) } }, uniquingKeysWith: { first, _ in first }).values
+        where !known.contains(exerciseState.key) {
+            let exercise = Exercise(snapshot: exerciseState)
+            exercise.fromSnapshotValue = asSnapshotCopies
+            context.insert(exercise)
+        }
         let exercises = Dictionary(
             try context.fetch(FetchDescriptor<Exercise>()).compactMap { exercise in exercise.syncKey.map { ($0, exercise) } },
             uniquingKeysWith: { first, _ in first }
