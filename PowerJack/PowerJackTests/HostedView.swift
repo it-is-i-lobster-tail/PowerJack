@@ -43,6 +43,11 @@ final class HostedView {
         return container
     }
 
+    /// Keeps a container the test didn't make here, such as one a store replaces, for the whole run.
+    static func keep(_ container: ModelContainer) {
+        keptStores.append(container)
+    }
+
     private static var keptStores: [ModelContainer] = []
 
     /// Lets SwiftUI lay out, run `onAppear` and `task`, and finish short animations.

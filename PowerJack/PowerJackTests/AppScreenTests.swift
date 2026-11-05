@@ -93,6 +93,8 @@ struct AppScreenTests {
 
         // Launch reopens the active program's page, whose Start Workout button reads its workout.
         let store = PowerJackStore(inMemory: true)
+        // The switch closes this container while the test still holds its program.
+        HostedView.keep(store.container)
         let context = store.container.mainContext
         let exercise = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
         context.insert(exercise)
