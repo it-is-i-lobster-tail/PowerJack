@@ -85,6 +85,45 @@ struct AppScreenTests {
         #expect(screen.contains("My Templates"), "\(screen.labels)")
     }
 
+    @Test("Switching iCloud Backup from the active program's page doesn't read the closed store")
+    func iCloudSwitchFromProgramDetail() async throws {
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: AppSettings.Key.iCloudBackup)
+        defer { defaults.set(saved, forKey: AppSettings.Key.iCloudBackup) }
+
+        // Launch reopens the active program's page, whose Start Workout button reads its workout.
+        let store = PowerJackStore(inMemory: true)
+        let context = store.container.mainContext
+        let exercise = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
+        context.insert(exercise)
+        let template = TemplateProgram(templateName: "Switch Test", workoutsPerWeek: 1, templateMuscleFocus: [.chest])
+        template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
+        context.insert(template)
+        let program = Program(programLengthWeeks: 2, templateProgram: template)
+        try context.insertAndSave(program)
+        program.start()
+        try context.save()
+
+        let screen = try await HostedView(PowerJackAppContent().environment(store))
+        defer { screen.close() }
+        #expect(screen.contains("Start Workout"), "\(screen.labels)")
+
+        // Before the fix, the old page re-rendered on the new container and crashed here.
+        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        await screen.scrollToBottom()
+        let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
+        let containerBefore = ObjectIdentifier(store.container)
+        await screen.tap(backup, settleFor: .milliseconds(800))
+        #expect(store.syncsWithICloud)
+        #expect(!store.isReplacingContainer)
+        #expect(ObjectIdentifier(store.container) != containerBefore)
+
+        // The new in-memory store is empty, so the screens rebuilt from it show no program.
+        await screen.tap("Done", settleFor: .milliseconds(800))
+        #expect(screen.contains("My Programs"), "\(screen.labels)")
+        #expect(!screen.contains("Start Workout"), "\(screen.labels)")
+    }
+
     @Test("Rest Between Sets opens a wheel that stays inside 0:30...5:00")
     func restBetweenSets() async throws {
         let defaults = UserDefaults.standard

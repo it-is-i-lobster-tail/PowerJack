@@ -18,6 +18,9 @@ final class PowerJackStore {
     /// Replaced when iCloud Backup is switched, so views must rebuild from it.
     private(set) var container: ModelContainer
     private(set) var syncsWithICloud: Bool
+    /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
+    /// because reading a model after its container closes crashes the app.
+    private(set) var isReplacingContainer = false
 
     private let inMemory: Bool
 
@@ -67,10 +70,19 @@ final class PowerJackStore {
         return status == .available
     }
 
+    /// Only asks for the switch. The root view calls `replaceContainer()` once no screen holds
+    /// a model from the current container.
     private func switchContainer(syncsWithICloud: Bool) {
         self.syncsWithICloud = syncsWithICloud
         UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
+        isReplacingContainer = true
+    }
+
+    /// Opens the container for the current iCloud Backup setting, after a switch.
+    func replaceContainer() {
+        guard isReplacingContainer else { return }
         container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+        isReplacingContainer = false
     }
 
     /// A new iPhone seeds the built-in catalog before its synced data arrives,
