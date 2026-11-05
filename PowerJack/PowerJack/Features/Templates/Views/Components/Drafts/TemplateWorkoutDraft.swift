@@ -170,6 +170,45 @@ extension TemplateWorkoutDraft {
         templateExerciseDraftsValue = ordered
     }
 
+    /// The superset's exercises in order, or nil once none are left.
+    func superset(_ supersetID: UUID) -> TemplateExerciseBlock? {
+        blocks.first { $0.exercises[0].supersetID == supersetID }
+    }
+
+    /// Reorders the exercises inside one superset. The rest of the day stays put.
+    mutating func moveExercises(inSuperset supersetID: UUID, from source: IndexSet, to destination: Int) {
+        guard let superset = superset(supersetID) else { return }
+        var members = superset.exercises
+
+        guard destination >= 0, destination <= members.count else { return }
+        guard source.allSatisfy({ members.indices.contains($0) }) else { return }
+
+        members.move(fromOffsets: source, toOffset: destination)
+        var ordered = templateExerciseDrafts
+        guard let start = ordered.firstIndex(where: { $0.supersetID == supersetID }) else { return }
+        ordered.replaceSubrange(start..<(start + members.count), with: members)
+        reorder(&ordered)
+        templateExerciseDraftsValue = ordered
+    }
+
+    /// Takes one exercise out of its superset and puts it on its own just below what's left.
+    mutating func removeFromSuperset(_ exerciseID: UUID) {
+        var ordered = templateExerciseDrafts
+        guard
+            let index = ordered.firstIndex(where: { $0.id == exerciseID }),
+            let supersetID = ordered[index].supersetID
+        else {
+            return
+        }
+
+        var leaving = ordered.remove(at: index)
+        leaving.supersetID = nil
+        let lastIndex = ordered.lastIndex { $0.supersetID == supersetID }
+        ordered.insert(leaving, at: lastIndex.map { $0 + 1 } ?? index)
+        reorder(&ordered)
+        templateExerciseDraftsValue = ordered
+    }
+
     /// Splits a superset back into exercises on their own.
     mutating func unstack(_ block: TemplateExerciseBlock) {
         let ids = Set(block.exercises.map(\.id))
