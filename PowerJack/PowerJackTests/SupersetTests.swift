@@ -174,6 +174,70 @@ struct SupersetTests {
         #expect(day.blocks.map(\.isSuperset) == [true])
     }
 
+    @Test("Exercises reorder inside their superset, and the rest of the day stays put")
+    func reorderingInsideSuperset() throws {
+        var day = makeDay(["A", "B", "C", "D", "E"])
+        day.startSuperset(with: day.blocks[1])
+        day.add(day.blocks[2], to: day.supersets[0])
+        day.add(day.blocks[2], to: day.supersets[0])
+        let supersetID = try #require(day.supersets[0].exercises[0].supersetID)
+        #expect(names(day) == [["A"], ["B", "C", "D"], ["E"]])
+
+        // Drag D to the top of the superset.
+        day.moveExercises(inSuperset: supersetID, from: IndexSet(integer: 2), to: 0)
+        #expect(names(day) == [["A"], ["D", "B", "C"], ["E"]])
+        #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<5))
+        #expect(day.blocks.map(\.isSuperset) == [false, true, false])
+
+        // Out-of-range moves change nothing.
+        day.moveExercises(inSuperset: supersetID, from: IndexSet(integer: 5), to: 0)
+        day.moveExercises(inSuperset: UUID(), from: IndexSet(integer: 0), to: 2)
+        #expect(names(day) == [["A"], ["D", "B", "C"], ["E"]])
+    }
+
+    @Test("Taking one exercise out leaves the rest stacked, with it on its own just below")
+    func removingOneFromSuperset() throws {
+        var day = makeDay(["A", "B", "C", "D"])
+        day.startSuperset(with: day.blocks[0])
+        day.add(day.blocks[1], to: day.supersets[0])
+        day.add(day.blocks[1], to: day.supersets[0])
+        let supersetID = try #require(day.supersets[0].exercises[0].supersetID)
+        #expect(names(day) == [["A", "B", "C"], ["D"]])
+
+        // The first one out moves below the two left.
+        day.removeFromSuperset(day.supersets[0].exercises[0].id)
+        #expect(names(day) == [["B", "C"], ["A"], ["D"]])
+        #expect(day.blocks.map(\.isSuperset) == [true, false, false])
+
+        // One left stays a superset, ready for a partner, like a new one.
+        day.removeFromSuperset(day.supersets[0].exercises[1].id)
+        #expect(names(day) == [["B"], ["C"], ["A"], ["D"]])
+        #expect(day.superset(supersetID)?.exercises.count == 1)
+
+        // Taking the last one out ends it.
+        day.removeFromSuperset(day.supersets[0].exercises[0].id)
+        #expect(day.superset(supersetID) == nil)
+        #expect(day.supersets.isEmpty)
+        #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+    }
+
+    @Test("A reordered superset saves and reaches the program in its new order")
+    func reorderedSupersetSaves() throws {
+        let program = try makeProgram(templateType: .hypertrophy, weeks: 1)
+        let template = try #require(program.templateProgram)
+        var draft = TemplateProgramDraft(templateProgram: template)
+        let supersetID = try #require(draft.templateWorkoutDraftsValue[0].supersets[0].exercises[0].supersetID)
+        draft.templateWorkoutDraftsValue[0].moveExercises(inSuperset: supersetID, from: IndexSet(integer: 1), to: 0)
+
+        draft.apply(to: template)
+
+        let saved = template.templateWorkouts[0].templateExercises
+        #expect(saved.map { $0.exercise?.exerciseName } == ["Superset Row", "Superset Bench", "Superset Curl"])
+        #expect(saved[0].supersetID == saved[1].supersetID)
+        #expect(saved[0].supersetID != nil)
+        #expect(saved[2].supersetID == nil)
+    }
+
     @Test("A saved superset reaches the program's first week", arguments: TemplateType.allCases)
     func supersetReachesProgram(templateType: TemplateType) throws {
         let program = try makeProgram(templateType: templateType, weeks: 1)
@@ -259,6 +323,10 @@ struct SupersetTests {
         let name = workoutExercise === a ? "A" : "B"
         let number = workoutExercise.number(of: workoutSet)
         return workoutSet.isWarmup ? "\(name) W\(number)" : "\(name) \(number)"
+    }
+
+    private func names(_ day: TemplateWorkoutDraft) -> [[String]] {
+        day.blocks.map { $0.exercises.map(\.exercise.exerciseName) }
     }
 
     private func makeDay(_ names: [String]) -> TemplateWorkoutDraft {

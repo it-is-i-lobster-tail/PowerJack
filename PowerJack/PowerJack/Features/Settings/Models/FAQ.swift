@@ -164,7 +164,7 @@ extension FAQ {
                 question: "Can I build my own template?",
                 answer: [
                     "Yes. In Templates, tap + and give it a name, how many days a week you'll train, and up to four focus muscles: the ones you most want to grow. Hypertrophy and PowerJack programs give focus muscles extra sets.",
-                    "Then build each day by adding exercises. Swipe right on an exercise to start superset A, then swipe right on others to add them to it or start the next one. You do one set of each in turn and then rest. Swipe left on an exercise to edit or remove it, or on a superset to unstack it. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
+                    "Then build each day by adding exercises. Swipe right on an exercise to start superset A, then swipe right on others to add them to it or start the next one. You do one set of each in turn and then rest. Swipe left on an exercise to edit or remove it, or on a superset to unstack it. Tap a superset to change its order or take one exercise out. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
                     "Everything saves as you go.",
                 ]
             ),

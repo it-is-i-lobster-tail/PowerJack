@@ -193,6 +193,8 @@ struct TemplateWorkoutBuilder: View {
 
     /// The exercise waiting to be added to a superset, once the day has one to choose from.
     @State private var exerciseToSuperset: TemplateExerciseBlock?
+    /// The superset open in its own list, to reorder or take one out.
+    @State private var supersetToEdit: UUID?
     
     var body: some View {
         // No NavigationStack of its own: Edit Days shows this inside the Programs stack, whose typed
@@ -224,16 +226,38 @@ struct TemplateWorkoutBuilder: View {
         .scrollContentBackground(.hidden)
         .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
         .powerJackGlassCard(interactive: true)
+        .sheet(
+            isPresented: Binding(
+                get: { supersetToEdit != nil },
+                set: { if !$0 { supersetToEdit = nil } }
+            )
+        ) {
+            if let supersetToEdit {
+                SupersetEditor(
+                    templateWorkoutDraft: $templateWorkoutDraft,
+                    supersetID: supersetToEdit
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
 
     @ViewBuilder
     private func blockRow(_ block: TemplateExerciseBlock) -> some View {
         if block.isSuperset {
-            // Either way, so a swipe right on a superset never goes back a screen.
-            SupersetBuilder(
-                letter: templateWorkoutDraft.supersetLetter(for: block),
-                exercises: block.exercises.map(\.exercise)
-            )
+            // Tap to open the superset's own list. Swipe either way to unstack it,
+            // so a swipe right on a superset never goes back a screen.
+            Button {
+                supersetToEdit = block.exercises[0].supersetID
+            } label: {
+                SupersetBuilder(
+                    letter: templateWorkoutDraft.supersetLetter(for: block),
+                    exercises: block.exercises.map(\.exercise)
+                )
+                .contentShape(.rect)
+            }
+                .buttonStyle(.plain)
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     unstackButton(block)
                 }
@@ -338,6 +362,9 @@ struct SupersetBuilder: View {
             HStack(spacing: 4) {
                 Image(systemName: "link")
                 Text("Superset \(letter)")
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.tertiary)
             }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.indigo)
@@ -358,7 +385,7 @@ struct SupersetBuilder: View {
 }
 
 /// An exercise's name, equipment and main muscle.
-private struct TemplateExerciseLabel: View {
+struct TemplateExerciseLabel: View {
     let exercise: Exercise
 
     var body: some View {
