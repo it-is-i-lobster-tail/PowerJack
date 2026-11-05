@@ -18,6 +18,9 @@ final class PowerJackStore {
     /// Replaced when iCloud Backup is switched, so views must rebuild from it.
     private(set) var container: ModelContainer
     private(set) var syncsWithICloud: Bool
+    /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
+    /// because reading a model after its container closes crashes the app.
+    private(set) var isReplacingContainer = false
 
     private let inMemory: Bool
 
@@ -40,6 +43,7 @@ final class PowerJackStore {
     }
 
     func turnOnICloudBackup() {
+        saveBeforeSwitching()
         switchContainer(syncsWithICloud: true)
         Logger.sync.info("iCloud Backup turned on")
     }
@@ -47,6 +51,8 @@ final class PowerJackStore {
     /// Deletes the copy in iCloud, then stops syncing. Data on this iPhone is kept.
     /// If iCloud can't be reached, nothing changes and the error is thrown.
     func turnOffICloudBackup() async throws {
+        // Saved before the iCloud copy goes, so the save can't upload into it again.
+        saveBeforeSwitching()
         do {
             try await CKContainer(identifier: PowerJackSchema.cloudKitContainerID)
                 .privateCloudDatabase
@@ -67,10 +73,30 @@ final class PowerJackStore {
         return status == .available
     }
 
+    /// Only asks for the switch. The root view calls `replaceContainer()` once no screen holds
+    /// a model from the current container.
     private func switchContainer(syncsWithICloud: Bool) {
         self.syncsWithICloud = syncsWithICloud
         UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
+        isReplacingContainer = true
+    }
+
+    /// Opens the container for the current iCloud Backup setting, after a switch.
+    func replaceContainer() {
+        guard isReplacingContainer else { return }
+        // A save still scheduled on the old container would run after it closes.
+        container.mainContext.autosaveEnabled = false
         container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+        isReplacingContainer = false
+    }
+
+    /// The new container reads the same data, so anything not yet saved would be lost.
+    private func saveBeforeSwitching() {
+        do {
+            try container.mainContext.save()
+        } catch {
+            Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
+        }
     }
 
     /// A new iPhone seeds the built-in catalog before its synced data arrives,

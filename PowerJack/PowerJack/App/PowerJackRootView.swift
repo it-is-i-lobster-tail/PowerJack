@@ -34,19 +34,41 @@ private enum MainBrowserOption:
 
 struct PowerJackRootView: View {
     @Environment(\.modelContext) private var modelContext
+    // Missing in previews, which never switch iCloud Backup.
+    @Environment(PowerJackStore.self) private var store: PowerJackStore?
 
     // Kept out here so they survive the rebuild below.
     @State private var selection: MainBrowserOption = MainBrowserOption.programs
     @State private var isShowingSettings = false
+    // After a switch from Settings, the screens rebuild once Settings closes, so nothing
+    // from them (like a hint popover) shows up on top of it.
+    @State private var rebuildsAfterSettings = false
+
+    private var showsScreens: Bool {
+        store?.isReplacingContainer != true && !rebuildsAfterSettings
+    }
 
     var body: some View {
-        PowerJackScreens(selection: $selection, isShowingSettings: $isShowingSettings)
-            // Switching iCloud Backup replaces the container, so rebuild the screens from it.
+        Group {
+            // Switching iCloud Backup replaces the container. The screens holding its models
+            // come down first, then the new container opens and they rebuild from it.
             // Settings and the chosen section stay put.
-            .id(ObjectIdentifier(modelContext.container))
-            .sheet(isPresented: $isShowingSettings) {
-                SettingsView()
+            if showsScreens {
+                PowerJackScreens(selection: $selection, isShowingSettings: $isShowingSettings)
+                    .id(ObjectIdentifier(modelContext.container))
+            } else {
+                Color(uiColor: .systemBackground)
+                    .ignoresSafeArea()
+                    .onChange(of: store?.isReplacingContainer, initial: true) { _, isReplacing in
+                        guard isReplacing == true else { return }
+                        rebuildsAfterSettings = isShowingSettings
+                        store?.replaceContainer()
+                    }
             }
+        }
+        .sheet(isPresented: $isShowingSettings, onDismiss: { rebuildsAfterSettings = false }) {
+            SettingsView()
+        }
     }
 }
 
