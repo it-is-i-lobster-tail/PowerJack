@@ -294,7 +294,6 @@ private extension WorkoutActivityState {
         exerciseOrder: 0,
         setOrder: 1,
         sets: [
-            ActivitySet(label: "W1", progress: .done, reps: 9, weightTenthsPounds: 2250),
             ActivitySet(label: "1", progress: .current, reps: 8, weightTenthsPounds: 2250),
             ActivitySet(label: "2", progress: .upcoming, reps: 8, weightTenthsPounds: 2250),
             ActivitySet(label: "3", progress: .upcoming, reps: 7, weightTenthsPounds: 2300),

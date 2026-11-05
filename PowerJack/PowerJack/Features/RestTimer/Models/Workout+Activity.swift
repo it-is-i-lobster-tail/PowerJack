@@ -26,7 +26,7 @@ extension Workout {
             setText: workoutExercise.setText(for: workoutSet),
             exerciseOrder: workoutExercise.order,
             setOrder: workoutSet.order,
-            sets: workoutExercise.workoutSets.map {
+            sets: workoutExercise.workoutSets.filter(\.showsOnLiveActivity).map {
                 $0.activitySet(
                     label: $0.isWarmup ? "W\(workoutExercise.number(of: $0))" : "\(workoutExercise.number(of: $0))",
                     isCurrent: $0 === workoutSet,
@@ -58,6 +58,11 @@ extension WorkoutSet {
     /// What the lifter typed in, else the set's target. The voice and Live Activity always say this.
     var upcomingReps: Int? { reps ?? repsPlanned }
     var upcomingWeightTenthsPounds: Int? { weightTenthsPounds ?? weightTenthsPlannedPounds }
+
+    /// Done warmups leave the Live Activity so the working sets get the room.
+    var showsOnLiveActivity: Bool {
+        !(isWarmup && status == .complete)
+    }
 
     /// What was logged once the set is done, what's entered until then.
     func activitySet(label: String, isCurrent: Bool, repsOnly: Bool) -> ActivitySet {
