@@ -146,6 +146,46 @@ struct RestTimerTests {
         #expect(workout.activityState(at: start)?.setText == "Set 1 of 2")
     }
 
+    @Test("Done warmups leave the Live Activity, while pending warmups and every working set stay")
+    func activityHidesDoneWarmups() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(
+            exerciseName: "Squat",
+            exerciseEquipment: .barbell,
+            primaryMuscleFocus: .quads,
+            fatigueLevel: .moderate
+        )
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(type: .warmup)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        _ = workoutExercise.addSet(plannedReps: 8, plannedWeightTenthsPounds: 2250)
+        container.mainContext.insert(workout)
+        workout.startAndCascade()
+        let warmups = workoutExercise.warmupSets
+        let workingSets = workoutExercise.workingSets
+
+        let fresh = try #require(workout.activityState(at: start))
+        #expect(fresh.sets.map(\.label) == ["W1", "W2", "1", "2"])
+        #expect(fresh.sets.map(\.progress) == [.current, .upcoming, .upcoming, .upcoming])
+
+        warmups[0].complete(at: start)
+        let secondWarmup = try #require(workout.activityState(at: start))
+        #expect(secondWarmup.sets.map(\.label) == ["W2", "1", "2"])
+        #expect(secondWarmup.sets.map(\.progress) == [.current, .upcoming, .upcoming])
+
+        warmups[1].complete(at: start)
+        let warmedUp = try #require(workout.activityState(at: start))
+        #expect(warmedUp.sets.map(\.label) == ["1", "2"])
+        #expect(warmedUp.sets.map(\.progress) == [.current, .upcoming])
+
+        // Done working sets stay up with what was logged.
+        workingSets[0].complete(at: start)
+        let lastSet = try #require(workout.activityState(at: start))
+        #expect(lastSet.sets.map(\.label) == ["1", "2"])
+        #expect(lastSet.sets.map(\.progress) == [.done, .current])
+    }
+
     @Test("The rest island and Live Activity count warmups and working sets apart")
     func restSetLabelsAfterWarmups() throws {
         let workout = Workout(order: 0)
