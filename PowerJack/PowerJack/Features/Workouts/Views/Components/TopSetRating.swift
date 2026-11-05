@@ -2,9 +2,8 @@
 //  TopSetRating.swift
 //  PowerJack
 //
-//  The reps-left tap after a PowerJack entry's TOP set (R4.1) or a Strengthen top set (5.10). It sits
-//  under the top set while the lifter rests, so nothing covers the rest timer. Left unanswered, the
-//  feedback asks it.
+//  The reps-left tap after a PowerJack entry's TOP set (R4.1). It sits under the TOP set while
+//  the lifter rests, so nothing covers the rest timer. Left unanswered, the feedback asks it.
 //
 
 import SwiftData

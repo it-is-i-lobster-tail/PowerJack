@@ -46,11 +46,9 @@ struct StrengthSimSlot {
     var target: Int? { workoutExercise.targetReps }
     var rir: Int? { workoutExercise.rirTarget }
 
-    /// The rated set: the top set when there is one, otherwise the last completed working set (3.1).
+    /// The last completed working set: the rated set (3.1).
     var ratedSet: WorkoutSet? {
-        let done = { (set: WorkoutSet) in set.status == .complete && (set.reps ?? 0) > 0 }
-        if workoutExercise.topSets > 0, let top = sets.first, done(top) { return top }
-        return sets.last(where: done)
+        sets.last { $0.status == .complete && ($0.reps ?? 0) > 0 }
     }
 
     /// Slots in workout order, then by place in the workout.
@@ -121,7 +119,7 @@ struct StrengthSimChecker {
             if week.weekKind == .deload {
                 checkDeload(slot, history: history, at: at)
             } else {
-                checkRise(slot, history: history, records: records, at: at)
+                checkRise(slot, history: history, at: at)
                 checkAccessory(slot, history: history, at: at)
             }
         }
@@ -222,8 +220,6 @@ struct StrengthSimChecker {
     mutating func checkMiss(_ slot: StrengthSimSlot, short set: WorkoutSet, nextWeightBefore: Int?, at here: String) {
         guard
             slot.role != nil,
-            // A short top set moves its back-offs through its rating instead (5.10).
-            !slot.workoutExercise.isTopSet(set),
             let load = set.weightTenthsPounds,
             let next = slot.sets.first(where: { $0.order > set.order && $0.status == .active }),
             let after = next.weightTenthsPounds,
@@ -266,13 +262,7 @@ struct StrengthSimChecker {
             return
         }
 
-        // Straight sets are even; a top set's back-offs are even and no heavier than it (5.10).
-        let topSets = slot.workoutExercise.topSets
-        let even = sets.dropFirst(topSets)
-        let backUnderTop = topSets == 0 || zip(even, sets.prefix(topSets)).allSatisfy { back, top in
-            (back.weightTenthsPlannedPounds ?? 0) <= (top.weightTenthsPlannedPounds ?? .max)
-        }
-        expect(Set(even.map(\.repsPlanned)).count <= 1 && Set(even.map(\.weightTenthsPlannedPounds)).count <= 1 && backUnderTop, "5.1", here,
+        expect(Set(sets.map(\.repsPlanned)).count <= 1 && Set(sets.map(\.weightTenthsPlannedPounds)).count <= 1, "5.1", here,
                "sets planned unevenly: \(sets.map { "\($0.repsPlanned ?? 0)@\(Self.pounds($0.weightTenthsPlannedPounds))" })")
         guard let target = slot.target, let rir = slot.rir else {
             fail("5.1", here, "no reps or reps-left target: \(Self.describe(slot))")
@@ -287,10 +277,9 @@ struct StrengthSimChecker {
         switch kind {
         case .normal, .calibration:
             if slot.role == .primary {
-                // A top set runs 1-5 reps, at most the volume day's 5 @ 3 from failure.
-                expect(topSets == 1, "5.10", here, "a priority lift without a top set: \(Self.describe(slot))")
-                expect((1...5).contains(target), "5.10", here, "a top set at \(target) reps")
-                expect(target + rir <= 8 || painFloor, "5.10", here, "a top set at \(target) @ \(rir), \(target + rir) reps to failure")
+                expect((StrengthRules.repsMinNormal...6).contains(target), "5.2", here, "a normal week at \(target) reps")
+                expect(target + rir <= StrengthRules.primaryRepsToFailureMax + allowance || painFloor, "5.2", here,
+                       "\(target) @ \(rir) is \(target + rir) reps to failure, over \(StrengthRules.primaryRepsToFailureMax)")
             } else {
                 expect(target + rir <= StrengthRules.secondaryRepsToFailureMax + allowance || painFloor, "5.2", here,
                        "\(target) @ \(rir) is \(target + rir) reps to failure on a variant")
@@ -304,8 +293,9 @@ struct StrengthSimChecker {
         default:
             break
         }
-        if StrengthLifts.needsSpotter(slot.exercise), target + rir <= StrengthRules.spotterRepsToFailure {
-            expect(slot.rules.contains("5.2"), "5.2", here, "a near-max squat or bench at \(target) @ \(rir) with no spotter reminder")
+        if StrengthLifts.needsSpotter(slot.exercise) {
+            expect(target + rir > StrengthRules.spotterRepsToFailure, "5.2", here,
+                   "a near-max squat or bench at \(target) @ \(rir) with no spotter check")
         }
 
         if checksGrid, let load = slot.loadKg {
@@ -323,8 +313,7 @@ struct StrengthSimChecker {
         }
     }
 
-    /// 10.6: in a deload week straight sets keep their reps, with half the sets, 90% of the load and 3 or more reps in
-    /// reserve; a priority lift runs block week 1's top set at 90% with one back-off.
+    /// 10.6: in a deload week every slot keeps its reps, with half the sets, 90% of the load and 3 or more reps in reserve.
     private mutating func checkDeload(_ slot: StrengthSimSlot, history: [StrengthSimSlot], at here: String) {
         guard let kind = slot.kind else { return }
         guard slot.isLoaded, let grid = gridFor(slot.exercise.exerciseEquipment) else {
@@ -343,15 +332,6 @@ struct StrengthSimChecker {
         let normal = history.first { week in [.normal, .calibration].contains(week.kind ?? .calibration) && hasLoad(week) }
         // With no weight anywhere before, the deload comes from e1RM, as a new lift's first week does (2.6).
         guard history.contains(where: hasLoad), let source = normal ?? history.first else { return }
-        if slot.workoutExercise.topSets > 0 {
-            // A priority lift deloads to block week 1's top set at 90% and one back-off, lighter than any top set.
-            expect(slot.sets.count == 2, "10.6", here, "\(slot.sets.count) sets, a top set and one back-off expected")
-            if let load = slot.loadKg, let lastTop = source.loadKg, source.workoutExercise.topSets > 0 {
-                expect(load < lastTop + Self.tolerance, "10.6", here,
-                       "a deload top set at \(Self.format(load)) kg after \(Self.format(lastTop)) kg")
-            }
-            return
-        }
         let sets = max(1, source.sets.count / 2)
         expect(slot.sets.count == sets, "10.6", here, "\(slot.sets.count) sets, half of \(source.sets.count) is \(sets)")
         // 90% of the intended load, or of the bar when a cap kept the bar under it.
@@ -364,15 +344,8 @@ struct StrengthSimChecker {
     }
 
     /// Module 7's caps: a weekly rise is at most last week's bar × 1.075 rounded down, or one step (1.1, 7.3),
-    /// and in reps mode at most one step (1.2). A top set is never over e1RM × pct(reps + RIR) (5.10).
-    private mutating func checkRise(_ slot: StrengthSimSlot, history: [StrengthSimSlot], records: StrengthState, at here: String) {
-        if slot.rules.contains("5.10"), slot.kind == .normal, let load = slot.loadKg, let e1rm = records[slot.key].e1rmKg,
-           let target = slot.target, let rir = slot.rir, let grid = gridFor(slot.exercise.exerciseEquipment) {
-            // The main curve's shares are at least the bench curve's, so this bounds both.
-            let limit = grid.nearest(min(e1rm * StrengthCurve.main.share(repsToFailure: target + rir), LoadGrid.capKilograms))
-            expect(load <= limit + Self.tolerance, "5.10", here,
-                   "a top set at \(Self.format(load)) kg, over e1RM \(Self.format(e1rm)) kg × pct(\(target + rir)) = \(Self.format(limit)) kg")
-        }
+    /// and in reps mode at most one step (1.2).
+    private mutating func checkRise(_ slot: StrengthSimSlot, history: [StrengthSimSlot], at here: String) {
         guard
             slot.isLoaded,
             let grid = gridFor(slot.exercise.exerciseEquipment),

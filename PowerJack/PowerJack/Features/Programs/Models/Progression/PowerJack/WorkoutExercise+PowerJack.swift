@@ -2,7 +2,7 @@
 //  WorkoutExercise+PowerJack.swift
 //  PowerJack
 //
-//  A PowerJack slot's plan, its TOP set tap (R4.1) and its rest (R9.2). Strengthen's top sets use the same tap.
+//  A PowerJack slot's plan, its TOP set tap (R4.1) and its rest (R9.2).
 //
 
 import Foundation
@@ -44,8 +44,6 @@ extension WorkoutExercise {
             return
         }
         powerJackTopRIRValue = repsInReserve.rawValue
-        // Strengthen sets its back-offs from how the top set went.
-        StrengthPlanner.didRateTopSet(in: self)
     }
 
     /// Records the engine's plan for this planned slot.

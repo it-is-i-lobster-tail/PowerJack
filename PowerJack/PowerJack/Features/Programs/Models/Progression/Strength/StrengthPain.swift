@@ -61,29 +61,10 @@ enum StrengthPain {
             return grid.map { $0.down(load) } ?? load
         }
 
-        // A top-set plan keeps its shape: the top set takes the cap and the back-offs follow at their share.
-        func reshaped(sets count: Int, topLoad: Double?) -> [StrengthPlannedSet] {
-            let share = plan.backShare
-            let backs = plan.sets.dropFirst(plan.topSets)
-            return StrengthSlotPlan.topAndBack(
-                reps: plan.reps,
-                loadKg: topLoad,
-                backSets: max(0, count - plan.topSets),
-                backReps: backs.first?.reps ?? plan.reps,
-                backLoadKg: topLoad.map { grid?.nearest($0 * share) ?? $0 * share }
-            )
-        }
-
         switch state.pending {
         case .lighter:
             plan.kind = .painLighter
             plan.rir = max(plan.rir, StrengthRules.painReturnRIR)
-            if plan.topSets > 0 {
-                // Lighter is 2 easy sets: the back-offs' reps at 80% of the top set, with no top set.
-                let backReps = plan.sets.dropFirst(plan.topSets).first?.reps ?? plan.reps
-                plan.reps = backReps
-                plan.topSets = 0
-            }
             plan.sets = StrengthSlotPlan.uniform(
                 StrengthRules.painReturnSets,
                 reps: plan.targetReps,
@@ -93,9 +74,11 @@ enum StrengthPain {
             return true
         case .cut:
             plan.kind = .painCut
-            plan.sets = plan.topSets > 0
-                ? reshaped(sets: max(plan.topSets + 1, plan.sets.count - 1), topLoad: capped(1 - StrengthRules.painModerateCut))
-                : StrengthSlotPlan.uniform(plan.sets.count - 1, reps: plan.targetReps, loadKg: capped(1 - StrengthRules.painModerateCut))
+            plan.sets = StrengthSlotPlan.uniform(
+                plan.sets.count - 1,
+                reps: plan.targetReps,
+                loadKg: capped(1 - StrengthRules.painModerateCut)
+            )
             plan.rules.append("15.5")
             return false
         case nil:
@@ -106,19 +89,14 @@ enum StrengthPain {
             plan.kind = .painCut
             if state.rirFloor { plan.rir = max(plan.rir, StrengthRules.painReturnRIR) }
             let load = [planned, state.capShare.flatMap { capped($0) }].compactMap { $0 }.min()
-            plan.sets = plan.topSets > 0
-                ? reshaped(sets: max(plan.topSets + 1, plan.sets.count - state.setsDropped), topLoad: load)
-                : StrengthSlotPlan.uniform(plan.sets.count - state.setsDropped, reps: plan.targetReps, loadKg: load)
+            plan.sets = StrengthSlotPlan.uniform(plan.sets.count - state.setsDropped, reps: plan.targetReps, loadKg: load)
             plan.rules.append("15.7")
         }
         if state.holds, let last = lastSession, last.trained {
             // Hold load and sets: nothing rises past the last session (15.6), on the grid as it is now (1.4).
             let lastLoad = last.ratedSet?.loadKg.map { grid?.down($0 + LoadGrid.storedTolerance) ?? $0 }
             let load = [planned, lastLoad].compactMap { $0 }.min()
-            let count = min(plan.sets.count, last.completedSets.count)
-            plan.sets = plan.topSets > 0
-                ? reshaped(sets: max(plan.topSets + 1, count), topLoad: load)
-                : StrengthSlotPlan.uniform(count, reps: plan.targetReps, loadKg: load)
+            plan.sets = StrengthSlotPlan.uniform(min(plan.sets.count, last.completedSets.count), reps: plan.targetReps, loadKg: load)
             if let lastLoad, let intended = plan.intendedKg { plan.intendedKg = min(intended, lastLoad) }
             plan.rules.append("15.6")
         }

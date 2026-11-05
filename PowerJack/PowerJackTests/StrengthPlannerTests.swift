@@ -22,70 +22,22 @@ struct StrengthPlannerTests {
         try ExerciseCatalog.seed(in: container.mainContext)
     }
 
-    @Test("Week 1 plans priority lifts by feel: a top set and 3 back-offs at the slot's reps, with the reps-left aim")
+    @Test("Week 1 plans priority lifts by feel: 3 sets at the slot's reps, with the reps-left aim")
     func firstWeekByFeel() throws {
         let program = try makeProgram()
         let squat = try slot("barbell-back-squat", day: 0, in: program)
-        #expect(squat.topSets == 1)
-        #expect(squat.workingSets.count == 4)
-        #expect(squat.workingSets.allSatisfy { $0.repsPlanned == 3 && $0.weightTenthsPlannedPounds == nil })
-        #expect(squat.rirTarget == 2)
-        #expect(squat.progressionNote == "Top set: work up to a weight you could lift 5 times. Do 3. Back-off sets follow from it.")
+        #expect(squat.workingSets.count == 3)
+        #expect(squat.workingSets.allSatisfy { $0.repsPlanned == 4 && $0.weightTenthsPlannedPounds == nil })
+        #expect(squat.rirTarget == 3)
+        #expect(squat.progressionNote == "Pick a weight you could lift 7 times. Do 4.")
 
         // The squat's second slot of the week is the moderate one; curls stay a double progression.
         let moderate = try slot("barbell-back-squat", day: 1, in: program)
-        #expect(moderate.workingSets.map(\.repsPlanned) == [5, 5, 5, 5])
-        #expect(moderate.rirTarget == 3)
+        #expect(moderate.workingSets.first?.repsPlanned == 6)
+        #expect(moderate.rirTarget == 2)
         let curl = try slot("dumbbell-curl", day: 1, in: program)
         #expect(curl.workingSets.count == 2)
         #expect(curl.rirTarget == nil)
-        #expect(curl.topSets == 0)
-    }
-
-    @Test("Rating a by-feel top set fills in its back-offs from the weight lifted (5.10)")
-    func topSetRatingSetsBackOffs() throws {
-        let program = try makeProgram()
-        let workout = try #require(program.nextWorkout)
-        program.prepareToStart(workout)
-        workout.startAndCascade()
-        let squat = try slot("barbell-back-squat", day: 0, in: program)
-        let top = try #require(squat.workingSets.first)
-        top.weightTenthsPounds = 3000
-        top.reps = 3
-        squat.completeSet(top)
-        #expect(squat.needsTopSetRating)
-
-        // On target (2 left): 92% of 300 lb is 276, so 275.
-        squat.rateTopSets(.two)
-        #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds?.pounds } == [275, 275, 275])
-        #expect(!squat.needsTopSetRating)
-    }
-
-    @Test("An easy top set raises the planned back-offs and a hard one lowers them, but not ones already changed (5.10)")
-    func topSetRatingMovesPlannedBackOffs() throws {
-        var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
-        record.ratedDates = [.now, .now, .now]
-        record.lastTrained = .now.addingTimeInterval(-2 * 86_400)
-        var state = StrengthState()
-        state["barbell-back-squat"] = record
-        context.insert(StrengthLog(date: .now, state: state))
-
-        let program = try makeProgram()
-        let workout = try #require(program.nextWorkout)
-        program.prepareToStart(workout)
-        workout.startAndCascade()
-        let squat = try slot("barbell-back-squat", day: 0, in: program)
-        // A 360 lb triple with back-offs at 330.
-        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [360, 330, 330, 330])
-        let top = try #require(squat.workingSets.first)
-        top.weightTenthsPounds = 3600
-        top.reps = 3
-        squat.completeSet(top)
-        squat.workingSets.last?.weightTenthsPounds = 3200
-
-        // 4 left against an aim of 2: 330 × 1.05 = 346.5, so 345; the back-off set to 320 keeps it.
-        squat.rateTopSets(.four)
-        #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds?.pounds } == [345, 345, 320])
     }
 
     @Test("Finishing a week logs the lift records and plans the next on the lb grid")
@@ -97,18 +49,14 @@ struct StrengthPlannerTests {
         #expect(logs.count == 1)
         let squatRecord = try #require(logs.first?.state?.lifts["barbell-back-squat"])
         #expect(squatRecord.e1rmKg != nil)
-        // One week calibrates, and it counts as block week 1.
-        #expect(squatRecord.calibrationWeeksLeft == 0)
-        #expect(logs.first?.state?.clock.blockWeek == 2)
+        #expect(squatRecord.calibrationWeeksLeft == 1)
 
         let squat = try slot("barbell-back-squat", day: 0, in: program, week: 1)
-        // The week's best set, 300 lb × 5 with 3 left, gives e1RM 300 ÷ pct(8) = 360.6. Block week 2 of 3 is a
-        // double @ 2: 360.6 × pct(4) = 333.9, so 335, with back-offs at 90%: 301.5, so 300.
-        #expect(squat.workingSets.map(\.repsPlanned) == [2, 3, 3, 3])
-        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [335, 300, 300, 300])
-        #expect(squat.progressionCode?.hasPrefix("normal") == true)
-        // With an e1RM, warm-ups are shares of the top set (5.7).
-        #expect(squat.warmupSets.map(\.repsPlanned) == [5, 3, 1])
+        // 300 lb on target nudges 1.25% to 303.75, so 305 on the 5 lb grid.
+        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [305, 305, 305])
+        #expect(squat.progressionCode?.hasPrefix("calibration") == true)
+        // Planned warmups stay as logged while a lift calibrates (5.7).
+        #expect(squat.warmupSets.count == WorkoutExercise.initialWarmupSets)
 
         // Curls hit 10 reps: a rep more next week.
         let curl = try slot("dumbbell-curl", day: 1, in: program, week: 1)
@@ -128,16 +76,16 @@ struct StrengthPlannerTests {
         let workout = try #require(program.nextWorkout)
         program.prepareToStart(workout)
 
-        // A triple @ 2: 400 × pct(3 + 2) = 359.2, so 360, and back-offs at 92%: 331.2, so 330.
+        // 400 × pct(4 + 3) = 341.2, rounded down for a first week.
         let squat = try slot("barbell-back-squat", day: 0, in: program)
-        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [360, 330, 330, 330])
+        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [340, 340, 340])
         #expect(squat.progressionCode?.hasPrefix("normal") == true)
         #expect(squat.progressionNote == nil)
         #expect(squat.warmupSets.map(\.repsPlanned) == [5, 3, 1])
-        #expect(squat.warmupSets.map { $0.weightTenthsPlannedPounds?.pounds } == [180, 250, 305])
+        #expect(squat.warmupSets.map { $0.weightTenthsPlannedPounds?.pounds } == [170, 240, 290])
     }
 
-    @Test("Five weeks off restarts a lift 10% lighter with a back-off fewer when its workout starts (12.1, 12.2)")
+    @Test("Five weeks off restarts a lift 10% lighter with a set fewer when its workout starts (12.1, 12.2)")
     func breakReturn() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)
         record.ratedDates = [.now, .now, .now]
@@ -150,12 +98,12 @@ struct StrengthPlannerTests {
         let workout = try #require(program.nextWorkout)
         program.prepareToStart(workout)
 
-        // The triple's 359.2 × 0.9 = 323.3, so 325 lb, its back-offs at 330 ÷ 360 of it (300 lb), one fewer, and a rep
-        // more in reserve.
+        // 341.2 × 0.9 = 307.08, so 305 lb, 2 sets and a rep more in reserve.
         let squat = try slot("barbell-back-squat", day: 0, in: program)
         #expect(squat.progressionCode?.hasPrefix("returnWeek1.2") == true)
-        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [325, 300, 300])
-        #expect(squat.rirTarget == 3)
+        #expect(squat.workingSets.count == 2)
+        #expect(squat.workingSets.first?.weightTenthsPlannedPounds?.pounds == 305)
+        #expect(squat.rirTarget == 4)
     }
 
     @Test("Severe pain puts the lift's next session behind a check-in with the Lighter plan (15.4)")
@@ -176,7 +124,7 @@ struct StrengthPlannerTests {
         #expect(squat.progressionCode?.hasPrefix("painLighter") == true)
     }
 
-    @Test("A short back-off set lowers the prefilled weight of the sets still to do (6.2)")
+    @Test("A short set lowers the prefilled weight of the sets still to do (6.2)")
     func missRule() throws {
         let program = try makeProgram()
         let workout = try #require(program.nextWorkout)
@@ -186,11 +134,12 @@ struct StrengthPlannerTests {
         for set in squat.workingSets {
             set.weightTenthsPounds = 3000
         }
-        // The first back-off set, two reps short of its 3: 300 × 0.92 = 276, so 275 lb for the rest.
-        let back = squat.workingSets[1]
-        back.reps = 1
-        squat.completeSet(back)
-        #expect(squat.workingSets.dropFirst(2).map { $0.weightTenthsPounds?.pounds } == [275, 275])
+        let first = try #require(squat.workingSets.first)
+        first.reps = 2
+        squat.completeSet(first)
+
+        // Two reps short: 300 × 0.92 = 276, so 275 lb for the rest.
+        #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds?.pounds } == [275, 275])
     }
 
     @Test("A program's last week still moves the lift records, so the next program starts from it (the weekly loop)")
@@ -265,14 +214,12 @@ struct StrengthPlannerTests {
         let dayTwo = try #require(program.nextWorkout)
         program.prepareToStart(dayTwo)
 
-        // The volume day's 5 @ 3 is 400 × pct(8) = 332.8, and Lighter takes 80%: 2 × 5 at 265 lb, warmed up to
-        // 185 lb, not to the 285 lb the unlightened 335 lb top set would have had.
+        // The pain floor makes it 6 @ 3, so 400 × pct(9) = 325.2, and Lighter takes 80%: 260 lb, not the 275 lb
+        // top warm-up the unlightened 325 lb would have had.
         let squat = try slot("barbell-back-squat", day: 1, in: program)
         #expect(squat.progressionCode?.hasPrefix("painLighter") == true)
-        #expect(squat.topSets == 0)
-        #expect(squat.workingSets.map { $0.weightTenthsPlannedPounds?.pounds } == [265, 265])
-        #expect(squat.warmupSets.map(\.repsPlanned) == [5, 3])
-        #expect(squat.warmupSets.last?.weightTenthsPlannedPounds?.pounds == 185)
+        #expect(squat.workingSets.first?.weightTenthsPlannedPounds?.pounds == 260)
+        #expect(squat.warmupSets.map { $0.weightTenthsPlannedPounds?.pounds } == [130, 180])
     }
 
     @Test("A new program takes the deload that is due even when its first workout is skipped before it starts (10.5)")
@@ -444,11 +391,11 @@ struct StrengthPlannerTests {
                 for set in squat.workingSets {
                     set.weightTenthsPounds = WeightUnit.tenthsPounds(fromKilograms: 60)
                 }
-                let back = squat.workingSets[1]
-                back.reps = 2
-                squat.completeSet(back)
+                let first = try #require(squat.workingSets.first)
+                first.reps = 3
+                squat.completeSet(first)
                 // 4% off 60 kg is 57.6, which rounds back to 60 on a 5 kg grid, so the cut takes a whole step to 55.
-                #expect(squat.workingSets.dropFirst(2).map { $0.weightTenthsPounds } == Array(repeating: WeightUnit.tenthsPounds(fromKilograms: 55), count: 2))
+                #expect(squat.workingSets.dropFirst().map { $0.weightTenthsPounds } == Array(repeating: WeightUnit.tenthsPounds(fromKilograms: 55), count: 2))
             }
         }
     }

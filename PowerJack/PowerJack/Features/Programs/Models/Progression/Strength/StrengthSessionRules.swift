@@ -46,31 +46,13 @@ enum StrengthSessionRules {
         plan.returnBand = band
         plan.rir += rirAdd
         plan.repOffset = 0
-        // A top set is already planned from e1RM at this week's reps, so it cuts from that; straight sets cut
-        // from the last load before the break.
-        let base = plan.topSets > 0 ? plan.intendedKg ?? preBreakKg : preBreakKg ?? plan.intendedKg
-        var intended = (base ?? plan.loadKg).map { $0 * (1 - cut) }
+        var intended = (preBreakKg ?? plan.intendedKg ?? plan.loadKg).map { $0 * (1 - cut) }
         if band >= 4, let e1rmKg {
             intended = e1rmKg * 0.75 * curve.share(repsToFailure: plan.reps + plan.rir)
         }
         plan.intendedKg = intended
-        if plan.topSets > 0 {
-            // The top set takes the cut and the back-offs follow it, one fewer.
-            let share = plan.backShare
-            let top = intended.map(grid.nearest)
-            let backs = plan.sets.dropFirst(plan.topSets)
-            plan.sets = StrengthSlotPlan.topAndBack(
-                reps: plan.reps,
-                loadKg: top,
-                backSets: max(StrengthRules.minBackSets, backs.count - 1),
-                backReps: backs.first?.reps ?? plan.reps,
-                backLoadKg: top.map { grid.nearest($0 * share) }
-            )
-        } else {
-            plan.sets = StrengthSlotPlan.uniform(plan.sets.count - 1, reps: plan.reps, loadKg: intended.map(grid.nearest))
-        }
-        // A near-max top set keeps its spotter reminder (5.2).
-        plan.rules = ["12.1", "12.2"] + plan.rules.filter { $0 == "5.2" }
+        plan.sets = StrengthSlotPlan.uniform(plan.sets.count - 1, reps: plan.reps, loadKg: intended.map(grid.nearest))
+        plan.rules = ["12.1", "12.2"]
     }
 
     /// 6.2: after a set short of its target reps, the sets still to do drop 4% per missing rep,
@@ -80,15 +62,5 @@ enum StrengthSessionRules {
         let floor = plannedKg * (1 - 0.10)
         let load = grid.nearest(max(cut, floor))
         return load < setLoadKg - LoadGrid.storedTolerance ? load : grid.moved(setLoadKg, bySteps: -1)
-    }
-
-    /// 5.10: the back-off weight after a top set of `reps` (of `plannedReps`) at `topKg`, rated `rated` reps left
-    /// against `aim`: `share` of it, 2.5% more per rep easier (up to 2), 4% less per rep harder or missed (up to 3).
-    static func backOffLoad(topKg: Double, share: Double, reps: Int, plannedReps: Int, rated: Int, aim: Int, grid: LoadGrid) -> Double {
-        let gap = reps < plannedReps ? -(aim + plannedReps - reps) : rated - aim
-        let change = gap > 0
-            ? StrengthRules.backEasyStep * Double(min(gap, StrengthRules.backEasyMaxReps))
-            : -StrengthRules.backHardStep * Double(min(-gap, StrengthRules.backHardMaxReps))
-        return grid.nearest(topKg * share * (1 + change))
     }
 }

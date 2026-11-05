@@ -2,7 +2,7 @@
 //  ProgressionCue.swift
 //  PowerJack
 //
-//  The planner's aim for the last set (or a Strengthen top set) and why the plan changed, under an exercise's name.
+//  The planner's aim for the last set and why the plan changed, under an exercise's name.
 //
 
 import SwiftUI
@@ -37,12 +37,7 @@ struct ProgressionCue: View {
         if target == 0 {
             return "Last set: to failure (optional)"
         }
-        let reps = "\(target) \(target == 1 ? "rep" : "reps")"
-        // A Strengthen top set carries the aim; its back-offs follow from how it went.
-        if workoutExercise.strengthRole != nil, workoutExercise.topSets > 0 {
-            return "Aim: \(reps) left on your top set"
-        }
-        return "Aim: \(reps) left on your last set"
+        return "Aim: \(target) \(target == 1 ? "rep" : "reps") left on your last set"
     }
 
     private var note: String? { workoutExercise.progressionNote }

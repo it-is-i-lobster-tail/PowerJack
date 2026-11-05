@@ -210,18 +210,15 @@ private struct HypertrophyChart: View {
     }
 }
 
-/// Main lifts: a top set that gets heavier through the block, then back-offs that follow how it went.
+/// Main lifts keep their reps and move their weight.
 private struct StrengthChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FlowStep(title: "Heavy top set", detail: "Triples early in the block, then a double, then a heavy single. A lift you train twice a week also gets a volume day of 4 or 5 reps.")
-            FlowArrow()
-            FlowQuestion(title: "How did the top set feel?", detail: "Rate it right after, compared with its aim")
-            FlowOutcome(tone: .easeOff, when: "Harder than the aim, or reps short", title: "Lighter back-offs", detail: "About 4% lighter for each rep, up to 12%.")
-            FlowOutcome(tone: .hold, when: "Right on the aim", title: "Back-offs as planned", detail: "3 sets at about 90% of the top set.")
-            FlowOutcome(tone: .stepUp, when: "Easier than the aim", title: "Heavier back-offs", detail: "About 2.5% heavier for each rep, up to 5%.")
-            FlowArrow()
-            FlowStep(title: "Next week", detail: "Your best top set of the week shows how strong you are now, and next week's weights are worked out from it.")
+            FlowQuestion(title: "How did it feel?", detail: "Your last set of a main lift, compared with its aim")
+            FlowOutcome(tone: .easeOff, when: "3 or more reps harder", title: "Less weight", detail: "About 2.5% lighter for each rep past two, up to 10%.")
+            FlowOutcome(tone: .hold, when: "1 or 2 reps harder", title: "Same weight")
+            FlowOutcome(tone: .stepUp, when: "Right on the aim", title: "A little more weight", detail: "A small nudge, about 1%.")
+            FlowOutcome(tone: .stepUp, when: "Easier than the aim", title: "More weight", detail: "About 2.5% more for each rep easier, up to 7.5%.", isLast: true)
         }
     }
 }
