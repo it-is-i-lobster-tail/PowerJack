@@ -59,9 +59,9 @@ extension WorkoutSet {
     var upcomingReps: Int? { reps ?? repsPlanned }
     var upcomingWeightTenthsPounds: Int? { weightTenthsPounds ?? weightTenthsPlannedPounds }
 
-    /// Done warmups leave the Live Activity so the working sets get the room.
+    /// Done and skipped warmups leave the Live Activity so the working sets get the room.
     var showsOnLiveActivity: Bool {
-        !(isWarmup && status == .complete)
+        !(isWarmup && isDone)
     }
 
     /// What was logged once the set is done, what's entered until then.
