@@ -59,6 +59,8 @@ struct ProgramDetailView: View {
         }
         .navigationTitle(program.templateName)
         .navigationSubtitle(subtitle)
+        // Set here, not inherited, so a rebuild that opens straight onto this page keeps it.
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // A finished program has no days ahead to edit.
             if program.nextWorkout != nil {
