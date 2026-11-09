@@ -1,6 +1,7 @@
 name: Branch rules
 
-# staging only takes pull requests from main, and prod only from staging.
+# staging (the Xcode Cloud Beta branch) only takes pull requests from main,
+# and prod only from staging.
 # Branch protection marks this check as required on both branches.
 on:
   pull_request:
