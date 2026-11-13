@@ -61,7 +61,9 @@ struct FeedbackAnsweredOnceTests {
 
     @Test("A second answer never replaces the first")
     func secondAnswerRefused() throws {
-        let (_, _, phoneExercise) = try lastSetLoggedOnWatch()
+        // Held for the whole test, so the stores and their rows stay alive.
+        let (devices, _, phoneExercise) = try lastSetLoggedOnWatch()
+        defer { withExtendedLifetime(devices) {} }
         #expect(phoneExercise.answerFeedback(feedback(pain: .mild, for: phoneExercise), topSet: topSet(for: phoneExercise)))
         let topRating = phoneExercise.topSetRepsInReserve
 
