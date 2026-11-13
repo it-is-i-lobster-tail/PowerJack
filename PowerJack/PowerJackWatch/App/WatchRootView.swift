@@ -33,6 +33,10 @@ struct WatchRootView: View {
                 }
             }
         }
+        // Tapping the iPhone's workout Live Activity in the Smart Stack opens the workout here.
+        .onContinueUserActivity(NSUserActivityTypeLiveActivity) { _ in
+            WorkoutLaunch.shared.opensActiveWorkout = true
+        }
     }
 }
 
@@ -91,18 +95,24 @@ private struct ProgramHomeView: View {
                 ContentUnavailableView("Program complete", systemImage: "checkmark.seal")
             }
         }
-        // Tapping the iPhone's workout Live Activity in the Smart Stack opens the workout here.
-        .onContinueUserActivity(NSUserActivityTypeLiveActivity) { _ in
-            if let workout = program.nextWorkout, workout.status == .active {
-                start(workout)
-            }
-        }
+        .onChange(of: WorkoutLaunch.shared.opensActiveWorkout, initial: true) { openActiveWorkoutIfAsked() }
+        .onChange(of: program.nextWorkout?.status, initial: true) { openActiveWorkoutIfAsked() }
         .navigationDestination(item: shownWorkout) { workout in
             WatchWorkoutView(program: program, workout: workout) {
                 shownWorkout.wrappedValue = nil
             }
             // A new copy of the workout starts the screen over, from where its sets say the lifter is.
             .id(workout.persistentModelID)
+        }
+    }
+
+    /// Opens the workout in progress when the iPhone or its Live Activity asked for it,
+    /// as soon as the watch has it from the iPhone.
+    private func openActiveWorkoutIfAsked() {
+        guard WorkoutLaunch.shared.opensActiveWorkout, let workout = program.nextWorkout, workout.status == .active else { return }
+        WorkoutLaunch.shared.opensActiveWorkout = false
+        if shownWorkout.wrappedValue == nil {
+            shownWorkout.wrappedValue = workout
         }
     }
 

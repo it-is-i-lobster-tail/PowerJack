@@ -54,13 +54,24 @@ final class WatchSync {
         }
     }
 
+    private func hasWorkoutInProgress(in context: ModelContext) throws -> Bool {
+        try context.fetch(FetchDescriptor<Program>()).active?.nextWorkout?.status == .active
+    }
+
     private func receive(snapshot data: Data) {
         do {
             let snapshot = try SyncPayload.decode(ProgramSnapshot.self, from: data)
             defer { heardFromIPhone = replica.heardFromIPhone }
-            if try !replica.receive(snapshot, in: store.container.mainContext) {
+            let context = store.container.mainContext
+            let wasTraining = try hasWorkoutInProgress(in: context)
+            guard try replica.receive(snapshot, in: context) else {
                 // The iPhone doesn't have every change yet: send them before taking its program.
                 push()
+                return
+            }
+            // A workout finished on the iPhone ends the watch's session too, so the watch stops holding the screen.
+            if wasTraining, try !hasWorkoutInProgress(in: context) {
+                WorkoutMirroring.shared.end()
             }
         } catch {
             Logger.sync.error("Could not apply the iPhone's program: \(error.localizedDescription)")

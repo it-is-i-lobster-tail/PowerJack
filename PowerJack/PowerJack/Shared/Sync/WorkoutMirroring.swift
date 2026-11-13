@@ -2,6 +2,7 @@
 //  WorkoutMirroring.swift
 //  PowerJack
 //
+//  Starting a workout on the iPhone opens it on the watch too (`openOnWatch`).
 //  While a workout is open on the watch, it runs a strength training session that HealthKit
 //  mirrors to the iPhone. That keeps the watch app on screen and gives both devices a fast,
 //  direct channel without polling: the watch sends its changes, the iPhone answers with its
@@ -18,6 +19,13 @@ final class WorkoutMirroring: NSObject {
 
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
+
+    private static var configuration: HKWorkoutConfiguration {
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .traditionalStrengthTraining
+        configuration.locationType = .indoor
+        return configuration
+    }
 
     #if os(watchOS)
     private static let askedForHealthKey = "sync.askedForHealth"
@@ -42,10 +50,7 @@ final class WorkoutMirroring: NSObject {
                 try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [])
             }
             guard healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return }
-            let configuration = HKWorkoutConfiguration()
-            configuration.activityType = .traditionalStrengthTraining
-            configuration.locationType = .indoor
-            let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+            let session = try HKWorkoutSession(healthStore: healthStore, configuration: Self.configuration)
             adopt(session)
             session.startActivity(with: .now)
             try await session.startMirroringToCompanionDevice()
@@ -84,6 +89,20 @@ final class WorkoutMirroring: NSObject {
     private func adopt(_ session: HKWorkoutSession) {
         session.delegate = self
         self.session = session
+    }
+
+    /// Opens PowerJack on the watch, like starting a workout in Apple's Workout app. The watch
+    /// starts its session, which mirrors back here, and opens the workout once it has it.
+    func openOnWatch() {
+        guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
+        Task {
+            do {
+                try await healthStore.startWatchApp(toHandle: Self.configuration)
+            } catch {
+                // No watch, or no watch app: the iPhone runs the workout on its own.
+                Logger.sync.info("Could not open the watch app: \(error.localizedDescription)")
+            }
+        }
     }
     #endif
 
