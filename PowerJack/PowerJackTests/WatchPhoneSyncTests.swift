@@ -96,7 +96,9 @@ struct WatchPhoneSyncTests {
         let devices = try TwoDevices()
         #expect(!devices.replica.heardFromIPhone)
 
-        try devices.phoneProgram.stopAndCascade()
+        let program = try devices.phoneProgram
+        program.stop()
+        program.stopAndCascade()
         try devices.phoneContext.save()
         try devices.sendChanges()
 
