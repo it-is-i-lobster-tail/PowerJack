@@ -9,18 +9,27 @@ import SwiftData
 import SwiftUI
 
 struct WatchRootView: View {
+    @Environment(WatchSync.self) private var sync
     @Query private var programs: [Program]
 
     var body: some View {
         NavigationStack {
             if let program = programs.active {
                 ProgramHomeView(program: program)
-            } else {
+            } else if sync.heardFromIPhone {
                 ContentUnavailableView(
                     "No program running",
                     systemImage: "dumbbell",
-                    description: Text("Start a program on your iPhone, then open PowerJack there with your watch nearby.")
+                    description: Text("Start a program on your iPhone.")
                 )
+            } else {
+                ContentUnavailableView {
+                    Label("Waiting for iPhone", systemImage: "iphone")
+                } description: {
+                    Text("Keep your iPhone nearby to get your program.")
+                } actions: {
+                    Button("Try Again") { sync.push() }
+                }
             }
         }
     }

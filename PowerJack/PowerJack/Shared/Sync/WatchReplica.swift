@@ -18,6 +18,7 @@ final class WatchReplica {
         static let lastChangeID = "sync.lastChangeID"
         static let pending = "sync.pendingChanges"
         static let running = "sync.runningOnIPhone"
+        static let heard = "sync.heardFromIPhone"
     }
 
     private let defaults: UserDefaults
@@ -49,6 +50,13 @@ final class WatchReplica {
         set { defaults.set(newValue?.uuidString, forKey: Key.running) }
     }
 
+    /// Whether the iPhone has ever sent its program, so the watch can tell "waiting for the iPhone"
+    /// apart from "nothing running on it".
+    private(set) var heardFromIPhone: Bool {
+        get { defaults.bool(forKey: Key.heard) }
+        set { defaults.set(newValue, forKey: Key.heard) }
+    }
+
     /// Keeps a change made on the watch until the iPhone has it.
     @discardableResult
     func record(_ action: WatchChange.Action, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
@@ -68,6 +76,7 @@ final class WatchReplica {
     /// - Returns: Whether the program was applied.
     @discardableResult
     func receive(_ snapshot: ProgramSnapshot, in context: ModelContext) throws -> Bool {
+        heardFromIPhone = true
         let applied = snapshot.applied[install.uuidString] ?? 0
         pending.removeAll { $0.id <= applied }
         guard pending.isEmpty else { return false }

@@ -18,9 +18,16 @@ final class WatchSync {
     @ObservationIgnored private let replica = WatchReplica()
     @ObservationIgnored private let store: WatchStore
 
+    /// Whether the iPhone has sent its program yet. Until then an empty watch is waiting for it,
+    /// not showing that nothing runs.
+    private(set) var heardFromIPhone: Bool
+
     init(store: WatchStore) {
         self.store = store
+        heardFromIPhone = replica.heardFromIPhone
         DeviceLink.shared.onSnapshot = { [weak self] in self?.receive(snapshot: $0) }
+        // Opening the app asks before the link is up, so ask again once it is, and whenever the iPhone comes back.
+        DeviceLink.shared.onConnected = { [weak self] in self?.push() }
         WorkoutMirroring.shared.onData = { [weak self] in self?.receive(snapshot: $0) }
         DeviceLink.shared.start()
     }
@@ -50,6 +57,7 @@ final class WatchSync {
     private func receive(snapshot data: Data) {
         do {
             let snapshot = try SyncPayload.decode(ProgramSnapshot.self, from: data)
+            defer { heardFromIPhone = replica.heardFromIPhone }
             if try !replica.receive(snapshot, in: store.container.mainContext) {
                 // The iPhone doesn't have every change yet: send them before taking its program.
                 push()

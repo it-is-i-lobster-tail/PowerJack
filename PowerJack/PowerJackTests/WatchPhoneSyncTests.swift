@@ -91,6 +91,20 @@ struct WatchPhoneSyncTests {
         #expect(try devices.watchContext.fetchCount(FetchDescriptor<WorkoutSet>()) == devices.phoneContext.fetchCount(FetchDescriptor<WorkoutSet>()))
     }
 
+    @Test("A new watch waits for the iPhone, then knows when no program runs there, and remembers it heard")
+    func watchKnowsWhenNothingRuns() throws {
+        let devices = try TwoDevices()
+        #expect(!devices.replica.heardFromIPhone)
+
+        try devices.phoneProgram.stopAndCascade()
+        try devices.phoneContext.save()
+        try devices.sendChanges()
+
+        #expect(devices.replica.heardFromIPhone)
+        #expect(try devices.watchContext.fetch(FetchDescriptor<Program>()).active == nil)
+        #expect(WatchReplica(defaults: devices.replicaDefaults).heardFromIPhone)
+    }
+
     @Test("A workout started and logged on the watch reaches the iPhone, which shows it's in progress on the watch")
     func watchWorkoutReachesIPhone() throws {
         let devices = try TwoDevices()
