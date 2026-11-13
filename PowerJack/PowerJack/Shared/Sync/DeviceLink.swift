@@ -198,6 +198,15 @@ extension DeviceLink: WCSessionDelegate {
         }
     }
 
+    /// The watch app came to the front or back in range: give it the latest program now, since one
+    /// sent while it was away only waits in the application context.
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        Task { @MainActor in
+            if let latestSnapshot = self.latestSnapshot { self.send(snapshot: latestSnapshot) }
+        }
+    }
+
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
 
     nonisolated func sessionDidDeactivate(_ session: WCSession) {

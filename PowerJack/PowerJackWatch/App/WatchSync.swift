@@ -27,14 +27,9 @@ final class WatchSync {
 
     /// Does what a screen did to the workout, saves it and sends it to the iPhone.
     func perform(_ change: (WatchActions) -> Void) {
-        let together = DeviceLink.shared.isReachable || WorkoutMirroring.shared.isMirroring
-        change(WatchActions(replica: replica, together: together))
-        do {
-            try store.container.mainContext.save()
-        } catch {
-            Logger.sync.error("Could not save the watch's change: \(error.localizedDescription)")
-        }
-        push()
+        scheduledSend?.cancel()
+        change(WatchActions(replica: replica, together: isTogether))
+        saveAndPush()
     }
 
     /// Sends everything pending. With nothing pending it just asks the iPhone for its program.
@@ -57,5 +52,32 @@ final class WatchSync {
         } catch {
             Logger.sync.error("Could not apply the iPhone's program: \(error.localizedDescription)")
         }
+    }
+
+    @ObservationIgnored private var scheduledSend: Task<Void, Never>?
+
+    private var isTogether: Bool {
+        DeviceLink.shared.isReachable || WorkoutMirroring.shared.isMirroring
+    }
+
+    /// Like `perform`, for a change made many times a second, such as turning the Digital Crown:
+    /// the screen shows it at once, and it's saved and sent once the crown rests for a moment.
+    func performSoon(_ change: (WatchActions) -> Void) {
+        change(WatchActions(replica: replica, together: isTogether))
+        scheduledSend?.cancel()
+        scheduledSend = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveAndPush()
+        }
+    }
+
+    private func saveAndPush() {
+        do {
+            try store.container.mainContext.save()
+        } catch {
+            Logger.sync.error("Could not save the watch's change: \(error.localizedDescription)")
+        }
+        push()
     }
 }

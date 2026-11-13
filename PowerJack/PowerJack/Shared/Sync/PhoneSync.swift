@@ -53,7 +53,7 @@ final class PhoneSync {
     private func scheduleSend() {
         scheduledSend?.cancel()
         scheduledSend = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await self?.send()
         }

@@ -16,6 +16,8 @@ struct WatchChange: Codable, Equatable, Identifiable {
         case rateExercise(FeedbackState, topSetRepsInReserve: Int?)
         case resolveCheckIn(String)
         case finishWorkout
+        /// Weight and reps dialed in on a set not logged yet. Nil leaves that value as it was.
+        case enterSet(weightTenthsPounds: Int?, reps: Int?)
     }
 
     /// Counts up on each watch install, so the iPhone applies each change once and in order.

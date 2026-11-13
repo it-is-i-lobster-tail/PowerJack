@@ -54,6 +54,24 @@ struct SetEntry: Equatable {
     var weightTenthsPounds: Int? {
         weight > 0 ? unit.tenthsPounds(from: weight) : nil
     }
+
+    /// Whether this entry holds what the dial starts on for `workoutSet`.
+    func matches(_ workoutSet: WorkoutSet, repsOnly: Bool) -> Bool {
+        let shown = SetEntry(for: workoutSet, unit: unit)
+        return reps == shown.reps && (repsOnly || weightTenthsPounds == shown.weightTenthsPounds)
+    }
+
+    /// The part of this entry that differs from what the dial starts on for `workoutSet`, so only
+    /// what the lifter changed is entered: not the set's target, nor the empty bar a set without
+    /// one starts on. Bodyweight sets compare reps only.
+    func changes(from workoutSet: WorkoutSet, repsOnly: Bool) -> (weightTenthsPounds: Int?, reps: Int?) {
+        let shown = SetEntry(for: workoutSet, unit: unit)
+        let weight = repsOnly ? nil : weightTenthsPounds
+        return (
+            weight == shown.weightTenthsPounds ? nil : weight,
+            reps == shown.reps ? nil : reps
+        )
+    }
 }
 
 extension WorkoutExercise {
@@ -70,15 +88,24 @@ extension WorkoutExercise {
         let repsOnly = exercise?.repsOnly ?? false
         guard repsOnly || weightTenthsPounds != nil else { return }
 
-        workoutSet.reps = reps
-        if !repsOnly {
-            let previousWeight = workoutSet.weightTenthsPounds
-            workoutSet.weightTenthsPounds = weightTenthsPounds
-            if !isTopSet(workoutSet) {
-                applyWeight(workoutSet.weightTenthsPounds, after: workoutSet, replacing: previousWeight)
-            }
-        }
+        enter(weightTenthsPounds: weightTenthsPounds, reps: reps, on: workoutSet)
         completeSet(workoutSet, at: date, on: device)
+    }
+
+    /// Enters weight and reps on a set still to do without logging it, as typing them on the iPhone
+    /// does: the weight carries to the later sets still holding the old one, except from a TOP set.
+    /// Nil leaves that value as it is. The iPhone runs this too for what was dialed in on the watch.
+    func enter(weightTenthsPounds: Int?, reps: Int?, on workoutSet: WorkoutSet) {
+        guard workoutSet.status == .active, !workoutSet.locked else { return }
+        if let reps, WorkoutSet.isValidReps(reps) {
+            workoutSet.reps = reps
+        }
+        guard let weightTenthsPounds, !(exercise?.repsOnly ?? false) else { return }
+        let previousWeight = workoutSet.weightTenthsPounds
+        workoutSet.weightTenthsPounds = weightTenthsPounds
+        if !isTopSet(workoutSet) {
+            applyWeight(workoutSet.weightTenthsPounds, after: workoutSet, replacing: previousWeight)
+        }
     }
 
     /// The set to log next on this exercise. Once every working set is done, leftover warmups aren't waiting.

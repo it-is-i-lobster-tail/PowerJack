@@ -262,6 +262,7 @@ struct WorkoutSetView: View {
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
         workoutSet.reps = newValue
+        saveEntry()
     }
 
     private func updateWeight(from text: String, previous: String) {
@@ -277,6 +278,12 @@ struct WorkoutSetView: View {
         guard newValue != previousValue else { return }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
+        saveEntry()
+    }
+
+    /// Saved as it's typed, so it's never lost and the watch shows it straight away.
+    private func saveEntry() {
+        try? modelContext.save()
     }
 
     private func parsedWeight(_ text: String) -> Double? {

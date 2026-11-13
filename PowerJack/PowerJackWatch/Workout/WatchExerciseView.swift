@@ -48,7 +48,7 @@ struct WatchExerciseView: View {
                     .foregroundStyle(.orange)
             } else if let workoutSet, let entry = Binding($entry) {
                 setHeader(workoutSet)
-                valueBoxes(entry)
+                valueBoxes(dial(entry, on: workoutSet))
                 logButtons(workoutSet)
             } else {
                 doneSummary
@@ -58,6 +58,31 @@ struct WatchExerciseView: View {
         .onChange(of: workoutSet?.id, initial: true) {
             entry = workoutSet.map { SetEntry(for: $0) }
             focusedField = repsOnly ? .reps : .weight
+        }
+        // Weight or reps entered on the iPhone show here as soon as they arrive.
+        .onChange(of: shownValues) { followSet() }
+    }
+
+    /// What the next set shows: what's entered, else its target.
+    private var shownValues: [Int?] {
+        [workoutSet?.upcomingWeightTenthsPounds, workoutSet?.upcomingReps]
+    }
+
+    /// Starts the dial over from the set when it changed elsewhere. What was dialed in here is
+    /// already in the set, so it's left alone.
+    private func followSet() {
+        guard let workoutSet, let entry, !entry.matches(workoutSet, repsOnly: repsOnly) else { return }
+        self.entry = SetEntry(for: workoutSet)
+    }
+
+    /// The entry the value boxes turn. Each turn is entered on the set, so the iPhone shows it too.
+    private func dial(_ entry: Binding<SetEntry>, on workoutSet: WorkoutSet) -> Binding<SetEntry> {
+        Binding {
+            entry.wrappedValue
+        } set: { newValue in
+            guard newValue != entry.wrappedValue else { return }
+            entry.wrappedValue = newValue
+            sync.performSoon { $0.enter(newValue, on: workoutSet, of: workoutExercise) }
         }
     }
 
