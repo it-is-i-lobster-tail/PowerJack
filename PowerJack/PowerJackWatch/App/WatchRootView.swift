@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import WidgetKit
 
 struct WatchRootView: View {
     @Environment(WatchSync.self) private var sync
@@ -88,6 +89,12 @@ private struct ProgramHomeView: View {
                 .navigationTitle(program.activityTitle(for: workout))
             } else {
                 ContentUnavailableView("Program complete", systemImage: "checkmark.seal")
+            }
+        }
+        // Tapping the iPhone's workout Live Activity in the Smart Stack opens the workout here.
+        .onContinueUserActivity(NSUserActivityTypeLiveActivity) { _ in
+            if let workout = program.nextWorkout, workout.status == .active {
+                start(workout)
             }
         }
         .navigationDestination(item: shownWorkout) { workout in
