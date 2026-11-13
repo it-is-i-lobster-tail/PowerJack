@@ -78,4 +78,18 @@ final class WatchReplica {
         try SyncTidyUp.run(in: context, running: runningOnIPhone)
         return true
     }
+
+    /// Keeps weight and reps dialed in on a set until the iPhone has them. Turning the Digital Crown
+    /// makes many a second, so a newer one for the same set takes the place of the one still waiting.
+    @discardableResult
+    func recordEntry(weightTenthsPounds: Int?, reps: Int?, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
+        var weightTenthsPounds = weightTenthsPounds
+        var reps = reps
+        if let last = pending.last, last.row == row, case .enterSet(let lastWeight, let lastReps) = last.action {
+            weightTenthsPounds = weightTenthsPounds ?? lastWeight
+            reps = reps ?? lastReps
+            pending.removeLast()
+        }
+        return record(.enterSet(weightTenthsPounds: weightTenthsPounds, reps: reps), at: row, together: together, date: date)
+    }
 }
