@@ -69,6 +69,15 @@ extension Workout {
         )
     }
 
+    /// The rest to show on `workoutExercise`'s screen: the one running before the next set of its
+    /// exercise or superset. A superset rests after its last exercise, so every exercise in it shows it.
+    func rest(shownOn workoutExercise: WorkoutExercise) -> RestPeriod? {
+        guard let next = currentSet?.workoutExercise,
+              group(of: workoutExercise).contains(where: { $0 === next })
+        else { return nil }
+        return currentRest
+    }
+
     private var latestCompletedSet: (workoutExercise: WorkoutExercise, workoutSet: WorkoutSet, completedAt: Date)? {
         var latest: (workoutExercise: WorkoutExercise, workoutSet: WorkoutSet, completedAt: Date)?
         for workoutExercise in workoutExercises {

@@ -26,12 +26,9 @@ struct WatchExerciseView: View {
     private var repsOnly: Bool { exercise?.repsOnly ?? false }
     private var workoutSet: WorkoutSet? { workoutExercise.nextSet }
 
-    /// The rest running before this exercise's next set.
+    /// The rest running before this exercise's next set, or its superset's next round.
     private var rest: RestPeriod? {
-        guard let workout = workoutExercise.workoutValue,
-              workout.currentSet?.workoutExercise === workoutExercise
-        else { return nil }
-        return workout.currentRest
+        workoutExercise.workoutValue?.rest(shownOn: workoutExercise)
     }
 
     var body: some View {
