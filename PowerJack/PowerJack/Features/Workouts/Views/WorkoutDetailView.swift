@@ -15,6 +15,20 @@ private enum WorkoutSheet: Identifiable, Hashable {
 
     // Models hash by their persistent ID, so each exercise gets its own sheet identity.
     var id: Self { self }
+
+    var workoutExercise: WorkoutExercise {
+        switch self {
+        case .feedback(let workoutExercise), .checkIn(let workoutExercise): workoutExercise
+        }
+    }
+
+    /// Answered already, here or on the watch, so the sheet has nothing left to ask.
+    var isAnswered: Bool {
+        switch self {
+        case .feedback(let workoutExercise): !workoutExercise.needsFeedback
+        case .checkIn(let workoutExercise): !workoutExercise.checkInPending
+        }
+    }
 }
 
 extension EnvironmentValues {
@@ -185,6 +199,9 @@ struct WorkoutDetailView: View {
             .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
             }
+            .onChange(of: presentedSheet?.isAnswered == true) { _, isAnswered in
+                if isAnswered { closeAnsweredSheet() }
+            }
             .onChange(of: router?.currentExerciseRequest) {
                 showCurrentExercise()
             }
@@ -270,6 +287,15 @@ struct WorkoutDetailView: View {
                 presentedSheet = .feedback(workoutExercise)
             }
         } else if workoutExercise.isDone {
+            advance()
+        }
+    }
+
+    /// The watch answered the open sheet first. Close it and move on, as if it was answered here.
+    private func closeAnsweredSheet() {
+        guard let workoutExercise = presentedSheet?.workoutExercise else { return }
+        presentedSheet = nil
+        if workoutExercise.isDone {
             advance()
         }
     }

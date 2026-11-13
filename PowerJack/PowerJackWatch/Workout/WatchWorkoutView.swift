@@ -16,6 +16,14 @@ private enum WorkoutSheet: Identifiable, Hashable {
     case checkIn(WorkoutExercise)
 
     var id: Self { self }
+
+    /// Answered already, here or on the iPhone, so the sheet has nothing left to ask.
+    var isAnswered: Bool {
+        switch self {
+        case .feedback(let workoutExercise): !workoutExercise.needsFeedback
+        case .checkIn(let workoutExercise): !workoutExercise.checkInPending
+        }
+    }
 }
 
 struct WatchWorkoutView: View {
@@ -70,6 +78,10 @@ struct WatchWorkoutView: View {
         }
         .onAppear(perform: presentSheetIfNeeded)
         .onChange(of: page) { presentSheetIfNeeded() }
+        // The iPhone answered the open sheet first: close it and move on, as if answered here.
+        .onChange(of: sheet?.isAnswered == true) { _, isAnswered in
+            if isAnswered { finishedSheet() }
+        }
         .task(id: workout.currentRest?.endsAt) {
             await RestAlert.schedule(for: workout.currentRest)
         }

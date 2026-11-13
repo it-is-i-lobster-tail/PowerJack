@@ -72,11 +72,9 @@ extension WatchChange {
             if !workoutExercise.locked { workoutExercise.skipWarmups() }
         case .rateExercise(let feedback, let topSetRepsInReserve):
             guard let workoutExercise = program.workoutExercise(at: row) else { return false }
-            guard workoutExercise.feedback == nil, workoutExercise.allSetsDone() else { break }
-            if let topSetRepsInReserve, let repsInReserve = RepsInReserve(rawValue: topSetRepsInReserve), workoutExercise.topSets > 0 {
-                workoutExercise.rateTopSets(repsInReserve)
-            }
-            workoutExercise.addFeedback(feedback: ExerciseFeedback(snapshot: feedback))
+            // Feedback already answered on the iPhone stands.
+            let topSet = topSetRepsInReserve.flatMap(RepsInReserve.init(rawValue:))
+            workoutExercise.answerFeedback(ExerciseFeedback(snapshot: feedback), topSet: topSet)
         case .resolveCheckIn(let decisionName):
             guard let workoutExercise = program.workoutExercise(at: row) else { return false }
             if workoutExercise.checkInPending, let decision = ManualCheckInDecision(rawValue: decisionName) {
