@@ -8,9 +8,17 @@
 import Foundation
 
 nonisolated struct RestCallout: Hashable {
+    /// How long after its rest ends a callout can still be said, like the haptic cues.
+    static let lateLimit: TimeInterval = 2
+
     /// When the rest ends and the callout is spoken.
     var endsAt: Date
     var phrase: RestPhrase
+
+    /// Too long after the rest ended to say, as when iOS kept PowerJack suspended past it.
+    func isLate(at date: Date) -> Bool {
+        date.timeIntervalSince(endsAt) > Self.lateLimit
+    }
 }
 
 /// Words the voice says, and the recorded clips that say them, in order.
