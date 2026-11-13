@@ -12,6 +12,7 @@ import SwiftUI
 
 @main
 struct PowerJackWatchApp: App {
+    @WKApplicationDelegateAdaptor private var delegate: WatchAppDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var store: WatchStore
     @State private var sync: WatchSync
