@@ -55,18 +55,21 @@ struct SetEntry: Equatable {
         weight > 0 ? unit.tenthsPounds(from: weight) : nil
     }
 
-    /// Whether this entry holds what `workoutSet` shows: what's entered, else its target.
+    /// Whether this entry holds what the dial starts on for `workoutSet`.
     func matches(_ workoutSet: WorkoutSet, repsOnly: Bool) -> Bool {
-        reps == workoutSet.upcomingReps && (repsOnly || weightTenthsPounds == workoutSet.upcomingWeightTenthsPounds)
+        let shown = SetEntry(for: workoutSet, unit: unit)
+        return reps == shown.reps && (repsOnly || weightTenthsPounds == shown.weightTenthsPounds)
     }
 
-    /// The part of this entry that differs from what `workoutSet` shows (what's entered, else its
-    /// target), so only what the lifter changed is entered. Bodyweight sets compare reps only.
+    /// The part of this entry that differs from what the dial starts on for `workoutSet`, so only
+    /// what the lifter changed is entered: not the set's target, nor the empty bar a set without
+    /// one starts on. Bodyweight sets compare reps only.
     func changes(from workoutSet: WorkoutSet, repsOnly: Bool) -> (weightTenthsPounds: Int?, reps: Int?) {
+        let shown = SetEntry(for: workoutSet, unit: unit)
         let weight = repsOnly ? nil : weightTenthsPounds
         return (
-            weight == workoutSet.upcomingWeightTenthsPounds ? nil : weight,
-            reps == workoutSet.upcomingReps ? nil : reps
+            weight == shown.weightTenthsPounds ? nil : weight,
+            reps == shown.reps ? nil : reps
         )
     }
 }
