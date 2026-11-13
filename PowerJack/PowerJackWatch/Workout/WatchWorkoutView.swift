@@ -70,6 +70,7 @@ struct WatchWorkoutView: View {
         }
         .onAppear(perform: presentSheetIfNeeded)
         .onChange(of: page) { presentSheetIfNeeded() }
+        .onChange(of: workout.currentSet?.workoutSet.id) { followSuperset() }
         .task(id: workout.currentRest?.endsAt) {
             await RestAlert.schedule(for: workout.currentRest)
         }
@@ -83,15 +84,24 @@ struct WatchWorkoutView: View {
         save()
         if workoutExercise.needsFeedback {
             sheet = .feedback(workoutExercise)
-        } else if workoutExercise.isDone || isPartnersTurn(after: workoutExercise) {
+        } else if workoutExercise.isDone {
             advance()
         }
     }
 
-    /// In a superset, the next set belongs to another exercise in it.
-    private func isPartnersTurn(after workoutExercise: WorkoutExercise) -> Bool {
-        guard let next = workout.currentSet?.workoutExercise else { return false }
-        return workoutExercise.supersetPartners.contains { $0 === next }
+    /// In a superset, moves to the exercise whose turn it is once a set is logged, here or on the iPhone.
+    /// After the round's last exercise that's back to the first, with the rest counting down.
+    private func followSuperset() {
+        guard
+            sheet == nil,
+            let exerciseOnScreen,
+            let next = workout.currentSet?.workoutExercise,
+            exerciseOnScreen.supersetPartners.contains(where: { $0 === next }),
+            let index = exercises.firstIndex(where: { $0 === next })
+        else { return }
+        withAnimation {
+            page = index
+        }
     }
 
     /// Feedback or a check-in waits on the exercise on screen, e.g. after relaunching mid-workout.

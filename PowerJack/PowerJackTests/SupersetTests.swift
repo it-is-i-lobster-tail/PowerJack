@@ -92,6 +92,29 @@ struct SupersetTests {
         #expect(workout.currentSet?.workoutExercise === workout.workoutExercises[2])
     }
 
+    @Test("Every exercise in a superset shows the rest after its round, and other exercises don't")
+    func restShowsAcrossTheSuperset() throws {
+        let workout = try makeSupersetWorkout()
+        let a = workout.workoutExercises[0]
+        let b = workout.workoutExercises[1]
+        let c = workout.workoutExercises[2]
+        a.skipWarmups()
+        b.skipWarmups()
+
+        // Mid-round there's no rest on either screen.
+        a.completeSet(a.workingSets[0], at: start)
+        #expect(workout.rest(shownOn: a) == nil)
+        #expect(workout.rest(shownOn: b) == nil)
+
+        // The round ends on B, where the lifter still is, so B shows the rest as well as A.
+        b.completeSet(b.workingSets[0], at: start + 30)
+        let rest = try #require(workout.currentRest)
+        #expect(workout.rest(shownOn: a) == rest)
+        #expect(workout.rest(shownOn: b) == rest)
+        #expect(workout.rest(shownOn: c) == nil)
+        #expect(workout.currentExerciseIndex == 0)
+    }
+
     @Test("Mid-round, the workout opens on the exercise whose turn it is")
     func currentExerciseFollowsTheRound() throws {
         let workout = try makeSupersetWorkout()
