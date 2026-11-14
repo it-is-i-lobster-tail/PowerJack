@@ -74,11 +74,17 @@ struct LoadableBodyweightTests {
 
     @Test("A weight of 0 is kept only for loadable bodyweight, and a set with no target starts there")
     func zeroWeight() throws {
-        let loadable = try makeWorkout(.loadableBodyweight, sets: [(8, nil), (8, 250)]).sets
+        let made = try makeWorkout(.loadableBodyweight, sets: [(8, nil), (8, 250)])
+        let loadable = made.sets
         #expect(loadable[0].weightTenthsPounds == 0)
         #expect(loadable[1].weightTenthsPounds == 250)
         loadable[1].weightTenthsPounds = 0
         #expect(loadable[1].weightTenthsPounds == 0)
+
+        // So does a set added mid-workout, or the sets of an exercise swapped in.
+        let swapped = try makeWorkout(.barbell, sets: [(8, nil)]).workoutExercise
+        swapped.changeExercise(newExercise: try #require(made.workoutExercise.exercise))
+        #expect(!swapped.workingSets.isEmpty && swapped.workingSets.allSatisfy { $0.weightTenthsPounds == 0 })
 
         let barbell = try makeWorkout(.barbell, sets: [(8, nil)]).sets
         #expect(barbell[0].weightTenthsPounds == nil)

@@ -242,9 +242,14 @@ struct WorkoutSetView: View {
             }
         }
         .onChange(of: workoutSet.weightTenthsPounds) { _, newValue in
-            if parsedWeight(weightText).map(weightUnit.tenthsPounds(from:)) != newValue {
+            if enteredWeight(weightText) != newValue {
                 weightText = Self.text(forWeight: newValue, in: weightUnit)
             }
+        }
+        .onChange(of: weightIsFocused) { _, isFocused in
+            // Tapping "BW" empties the box, so typed weight replaces the 0 instead of joining it.
+            guard workoutSet.addsToBodyweight, workoutSet.weightTenthsPounds == 0 else { return }
+            weightText = isFocused ? "" : Self.text(forWeight: 0, in: weightUnit)
         }
     }
 
@@ -283,18 +288,19 @@ struct WorkoutSetView: View {
             return
         }
         // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
-        let newValue = parsedWeight(text).map(weightUnit.tenthsPounds(from:))
+        let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
     }
 
-    /// 0 is only a weight for loadable bodyweight, where it is bodyweight alone.
-    private func parsedWeight(_ text: String) -> Double? {
-        let normalized = text.replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(normalized), value > 0 || (value == 0 && workoutSet.addsToBodyweight) else { return nil }
-        return value
+    /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
+    /// as is an empty box.
+    private func enteredWeight(_ text: String) -> Int? {
+        let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
+        if value > 0 { return weightUnit.tenthsPounds(from: value) }
+        return workoutSet.addsToBodyweight ? 0 : nil
     }
 
     /// Keeps typed reps to whole numbers from 0 to `WorkoutSet.maxReps`; anything else keeps `previous`.
