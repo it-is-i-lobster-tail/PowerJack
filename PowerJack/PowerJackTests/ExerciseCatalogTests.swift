@@ -8,11 +8,12 @@ struct ExerciseCatalogTests {
     @Test("Catalog entries have unique stable IDs and valid exercise fields")
     func catalogValidity() {
         let entries = ExerciseCatalog.entries
-        #expect(entries.count == 63)
+        #expect(entries.count == 65)
         #expect(Set(entries.map(\.id)).count == entries.count)
         let ids = Set(entries.map(\.id))
         for id in ["dumbbell-goblet-squat", "sliding-leg-curl", "smith-machine-squat", "smith-machine-hip-thrust", "cable-hip-abduction",
-                   "hack-squat", "chest-supported-dumbbell-row", "dip", "close-grip-bench-press", "incline-dumbbell-curl", "hanging-leg-raise"] {
+                   "hack-squat", "chest-supported-dumbbell-row", "dip", "close-grip-bench-press", "incline-dumbbell-curl", "hanging-leg-raise",
+                   "weighted-pull-up", "weighted-dip"] {
             #expect(ids.contains(id), "\(id)")
         }
         #expect(Set(entries.map(\.primaryMuscle)) == Set(Muscle.allCases))
@@ -45,7 +46,7 @@ struct ExerciseCatalogTests {
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 11, .moderate: 19, .low: 33])
+        #expect(counts == [.high: 11, .moderate: 21, .low: 33])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
@@ -92,7 +93,7 @@ struct ExerciseCatalogTests {
         #expect(existing.persistentModelID == existingID)
         #expect(custom.userCreated && custom.catalogID == nil)
         #expect(custom.exerciseName == ExerciseCatalog.entries[1].name)
-        #expect(custom.exerciseEquipment == .bodyweight && custom.primaryMuscleFocus == .abs)
+        #expect(custom.equipment == .bodyweight && custom.primaryMuscleFocus == .abs)
         #expect(legacy.catalogID == nil && legacy.exerciseName == "Legacy Exercise")
     }
 
@@ -115,7 +116,7 @@ struct ExerciseCatalogTests {
             draft.fatigueLevel = .low
             #expect(draft.apply(to: exercise))
             #expect(exercise.exerciseName == originalName)
-            #expect(exercise.exerciseEquipment == .barbell)
+            #expect(exercise.equipment == .barbell)
             #expect(exercise.primaryMuscleFocus == .chest)
             #expect(exercise.secondaryMuscles == originalSecondary)
             #expect(exercise.repRange == 6...7)

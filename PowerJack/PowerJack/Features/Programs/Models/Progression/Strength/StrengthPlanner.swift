@@ -319,7 +319,7 @@ enum StrengthPlanner: WeekPlanner {
             role: slot.role,
             zone: slot.zone,
             curve: StrengthLifts.curve(for: exercise),
-            grid: LoadGrid(equipment: exercise.exerciseEquipment),
+            grid: LoadGrid(equipment: exercise.equipment),
             needsSpotter: StrengthLifts.needsSpotter(exercise),
             repRange: exercise.repRange,
             history: history,
@@ -425,7 +425,7 @@ enum StrengthPlanner: WeekPlanner {
             let reps = workoutSet.reps, reps < planned,
             let load = workoutSet.weightTenthsPounds,
             let exercise = workoutExercise.exercise,
-            let grid = LoadGrid(equipment: exercise.exerciseEquipment)
+            let grid = LoadGrid(equipment: exercise.equipment)
         else { return }
 
         for later in workoutExercise.workingSets where later.order > workoutSet.order && later.status == .active {
@@ -456,7 +456,7 @@ extension StrengthPlanner {
             let reps = top.reps, reps > 0,
             let lifted = top.weightTenthsPounds,
             let exercise = workoutExercise.exercise,
-            let grid = LoadGrid(equipment: exercise.exerciseEquipment)
+            let grid = LoadGrid(equipment: exercise.equipment)
         else { return }
         let backs = workoutExercise.workingSets.dropFirst(workoutExercise.topSets)
         let liftedKg = WeightUnit.kilograms(fromTenthsPounds: lifted)

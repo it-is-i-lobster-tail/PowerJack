@@ -172,7 +172,8 @@ enum PowerJackPlanner: WeekPlanner {
             pattern: traits.0,
             multiJoint: traits.1,
             repsOnly: exercise.repsOnly,
-            isBarbell: exercise.exerciseEquipment == .barbell,
+            addsToBodyweight: exercise.addsToBodyweight,
+            isBarbell: exercise.equipment == .barbell,
             fatigue: exercise.fatigueLevel,
             primary: exercise.primaryMuscleFocus,
             secondaries: exercise.secondaryMuscles

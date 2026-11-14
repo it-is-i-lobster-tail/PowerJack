@@ -178,7 +178,7 @@ extension PowerJackSimLifter {
         case .microplates:
             tenths = Int(max(2.5, (pounds / 2.5).rounded() * 2.5) * 10)
         default:
-            let step = Self.equipmentStep(exercise.exerciseEquipment, loads: profile.loads)
+            let step = Self.equipmentStep(exercise.equipment, loads: profile.loads)
             tenths = Int(max(step, (pounds / step).rounded() * step) * 10)
         }
         return min(max(tenths, 1), WorkoutSet.maxWeightPounds * 10)
@@ -287,7 +287,7 @@ extension PowerJackSimLifter {
             return pounds
         }
         // A default rather than every case, so new equipment never breaks the simulation.
-        return switch exercise.exerciseEquipment {
+        return switch exercise.equipment {
         case .legPress: 500
         case .barbell: heavy ? 250 : 100
         case .machine: heavy ? 250 : 150

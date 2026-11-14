@@ -34,7 +34,7 @@ struct ExerciseDraft {
 
     init(exercise: Exercise) {
         name = exercise.exerciseName
-        equipment = exercise.exerciseEquipment
+        equipment = exercise.equipment
         primaryMuscle = exercise.primaryMuscleFocus
         secondaryMuscles = exercise.secondaryMusclesValue
         minReps = exercise.minReps
@@ -112,7 +112,7 @@ struct ExerciseDraft {
         // Name, equipment and muscles only change on exercises the user created.
         if exercise.userCreated, !isBuiltIn, let equipment, let primaryMuscle {
             exercise.exerciseName = trimmedName
-            exercise.exerciseEquipment = equipment
+            exercise.equipment = equipment
             exercise.primaryMuscleFocus = primaryMuscle
             exercise.secondaryMuscles = secondaryMuscles
         }

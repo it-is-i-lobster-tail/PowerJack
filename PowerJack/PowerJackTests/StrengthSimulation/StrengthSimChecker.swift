@@ -145,7 +145,7 @@ struct StrengthSimChecker {
             checkSlot(slot, records: records, at: at, checksGrid: changed)
             let lift = truth[slot.key] ?? StrengthSimTruth()
 
-            if slot.isLoaded, gridFor(slot.exercise.exerciseEquipment) != nil,
+            if slot.isLoaded, gridFor(slot.exercise.equipment) != nil,
                let days = StrengthSessionRules.daysOff(since: lift.lastTrained, at: date),
                days > StrengthRules.breakMinDays {
                 expect(slot.rules.contains("12.1"), "12.1", at,
@@ -162,7 +162,7 @@ struct StrengthSimChecker {
             case nil:
                 break
             }
-            if slot.isLoaded, gridFor(slot.exercise.exerciseEquipment) != nil, slot.kind == .normal, slot.load == nil,
+            if slot.isLoaded, gridFor(slot.exercise.equipment) != nil, slot.kind == .normal, slot.load == nil,
                records[slot.key].e1rmKg != nil {
                 fail("2.6", at, "the lift has an e1RM but is planned without a weight: \(Self.describe(slot))")
             }
@@ -228,7 +228,7 @@ struct StrengthSimChecker {
             let next = slot.sets.first(where: { $0.order > set.order && $0.status == .active }),
             let after = next.weightTenthsPounds,
             let nextWeightBefore, nextWeightBefore == load,
-            let grid = gridFor(slot.exercise.exerciseEquipment),
+            let grid = gridFor(slot.exercise.equipment),
             // Nothing goes under the bar or one step.
             WeightUnit.kilograms(fromTenthsPounds: load) > grid.minimumKilograms + LoadGrid.storedTolerance
         else { return }
@@ -261,7 +261,7 @@ struct StrengthSimChecker {
         if slot.exercise.repsOnly {
             expect(sets.allSatisfy { $0.weightTenthsPlannedPounds == nil }, "1.3", here, "a bodyweight exercise planned with a weight")
         }
-        guard slot.isLoaded, let grid = gridFor(slot.exercise.exerciseEquipment) else {
+        guard slot.isLoaded, let grid = gridFor(slot.exercise.equipment) else {
             expect(slot.rir == nil || kind != .accessory, "5.1", here, "an accessory with a reps-left aim")
             return
         }
@@ -327,7 +327,7 @@ struct StrengthSimChecker {
     /// reserve; a priority lift runs block week 1's top set at 90% with one back-off.
     private mutating func checkDeload(_ slot: StrengthSimSlot, history: [StrengthSimSlot], at here: String) {
         guard let kind = slot.kind else { return }
-        guard slot.isLoaded, let grid = gridFor(slot.exercise.exerciseEquipment) else {
+        guard slot.isLoaded, let grid = gridFor(slot.exercise.equipment) else {
             expect(kind == .deload || slot.exercise.repsOnly, "10.6", here, "an accessory in a deload week planned as \(Self.describe(slot))")
             return
         }
@@ -367,7 +367,7 @@ struct StrengthSimChecker {
     /// and in reps mode at most one step (1.2). A top set is never over e1RM × pct(reps + RIR) (5.10).
     private mutating func checkRise(_ slot: StrengthSimSlot, history: [StrengthSimSlot], records: StrengthState, at here: String) {
         if slot.rules.contains("5.10"), slot.kind == .normal, let load = slot.loadKg, let e1rm = records[slot.key].e1rmKg,
-           let target = slot.target, let rir = slot.rir, let grid = gridFor(slot.exercise.exerciseEquipment) {
+           let target = slot.target, let rir = slot.rir, let grid = gridFor(slot.exercise.equipment) {
             // The main curve's shares are at least the bench curve's, so this bounds both.
             let limit = grid.nearest(min(e1rm * StrengthCurve.main.share(repsToFailure: target + rir), LoadGrid.capKilograms))
             expect(load <= limit + Self.tolerance, "5.10", here,
@@ -375,7 +375,7 @@ struct StrengthSimChecker {
         }
         guard
             slot.isLoaded,
-            let grid = gridFor(slot.exercise.exerciseEquipment),
+            let grid = gridFor(slot.exercise.equipment),
             let load = slot.loadKg,
             let last = history.first,
             let rated = last.ratedSet?.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) }, rated > 0

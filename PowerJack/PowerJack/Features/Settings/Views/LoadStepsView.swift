@@ -50,20 +50,6 @@ private struct LoadStepRow: View {
     }
 }
 
-private extension Equipment {
-    var displayName: String {
-        switch self {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .bodyweight: "Bodyweight"
-        case .cable: "Cable"
-        case .machine: "Machine"
-        case .kettlebell: "Kettlebell"
-        case .legPress: "Leg Press"
-        }
-    }
-}
-
 #Preview("Load Steps") {
     NavigationStack {
         LoadStepsView()

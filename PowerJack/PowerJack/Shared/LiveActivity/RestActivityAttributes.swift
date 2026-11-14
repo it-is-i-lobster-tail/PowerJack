@@ -73,7 +73,9 @@ nonisolated struct ActivitySet: Codable, Hashable {
     }
 
     /// e.g. "225" or "102.5". `WeightUnit` isn't compiled into the widget, so the conversion lives here too.
+    /// Only loadable bodyweight keeps a weight of 0, so 0 is "BW": bodyweight alone.
     static func weight(tenthsPounds: Int, inKilograms: Bool) -> String {
+        if tenthsPounds == 0 { return "BW" }
         let pounds = Double(tenthsPounds) / 10
         let weight = inKilograms ? pounds * 0.45359237 : pounds
         return weight.formatted(.number.precision(.fractionLength(0...1)))

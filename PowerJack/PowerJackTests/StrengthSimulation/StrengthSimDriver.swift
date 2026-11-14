@@ -198,7 +198,7 @@ private extension StrengthSimDriver {
 
     static func grids(_ settings: Settings) -> (Equipment) -> LoadGrid? {
         { equipment in
-            settings.steps[equipment].map { LoadGrid(unit: settings.unit, step: $0, isBarbell: equipment == .barbell) }
+            settings.steps[equipment].map { LoadGrid(unit: settings.unit, step: $0, isBarbell: equipment == .barbell, startsAtZero: equipment == .loadableBodyweight) }
         }
     }
 
@@ -423,7 +423,7 @@ private extension StrengthSimDriver {
         }
 
         let key = StrengthLifts.key(for: exercise)
-        let grid = gridFor(exercise.exerciseEquipment)
+        let grid = gridFor(exercise.equipment)
         let aim = workoutExercise.rirTarget ?? 2
         let sets = workoutExercise.workingSets.filter { $0.status == .active }
         if workoutExercise.showsWarmups, lifter.decides(profile.logWarmups) {
@@ -525,12 +525,12 @@ private extension StrengthSimDriver {
             exercise.fatigueLevel = lifter.rng.pick(FatigueLevel.allCases)
         case 2 where exercise.userCreated:
             // Only the lifter's own exercises can change equipment.
-            exercise.exerciseEquipment = exercise.repsOnly ? .dumbbell : .bodyweight
+            exercise.equipment = exercise.repsOnly ? .dumbbell : .bodyweight
         default:
             exercise.maxReps = lifter.rng.int(exercise.minReps...Exercise.maxRepsAllowed)
         }
         report.edits += 1
-        report.trace("edit \(exercise.exerciseName): \(exercise.minReps)-\(exercise.maxReps) reps, \(exercise.fatigueLevel.name), \(exercise.exerciseEquipment.rawValue)")
+        report.trace("edit \(exercise.exerciseName): \(exercise.minReps)-\(exercise.maxReps) reps, \(exercise.fatigueLevel.name), \(exercise.equipment.rawValue)")
     }
 }
 

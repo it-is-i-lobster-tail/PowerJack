@@ -62,6 +62,11 @@ struct WorkoutSetView: View {
         focusedSetField.wrappedValue == .weight(workoutSet.id)
     }
 
+    /// Loadable bodyweight at 0 reads "BW" until the field is tapped to add weight.
+    private var showsBodyweight: Bool {
+        workoutSet.addsToBodyweight && workoutSet.weightTenthsPounds == 0 && !weightIsFocused
+    }
+
     private var isEditable: Bool {
         !isReadOnly && workoutSet.status == .active && !workoutSet.locked
     }
@@ -101,7 +106,7 @@ struct WorkoutSetView: View {
             return Text("")
         }
 
-        return Text(weightUnit.format(tenthsPounds: plannedWeight))
+        return Text(plannedWeight == 0 ? "BW" : weightUnit.format(tenthsPounds: plannedWeight))
     }
 
     var body: some View {
@@ -133,6 +138,12 @@ struct WorkoutSetView: View {
                         .keyboardType(.decimalPad)
                         .disabled(!isEditable)
                         .multilineTextAlignment(.center)
+                        .foregroundStyle(showsBodyweight ? Color.clear : Color.primary)
+                        .overlay {
+                            if showsBodyweight {
+                                Text("BW").allowsHitTesting(false)
+                            }
+                        }
                         .frame(width: Self.fieldWidth, height: Self.fieldHeight)
                         .contentShape(.rect)
                         .onTapGesture { focus(.weight(workoutSet.id)) }
@@ -279,9 +290,10 @@ struct WorkoutSetView: View {
         onWeightChange(newValue, previousValue)
     }
 
+    /// 0 is only a weight for loadable bodyweight, where it is bodyweight alone.
     private func parsedWeight(_ text: String) -> Double? {
         let normalized = text.replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(normalized), value > 0 else { return nil }
+        guard let value = Double(normalized), value > 0 || (value == 0 && workoutSet.addsToBodyweight) else { return nil }
         return value
     }
 
@@ -296,7 +308,7 @@ struct WorkoutSetView: View {
     }
 
     /// Keeps typed weight from 0 to the heaviest weight a set can log in `unit`, to one decimal;
-    /// anything else keeps `previous`.
+    /// anything else keeps `previous`. A digit typed after a lone 0 replaces it, so "0" then "2" reads "2".
     static func weightInput(_ text: String, previous: String, unit: WeightUnit = .pounds) -> String {
         let parts = text.split(omittingEmptySubsequences: false) { $0 == "." || $0 == "," }
         guard parts.count <= 2,
@@ -306,7 +318,11 @@ struct WorkoutSetView: View {
         else { return previous }
 
         let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return value <= unit.maxEntry ? text : previous
+        guard value <= unit.maxEntry else { return previous }
+        if text.count > 1, text.first == "0", text.dropFirst().first?.isNumber == true {
+            return String(text.dropFirst())
+        }
+        return text
     }
 
     private func toggleCompletion() {

@@ -633,7 +633,9 @@ enum StrengthPrescriber {
             rules.append("hold")
         } else {
             let loadReady = Int((0.85 * Double(slot.repRange.upperBound)).rounded(.up))
-            if let grid = slot.grid, logged.allSatisfy({ ($0.reps ?? 0) >= loadReady && ($0.loadKg ?? 0) > 0 }) {
+            // Loadable bodyweight logs 0 for bodyweight alone, which can take its first step too.
+            let minimumLoad = slot.grid?.startsAtZero == true ? 0 : Double.leastNonzeroMagnitude
+            if let grid = slot.grid, logged.allSatisfy({ ($0.reps ?? 0) >= loadReady && ($0.loadKg ?? -1) >= minimumLoad }) {
                 sets = sets.map { StrengthPlannedSet(reps: $0.reps, loadKg: $0.loadKg.map { grid.moved($0, bySteps: 1) }) }
             } else {
                 sets = sets.map { StrengthPlannedSet(reps: $0.reps.map { min($0 + 1, slot.repRange.upperBound) }, loadKg: $0.loadKg) }

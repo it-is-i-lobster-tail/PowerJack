@@ -90,7 +90,7 @@ extension WorkoutSet {
         set {
             guard status == .active else { return }
 
-            if let newValue, Self.isValidWeightTenthsPounds(newValue) {
+            if let newValue, Self.isValidWeightTenthsPounds(newValue) || (newValue == 0 && addsToBodyweight) {
                 weightTenthsPoundsValue = newValue
             } else {
                 weightTenthsPoundsValue = nil
@@ -103,7 +103,7 @@ extension WorkoutSet {
         set {
             guard status == .planned else { return }
 
-            if let newValue, newValue > 0 {
+            if let newValue, newValue > 0 || (newValue == 0 && addsToBodyweight) {
                 weightTenthsPoundsPlannedValue = newValue
             } else {
                 weightTenthsPoundsPlannedValue = nil
@@ -142,10 +142,13 @@ extension WorkoutSet {
         descriptor.fetchLimit = 1
         return (try? context.fetch(descriptor))?.first?.completedAt
     }
-    /// Weights above `maxWeightPounds` can never be logged.
+    /// Weights above `maxWeightPounds` can never be logged. A weight of 0 is only kept on a loadable bodyweight
+    /// exercise, where it means bodyweight alone (see `addsToBodyweight`).
     static func isValidWeightTenthsPounds(_ weightTenthsPounds: Int) -> Bool {
         (1...maxWeightPounds * 10).contains(weightTenthsPounds)
     }
+    /// The set's exercise takes weight on top of bodyweight, so a weight of 0 is bodyweight alone.
+    var addsToBodyweight: Bool { workoutExerciseValue?.exercise?.addsToBodyweight == true }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
     /// How long the set took, rest before it included. `nil` until it's logged.
@@ -161,7 +164,8 @@ extension WorkoutSet {
         }
         set {
             guard status == .active else { return }
-            if let newValue, newValue > 0 {
+            // The setter keeps 0 only for loadable bodyweight.
+            if let newValue, newValue >= 0 {
                 weightTenthsPounds = Int((newValue * 10).rounded())
             } else {
                 weightTenthsPounds = nil
@@ -176,7 +180,7 @@ extension WorkoutSet {
         }
         set {
             guard status == .planned else { return }
-            if let newValue, newValue > 0 {
+            if let newValue, newValue >= 0 {
                 weightTenthsPlannedPounds = Int((newValue * 10).rounded())
             } else {
                 weightTenthsPlannedPounds = nil
@@ -267,9 +271,10 @@ extension WorkoutSet {
         completedAtValue = nil
         startedAtValue = nil
         // A set starts out holding its target, so the lifter only edits it when they go off plan.
+        // Loadable bodyweight with no target starts at bodyweight alone.
         if wasPlanned {
             reps = reps ?? repsPlanned
-            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds
+            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds ?? (addsToBodyweight ? 0 : nil)
         }
         Logger.workoutSet.debug("Starting WorkoutSet")
     }
