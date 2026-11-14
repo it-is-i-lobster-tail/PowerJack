@@ -107,7 +107,7 @@ struct LoadableBodyweightTests {
     func shownAsBodyweight() throws {
         try WeightUnit.$pinned.withValue(.pounds) {
             let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
-            let (workout, sets) = try makeWorkout(.loadableBodyweight, sets: [(8, 0), (8, 0)])
+            let (workout, sets, _) = try makeWorkout(.loadableBodyweight, sets: [(8, 0), (8, 0)])
             let state = try #require(workout.activityState())
             #expect(state.sets[0].weightText(repsOnly: state.repsOnly) == "BW")
             #expect(state.canCompleteAtTarget)
@@ -144,7 +144,7 @@ struct LoadableBodyweightTests {
     func buildAddsWeight() {
         let atTop = ProgressionSet(plannedReps: 12, plannedWeightTenthsPounds: 0, actualReps: 12, actualWeightTenthsPounds: 0, status: .complete)
         let input = ProgressionInput(
-            current: ProgressionHistory(programWeek: 3, status: .complete, pain: .none, effort: .challenge, sets: [atTop, atTop]),
+            current: ProgressionHistory(programWeek: 3, status: .complete, pain: LevelOfPain.none, effort: .challenge, sets: [atTop, atTop]),
             previous: nil,
             twoWeeksAgo: nil,
             exercise: ProgressionExerciseInfo(minReps: 5, maxReps: 12, primaryMuscle: .back, secondaryMuscles: [], repsOnly: false, addsToBodyweight: true),
