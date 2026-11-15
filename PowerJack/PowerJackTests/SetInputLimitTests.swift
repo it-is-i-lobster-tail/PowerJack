@@ -82,6 +82,27 @@ struct SetInputLimitTests {
         #expect(workoutSet.reps == 50)
     }
 
+    @Test("Switching units mid-workout shows the same weight in the new unit and keeps the stored weight")
+    func unitSwitchRefreshesTheWeightBox() async throws {
+        let workoutSet = try makeActiveSet()
+        workoutSet.weightTenthsPounds = 2250
+        let screen = try await HostedView(SetHost(workoutSet: workoutSet).modelContainer(container))
+        defer {
+            screen.close()
+            UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
+        }
+        #expect(screen.value(of: "Set 1 weight") == "225")
+
+        UserDefaults.standard.set(WeightUnit.kilograms.rawValue, forKey: AppSettings.Key.weightUnit)
+        #expect(await screen.waitUntil { screen.value(of: "Set 1 weight") == "102.1" })
+        // 102.1 kg read back would be 225.1 lb, so the box must not write its rounded value.
+        #expect(workoutSet.weightTenthsPounds == 2250)
+
+        UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
+        #expect(await screen.waitUntil { screen.value(of: "Set 1 weight") == "225" })
+        #expect(workoutSet.weightTenthsPounds == 2250)
+    }
+
     private func makeActiveSet() throws -> WorkoutSet {
         let workout = Workout(order: 0)
         let exercise = Exercise(exerciseName: "Test", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)

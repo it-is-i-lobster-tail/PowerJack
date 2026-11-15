@@ -246,6 +246,10 @@ struct WorkoutSetView: View {
                 weightText = Self.text(forWeight: newValue, in: weightUnit)
             }
         }
+        .onChange(of: weightUnit) { _, unit in
+            // Switching units in Settings mid-workout shows the same weight in the new unit.
+            weightText = Self.text(forWeight: workoutSet.weightTenthsPounds, in: unit)
+        }
         .onChange(of: weightIsFocused) { _, isFocused in
             // Tapping "BW" empties the box, so typed weight replaces the 0 instead of joining it.
             guard workoutSet.addsToBodyweight, workoutSet.weightTenthsPounds == 0 else { return }
@@ -288,6 +292,8 @@ struct WorkoutSetView: View {
             weightText = allowed
             return
         }
+        // The box already shows the stored weight, e.g. after a unit switch. Reading it back would round it.
+        guard text != Self.text(forWeight: workoutSet.weightTenthsPounds, in: weightUnit) else { return }
         // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
         let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
