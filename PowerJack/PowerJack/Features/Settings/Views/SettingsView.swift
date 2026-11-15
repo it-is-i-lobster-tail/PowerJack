@@ -167,7 +167,18 @@ struct SettingsView: View {
                         )
                     }
                     .disabled(isDeletingICloudCopy)
+                } header: {
+                    Text("Your Data")
+                } footer: {
+                    if isDeletingICloudCopy {
+                        Text("Deleting your iCloud copy…")
+                    } else if store.syncsWithICloud, !iCloudAvailable {
+                        Text("Sign in to iCloud in iOS Settings to start backing up.")
+                    }
+                }
 
+                // Its own card, so the iCloud note above stays with iCloud Backup.
+                Section {
                     Button {
                         isConfirmingExport = true
                     } label: {
@@ -178,14 +189,6 @@ struct SettingsView: View {
                         )
                     }
                     .foregroundStyle(.primary)
-                } header: {
-                    Text("Your Data")
-                } footer: {
-                    if isDeletingICloudCopy {
-                        Text("Deleting your iCloud copy…")
-                    } else if store.syncsWithICloud, !iCloudAvailable {
-                        Text("Sign in to iCloud in iOS Settings to start backing up.")
-                    }
                 }
 
                 Section("FAQ") {
