@@ -196,6 +196,18 @@ struct SettingsView: View {
                         Label("Terms and Conditions", systemImage: "doc.text")
                     }
                 }
+
+                Section {
+                    NavigationLink {
+                        DeveloperToolView()
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "ladybug",
+                            title: "Developer Tool",
+                            detail: "Traces what the app does, on this iPhone only, to help track down a problem."
+                        )
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

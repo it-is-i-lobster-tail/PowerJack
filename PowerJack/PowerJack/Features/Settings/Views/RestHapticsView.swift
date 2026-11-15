@@ -23,6 +23,11 @@ struct RestHapticsView: View {
     private var liftPattern = AppSettings.Default.liftPattern
 
     var body: some View {
+        content.traceScreen("Haptics")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Form {
             Section {
                 Toggle("iPhone", systemImage: "iphone", isOn: $onPhone.animation())

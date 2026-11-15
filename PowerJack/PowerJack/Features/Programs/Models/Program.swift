@@ -200,6 +200,7 @@ extension Program {
         statusValue = Status.complete
         lockedValue = true
         Logger.program.debug("Completed Program")
+        TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func stop() {
         guard
@@ -218,6 +219,7 @@ extension Program {
         statusValue = Status.stopped
         lockedValue = true
         Logger.program.debug("Stopped Program")
+        TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
     func start() {
         guard
@@ -230,6 +232,7 @@ extension Program {
         statusValue = Status.active
         programWeeks.first?.start()
         Logger.program.debug("Started Program")
+        TraceLog.record(.workout, "Started \(traceDescription)")
     }
     /// Lets the program's planner adjust `workout` right before it starts, such as after a long break.
     func prepareToStart(_ workout: Workout, at date: Date = .now) {
@@ -351,6 +354,7 @@ extension Program {
         let newProgramWeek = ProgramWeek(order: programWeeks.count)
         programWeeksValue = (programWeeksValue ?? []) + [newProgramWeek]
         Logger.program.info("New ProgramWeek added to Program")
+        TraceLog.record(.workout, "Added a week to \(traceDescription)")
         return newProgramWeek
     }
     func removeLastProgramWeek() {
@@ -359,6 +363,7 @@ extension Program {
             return
         }
         Logger.program.info("Removing last ProgramWeek from Program")
+        TraceLog.record(.workout, "Removing the last week of \(traceDescription)")
         programWeeksValue?.removeAll { $0 === lastWeek }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(lastWeek)

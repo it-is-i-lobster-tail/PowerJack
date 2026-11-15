@@ -28,6 +28,11 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
+        content.traceScreen("Exercise Detail")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ExerciseForm(
             draft: $draft,
             editExistingExercise: true,

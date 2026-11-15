@@ -139,6 +139,8 @@
 				Shared/LiveActivity/RestActivityAttributes.swift,
 				Shared/LiveActivity/RestPeriod.swift,
 				"Shared/Logging/Logger+PowerJack.swift",
+				Shared/Logging/TraceDescriptions.swift,
+				Shared/Logging/TraceLog.swift,
 				Shared/Models/Equipment.swift,
 				Shared/Models/FatigueLevel.swift,
 				Shared/Models/Muscle.swift,

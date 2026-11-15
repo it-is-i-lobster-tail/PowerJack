@@ -50,6 +50,11 @@ struct ExerciseSelectionView: View {
     }
 
     var body: some View {
+        content.traceScreen("Exercise Picker")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         NavigationStack {
             AddableListScaffold(
                 navigationTitle: LocalizedStringKey(navigationTitle),

@@ -11,6 +11,11 @@ struct LoadStepsView: View {
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
 
     var body: some View {
+        content.traceScreen("Load Steps")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Form {
             Section {
                 ForEach(Equipment.allCases.filter { $0 != .bodyweight }) { equipment in

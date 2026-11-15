@@ -16,6 +16,11 @@ struct ExerciseSummaryView: View {
     let onContinue: () -> Void
 
     var body: some View {
+        content.traceScreen("Exercise Summary")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                 Text("Workout complete!")

@@ -186,6 +186,7 @@ extension Workout {
         lockedValue = true
         endedAtValue = .now
         Logger.workout.debug("Completed workout")
+        TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func stop() {
         guard
@@ -199,6 +200,7 @@ extension Workout {
         lockedValue = true
         endedAtValue = .now
         Logger.workout.debug("Stopped workout")
+        TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
     func skip() {
         guard
@@ -212,6 +214,7 @@ extension Workout {
         lockedValue = true
         endedAtValue = .now
         Logger.workout.debug("Skipped workout")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func start(at date: Date = .now, on device: String = SyncDevice.current) {
         guard
@@ -226,6 +229,7 @@ extension Workout {
         startedAtValue = date
         startedOnValue = device
         Logger.workout.debug("Started workout")
+        TraceLog.record(.workout, "Started \(traceDescription) on \(device)")
     }
     func completeAndCascade() {
         complete()
@@ -270,6 +274,7 @@ extension Workout {
             }
         }
         Logger.workout.debug("Unskipped workout")
+        TraceLog.record(.workout, "Unskipped \(traceDescription)")
     }
     func startAndCascade(at date: Date = .now, on device: String = SyncDevice.current) {
         start(at: date, on: device)
@@ -335,6 +340,7 @@ extension Workout {
             workoutExercise.setSuperset(entry.supersetID)
         }
         Logger.workout.debug("Changed the exercises of a planned Workout")
+        TraceLog.record(.workout, "Changed the exercises of \(traceDescription)")
         return ordered
     }
     /// The day's exercises from next week on, when it was edited after it started. Nil when no edit is waiting.
