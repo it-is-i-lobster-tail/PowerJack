@@ -714,6 +714,22 @@ extension WorkoutExercise {
         }
         feedbackValue = feedback
     }
+
+    /// Saves the lifter's answers to the feedback questions, with the top set's rating when it was asked.
+    /// The first answer stands: one from the other device that lands later never replaces it.
+    /// - Returns: false when the exercise wasn't waiting on feedback, e.g. it was answered on the other device.
+    @discardableResult
+    func answerFeedback(_ feedback: ExerciseFeedback, topSet: RepsInReserve?) -> Bool {
+        guard needsFeedback else {
+            Logger.workoutExercise.info("Feedback was already answered or isn't needed yet")
+            return false
+        }
+        if let topSet, topSets > 0 {
+            rateTopSets(topSet)
+        }
+        addFeedback(feedback: feedback)
+        return true
+    }
 }
 
 //

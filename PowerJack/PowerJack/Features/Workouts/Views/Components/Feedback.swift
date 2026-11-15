@@ -79,11 +79,8 @@ struct Feedback: View {
             return
         }
 
-        if let topSetRepsInReserve = draft.topSetRepsInReserve {
-            workoutExercise.rateTopSets(topSetRepsInReserve)
-        }
         // The exercise stays open, so the lifter can still add a set before finishing the workout.
-        workoutExercise.addFeedback(feedback: newFeedback)
+        workoutExercise.answerFeedback(newFeedback, topSet: draft.topSetRepsInReserve)
         try? modelContext.save()
         dismiss()
         onFinished()
