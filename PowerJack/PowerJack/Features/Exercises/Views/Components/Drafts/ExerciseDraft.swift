@@ -32,6 +32,11 @@ struct ExerciseDraft {
 
     init() {}
 
+    /// Starts a new exercise with a name, such as the search text that found nothing.
+    init(name: String) {
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     init(exercise: Exercise) {
         name = exercise.exerciseName
         equipment = exercise.equipment
