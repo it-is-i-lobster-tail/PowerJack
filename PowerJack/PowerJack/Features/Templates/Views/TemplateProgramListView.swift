@@ -168,9 +168,12 @@ private struct TemplateProgramInfo: View {
             Text("\(workoutsPerWeek) days/wk")
                 .font(.caption2)
 
-            Text("|")
-                .font(.caption2)
-                .padding(.horizontal, 2)
+            // A draft can have no focus muscles yet, so nothing follows the divider.
+            if !templateMuscleFocus.isEmpty {
+                Text("|")
+                    .font(.caption2)
+                    .padding(.horizontal, 2)
+            }
 
             ForEach(Array(templateMuscleFocus.enumerated()), id: \.element.id) { index, muscleFocus in
                 Text(muscleFocus.rawValue.localizedCapitalized)
