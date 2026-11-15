@@ -51,7 +51,7 @@ struct TraceLogTests {
         let text = try await contents(of: log)
         #expect(text.hasPrefix("PowerJack "))
         #expect(text.contains("[lifecycle] Tracing turned on"))
-        #expect(text.contains("[tap] Tap at (10, 20)"))
+        #expect(text.contains("Z [tap] Tap at (10, 20)"))
 
         // A relaunch carries on in the same file while it has room.
         let relaunched = makeLog()

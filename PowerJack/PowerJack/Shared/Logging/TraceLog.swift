@@ -45,7 +45,8 @@ nonisolated final class TraceLog: @unchecked Sendable {
     private let maxFiles: Int
     private let enabled = Atomic(false)
     private let queue = DispatchQueue(label: "PowerJack.TraceLog", qos: .utility)
-    private let timestamp = Date.ISO8601FormatStyle(includingFractionalSeconds: true, timeZone: .current)
+    // UTC, so a trace never gives away the lifter's time zone.
+    private let timestamp = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 
     // Only touched on `queue`.
     private var handle: FileHandle?

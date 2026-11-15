@@ -129,7 +129,7 @@ private struct RestTimerHost: ViewModifier {
             return
         }
         let kind = rest.isWarmup ? "warmup" : "working"
-        TraceLog.record(.timer, "Rest of \(Int(rest.duration))s, ends \(rest.endsAt.formatted(date: .omitted, time: .standard)), before \(kind) set \(rest.setNumber) of \(rest.setCount)")
+        TraceLog.record(.timer, "Rest of \(Int(rest.duration))s, ends \(rest.endsAt.formatted(.iso8601)), before \(kind) set \(rest.setNumber) of \(rest.setCount)")
     }
 
     /// Hides the island once "Start set" has been up for its whole window.
