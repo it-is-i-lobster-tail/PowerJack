@@ -31,6 +31,11 @@ struct ExerciseSelectionView: View {
         }
     }
 
+    // A search that finds nothing becomes the new exercise's name.
+    private var newExerciseName: String {
+        filteredExercises.isEmpty ? searchText : ""
+    }
+
     private var emptyTitle: LocalizedStringKey {
         searchText.isEmpty ? "No exercises" : "No matching exercises"
     }
@@ -73,7 +78,7 @@ struct ExerciseSelectionView: View {
                     }
                 }
             } createDestination: {
-                ExerciseNewView(onSave: handleNewExercise)
+                ExerciseNewView(name: newExerciseName, onSave: handleNewExercise)
             }
             .searchable(text: $searchText, prompt: "Search exercises")
             .searchPresentationToolbarBehavior(.avoidHidingContent)

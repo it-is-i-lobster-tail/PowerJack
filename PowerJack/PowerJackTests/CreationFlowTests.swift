@@ -45,6 +45,14 @@ struct CreationFlowTests {
         #expect(exercise.restDuration == .seconds(45))
     }
 
+    @Test("A new exercise draft starts with the trimmed search text as its name")
+    func exerciseDraftStartsWithName() {
+        let draft = ExerciseDraft(name: "  Landmine Press \n")
+        #expect(draft.name == "Landmine Press")
+        #expect(!draft.canSave)
+        #expect(ExerciseDraft(name: "").name.isEmpty)
+    }
+
     @Test("Exercise drafts keep rep ranges between 5 and 30 with min at or below max")
     func exerciseDraftRepRange() throws {
         var draft = ExerciseDraft()
