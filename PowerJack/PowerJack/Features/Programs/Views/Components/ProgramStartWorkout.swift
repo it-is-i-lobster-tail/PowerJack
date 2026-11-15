@@ -31,6 +31,7 @@ struct ProgramStartWorkout: View {
             workout.startAndCascade()
             try? modelContext.save()
         }
+        WorkoutMirroring.shared.openOnWatch()
         router.showSession(program)
     }
 }

@@ -6,6 +6,8 @@
 	<string>PowerJack doesn't read your Health data.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>PowerJack runs a strength workout while you train, so your watch stays on your sets and keeps your iPhone in step. Nothing is saved to Health.</string>
+	<key>WKSupportsLiveActivityLaunchAttributeTypes</key>
+	<array/>
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>

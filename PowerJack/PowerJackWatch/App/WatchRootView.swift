@@ -7,21 +7,35 @@
 
 import SwiftData
 import SwiftUI
+import WidgetKit
 
 struct WatchRootView: View {
+    @Environment(WatchSync.self) private var sync
     @Query private var programs: [Program]
 
     var body: some View {
         NavigationStack {
             if let program = programs.active {
                 ProgramHomeView(program: program)
-            } else {
+            } else if sync.heardFromIPhone {
                 ContentUnavailableView(
                     "No program running",
                     systemImage: "dumbbell",
-                    description: Text("Start a program on your iPhone, then open PowerJack there with your watch nearby.")
+                    description: Text("Start a program on your iPhone.")
                 )
+            } else {
+                ContentUnavailableView {
+                    Label("Waiting for iPhone", systemImage: "iphone")
+                } description: {
+                    Text("Keep your iPhone nearby to get your program.")
+                } actions: {
+                    Button("Try Again") { sync.push() }
+                }
             }
+        }
+        // Tapping the iPhone's workout Live Activity in the Smart Stack opens the workout here.
+        .onContinueUserActivity(NSUserActivityTypeLiveActivity) { _ in
+            WorkoutLaunch.shared.opensActiveWorkout = true
         }
     }
 }
@@ -81,12 +95,24 @@ private struct ProgramHomeView: View {
                 ContentUnavailableView("Program complete", systemImage: "checkmark.seal")
             }
         }
+        .onChange(of: WorkoutLaunch.shared.opensActiveWorkout, initial: true) { openActiveWorkoutIfAsked() }
+        .onChange(of: program.nextWorkout?.status, initial: true) { openActiveWorkoutIfAsked() }
         .navigationDestination(item: shownWorkout) { workout in
             WatchWorkoutView(program: program, workout: workout) {
                 shownWorkout.wrappedValue = nil
             }
             // A new copy of the workout starts the screen over, from where its sets say the lifter is.
             .id(workout.persistentModelID)
+        }
+    }
+
+    /// Opens the workout in progress when the iPhone or its Live Activity asked for it,
+    /// as soon as the watch has it from the iPhone.
+    private func openActiveWorkoutIfAsked() {
+        guard WorkoutLaunch.shared.opensActiveWorkout, let workout = program.nextWorkout, workout.status == .active else { return }
+        WorkoutLaunch.shared.opensActiveWorkout = false
+        if shownWorkout.wrappedValue == nil {
+            shownWorkout.wrappedValue = workout
         }
     }
 
