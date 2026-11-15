@@ -40,9 +40,14 @@ extension Workout {
 
         let group = group(of: latest.workoutExercise)
         let round = latest.workoutExercise.round(of: latest.workoutSet)
+        // A partner still to go in the round means no rest yet, even when it warms up first.
+        let roundIsDone = !group.contains { workoutExercise in
+            guard let workoutSet = workoutExercise.set(in: round) else { return false }
+            return !workoutExercise.allSetsDone() && workoutSet.status == .active
+        }
         guard
             group.contains(where: { $0 === current.workoutExercise }),
-            current.workoutExercise.round(of: current.workoutSet) != round
+            roundIsDone
         else {
             return nil
         }

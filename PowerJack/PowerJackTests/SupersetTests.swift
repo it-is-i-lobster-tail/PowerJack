@@ -115,6 +115,26 @@ struct SupersetTests {
         #expect(workout.currentExerciseIndex == 0)
     }
 
+    @Test("Going straight to A's first working set moves on to B's warmups with no rest until B's round is done")
+    func noRestBeforePartnerWarmups() throws {
+        let workout = try makeSupersetWorkout()
+        let a = workout.workoutExercises[0]
+        let b = workout.workoutExercises[1]
+
+        // A's first working set skips A's warmups, but B still has its own to do.
+        a.completeSet(a.workingSets[0], at: start)
+        #expect(workout.currentSet?.workoutSet === b.warmupSets[0])
+        #expect(workout.currentRest == nil)
+
+        // Skipping B's warmups too, the round still waits for B's first working set.
+        b.skipWarmups()
+        #expect(workout.currentSet?.workoutSet === b.workingSets[0])
+        #expect(workout.currentRest == nil)
+
+        b.completeSet(b.workingSets[0], at: start + 30)
+        #expect(workout.currentRest?.duration == 150)
+    }
+
     @Test("Mid-round, the workout opens on the exercise whose turn it is")
     func currentExerciseFollowsTheRound() throws {
         let workout = try makeSupersetWorkout()
