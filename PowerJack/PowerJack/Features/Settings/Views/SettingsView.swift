@@ -4,11 +4,13 @@
 //
 
 import ActivityKit
+import SwiftData
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.modelContext) private var modelContext
     @Environment(PowerJackStore.self) private var store
 
     @AppStorage(AppSettings.Key.inAppRestTimer)
@@ -29,6 +31,10 @@ struct SettingsView: View {
     @State private var isConfirmingICloudOff = false
     @State private var isDeletingICloudCopy = false
     @State private var showsICloudOffError = false
+    @State private var isConfirmingExport = false
+    @State private var exportedHistory: URL?
+    @State private var isSharingHistory = false
+    @State private var showsExportError = false
 
     var body: some View {
         NavigationStack {
@@ -171,6 +177,20 @@ struct SettingsView: View {
                     }
                 }
 
+                // Its own card, so the iCloud note above stays with iCloud Backup.
+                Section {
+                    Button {
+                        isConfirmingExport = true
+                    } label: {
+                        SettingsRowLabel(
+                            systemImage: "square.and.arrow.up",
+                            title: "Export Workout History",
+                            detail: "Every set you've logged, as a spreadsheet file (CSV)."
+                        )
+                    }
+                    .foregroundStyle(.primary)
+                }
+
                 Section("FAQ") {
                     NavigationLink {
                         FAQView()
@@ -228,6 +248,24 @@ struct SettingsView: View {
         } message: {
             Text("iCloud couldn't be reached, so nothing was deleted. Check your connection and try again.")
         }
+        .alert("Export Workout History?", isPresented: $isConfirmingExport) {
+            Button("Export", action: exportHistory)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The file has every workout, set, weight and time you've logged. Names you gave your own templates and exercises are left out. Anyone you send it to can read it, so only share it with people you trust.")
+        }
+        .alert("Couldn't Export", isPresented: $showsExportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your workout history couldn't be read. Try again.")
+        }
+        .sheet(isPresented: $isSharingHistory, onDismiss: removeExportedHistory) {
+            if let exportedHistory {
+                ShareSheet(url: exportedHistory)
+                    .presentationDetents([.medium, .large])
+                    .ignoresSafeArea()
+            }
+        }
         .task {
             iCloudAvailable = await store.iCloudAccountAvailable()
         }
@@ -262,6 +300,22 @@ struct SettingsView: View {
             }
             isDeletingICloudCopy = false
         }
+    }
+
+    private func exportHistory() {
+        do {
+            exportedHistory = try HistoryExport.writeFile(from: modelContext)
+            isSharingHistory = true
+        } catch {
+            showsExportError = true
+        }
+    }
+
+    // The copy only lives as long as the share sheet, so the history isn't left lying around.
+    private func removeExportedHistory() {
+        guard let exportedHistory else { return }
+        try? FileManager.default.removeItem(at: exportedHistory)
+        self.exportedHistory = nil
     }
 
     private func openSystemSettings() {

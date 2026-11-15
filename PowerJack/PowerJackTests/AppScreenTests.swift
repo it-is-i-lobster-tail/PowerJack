@@ -58,8 +58,9 @@ struct AppScreenTests {
         #expect(store.syncsWithICloud)
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
+        // The sheet can take longer than a fixed wait to slide away on CI.
         await screen.tap("Done", settleFor: .milliseconds(800))
-        #expect(screen.label(startingWith: "In-App Timer") == nil)
+        #expect(await screen.waitUntil { screen.label(startingWith: "In-App Timer") == nil }, "\(screen.labels)")
     }
 
     @Test("Switching iCloud Backup keeps Settings open and the chosen section")
