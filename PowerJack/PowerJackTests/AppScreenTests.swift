@@ -274,6 +274,19 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: powerJack) != nil, "\(screen.labels)")
     }
 
+    @Test("A draft with no focus muscles yet shows no divider with nothing after it")
+    func draftRowWithoutMuscles() async throws {
+        defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
+        container.mainContext.insert(TemplateProgram(templateName: "Just Named", workoutsPerWeek: 0, templateMuscleFocus: []))
+        let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
+        defer { screen.close() }
+
+        let draft = try #require(screen.label(startingWith: "(Draft) Just Named"), "\(screen.labels)")
+        #expect(!draft.contains("|"), "\(draft)")
+        let full = try #require(screen.label(startingWith: TemplateCatalog.entries[0].name), "\(screen.labels)")
+        #expect(full.contains("|"), "\(full)")
+    }
+
     @Test("New Template has no Save button and saves as soon as the user types")
     func newTemplateAutosaves() async throws {
         let screen = try await HostedView(
