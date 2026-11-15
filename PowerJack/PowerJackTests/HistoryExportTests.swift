@@ -3,7 +3,7 @@
 //  PowerJackTests
 //
 //  The workout history CSV: one row per set, with what each set belongs to, in a form
-//  any spreadsheet reads the same way.
+//  any spreadsheet reads the same way, and nothing the lifter typed or where they are.
 //
 
 import Foundation
@@ -34,15 +34,15 @@ struct HistoryExportTests {
         let bench = try #require(rows.first { $0["Exercise"] == "Bench" && $0["Set Type"] == "Working" && $0["Set #"] == "1" })
 
         #expect(bench["Program #"] == "1")
-        #expect(bench["Program"] == "Push")
+        #expect(bench["Program"] == "Custom Template 1")
         #expect(bench["Program Type"] == "Hypertrophy")
         #expect(bench["Week"] == "1" && bench["Day"] == "1")
         #expect(bench["Equipment"] == "Barbell" && bench["Exercise Source"] == "Built-in")
         #expect(bench["Superset"] == "A")
         #expect(bench["Set Status"] == "Complete")
         #expect(bench["Reps"] == "8" && bench["Weight (lb)"] == "225")
-        #expect(bench["Set Started"] == start.formatted(.iso8601TimeZone))
-        #expect(bench["Set Logged"] == (start + 120).formatted(.iso8601TimeZone))
+        #expect(bench["Set Started"] == start.formatted(.iso8601))
+        #expect(bench["Set Logged"] == (start + 120).formatted(.iso8601))
         #expect(bench["Set Seconds"] == "120")
         #expect(bench["Effort"] == "2 reps left" && bench["Pain"] == "Mild")
 
@@ -62,12 +62,24 @@ struct HistoryExportTests {
         #expect(dip["Weight (kg)"] == "0" && dip["Exercise Source"] == "Custom")
     }
 
-    @Test("A name with commas and quotes comes back exactly as typed")
-    func quoting() throws {
+    @Test("Names the lifter typed are left out, built-in names stay, and times are UTC")
+    func nothingPersonal() throws {
         let workout = try makeLoggedWorkout()
-        let csv = HistoryExport.csv(for: [try #require(workout.programWeekValue?.programValue)], unit: .pounds)
-        #expect(csv.contains(#""Dip, ""Weighted"""#))
-        #expect(records(csv).contains { $0["Exercise"] == #"Dip, "Weighted""# })
+        let program = try #require(workout.programWeekValue?.programValue)
+        let csv = HistoryExport.csv(for: [program], unit: .pounds)
+        #expect(!csv.contains("Push") && !csv.contains("Dip"))
+
+        let rows = records(csv)
+        let dips = rows.filter { $0["Exercise Source"] == "Custom" }
+        #expect(!dips.isEmpty && dips.allSatisfy { $0["Exercise"] == "Custom Exercise 1" })
+        #expect(rows.allSatisfy { $0["Program"] == "Custom Template 1" })
+        // Times carry no offset that hints at where the lifter is.
+        let times = rows.flatMap { [$0["Workout Started"], $0["Set Logged"]] }.compactMap { $0 }.filter { !$0.isEmpty }
+        #expect(!times.isEmpty && times.allSatisfy { $0.hasSuffix("Z") })
+
+        // A built-in template keeps its name.
+        program.templateNameValue = "Full Body"
+        #expect(records(HistoryExport.csv(for: [program], unit: .pounds)).allSatisfy { $0["Program"] == "Full Body" })
     }
 
     @Test("The file is written and named for today")
@@ -155,8 +167,4 @@ struct HistoryExportTests {
         }
         return rows
     }
-}
-
-private extension FormatStyle where Self == Date.ISO8601FormatStyle {
-    static var iso8601TimeZone: Date.ISO8601FormatStyle { Date.ISO8601FormatStyle(timeZoneSeparator: .colon, timeZone: .current) }
 }

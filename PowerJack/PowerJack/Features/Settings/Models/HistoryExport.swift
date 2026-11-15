@@ -6,6 +6,10 @@
 //  spreadsheet, or rebuild it somewhere else. One row per set, in program, week, day, exercise and
 //  set order, with the program, workout and exercise it belongs to repeated on each row.
 //
+//  Nothing personal goes in. Names the lifter typed (their own templates and exercises) could say
+//  anything, so they become "Custom Template 1" or "Custom Exercise 2", numbered in the order they
+//  first appear. Built-in names stay. Times are in UTC, so they don't give away where the lifter is.
+//
 
 import Foundation
 import SwiftData
@@ -26,8 +30,9 @@ enum HistoryExport {
     /// The whole history as CSV text, oldest program first.
     static func csv(for programs: [Program], unit: WeightUnit = .current) -> String {
         var lines = [row(columns(unit: unit))]
+        var names = Names()
         for (index, program) in programs.sorted(by: { firstActivity(of: $0) < firstActivity(of: $1) }).enumerated() {
-            lines += rows(for: program, number: index + 1, unit: unit)
+            lines += rows(for: program, number: index + 1, unit: unit, names: &names)
         }
         return lines.joined(separator: "\r\n") + "\r\n"
     }
@@ -40,18 +45,20 @@ enum HistoryExport {
         return url
     }
 
-    private static func rows(for program: Program, number: Int, unit: WeightUnit) -> [String] {
+    private static func rows(for program: Program, number: Int, unit: WeightUnit, names: inout Names) -> [String] {
         var lines: [String] = []
+        let programName = names.template(program.templateName)
         for (weekIndex, week) in program.programWeeks.enumerated() {
             for (dayIndex, workout) in week.workouts.enumerated() {
                 let supersets = supersetLetters(in: workout)
                 for (exerciseIndex, workoutExercise) in workout.workoutExercises.enumerated() {
                     let exercise = workoutExercise.exercise
+                    let exerciseName = exercise.map { names.exercise($0) } ?? ""
                     let feedback = workoutExercise.feedback
                     for workoutSet in workoutExercise.workoutSets {
                         lines.append(row([
                             "\(number)",
-                            program.templateName,
+                            programName,
                             program.templateType.name,
                             "\(program.programLengthWeeks)",
                             "\(program.workoutsPerWeek)",
@@ -64,7 +71,7 @@ enum HistoryExport {
                             date(workout.endedAt),
                             workout.endedAt == nil ? "" : decimal(workout.duration().map { $0 / 60 }),
                             "\(exerciseIndex + 1)",
-                            exercise?.exerciseName ?? "",
+                            exerciseName,
                             exercise?.equipment.displayName ?? "",
                             exercise?.primaryMuscleFocus.rawValue.capitalized ?? "",
                             exercise.map { $0.userCreated ? "Custom" : "Built-in" } ?? "",
@@ -120,8 +127,8 @@ enum HistoryExport {
         feedback.repsInReserve?.label ?? feedback.levelOfEffort.label
     }
 
-    // Fixed formats, so the file reads the same in any region: "2026-11-14T18:03:22-08:00", "102.5".
-    private static let time = Date.ISO8601FormatStyle(timeZoneSeparator: .colon, timeZone: .current)
+    // Fixed formats, so the file reads the same in any region: "2026-11-15T02:03:22Z", "102.5".
+    private static let time = Date.ISO8601FormatStyle()
     private static let day = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
 
     private static func date(_ date: Date?) -> String {
@@ -143,6 +150,31 @@ enum HistoryExport {
             return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         .joined(separator: ",")
+    }
+}
+
+/// Stands in for names the lifter typed, so the file holds only names PowerJack ships with.
+private struct Names {
+    private static let builtInTemplates = Set(TemplateCatalog.entries.map(\.name))
+    private var templates: [String: String] = [:]
+    private var exercises: [ObjectIdentifier: String] = [:]
+
+    /// A built-in template's name, even for a program made from an edited copy, as long as the name is unchanged.
+    mutating func template(_ name: String) -> String {
+        if Self.builtInTemplates.contains(name) { return name }
+        if let label = templates[name] { return label }
+        let label = "Custom Template \(templates.count + 1)"
+        templates[name] = label
+        return label
+    }
+
+    /// Built-in exercises can't be renamed, so only the lifter's own get a stand-in.
+    mutating func exercise(_ exercise: Exercise) -> String {
+        guard exercise.userCreated else { return exercise.exerciseName }
+        if let label = exercises[ObjectIdentifier(exercise)] { return label }
+        let label = "Custom Exercise \(exercises.count + 1)"
+        exercises[ObjectIdentifier(exercise)] = label
+        return label
     }
 }
 
