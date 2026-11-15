@@ -66,7 +66,9 @@ struct VolumeTests {
         ]
 
         let averages = WeeklyVolume.averages(of: logs, in: .days30, now: now)
-        let weeks = 30.0 / 7.0
+        // 30 calendar days back, which is an hour more or less than 30 × 24 hours across a clock change.
+        let start = VolumeRange.days30.start(before: now)!
+        let weeks = now.timeIntervalSince(start) / (7 * day)
 
         #expect(abs((averages[.chest] ?? 0) - 30 / weeks) < 0.001)
     }
