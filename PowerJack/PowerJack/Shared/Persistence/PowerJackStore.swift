@@ -57,14 +57,20 @@ final class PowerJackStore {
             try await CKContainer(identifier: PowerJackSchema.cloudKitContainerID)
                 .privateCloudDatabase
                 .deleteRecordZone(withID: Self.cloudKitZone)
-        } catch let error as CKError where error.code == .zoneNotFound {
-            // Nothing was uploaded yet, so there is nothing to delete.
+        } catch let error as CKError where Self.hasNoCopyToDelete(error) {
+            Logger.sync.info("No iCloud copy to delete: \(error.localizedDescription)")
         } catch {
             Logger.sync.error("Could not delete the iCloud copy: \(error.localizedDescription)")
             throw error
         }
         switchContainer(syncsWithICloud: false)
         Logger.sync.info("iCloud Backup turned off and the iCloud copy deleted")
+    }
+
+    /// Nothing was uploaded yet, or this iPhone isn't signed in to iCloud, so it backed nothing up
+    /// and backup can be turned off without deleting anything.
+    static func hasNoCopyToDelete(_ error: CKError) -> Bool {
+        error.code == .zoneNotFound || error.code == .notAuthenticated
     }
 
     /// Whether this iPhone is signed in to iCloud, so backup can actually run.

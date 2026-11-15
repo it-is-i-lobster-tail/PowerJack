@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import SwiftData
 import Testing
@@ -136,6 +137,15 @@ struct SyncReadinessTests {
     func inMemoryStoreNeverSyncs() {
         let store = PowerJackStore(inMemory: true)
         #expect(!store.syncsWithICloud)
+    }
+
+    @Test("Backup turns off without deleting when there's no iCloud copy or no iCloud account")
+    func turningOffWithNothingToDelete() {
+        #expect(PowerJackStore.hasNoCopyToDelete(CKError(.zoneNotFound)))
+        #expect(PowerJackStore.hasNoCopyToDelete(CKError(.notAuthenticated)))
+        // Offline, the copy is still there, so backup stays on rather than leave it behind.
+        #expect(!PowerJackStore.hasNoCopyToDelete(CKError(.networkUnavailable)))
+        #expect(!PowerJackStore.hasNoCopyToDelete(CKError(.networkFailure)))
     }
 
     // Returns the container, not its context: the test must keep the container alive.
