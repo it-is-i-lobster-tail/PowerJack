@@ -30,7 +30,10 @@ final class RestHaptics {
     }
 
     private func makeEngine() throws -> CHHapticEngine {
-        let engine = try CHHapticEngine()
+        // Haptics only, on no audio session: the lift cue starts it just as the rest voice
+        // restarts the app's session to dip other audio.
+        let engine = try CHHapticEngine(audioSession: nil)
+        engine.playsHapticsOnly = true
         // Lets the engine sleep between rests; `play` starts it again.
         engine.isAutoShutdownEnabled = true
         self.engine = engine
