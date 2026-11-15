@@ -35,15 +35,13 @@ struct WatchActions {
     }
 
     func rate(_ workoutExercise: WorkoutExercise, feedback: ExerciseFeedback, topSet: RepsInReserve?) {
-        if let topSet {
-            workoutExercise.rateTopSets(topSet)
-        }
-        workoutExercise.addFeedback(feedback: feedback)
-        guard workoutExercise.feedback === feedback else { return }
+        // Already answered on the iPhone: its answer stands, so there's nothing to send.
+        guard workoutExercise.answerFeedback(feedback, topSet: topSet) else { return }
         replica.record(.rateExercise(feedback.syncState, topSetRepsInReserve: topSet?.rawValue), at: RowPath(workoutExercise), together: together)
     }
 
     func resolveCheckIn(of workoutExercise: WorkoutExercise, with decision: ManualCheckInDecision) {
+        guard workoutExercise.checkInPending else { return }
         workoutExercise.resolveCheckIn(decision)
         replica.record(.resolveCheckIn(decision.rawValue), at: RowPath(workoutExercise), together: together)
     }
@@ -54,5 +52,15 @@ struct WatchActions {
         workout.skipRemainingSets()
         program.finishWorkout(workout)
         replica.record(.finishWorkout, at: row, together: together)
+    }
+
+    /// Enters what's dialed in on a set still to do, so the iPhone shows it before it's logged.
+    /// Only what differs from what the set already shows is entered.
+    func enter(_ entry: SetEntry, on workoutSet: WorkoutSet, of workoutExercise: WorkoutExercise) {
+        guard workoutSet.status == .active, !workoutSet.locked else { return }
+        let changes = entry.changes(from: workoutSet, repsOnly: workoutExercise.exercise?.repsOnly ?? false)
+        guard changes.weightTenthsPounds != nil || changes.reps != nil else { return }
+        workoutExercise.enter(weightTenthsPounds: changes.weightTenthsPounds, reps: changes.reps, on: workoutSet)
+        replica.recordEntry(weightTenthsPounds: changes.weightTenthsPounds, reps: changes.reps, at: RowPath(workoutSet), together: together)
     }
 }

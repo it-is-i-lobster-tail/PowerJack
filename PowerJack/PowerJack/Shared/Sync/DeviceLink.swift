@@ -31,6 +31,9 @@ final class DeviceLink: NSObject {
     #else
     /// Takes the program the iPhone sent. Set by `WatchSync`.
     var onSnapshot: ((Data) -> Void)?
+    /// The link is up or the iPhone can be reached again: a good moment to ask for its program.
+    /// Set by `WatchSync`.
+    var onConnected: (() -> Void)?
     #endif
 
     func start() {
@@ -151,6 +154,7 @@ extension DeviceLink: WCSessionDelegate {
             self.updateContext()
             #else
             if !received.isEmpty { self.received(context: received) }
+            if activationState == .activated { self.onConnected?() }
             #endif
         }
     }
@@ -198,6 +202,15 @@ extension DeviceLink: WCSessionDelegate {
         }
     }
 
+    /// The watch app came to the front or back in range: give it the latest program now, since one
+    /// sent while it was away only waits in the application context.
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        Task { @MainActor in
+            if let latestSnapshot = self.latestSnapshot { self.send(snapshot: latestSnapshot) }
+        }
+    }
+
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
 
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
@@ -208,6 +221,11 @@ extension DeviceLink: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         nonisolated(unsafe) let received = applicationContext
         Task { @MainActor in self.received(context: received) }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        Task { @MainActor in self.onConnected?() }
     }
 
     /// A program too big for the application context.

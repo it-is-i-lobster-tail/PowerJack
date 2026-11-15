@@ -99,6 +99,52 @@ struct RestCalloutTests {
         #expect(workout.restCallout?.phrase.text == "Start superset.")
     }
 
+    @Test("A callout is said as its rest ends or not at all, never long after")
+    func lateCallouts() {
+        let callout = RestCallout(endsAt: start, phrase: .superset)
+        #expect(!callout.isLate(at: start.addingTimeInterval(-60)))
+        #expect(!callout.isLate(at: start))
+        #expect(!callout.isLate(at: start.addingTimeInterval(RestCallout.lateLimit)))
+        // As when iOS kept PowerJack suspended through the end of the rest.
+        #expect(callout.isLate(at: start.addingTimeInterval(RestCallout.lateLimit + 1)))
+    }
+
+    @Test("A set logged on the watch sets the iPhone's voice for the rest it starts, when the voice is on")
+    func followsWatchLoggedSet() throws {
+        let devices = try TwoDevices()
+        try devices.sendProgram()
+        let watchProgram = try devices.watchProgram
+        let workout = try #require(watchProgram.nextWorkout)
+        let workoutExercise = workout.workoutExercises[0]
+        let workoutSet = try #require(workoutExercise.workingSets.first)
+        // Long enough ago that the rest is over, so the voice stays quiet during the test.
+        let loggedAt = Date.now.addingTimeInterval(-3600)
+        devices.onWatch { actions in
+            actions.start(workout, in: watchProgram, at: loggedAt.addingTimeInterval(-60))
+            var entry = SetEntry(for: workoutSet, unit: .pounds)
+            entry.weight = 135
+            entry.reps = 8
+            actions.log(entry, on: workoutSet, of: workoutExercise, at: loggedAt)
+        }
+        try devices.sendChanges()
+
+        let phoneWorkout = try #require(try devices.phoneProgram.nextWorkout)
+        let callout = try #require(phoneWorkout.restCallout)
+        #expect(callout.endsAt > loggedAt)
+
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: AppSettings.Key.restVoice)
+        defer { defaults.set(saved, forKey: AppSettings.Key.restVoice) }
+
+        defaults.set(true, forKey: AppSettings.Key.restVoice)
+        RestVoice.shared.follow(phoneWorkout)
+        #expect(RestVoice.shared.pending == callout)
+
+        defaults.set(false, forKey: AppSettings.Key.restVoice)
+        RestVoice.shared.follow(phoneWorkout)
+        #expect(RestVoice.shared.pending == nil)
+    }
+
     @Test("Every phrase a callout can say has a recording, except unusual weights")
     func recordings() throws {
         let clips = try #require(RestVoiceClips())

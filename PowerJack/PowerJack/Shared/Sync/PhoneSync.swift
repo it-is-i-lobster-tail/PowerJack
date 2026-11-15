@@ -42,7 +42,12 @@ final class PhoneSync {
         guard let context else { return nil }
         do {
             let changes = try SyncPayload.decode([WatchChange].self, from: data)
-            return try SyncPayload.encode(try referee.receive(changes, in: context))
+            let snapshot = try referee.receive(changes, in: context)
+            // A set logged on the watch starts a rest, often with the iPhone locked and PowerJack's
+            // screens not running to notice, so the voice is set here.
+            let programs = try? context.fetch(FetchDescriptor<Program>())
+            RestVoice.shared.follow(programs?.active?.nextWorkout)
+            return try SyncPayload.encode(snapshot)
         } catch {
             Logger.sync.error("Could not apply the watch's changes: \(error.localizedDescription)")
             return nil
@@ -53,7 +58,7 @@ final class PhoneSync {
     private func scheduleSend() {
         scheduledSend?.cancel()
         scheduledSend = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await self?.send()
         }

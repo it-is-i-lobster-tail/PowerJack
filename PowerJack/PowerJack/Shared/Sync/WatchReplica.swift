@@ -18,6 +18,7 @@ final class WatchReplica {
         static let lastChangeID = "sync.lastChangeID"
         static let pending = "sync.pendingChanges"
         static let running = "sync.runningOnIPhone"
+        static let heard = "sync.heardFromIPhone"
     }
 
     private let defaults: UserDefaults
@@ -49,6 +50,13 @@ final class WatchReplica {
         set { defaults.set(newValue?.uuidString, forKey: Key.running) }
     }
 
+    /// Whether the iPhone has ever sent its program, so the watch can tell "waiting for the iPhone"
+    /// apart from "nothing running on it".
+    private(set) var heardFromIPhone: Bool {
+        get { defaults.bool(forKey: Key.heard) }
+        set { defaults.set(newValue, forKey: Key.heard) }
+    }
+
     /// Keeps a change made on the watch until the iPhone has it.
     @discardableResult
     func record(_ action: WatchChange.Action, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
@@ -68,6 +76,7 @@ final class WatchReplica {
     /// - Returns: Whether the program was applied.
     @discardableResult
     func receive(_ snapshot: ProgramSnapshot, in context: ModelContext) throws -> Bool {
+        heardFromIPhone = true
         let applied = snapshot.applied[install.uuidString] ?? 0
         pending.removeAll { $0.id <= applied }
         guard pending.isEmpty else { return false }
@@ -77,5 +86,19 @@ final class WatchReplica {
         }
         try SyncTidyUp.run(in: context, running: runningOnIPhone)
         return true
+    }
+
+    /// Keeps weight and reps dialed in on a set until the iPhone has them. Turning the Digital Crown
+    /// makes many a second, so a newer one for the same set takes the place of the one still waiting.
+    @discardableResult
+    func recordEntry(weightTenthsPounds: Int?, reps: Int?, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
+        var weightTenthsPounds = weightTenthsPounds
+        var reps = reps
+        if let last = pending.last, last.row == row, case .enterSet(let lastWeight, let lastReps) = last.action {
+            weightTenthsPounds = weightTenthsPounds ?? lastWeight
+            reps = reps ?? lastReps
+            pending.removeLast()
+        }
+        return record(.enterSet(weightTenthsPounds: weightTenthsPounds, reps: reps), at: row, together: together, date: date)
     }
 }
