@@ -375,11 +375,12 @@ extension WorkoutExercise {
             plannedReps: plannedReps,
             plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
         )
-        // Sets of an upcoming workout stay planned until the workout starts.
+        append(newSet)
+        // Sets of an upcoming workout stay planned until the workout starts. Started once it's in the
+        // exercise, so a loadable bodyweight set starts at bodyweight.
         if status != .planned {
             newSet.start()
         }
-        append(newSet)
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
         return newSet
     }

@@ -56,7 +56,8 @@ enum StrengthLifts {
 
     /// Multi-joint and loaded: trains more than one muscle on top of its main one.
     static func isCompound(_ exercise: Exercise) -> Bool {
-        !exercise.repsOnly && exercise.secondaryMuscles.count >= 2
+        // Loadable bodyweight lifts stay accessories: shares of their added weight mean little without bodyweight.
+        !exercise.repsOnly && !exercise.addsToBodyweight && exercise.secondaryMuscles.count >= 2
     }
 
     /// Up to 4 priority lift keys in rank order: the squat, bench press and deadlift when the program has them,

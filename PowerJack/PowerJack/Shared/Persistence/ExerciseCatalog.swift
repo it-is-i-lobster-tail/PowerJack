@@ -1,3 +1,4 @@
+import OSLog
 import Foundation
 import SwiftData
 
@@ -138,7 +139,21 @@ enum ExerciseCatalog {
         Entry("close-grip-bench-press", "Close Grip Bench Press", .barbell, .triceps, .moderate, [.chest, .shoulders], was: .high),
         Entry("incline-dumbbell-curl", "Incline Dumbbell Curl", .dumbbell, .biceps, .low, [.forearms]),
         Entry("hanging-leg-raise", "Hanging Leg Raise", .bodyweight, .abs, .low, [.forearms]),
+        // Loadable bodyweight: a weight of 0 is bodyweight alone. See `adoptOwnCopies`.
+        Entry("weighted-pull-up", "Weighted Pull-Ups", .loadableBodyweight, .back, .moderate, [.biceps, .forearms, .abs]),
+        Entry("weighted-dip", "Weighted Dips", .loadableBodyweight, .chest, .moderate, [.triceps, .shoulders]),
     ]
+
+    /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
+    static let replacedOwnNames: [String: Set<String>] = [
+        "weighted-pull-up": ["weightedpullup", "weightedpullups", "weightpullup", "weightpullups"],
+        "weighted-dip": ["weighteddip", "weighteddips", "weightdip", "weightdips"],
+    ]
+
+    /// "Weighted Pull-ups" and "weighted pullups" both read "weightedpullups".
+    static func matchingName(_ name: String) -> String {
+        name.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
 
     /// Bumped when catalog fatigue levels change, so each device moves its rows once.
     static let fatigueLevelsRevision = 1
@@ -179,11 +194,13 @@ enum ExerciseCatalog {
     /// Merges copies of the same catalog exercise. A new device seeds the catalog before its
     /// synced data arrives, so both copies can end up stored. The oldest copy survives on every
     /// device, and rows that used a duplicate are pointed at it.
+    /// The lifter's own copies of a newer built-in exercise become that exercise first (`adoptOwnCopies`).
+    /// This runs at launch and after every iCloud import, so copies an older device syncs later move too.
     /// - Returns: Whether anything changed. The caller saves.
     @MainActor
     static func removeDuplicates(in context: ModelContext) throws -> Bool {
+        var changed = try adoptOwnCopies(in: context)
         let catalogExercises = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID != nil }
-        var changed = false
 
         for copies in Dictionary(grouping: catalogExercises, by: \.catalogID).values where copies.count > 1 {
             let oldestFirst = copies.sorted { $0.createdAtValue < $1.createdAtValue }
@@ -192,6 +209,33 @@ enum ExerciseCatalog {
                 survivor.takeOverRows(of: duplicate)
                 context.delete(duplicate)
             }
+            changed = true
+        }
+        return changed
+    }
+
+    /// Turns the lifter's own exercise named like a newer built-in one (see `replacedOwnNames`) into that
+    /// built-in exercise, in place, so every template, program and logged set that used it stays with it.
+    /// It takes the built-in name, equipment and muscles, and keeps its own rep range, fatigue level and rest.
+    /// Where the catalog row exists too, `removeDuplicates` then keeps whichever is older on every device.
+    /// - Returns: Whether anything changed. The caller saves.
+    @MainActor
+    static func adoptOwnCopies(in context: ModelContext) throws -> Bool {
+        let own = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID == nil }))
+        var changed = false
+        for exercise in own {
+            let name = matchingName(exercise.exerciseName)
+            guard
+                let id = replacedOwnNames.first(where: { $0.value.contains(name) })?.key,
+                let entry = entries.first(where: { $0.id == id })
+            else { continue }
+            exercise.catalogID = entry.id
+            exercise.userCreatedValue = false
+            exercise.exerciseName = entry.name
+            exercise.equipment = entry.equipment
+            exercise.primaryMuscleFocus = entry.primaryMuscle
+            exercise.secondaryMuscles = entry.secondaryMuscles
+            Logger.sync.info("Moved an own exercise to the built-in \(entry.id, privacy: .public)")
             changed = true
         }
         return changed

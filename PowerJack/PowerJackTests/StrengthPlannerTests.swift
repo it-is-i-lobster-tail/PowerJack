@@ -370,7 +370,7 @@ struct StrengthPlannerTests {
         try finishWeek(of: program) { _ in (50, 10) }
         #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds != nil })
 
-        own.exerciseEquipment = .bodyweight
+        own.equipment = .bodyweight
         let workout = try #require(program.nextWorkout)
         program.prepareToStart(workout)
         #expect(try slot(own, day: 0, in: program, week: 1).workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })

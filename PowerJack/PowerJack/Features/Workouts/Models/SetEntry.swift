@@ -15,14 +15,17 @@ struct SetEntry: Equatable {
     let unit: WeightUnit
     /// One click of the Digital Crown, in `unit`.
     let weightStep: Double
+    /// Loadable bodyweight, where a weight of 0 is bodyweight alone and can be logged.
+    let addsToBodyweight: Bool
 
     /// Starts on what the set holds: what's entered, else its target. A set with nothing yet
     /// starts at the empty bar for a barbell, and at the exercise's lowest rep target.
     init(for workoutSet: WorkoutSet, unit: WeightUnit = .current) {
         let workoutExercise = workoutSet.workoutExerciseValue
-        let equipment = workoutExercise?.exercise?.exerciseEquipment ?? .machine
+        let equipment = workoutExercise?.exercise?.equipment ?? .machine
         self.unit = unit
         self.weightStep = StrengthLoadSteps.step(for: equipment, in: unit) ?? 1
+        self.addsToBodyweight = equipment == .loadableBodyweight
 
         if let tenths = workoutSet.weightTenthsPounds ?? workoutSet.weightTenthsPlannedPounds {
             weight = unit.value(fromTenthsPounds: tenths)
@@ -50,9 +53,17 @@ struct SetEntry: Equatable {
         (unit.maxEntry / weightStep).rounded(.down)
     }
 
-    /// `nil` until a weight is dialed in, so an empty weight is never logged.
+    /// `nil` until a weight is dialed in, so an empty weight is never logged. Loadable bodyweight logs 0 as bodyweight.
     var weightTenthsPounds: Int? {
-        weight > 0 ? unit.tenthsPounds(from: weight) : nil
+        weight > 0 || addsToBodyweight ? unit.tenthsPounds(from: weight) : nil
+    }
+
+    /// Loadable bodyweight with nothing added.
+    var isBodyweight: Bool { addsToBodyweight && weight == 0 }
+
+    /// e.g. "225", or "BW" for bodyweight alone.
+    var weightText: String {
+        isBodyweight ? "BW" : weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
     }
 
     /// Whether this entry holds what the dial starts on for `workoutSet`.

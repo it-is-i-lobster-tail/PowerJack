@@ -157,7 +157,7 @@ extension BuildSimLifter {
             let plates = max(1.25, (WeightUnit.kilograms(fromTenthsPounds: Int(load.rounded())) / 1.25).rounded() * 1.25)
             return clamped(WeightUnit.tenthsPounds(fromKilograms: plates))
         }
-        let step = Self.equipmentStep(exercise.exerciseEquipment)
+        let step = Self.equipmentStep(exercise.equipment)
         return clamped(Int((load / Double(step)).rounded()) * step, atLeast: step)
     }
 
@@ -254,7 +254,7 @@ extension BuildSimLifter {
             return heavy ? 12 : light ? 30 : 18
         }
         // A default rather than every case, so new equipment never breaks the simulation.
-        let pounds: Double = switch exercise.exerciseEquipment {
+        let pounds: Double = switch exercise.equipment {
         case .legPress: 500
         case .barbell: heavy ? 250 : 100
         case .machine: heavy ? 250 : 150

@@ -62,6 +62,11 @@ struct WorkoutSetView: View {
         focusedSetField.wrappedValue == .weight(workoutSet.id)
     }
 
+    /// Loadable bodyweight at 0 reads "BW" until the field is tapped to add weight.
+    private var showsBodyweight: Bool {
+        workoutSet.addsToBodyweight && workoutSet.weightTenthsPounds == 0 && !weightIsFocused
+    }
+
     private var isEditable: Bool {
         !isReadOnly && workoutSet.status == .active && !workoutSet.locked
     }
@@ -101,7 +106,7 @@ struct WorkoutSetView: View {
             return Text("")
         }
 
-        return Text(weightUnit.format(tenthsPounds: plannedWeight))
+        return Text(plannedWeight == 0 ? "BW" : weightUnit.format(tenthsPounds: plannedWeight))
     }
 
     var body: some View {
@@ -133,6 +138,12 @@ struct WorkoutSetView: View {
                         .keyboardType(.decimalPad)
                         .disabled(!isEditable)
                         .multilineTextAlignment(.center)
+                        .foregroundStyle(showsBodyweight ? Color.clear : Color.primary)
+                        .overlay {
+                            if showsBodyweight {
+                                Text("BW").allowsHitTesting(false)
+                            }
+                        }
                         .frame(width: Self.fieldWidth, height: Self.fieldHeight)
                         .contentShape(.rect)
                         .onTapGesture { focus(.weight(workoutSet.id)) }
@@ -231,9 +242,14 @@ struct WorkoutSetView: View {
             }
         }
         .onChange(of: workoutSet.weightTenthsPounds) { _, newValue in
-            if parsedWeight(weightText).map(weightUnit.tenthsPounds(from:)) != newValue {
+            if enteredWeight(weightText) != newValue {
                 weightText = Self.text(forWeight: newValue, in: weightUnit)
             }
+        }
+        .onChange(of: weightIsFocused) { _, isFocused in
+            // Tapping "BW" empties the box, so typed weight replaces the 0 instead of joining it.
+            guard workoutSet.addsToBodyweight, workoutSet.weightTenthsPounds == 0 else { return }
+            weightText = isFocused ? "" : Self.text(forWeight: 0, in: weightUnit)
         }
     }
 
@@ -273,7 +289,7 @@ struct WorkoutSetView: View {
             return
         }
         // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
-        let newValue = parsedWeight(text).map(weightUnit.tenthsPounds(from:))
+        let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
         workoutSet.weightTenthsPounds = newValue
@@ -286,10 +302,12 @@ struct WorkoutSetView: View {
         try? modelContext.save()
     }
 
-    private func parsedWeight(_ text: String) -> Double? {
-        let normalized = text.replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(normalized), value > 0 else { return nil }
-        return value
+    /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
+    /// as is an empty box.
+    private func enteredWeight(_ text: String) -> Int? {
+        let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
+        if value > 0 { return weightUnit.tenthsPounds(from: value) }
+        return workoutSet.addsToBodyweight ? 0 : nil
     }
 
     /// Keeps typed reps to whole numbers from 0 to `WorkoutSet.maxReps`; anything else keeps `previous`.
@@ -303,7 +321,7 @@ struct WorkoutSetView: View {
     }
 
     /// Keeps typed weight from 0 to the heaviest weight a set can log in `unit`, to one decimal;
-    /// anything else keeps `previous`.
+    /// anything else keeps `previous`. A digit typed after a lone 0 replaces it, so "0" then "2" reads "2".
     static func weightInput(_ text: String, previous: String, unit: WeightUnit = .pounds) -> String {
         let parts = text.split(omittingEmptySubsequences: false) { $0 == "." || $0 == "," }
         guard parts.count <= 2,
@@ -313,7 +331,11 @@ struct WorkoutSetView: View {
         else { return previous }
 
         let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return value <= unit.maxEntry ? text : previous
+        guard value <= unit.maxEntry else { return previous }
+        if text.count > 1, text.first == "0", text.dropFirst().first?.isNumber == true {
+            return String(text.dropFirst())
+        }
+        return text
     }
 
     private func toggleCompletion() {

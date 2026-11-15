@@ -35,6 +35,8 @@ struct ProgressionExerciseInfo: Equatable {
     var primaryMuscle: Muscle
     var secondaryMuscles: [Muscle]
     var repsOnly: Bool
+    /// Weighted pull-ups and dips: 0 is bodyweight, so a set at 0 can add load.
+    var addsToBodyweight: Bool = false
 }
 
 struct ProgressionInput {
@@ -153,7 +155,7 @@ enum ProgressionEngine {
 
         let loadReadyReps = Int((loadReadyRepFraction * Double(exercise.maxReps)).rounded(.up))
         let canIncreaseLoad = !exercise.repsOnly && completed.allSatisfy { set in
-            guard let weight = set.weight, weight > 0 else { return false }
+            guard let weight = set.weight, weight > 0 || exercise.addsToBodyweight else { return false }
             return set.reps >= loadReadyReps
         }
 

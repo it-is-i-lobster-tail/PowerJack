@@ -45,7 +45,7 @@ struct ExerciseForm: View {
 
                 GlassPickerField(
                     selection: $draft.equipment,
-                    options: Equipment.allCases.sorted { $0.rawValue < $1.rawValue },
+                    options: Equipment.allCases.sorted { $0.displayName < $1.displayName },
                     height: boxHeight
                 ) {
                     FormFieldLabel(
@@ -54,7 +54,7 @@ struct ExerciseForm: View {
                         detail: "Select equipment"
                     )
                 } optionLabel: { equipment in
-                    Text(equipment.rawValue.capitalized)
+                    Text(equipment.displayName)
                 }
 
                 GlassPickerField(

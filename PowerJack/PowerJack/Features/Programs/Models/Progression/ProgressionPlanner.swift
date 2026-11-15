@@ -169,7 +169,8 @@ enum ProgressionPlanner {
             maxReps: exercise.repRange.upperBound,
             primaryMuscle: exercise.primaryMuscleFocus,
             secondaryMuscles: exercise.secondaryMuscles,
-            repsOnly: exercise.repsOnly
+            repsOnly: exercise.repsOnly,
+            addsToBodyweight: exercise.addsToBodyweight
         )
     }
 

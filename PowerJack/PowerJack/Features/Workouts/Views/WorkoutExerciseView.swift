@@ -47,7 +47,7 @@ struct WorkoutExerciseView: View {
                 Text(workoutExercise.exercise?.exerciseName ?? "")
                     .font(.title)
                     .foregroundStyle(.primary)
-                Text(workoutExercise.exercise?.exerciseEquipment.rawValue.localizedCapitalized ?? "")
+                Text(workoutExercise.exercise?.equipment.displayName ?? "")
                     .font(.default)
                     .foregroundStyle(.primary)
                 if let supersetText {

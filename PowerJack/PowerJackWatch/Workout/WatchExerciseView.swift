@@ -112,8 +112,8 @@ struct WatchExerciseView: View {
         HStack(spacing: 6) {
             if !repsOnly {
                 valueBox(
-                    entry.wrappedValue.weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never)),
-                    unit: entry.wrappedValue.unit.symbol,
+                    entry.wrappedValue.weightText,
+                    unit: entry.wrappedValue.isBodyweight ? "bodyweight" : entry.wrappedValue.unit.symbol,
                     field: .weight
                 )
                 .digitalCrownRotation(

@@ -283,7 +283,7 @@ extension StrengthSimLifter {
         default: break
         }
         // A default rather than every case, so new equipment never breaks the simulation.
-        return switch exercise.exerciseEquipment {
+        return switch exercise.equipment {
         case .legPress: 250
         case .barbell: heavy ? 100 : 45
         case .machine: heavy ? 120 : light ? 50 : 80

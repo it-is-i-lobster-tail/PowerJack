@@ -23,6 +23,8 @@ enum StrengthLoadSteps {
         case (.legPress, .pounds): [5, 10, 20, 45]
         case (.kettlebell, .kilograms): [2, 4, 8]
         case (.kettlebell, .pounds): [5, 10, 15, 20]
+        case (.loadableBodyweight, .kilograms): [1, 1.25, 2.5, 5]
+        case (.loadableBodyweight, .pounds): [2.5, 5, 10]
         case (.bodyweight, _): []
         }
     }
@@ -37,6 +39,8 @@ enum StrengthLoadSteps {
         case (.cable, .pounds), (.machine, .pounds), (.legPress, .pounds): 10
         case (.kettlebell, .kilograms): 4
         case (.kettlebell, .pounds): 10
+        case (.loadableBodyweight, .kilograms): 2.5
+        case (.loadableBodyweight, .pounds): 5
         case (.bodyweight, _): nil
         }
     }
@@ -71,22 +75,25 @@ struct LoadGrid: Equatable {
     let step: Double
     /// Barbells count steps up from the bar; everything else from zero.
     let base: Double
+    /// Loadable bodyweight starts at no added weight at all.
+    let startsAtZero: Bool
 
-    init(unit: WeightUnit, step: Double, isBarbell: Bool) {
+    init(unit: WeightUnit, step: Double, isBarbell: Bool, startsAtZero: Bool = false) {
         self.unit = unit
         self.step = step
         self.base = isBarbell ? (unit == .kilograms ? Self.barKilograms : Self.barPounds) : 0
+        self.startsAtZero = startsAtZero && !isBarbell
     }
 
     /// The grid for `equipment` with the steps picked in Settings. `nil` for bodyweight.
     init?(equipment: Equipment, unit: WeightUnit = .current) {
         guard let step = StrengthLoadSteps.step(for: equipment, in: unit) else { return nil }
-        self.init(unit: unit, step: step, isBarbell: equipment == .barbell)
+        self.init(unit: unit, step: step, isBarbell: equipment == .barbell, startsAtZero: equipment == .loadableBodyweight)
     }
 
     var stepKilograms: Double { step * unit.kilograms }
-    /// The lightest load: the bar, or one step.
-    var minimumKilograms: Double { (base > 0 ? base : step) * unit.kilograms }
+    /// The lightest load: the bar, one step, or none for loadable bodyweight.
+    var minimumKilograms: Double { (base > 0 ? base : startsAtZero ? 0 : step) * unit.kilograms }
     /// The heaviest grid load a set can log.
     var maximumKilograms: Double {
         (base + (stepsFromBase(Self.capKilograms) + Self.tolerance).rounded(.down) * step) * unit.kilograms

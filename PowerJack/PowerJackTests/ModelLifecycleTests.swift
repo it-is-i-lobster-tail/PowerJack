@@ -669,7 +669,7 @@ struct ModelLifecycleTests {
     @Test("Exercise accessors normalize what the forms and engine read")
     func exerciseAccessors() {
         let exercise = makeExercise(name: "Push Up", primary: .chest)
-        exercise.exerciseEquipment = .bodyweight
+        exercise.equipment = .bodyweight
         exercise.secondaryMuscles = [.triceps, .abs]
         exercise.minReps = 12
         exercise.maxReps = 10

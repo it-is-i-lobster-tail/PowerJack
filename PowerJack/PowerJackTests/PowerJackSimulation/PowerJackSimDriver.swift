@@ -444,10 +444,10 @@ private extension PowerJackSimDriver {
         default:
             // Only the lifter's own exercises can change equipment.
             guard exercise.userCreated else { return }
-            exercise.exerciseEquipment = exercise.repsOnly ? .dumbbell : .bodyweight
+            exercise.equipment = exercise.repsOnly ? .dumbbell : .bodyweight
         }
         report.edits += 1
-        report.trace("edit \(exercise.exerciseName): \(exercise.fatigueLevel.name), \(exercise.exerciseEquipment.rawValue)")
+        report.trace("edit \(exercise.exerciseName): \(exercise.fatigueLevel.name), \(exercise.equipment.rawValue)")
     }
 }
 
@@ -487,7 +487,7 @@ private extension PowerJackSimDriver {
             if !focus.contains(muscle) { focus.append(muscle) }
         }
         let template = TemplateProgram(templateName: "Own \(customTemplates)", workoutsPerWeek: days, templateMuscleFocus: focus, templateType: .powerJack)
-        let barbells = exercises.filter { $0.exerciseEquipment == .barbell && $0.fatigueLevel == .high }
+        let barbells = exercises.filter { $0.equipment == .barbell && $0.fatigueLevel == .high }
         for day in 0..<days {
             let workout = template.addTemplateWorkout()
             if day == 0, profile.name == PowerJackSimProfile.heavy.name, let legPress = exercises.first(where: { $0.catalogID == "leg-press" }) {
@@ -497,7 +497,7 @@ private extension PowerJackSimDriver {
                 let exercise = slot == 0 && !barbells.isEmpty && lifter.decides(0.6) ? lifter.rng.pick(barbells) : lifter.rng.pick(exercises)
                 workout.addTemplateExercise(exercise: exercise)
                 // A second entry of the same lift: a TOP entry and a BACK entry (R1.2).
-                if exercise.exerciseEquipment == .barbell, lifter.decides(0.15) {
+                if exercise.equipment == .barbell, lifter.decides(0.15) {
                     workout.addTemplateExercise(exercise: exercise)
                 }
             }

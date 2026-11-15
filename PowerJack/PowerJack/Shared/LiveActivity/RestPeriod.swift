@@ -51,11 +51,12 @@ nonisolated struct RestPeriod: Codable, Hashable {
         WorkoutActivityState.setText(number: setNumber, count: setCount, isWarmup: isWarmup)
     }
 
-    /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", "5 reps × 102.5 kg" or "12 reps".
+    /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", "5 reps × 102.5 kg", "8 reps × BW" or "12 reps".
     var prescriptionText: String {
         let repsText = reps.map { $0 == 1 ? "1 rep" : "\($0) reps" } ?? "2 RIR"
         guard let weightTenthsPounds else { return repsText }
         let weight = ActivitySet.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
+        if weightTenthsPounds == 0 { return "\(repsText) × \(weight)" }
         return "\(repsText) × \(weight) \(usesKilograms == true ? "kg" : "lb")"
     }
 
