@@ -28,6 +28,8 @@ struct WorkoutSetView: View {
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
     @State private var weightText: String
+    @State private var repsSelection: TextSelection?
+    @State private var weightSelection: TextSelection?
 
     init(
         focusedSetField: FocusState<FocusedSetField?>.Binding,
@@ -133,6 +135,7 @@ struct WorkoutSetView: View {
                         TextField(
                             "Actual weight",
                             text: $weightText,
+                            selection: $weightSelection,
                             prompt: plannedWeightPrompt
                         )
                         .keyboardType(.decimalPad)
@@ -169,6 +172,7 @@ struct WorkoutSetView: View {
                 TextField(
                     "Actual Reps",
                     text: $repsText,
+                    selection: $repsSelection,
                     prompt: plannedRepsPrompt
                 )
                 .keyboardType(.numberPad)
@@ -228,6 +232,14 @@ struct WorkoutSetView: View {
             .padding(.vertical, 5)
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
+        }
+        .onChange(of: focusedSetField.wrappedValue) { _, field in
+            // The whole value is selected on focus, so typing replaces it instead of adding to it.
+            if field == .weight(workoutSet.id) {
+                weightSelection = Self.selectingAll(weightText)
+            } else if field == .reps(workoutSet.id) {
+                repsSelection = Self.selectingAll(repsText)
+            }
         }
         .onChange(of: repsText) { oldValue, newValue in
             updateReps(from: newValue, previous: oldValue)
@@ -361,6 +373,10 @@ struct WorkoutSetView: View {
             workoutSet.complete()
         }
         try? modelContext.save()
+    }
+
+    private static func selectingAll(_ text: String) -> TextSelection {
+        TextSelection(range: text.startIndex..<text.endIndex)
     }
 
     private static func text(forReps reps: Int?) -> String {

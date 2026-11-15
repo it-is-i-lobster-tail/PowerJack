@@ -130,16 +130,23 @@ final class HostedView {
     /// Types into the text field with this accessibility label, replacing what it held.
     @discardableResult
     func type(_ text: String, into label: String) async -> Bool {
-        guard
-            let element = elements().first(where: { $0.accessibilityLabel == label }),
-            let field = textField(at: CGPoint(x: element.accessibilityFrame.midX, y: element.accessibilityFrame.midY))
-        else {
-            return false
-        }
+        guard let field = textField(labeled: label) else { return false }
         field.becomeFirstResponder()
         await settle()
         field.selectAll(nil)
         field.deleteBackward()
+        field.insertText(text)
+        await settle()
+        return true
+    }
+
+    /// Focuses the text field with this accessibility label and types, without clearing it first,
+    /// so whatever the field selects on focus decides what the typing replaces.
+    @discardableResult
+    func focusAndType(_ text: String, into label: String) async -> Bool {
+        guard let field = textField(labeled: label) else { return false }
+        field.becomeFirstResponder()
+        await settle()
         field.insertText(text)
         await settle()
         return true
@@ -199,6 +206,13 @@ final class HostedView {
     func dismissKeyboard() async {
         window.endEditing(true)
         await settle()
+    }
+
+    /// The text field under the element with this accessibility label.
+    private func textField(labeled label: String) -> UITextField? {
+        guard let element = elements().first(where: { $0.accessibilityLabel == label }) else { return nil }
+        let frame = element.accessibilityFrame
+        return textField(at: CGPoint(x: frame.midX, y: frame.midY))
     }
 
     /// The text field under a point in screen coordinates.
