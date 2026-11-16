@@ -25,6 +25,11 @@ struct TemplateProgramDetailView: View {
     }
 
     var body: some View {
+        content.traceScreen("Template Detail")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         // Saves on every edit, including ones made on the screens pushed from this form.
         TemplateForm(
             editExistingExercise: true,

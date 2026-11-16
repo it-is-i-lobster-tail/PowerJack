@@ -260,6 +260,7 @@ extension WorkoutExercise {
         statusValue = Status.skipped
         lockedValue = true
         Logger.workoutExercise.debug("WorkoutExercise skipped")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func start() {
         guard
@@ -316,6 +317,7 @@ extension WorkoutExercise {
         statusValue = Status.active
         unskipSets()
         Logger.workoutExercise.debug("WorkoutExercise restored")
+        TraceLog.record(.workout, "Restored \(traceDescription)")
     }
     /// Warmups passed over by a logged working set stay skipped.
     private func unskipSets() {
@@ -382,6 +384,7 @@ extension WorkoutExercise {
             newSet.start()
         }
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
+        TraceLog.record(.workout, "Added a \(type.rawValue) set to \(traceDescription)")
         return newSet
     }
     /// Adds a warmup from the set menu. Turns warmups back on for this exercise on this day.
@@ -647,6 +650,7 @@ extension WorkoutExercise {
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
+        TraceLog.record(.workout, "Removing \(lastSet.traceDescription) from \(traceDescription)")
         if type == .warmup { rememberWarmupCount() }
         workoutSetsValue?.removeAll { $0 === lastSet }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
@@ -668,6 +672,7 @@ extension WorkoutExercise {
             return
         }
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
+        TraceLog.record(.workout, "Changing \(traceDescription) to \(newExercise.traceName)")
         exerciseValue = newExercise
         // A replacement is a new exercise, so it starts with warmups again.
         warmupsDisabledValue = false
@@ -729,6 +734,7 @@ extension WorkoutExercise {
             rateTopSets(topSet)
         }
         addFeedback(feedback: feedback)
+        TraceLog.record(.workout, "Answered feedback for \(traceDescription)")
         return true
     }
 }

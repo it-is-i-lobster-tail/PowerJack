@@ -68,6 +68,10 @@ struct PowerJackRootView: View {
         }
         .sheet(isPresented: $isShowingSettings, onDismiss: { rebuildsAfterSettings = false }) {
             SettingsView()
+                .traceScreen("Settings")
+        }
+        .onChange(of: selection) { _, selection in
+            TraceLog.record(.screen, "Switched to \(selection.name)")
         }
     }
 }
@@ -148,6 +152,9 @@ private struct PowerJackScreens: View {
         .environment(router)
         .powerJackKeyboardBehavior()
         .onAppear(perform: restoreActiveWorkout)
+        .onChange(of: router.path) { _, path in
+            TraceLog.record(.screen, "Programs: \(path.isEmpty ? "My Programs" : path.map(\.traceName).joined(separator: " > "))")
+        }
         .onOpenURL(perform: handleOpenURL)
     }
 

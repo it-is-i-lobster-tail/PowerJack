@@ -42,6 +42,7 @@ final class PhoneSync {
         guard let context else { return nil }
         do {
             let changes = try SyncPayload.decode([WatchChange].self, from: data)
+            TraceLog.record(.watch, "Received \(changes.count) changes from the watch")
             let snapshot = try referee.receive(changes, in: context)
             // A set logged on the watch starts a rest, often with the iPhone locked and PowerJack's
             // screens not running to notice, so the voice is set here.
@@ -50,6 +51,7 @@ final class PhoneSync {
             return try SyncPayload.encode(snapshot)
         } catch {
             Logger.sync.error("Could not apply the watch's changes: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not apply the watch's changes: \(String(describing: type(of: error)))")
             return nil
         }
     }
@@ -69,9 +71,11 @@ final class PhoneSync {
         do {
             let snapshot = try SyncPayload.encode(try referee.snapshot(in: context))
             DeviceLink.shared.send(snapshot: snapshot)
-            _ = await WorkoutMirroring.shared.send(snapshot)
+            let mirrored = await WorkoutMirroring.shared.send(snapshot)
+            TraceLog.record(.watch, "Sent the program to the watch (\(snapshot.count) bytes\(mirrored ? ", mirrored" : ""))")
         } catch {
             Logger.sync.error("Could not send the program to the watch: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not send the program to the watch: \(String(describing: type(of: error)))")
         }
     }
 }

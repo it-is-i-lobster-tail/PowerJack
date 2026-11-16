@@ -20,6 +20,11 @@ struct WorkoutReviewView: View {
     private var remainingSets: Int { workout.remainingWorkingSets }
 
     var body: some View {
+        content.traceScreen("Workout Review")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         VStack(spacing: 0) {
             Text("Review")
                 .font(.title)

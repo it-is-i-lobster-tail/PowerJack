@@ -209,6 +209,7 @@ extension WorkoutSet {
         statusValue = Status.complete
         lockedValue = true
         Logger.workoutSet.debug("WorkoutSet Completed and locked")
+        TraceLog.record(.workout, "Locked \(traceDescription)")
     }
     func complete(at date: Date = .now, startedAt: Date? = nil) {
         guard
@@ -222,6 +223,7 @@ extension WorkoutSet {
         completedAtValue = date
         startedAtValue = startedAt
         Logger.workoutSet.debug("WorkoutSet Completed")
+        TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func skip() {
         guard
@@ -234,6 +236,7 @@ extension WorkoutSet {
         statusValue = Status.skipped
         lockedValue = true
         Logger.workoutSet.debug("WorkoutSet skipped")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func stop() {
         skip()
@@ -247,6 +250,7 @@ extension WorkoutSet {
         statusValue = Status.active
         lockedValue = false
         Logger.workoutSet.debug("WorkoutSet unskipped")
+        TraceLog.record(.workout, "Reopened \(traceDescription)")
     }
     /// Back to planned, as if its workout never started. The next start fills in the target again.
     func resetToPlanned() {

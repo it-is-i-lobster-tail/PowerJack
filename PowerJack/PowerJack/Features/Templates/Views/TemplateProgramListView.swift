@@ -32,6 +32,11 @@ struct TemplateProgramListView: View {
     }
 
     var body: some View {
+        content.traceScreen("Templates")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         NavigationStack {
             AddableListScaffold(
                 navigationTitle: "My Templates",

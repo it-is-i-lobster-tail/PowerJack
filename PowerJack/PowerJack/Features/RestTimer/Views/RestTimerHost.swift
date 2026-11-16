@@ -107,6 +107,10 @@ private struct RestTimerHost: ViewModifier {
                 if expanded { restTimerHint?.invalidate(reason: .actionPerformed) }
             }
             .task(id: rest) { await refreshClock(for: rest) }
+            .onChange(of: rest) { _, rest in traceRest(rest) }
+            .onChange(of: isExpanded) { _, expanded in
+                TraceLog.record(.timer, expanded ? "Rest island expanded" : "Rest island collapsed")
+            }
             // Restarts when the app comes back, so cues missed in the background are skipped.
             .task(id: scenePhase == .active ? rest?.interval : nil) { await playCues(for: rest) }
             .task(id: liveActivityInput) { await syncLiveActivity(liveActivityInput) }
@@ -117,6 +121,15 @@ private struct RestTimerHost: ViewModifier {
         withAnimation(.spring(duration: 0.4, bounce: 0.25)) {
             isExpanded = false
         }
+    }
+
+    private func traceRest(_ rest: RestPeriod?) {
+        guard let rest else {
+            TraceLog.record(.timer, "Rest cleared")
+            return
+        }
+        let kind = rest.isWarmup ? "warmup" : "working"
+        TraceLog.record(.timer, "Rest of \(Int(rest.duration))s, ends \(rest.endsAt.formatted(.iso8601)), before \(kind) set \(rest.setNumber) of \(rest.setCount)")
     }
 
     /// Hides the island once "Start set" has been up for its whole window.
