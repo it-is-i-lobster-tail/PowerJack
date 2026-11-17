@@ -58,7 +58,7 @@ struct WatchActions {
     /// Only what differs from what the set already shows is entered.
     func enter(_ entry: SetEntry, on workoutSet: WorkoutSet, of workoutExercise: WorkoutExercise) {
         guard workoutSet.status == .active, !workoutSet.locked else { return }
-        let changes = entry.changes(from: workoutSet, repsOnly: workoutExercise.exercise?.repsOnly ?? false)
+        let changes = entry.changes(from: workoutSet, repsOnly: workoutExercise.shownExercise?.repsOnly ?? false)
         guard changes.weightTenthsPounds != nil || changes.reps != nil else { return }
         workoutExercise.enter(weightTenthsPounds: changes.weightTenthsPounds, reps: changes.reps, on: workoutSet)
         replica.recordEntry(weightTenthsPounds: changes.weightTenthsPounds, reps: changes.reps, at: RowPath(workoutSet), together: together)

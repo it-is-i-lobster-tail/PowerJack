@@ -206,9 +206,9 @@ enum PowerJackPlanner: WeekPlanner {
                 lastPlannedReps = set.repsPlanned ?? lastPlannedReps
                 return PowerJackSetLog(
                     plannedReps: set.repsPlanned ?? lastPlannedReps,
-                    plannedLoad: set.weightInPoundsPlanned,
-                    reps: set.reps,
-                    load: set.weightInPounds,
+                    plannedLoad: set.progressionPlannedWeightTenthsPounds.map(pounds),
+                    reps: set.progressionReps,
+                    load: set.progressionWeightTenthsPounds.map(pounds),
                     isComplete: set.status == .complete,
                     isSkipped: set.status == .skipped,
                     completedAt: set.completedAt
@@ -228,6 +228,8 @@ enum PowerJackPlanner: WeekPlanner {
             unplanned: workoutExercise.powerJackRoleValue == nil
         )
     }
+
+    private static func pounds(_ tenthsPounds: Int) -> Double { Double(tenthsPounds) / 10 }
 
     /// Each closed week with its block number, block week and target column replayed (R5.1).
     static func weekLogs(_ weeks: [ProgramWeek], programWeeks: Int) -> [PowerJackWeekLog] {

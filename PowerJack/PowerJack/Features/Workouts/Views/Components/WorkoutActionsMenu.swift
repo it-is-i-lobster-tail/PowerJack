@@ -21,6 +21,7 @@ struct WorkoutActionsMenu: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var isConfirmingSkipWorkout = false
+    @State private var isPickingSubstitute = false
 
     private var selectedWorkoutExercise: WorkoutExercise? {
         guard let selectedExerciseIndex,
@@ -55,7 +56,9 @@ struct WorkoutActionsMenu: View {
                 // Changing a finished exercise would throw away its logged sets.
                 .disabled(!canModifySelectedExercise || selectedWorkoutExercise.isDone)
 
-                if let exercise = selectedWorkoutExercise.exercise {
+                substituteButtons(for: selectedWorkoutExercise)
+
+                if let exercise = selectedWorkoutExercise.shownExercise {
                     Button {
                         onEditExercise(exercise)
                     } label: {
@@ -126,6 +129,14 @@ struct WorkoutActionsMenu: View {
         } label: {
             Image(systemName: "ellipsis")
         }
+        .sheet(isPresented: $isPickingSubstitute) {
+            if let selectedWorkoutExercise {
+                SubstitutePicker(workoutExercise: selectedWorkoutExercise) { exercise in
+                    selectedWorkoutExercise.substitute(with: exercise)
+                    try? modelContext.save()
+                }
+            }
+        }
         .confirmationDialog(
             "Skip the rest of this workout?",
             isPresented: $isConfirmingSkipWorkout,
@@ -135,6 +146,33 @@ struct WorkoutActionsMenu: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Sets you've finished stay logged. The rest are skipped.")
+        }
+    }
+
+    /// One-Time Substitute swaps the exercise for this workout only, until a working set is logged.
+    @ViewBuilder
+    private func substituteButtons(for workoutExercise: WorkoutExercise) -> some View {
+        if workoutExercise.canSubstitute {
+            Button {
+                isPickingSubstitute = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.swap")
+                    Text("One-Time Substitute")
+                }
+            }
+
+            if workoutExercise.substitute != nil {
+                Button {
+                    workoutExercise.undoSubstitute()
+                    try? modelContext.save()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                        Text("Undo Substitute")
+                    }
+                }
+            }
         }
     }
 

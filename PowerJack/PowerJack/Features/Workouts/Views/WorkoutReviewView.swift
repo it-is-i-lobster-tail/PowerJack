@@ -134,7 +134,7 @@ private struct ReviewRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(workoutExercise.exercise?.exerciseName ?? "")
+                Text(workoutExercise.shownExercise?.exerciseName ?? "")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Text(setsLabel)
