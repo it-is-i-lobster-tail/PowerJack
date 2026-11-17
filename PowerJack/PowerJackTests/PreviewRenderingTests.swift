@@ -57,6 +57,13 @@ final class PreviewRenderingTests: XCTestCase {
                 onResolved: {}
             ).modelContainer(progression.container))),
             ("Settings", AnyView(SettingsView().environment(PowerJackStore(inMemory: true)))),
+            ("Personalization", AnyView(NavigationStack { PersonalizationSettingsView() })),
+            ("My Gym", AnyView(NavigationStack { MyGymSettingsView() })),
+            ("Appearance", AnyView(NavigationStack { AppearanceSettingsView() })),
+            ("Your Data", AnyView(NavigationStack { YourDataSettingsView() }
+                .modelContainer(scenario.container)
+                .environment(PowerJackStore(inMemory: true)))),
+            ("Legal", AnyView(NavigationStack { LegalSettingsView() })),
             ("Rest Between Sets", AnyView(NavigationStack { RestBetweenSetsView() })),
             ("FAQ", AnyView(NavigationStack { FAQView() })),
             ("Workout Summary", AnyView(ExerciseSummaryView(

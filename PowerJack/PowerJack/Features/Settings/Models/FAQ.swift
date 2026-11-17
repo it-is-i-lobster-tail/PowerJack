@@ -189,7 +189,7 @@ extension FAQ {
             Entry(
                 question: "How do rest times work?",
                 answer: [
-                    "Each exercise has a fatigue level. More tiring exercises, like squats, get longer rests. Set how long each rest is in Settings > Rest Between Sets, or give one exercise its own rest time by editing it.",
+                    "Each exercise has a fatigue level. More tiring exercises, like squats, get longer rests. Set how long each rest is in Settings > Personalization > Rest Between Sets, or give one exercise its own rest time by editing it.",
                     "Strength and PowerJack programs give your heaviest lifts longer rests of their own.",
                 ]
             ),
@@ -209,7 +209,7 @@ extension FAQ {
             Entry(
                 question: "What can I change in Settings?",
                 answer: [
-                    "The rest timer, how long you rest, lb or kg, light or dark appearance, hints and iCloud Backup.",
+                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and Load Steps. Appearance picks light or dark. Your Data has iCloud Backup and exporting your history.",
                     "Load Steps sets the smallest weight jump for each kind of equipment. Strength programs round your weights to it, so set it to match the plates and dumbbells you have.",
                 ]
             ),
@@ -269,7 +269,7 @@ extension FAQ {
                     "Heavier through each block. Your main lifts, up to four, like the squat, bench press, deadlift and the first big lift of each day, start with one heavy top set, then lighter back-off sets.",
                     .figure(.strength),
                     "The top set builds from triples to a heavy single close to your max. After a lighter week, the next block starts again from triples, a little heavier.",
-                    "Weights round to your Load Steps in Settings. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
+                    "Weights round to your Load Steps in Settings > My Gym. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
                     "If one lift keeps feeling harder than planned, it gets a short lighter week of its own. If a lift stalls for a couple of months, PowerJack changes things up to get it moving again.",
                 ]
             ),
