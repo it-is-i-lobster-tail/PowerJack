@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import WatchKit
 
 struct WatchExerciseView: View {
     private enum Field {
@@ -58,6 +59,19 @@ struct WatchExerciseView: View {
         }
         // Weight or reps entered on the iPhone show here as soon as they arrive.
         .onChange(of: shownValues) { followSet() }
+        // Out of the way of Log Set, since a skip can't be taken back here.
+        .toolbar {
+            if let workoutSet, workoutSet.isWarmup, !workoutExercise.checkInPending {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Skip Warmups", systemImage: "forward") {
+                        WKInterfaceDevice.current().play(.click)
+                        sync.perform { $0.skipWarmups(of: workoutExercise) }
+                        onSetLogged()
+                    }
+                    .accessibilityLabel("Skip warmups")
+                }
+            }
+        }
     }
 
     /// What the next set shows: what's entered, else its target.
@@ -83,26 +97,25 @@ struct WatchExerciseView: View {
         }
     }
 
+    /// The set, and while resting a countdown big enough to read at a glance.
     private func setHeader(_ workoutSet: WorkoutSet) -> some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text(workoutExercise.setText(for: workoutSet))
+                .font(.footnote)
                 .foregroundStyle(workoutSet.isWarmup ? .secondary : .primary)
             Spacer()
             if let rest {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     if rest.isResting(at: context.date) {
-                        Label {
-                            Text(timerInterval: rest.interval, countsDown: true)
-                                .monospacedDigit()
-                        } icon: {
-                            Image(systemName: "timer")
-                        }
-                        .foregroundStyle(.orange)
+                        Text(timerInterval: rest.interval, countsDown: true)
+                            .font(.title2.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel("Rest")
                     }
                 }
             }
         }
-        .font(.footnote)
     }
 
     private func valueBoxes(_ entry: Binding<SetEntry>) -> some View {
@@ -166,27 +179,19 @@ struct WatchExerciseView: View {
     }
 
     private func logButtons(_ workoutSet: WorkoutSet) -> some View {
-        HStack(spacing: 6) {
-            if workoutSet.isWarmup {
-                Button("Skip Warmups", systemImage: "forward") {
-                    sync.perform { $0.skipWarmups(of: workoutExercise) }
-                    onSetLogged()
-                }
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Skip warmups")
-            }
-
-            Button("Log Set", systemImage: "checkmark") {
-                guard let entry else { return }
-                sync.perform { $0.log(entry, on: workoutSet, of: workoutExercise) }
-                onSetLogged()
-            }
-            .labelStyle(.iconOnly)
-            .tint(.green)
-            .buttonStyle(.borderedProminent)
-            .disabled(entry?.weightTenthsPounds == nil && !repsOnly)
-            .accessibilityLabel("Log \(workoutExercise.setText(for: workoutSet))")
+        Button {
+            guard let entry else { return }
+            WKInterfaceDevice.current().play(.success)
+            sync.perform { $0.log(entry, on: workoutSet, of: workoutExercise) }
+            onSetLogged()
+        } label: {
+            Label("Log Set", systemImage: "checkmark")
+                .frame(maxWidth: .infinity)
         }
+        .tint(.green)
+        .buttonStyle(.borderedProminent)
+        .disabled(entry?.weightTenthsPounds == nil && !repsOnly)
+        .accessibilityLabel("Log \(workoutExercise.setText(for: workoutSet))")
     }
 
     private var doneSummary: some View {

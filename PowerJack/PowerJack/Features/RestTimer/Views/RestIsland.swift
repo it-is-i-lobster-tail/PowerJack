@@ -29,6 +29,8 @@ struct RestIsland: View {
             )
         }
         .padding(.horizontal, LayoutMetrics.compactSpacing)
+        // The collapsed island keeps its size, so its text stops growing where it still fits.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
     private func handleTap(isReady: Bool) {
@@ -131,7 +133,7 @@ private struct RestIslandContent: View {
                     Text(countdownText)
                         .font(isExpanded
                             ? .system(size: 34, weight: .semibold, design: .rounded)
-                            : .subheadline.weight(.semibold))
+                            : .title3.weight(.semibold))
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: true))
                         .animation(.default, value: secondsLeft)

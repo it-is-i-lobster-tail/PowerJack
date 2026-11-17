@@ -245,6 +245,17 @@ extension WorkoutSet {
     func stop() {
         skip()
     }
+    /// Undo for a done set reopened by a brushed tap: it's done again, at the times it was done.
+    func undoReopen(completedAt: Date?, startedAt: Date?) {
+        guard status == .active, !lockedValue, let completedAt else {
+            Logger.workoutSet.warning("Can only undo reopening an open WorkoutSet that was done.")
+            return
+        }
+        statusValue = Status.complete
+        completedAtValue = completedAt
+        startedAtValue = startedAt
+        TraceLog.record(.workout, "Undid reopening \(traceDescription)")
+    }
     /// Opens a skipped set again, keeping the reps and weight it was holding.
     func unskip() {
         guard status == .skipped else {

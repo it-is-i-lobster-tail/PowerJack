@@ -100,7 +100,7 @@ struct LoadableBodyweightTests {
 
         #expect(await screen.type("0", into: "Set 1 weight"))
         #expect(workoutSet.weightTenthsPounds == 0)
-        await screen.tap("Set 1 complete")
+        await screen.tap("Set 1")
         #expect(workoutSet.status == .complete)
         #expect(workoutSet.weightTenthsPounds == 0)
 

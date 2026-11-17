@@ -211,10 +211,13 @@ private struct SetTargets: View {
     let state: WorkoutActivityState
 
     var body: some View {
+        let window = state.chipWindow()
         HStack(spacing: 6) {
-            ForEach(Array(state.sets.enumerated()), id: \.offset) { _, activitySet in
+            MoreSets(count: window.before)
+            ForEach(Array(window.sets.enumerated()), id: \.offset) { _, activitySet in
                 SetChip(activitySet: activitySet, repsOnly: state.repsOnly)
             }
+            MoreSets(count: window.after)
 
             Spacer(minLength: 0)
 
@@ -229,6 +232,23 @@ private struct SetTargets: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Complete set")
             }
+        }
+    }
+}
+
+/// Sets off one side of the chips, as a dot each (up to three).
+private struct MoreSets: View {
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            VStack(spacing: 3) {
+                ForEach(0..<min(count, 3), id: \.self) { _ in
+                    Circle().frame(width: 4, height: 4)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("\(count) more \(count == 1 ? "set" : "sets")")
         }
     }
 }
@@ -259,7 +279,7 @@ private struct SetChip: View {
             .foregroundStyle(.secondary)
 
             Text(activitySet.weightText(repsOnly: repsOnly))
-                .font(.subheadline.weight(.semibold))
+                .font(isCurrent ? .headline : .subheadline.weight(.semibold))
             Text("× \(activitySet.repsText)")
                 .font(.caption)
         }

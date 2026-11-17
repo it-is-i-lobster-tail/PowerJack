@@ -21,6 +21,8 @@ struct WorkoutExerciseView: View {
 
     @AppStorage(AppSettings.Key.hints) private var hintsEnabled = AppSettings.Default.hints
     // Read once on appear; it looks up the lifter's first logged set.
+    /// Grows with the text size, so large text still fits a set row.
+    @ScaledMetric private var setRowHeight = 55.0
     @State private var showsWarmupHint = false
 
     // Finished warmups fold away, then the heading gets a check.
@@ -150,20 +152,24 @@ struct WorkoutExerciseView: View {
     }
 
     private func setRows(_ sets: [WorkoutSet]) -> some View {
-        VStack(spacing: LayoutMetrics.compactSpacing) {
+        // Worked out once for every row.
+        let currentSet = workoutExercise.workoutValue?.currentSet?.workoutSet
+        return VStack(spacing: LayoutMetrics.compactSpacing) {
             ForEach(sets) { workoutSet in
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.shownExercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
+                    isCurrent: workoutSet === currentSet,
                     onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }
                         workoutExercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
                     }
                 )
-                .frame(width: screenWidth * 0.88, height: 55)
+                .frame(width: screenWidth * 0.88)
+                .frame(minHeight: setRowHeight)
                 .id(workoutSet.id)
 
                 if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {
