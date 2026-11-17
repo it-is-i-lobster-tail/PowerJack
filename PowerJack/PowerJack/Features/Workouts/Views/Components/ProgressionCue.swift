@@ -45,5 +45,6 @@ struct ProgressionCue: View {
         return "Aim: \(reps) left on your last set"
     }
 
-    private var note: String? { workoutExercise.progressionNote }
+    /// The note explains the planned exercise's weights, so a one-time substitute leaves it out.
+    private var note: String? { workoutExercise.substitute == nil ? workoutExercise.progressionNote : nil }
 }

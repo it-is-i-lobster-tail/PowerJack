@@ -82,7 +82,7 @@ private struct ProgramHomeView: View {
                             .padding(.top, 4)
 
                         ForEach(workout.workoutExercises) { workoutExercise in
-                            Text(workoutExercise.exercise?.exerciseName ?? "")
+                            Text(workoutExercise.shownExercise?.exerciseName ?? "")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)

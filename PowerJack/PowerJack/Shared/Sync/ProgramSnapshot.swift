@@ -37,7 +37,9 @@ extension ProgramSnapshot {
 
         var exercises: [String: ExerciseState] = [:]
         for workout in running?.programWeeks.flatMap(\.workouts) ?? [] {
-            let used = workout.workoutExercises.compactMap(\.exercise) + (workout.nextWeekLayout ?? []).compactMap(\.exercise)
+            let used = workout.workoutExercises.compactMap(\.exercise)
+                + workout.workoutExercises.compactMap(\.substitute)
+                + (workout.nextWeekLayout ?? []).compactMap(\.exercise)
             for exercise in used {
                 if let state = exercise.syncState { exercises[state.key] = state }
             }
@@ -163,7 +165,11 @@ extension ProgramSnapshot {
             },
             attach: workout.attach,
             update: { workoutExercise, state in
-                workoutExercise.apply(state, exercise: state.exerciseKey.flatMap { exercises[$0] })
+                workoutExercise.apply(
+                    state,
+                    exercise: state.exerciseKey.flatMap { exercises[$0] },
+                    substitute: state.substituteKey.flatMap { exercises[$0] }
+                )
                 Self.sync(
                     state.sets, rows: workoutExercise.workoutSets,
                     stateID: \.syncID, rowID: \.syncID, isCopy: \.isFromSnapshot,

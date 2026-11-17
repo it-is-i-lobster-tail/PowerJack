@@ -24,6 +24,8 @@ final class Exercise {
     // Rows that use this exercise. Kept so CloudKit has both sides of each link.
     var templateExercisesValue: [TemplateExercise]? = []
     var workoutExercisesValue: [WorkoutExercise]? = []
+    // Workout rows this exercise stood in for as a one-time substitute.
+    var substitutedWorkoutExercisesValue: [WorkoutExercise]? = []
     // Rows stored before this field existed read as the oldest, so catalog dedupe keeps them.
     var createdAtValue: Date = Date.distantPast
     // Hypertrophy rep range used by the progression engine.
@@ -185,6 +187,9 @@ extension Exercise {
         }
         for row in duplicate.workoutExercisesValue ?? [] {
             row.replaceDuplicateExercise(with: self)
+        }
+        for row in duplicate.substitutedWorkoutExercisesValue ?? [] {
+            row.replaceDuplicateSubstitute(with: self)
         }
     }
 }

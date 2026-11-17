@@ -130,6 +130,7 @@
 				"Features/Workouts/Models/Workout+Summary.swift",
 				"Features/Workouts/Models/Workout+Superset.swift",
 				Features/Workouts/Models/Workout.swift,
+				"Features/Workouts/Models/WorkoutExercise+Substitute.swift",
 				Features/Workouts/Models/WorkoutExercise.swift,
 				Features/Workouts/Models/WorkoutSet.swift,
 				Features/Workouts/Views/Components/FeedbackDraft.swift,

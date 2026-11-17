@@ -98,11 +98,11 @@ extension WorkoutLog {
 
 extension Workout {
     /// Completed working sets per muscle: 1 for the primary muscle, 0.5 for each secondary.
-    /// Warmups and skipped sets are left out.
+    /// Warmups and skipped sets are left out. A one-time substitute counts as what was actually done.
     var loggedSetsByMuscle: [Muscle: Double] {
         var setsByMuscle: [Muscle: Double] = [:]
         for workoutExercise in workoutExercises {
-            guard let exercise = workoutExercise.exercise else { continue }
+            guard let exercise = workoutExercise.shownExercise else { continue }
             let sets = Double(workoutExercise.completedWorkingSets)
             guard sets > 0 else { continue }
 
