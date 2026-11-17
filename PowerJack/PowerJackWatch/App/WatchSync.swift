@@ -54,6 +54,8 @@ final class WatchSync {
     }
 
     private func receive(snapshot data: Data) {
+        // No model may be read while iCloud Backup switches stores. The iPhone sends it again.
+        guard !store.isReplacingContainer else { return }
         do {
             let snapshot = try SyncPayload.decode(ProgramSnapshot.self, from: data)
             defer { heardFromIPhone = replica.heardFromIPhone }
@@ -92,6 +94,7 @@ final class WatchSync {
     }
 
     private func saveAndPush() {
+        guard !store.isReplacingContainer else { return }
         do {
             try store.container.mainContext.save()
         } catch {
