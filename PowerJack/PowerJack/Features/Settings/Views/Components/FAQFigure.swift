@@ -200,12 +200,13 @@ private struct HypertrophyChart: View {
             FlowQuestion(title: "How did it go?")
             FlowOutcome(tone: .hold, when: "Moderate pain or worse, 0 reps left, or under the range", title: "Same again", detail: "Each set repeats what you did. A set under the range comes back at the bottom of it.")
             FlowArrow(label: "Otherwise")
-            FlowQuestion(title: "Easy two weeks running?", detail: "Three for muscles you're not focusing on. Easy is 3 or more reps left early in the program, 2 by the middle and 1 near the end.")
-            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add a set", detail: "At the same weight, 3 reps lower. Up to 25 sets a week for each muscle.")
-            FlowArrow(label: "No")
-            FlowQuestion(title: "Every set near the top of the range?")
-            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "One weight step more, same reps.")
-            FlowOutcome(tone: .stepUp, when: "Not yet", title: "Add a rep", detail: "One more on every set.", isLast: true)
+            FlowQuestion(title: "2 or more reps left two weeks running?", detail: "One week is enough for muscles you're focusing on.")
+            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add a set", detail: "At the same weight, 3 reps lower, on top of the step below. Up to 25 sets a week for each muscle.")
+            FlowArrow(label: "Either way")
+            FlowQuestion(title: "Ready for more weight?", detail: "Any set near the top of the range, or every set past its middle. From 200 lb, every set past its middle.")
+            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "5 lb more, same reps.")
+            FlowOutcome(tone: .stepUp, when: "Not yet", title: "Add a rep", detail: "One more on every set, never past the top of the range. From 200 lb, one more on the set with the fewest reps.")
+            FlowOutcome(tone: .stepUp, when: "Bodyweight", title: "Add reps", detail: "Half the reps you had left, saved up until they make a whole rep.", isLast: true)
         }
     }
 }

@@ -14,26 +14,42 @@ import Testing
 struct ProgressionPlannerTests {
     private let container = PowerJackSeed.makeInMemoryContainer()
 
-    @Test("Two easy weeks on a focus muscle add a set in week three")
-    func focusVolumeInWeekThree() throws {
+    @Test("One clean week on a focus muscle adds a set in week two, on top of a rep on every set")
+    func focusVolumeInWeekTwo() throws {
         let program = try makeProgram(weeks: 4, focus: [.chest])
-        try finishWeeks(2, of: program)
+        try finishWeeks(1, of: program)
 
         let sets = try #require(program.nextWorkout?.workoutExercises.first).workingSets
-        #expect(program.weekNumber(containing: try #require(program.nextWorkout)) == 3)
-        #expect(sets.count == 3)
-        #expect(sets.last?.repsPlanned == 6)
-        #expect(sets.last?.weightTenthsPlannedPounds == 1000)
+        #expect(program.weekNumber(containing: try #require(program.nextWorkout)) == 2)
+        #expect(sets.map(\.repsPlanned) == [9, 9, 6])
+        #expect(sets.map(\.weightTenthsPlannedPounds) == [1000, 1000, 1000])
     }
 
-    @Test("A non-focus muscle needs a third easy week before it adds a set")
-    func nonFocusVolumeNeedsThreeWeeks() throws {
+    @Test("A non-focus muscle needs a second clean week before it adds a set")
+    func nonFocusVolumeNeedsTwoWeeks() throws {
         let program = try makeProgram(weeks: 6, focus: [.back])
-        try finishWeeks(2, of: program)
+        try finishWeeks(1, of: program)
         #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.count == 2)
 
         try finishWeeks(1, of: program)
         #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.count == 3)
+    }
+
+    @Test("A bodyweight exercise banks half reps from week to week")
+    func bodyweightBanksHalfReps() throws {
+        let program = try makeProgram(weeks: 4, focus: [.back], exercise: Exercise(
+            exerciseName: "Push Up",
+            exerciseEquipment: .bodyweight,
+            primaryMuscleFocus: .chest,
+            minReps: 6,
+            maxReps: 30
+        ))
+        // 8 reps with 3 left each week: 9 next, then 10 once the banked half rep makes a whole one.
+        try finishWeeks(1, of: program, weightTenthsPounds: nil)
+        #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.map(\.repsPlanned) == [9, 9])
+
+        try finishWeeks(1, of: program, weightTenthsPounds: nil)
+        #expect(try #require(program.nextWorkout?.workoutExercises.first).workingSets.prefix(2).map(\.repsPlanned) == [10, 10])
     }
 
     @Test("A swapped exercise starts its history over")
@@ -66,8 +82,8 @@ struct ProgressionPlannerTests {
 
     // MARK: Helpers
 
-    private func makeProgram(weeks: Int, focus: [Muscle]) throws -> Program {
-        let exercise = Exercise(
+    private func makeProgram(weeks: Int, focus: [Muscle], exercise: Exercise? = nil) throws -> Program {
+        let exercise = exercise ?? Exercise(
             exerciseName: "Bench",
             exerciseEquipment: .barbell,
             primaryMuscleFocus: .chest,
@@ -90,15 +106,15 @@ struct ProgressionPlannerTests {
         return program
     }
 
-    /// Logs every set at 8 reps and 100 lb with easy, pain-free feedback, then finishes the workout.
-    private func finishWeeks(_ count: Int, of program: Program) throws {
+    /// Logs every set at 8 reps and 100 lb, or `weightTenthsPounds`, with easy, pain-free feedback, then finishes the workout.
+    private func finishWeeks(_ count: Int, of program: Program, weightTenthsPounds: Int? = 1000) throws {
         for _ in 0..<count {
             let workout = try #require(program.nextWorkout)
             if workout.status == .planned { workout.startAndCascade() }
             for exercise in workout.workoutExercises {
                 for set in exercise.workoutSets {
                     set.reps = 8
-                    set.weightTenthsPounds = 1000
+                    set.weightTenthsPounds = weightTenthsPounds
                     set.complete()
                 }
                 exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .easy, levelOfPain: .none))

@@ -152,10 +152,8 @@ struct LoadableBodyweightTests {
         let input = ProgressionInput(
             current: ProgressionHistory(programWeek: 3, status: .complete, pain: LevelOfPain.none, effort: .challenge, sets: [atTop, atTop]),
             previous: nil,
-            twoWeeksAgo: nil,
             exercise: ProgressionExerciseInfo(minReps: 5, maxReps: 12, primaryMuscle: .back, secondaryMuscles: [], repsOnly: false, addsToBodyweight: true),
             focusMuscles: [],
-            programLengthWeeks: 6,
             currentWeekMuscleSetCredits: [:]
         )
         let prescription = ProgressionEngine.nextPrescription(input)
