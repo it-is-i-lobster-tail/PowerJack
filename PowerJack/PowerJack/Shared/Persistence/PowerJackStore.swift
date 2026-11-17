@@ -23,6 +23,9 @@ final class PowerJackStore {
     private(set) var isReplacingContainer = false
 
     private let inMemory: Bool
+    @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
+    /// At most one tidy-up pass this often, however many changes iCloud or the watch bring.
+    static let tidyUpInterval: Duration = .seconds(1.5)
 
     // The zone SwiftData's CloudKit mirroring writes every record to.
     private static let cloudKitZone = CKRecordZone.ID(zoneName: "com.apple.coredata.cloudkit.zone")
@@ -111,9 +114,23 @@ final class PowerJackStore {
     private func mergeDuplicatesAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                self?.mergeCatalogDuplicates()
-                self?.tidyUpAfterSync()
+                self?.scheduleTidyUp()
             }
+        }
+    }
+
+    /// Tidies up once the changes coming in settle, at most once per `tidyUpInterval`: an iCloud import
+    /// or a workout's worth of watch messages can bring many changes a second.
+    func scheduleTidyUp() {
+        guard scheduledTidyUp == nil else { return }
+        scheduledTidyUp = Task { [weak self] in
+            try? await Task.sleep(for: Self.tidyUpInterval)
+            guard let self else { return }
+            scheduledTidyUp = nil
+            // The store being replaced can't be read; the new one tidies up after its next import.
+            guard !isReplacingContainer else { return }
+            mergeCatalogDuplicates()
+            tidyUpAfterSync()
         }
     }
 

@@ -153,7 +153,8 @@ enum TraceHooks {
     /// Settings are a switch or a number each, so their values are safe to record.
     private static func observeSettings() {
         lastSettings = currentSettings()
-        observe(UserDefaults.didChangeNotification) { _ in
+        SettingsSync.startWatching()
+        observe(SettingsSync.didChange) { _ in
             let settings = currentSettings()
             for key in Set(settings.keys).union(lastSettings.keys).sorted() where settings[key] != lastSettings[key] {
                 TraceLog.record(.settings, "\(key) = \(settings[key] ?? "default")")
