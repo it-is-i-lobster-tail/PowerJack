@@ -18,6 +18,8 @@ struct ExercisePreviewStrip: View {
     private static let underlineGap: CGFloat = 6
 
     @Binding var selectedExerciseIndex: Int?
+    /// Tapping the exercise already selected, so the pages can come back to it.
+    var onReselect: () -> Void = {}
 
     var body: some View {
         // Three whole cards fit on screen, so nothing is left half cut off.
@@ -121,6 +123,10 @@ struct ExercisePreviewStrip: View {
     }
 
     private func selectExercise(at index: Int) {
+        guard index != selectedExerciseIndex else {
+            onReselect()
+            return
+        }
         withAnimation(.easeInOut(duration: 0.325)) {
             selectedExerciseIndex = index
         }

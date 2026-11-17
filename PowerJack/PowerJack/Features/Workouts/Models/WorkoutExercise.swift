@@ -651,17 +651,17 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
     /// At least one working set always stays. Every warmup can go.
+    /// Only a last set with nothing logged can go, so Remove Last Set never throws away a logged set.
     func canRemoveSet(type: SetType) -> Bool {
-        switch type {
-        case .warmup: !lockedValue && !warmupSets.isEmpty
-        case .working: !lockedValue && workingSets.count > Self.minSets
-        }
+        let sets = type == .warmup ? warmupSets : workingSets
+        guard !lockedValue, let last = sets.last, last.status != .complete else { return false }
+        return type == .warmup || sets.count > Self.minSets
     }
     /// Removes the last set of `type`. Sets of the other type stay.
     /// Removing the last warmup turns warmups off, and Enable Warmup brings them all back.
     func removeLastSet(type: SetType = .working) {
         guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
-            Logger.workoutExercise.warning("Cannot remove a set from a locked WorkoutExercise, or its last working set.")
+            Logger.workoutExercise.warning("Cannot remove a logged set, a set from a locked WorkoutExercise, or its last working set.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")

@@ -46,6 +46,14 @@ struct WatchActions {
         replica.record(.resolveCheckIn(decision.rawValue), at: RowPath(workoutExercise), together: together)
     }
 
+    /// Skips anything still unlogged, the first step of Finish Workout, so the exercises only
+    /// partly logged can be rated before the workout finishes.
+    func skipRemainingSets(of workout: Workout) {
+        guard workout.status == .active else { return }
+        workout.skipRemainingSets()
+        replica.record(.skipRemainingSets, at: RowPath(workout), together: together)
+    }
+
     /// Skips anything still unlogged, then moves the program on. Finishing a week plans the next one.
     func finish(_ workout: Workout, in program: Program) {
         let row = RowPath(workout)
