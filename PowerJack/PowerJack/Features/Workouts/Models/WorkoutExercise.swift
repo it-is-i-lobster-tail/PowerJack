@@ -538,6 +538,7 @@ extension WorkoutExercise {
     func setSuperset(_ supersetID: UUID?) {
         guard status == .planned || workoutValue?.status == .active else {
             Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise or one in a workout in progress.")
+            TraceLog.record(.workout, "Refused superset change for \(traceDescription): workout not planned or in progress")
             return
         }
         supersetIDValue = supersetID
@@ -550,11 +551,13 @@ extension WorkoutExercise {
     func setProgression(rirTarget: Int?, code: String?, note: String?) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only set the progression of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused progression for \(traceDescription): not planned")
             return
         }
         rirTargetValue = rirTarget
         progressionCodeValue = code
         progressionNoteValue = note
+        TraceLog.record(.workout, "Progression for \(traceDescription): \(code ?? "no code"), reps left target \(rirTarget.map(String.init) ?? "none")")
     }
     /// Records Strengthen's slot targets on a planned exercise. A priority lift's first working set is its top set,
     /// rated on its own like a PowerJack TOP set, so it shares those fields.
@@ -610,8 +613,12 @@ extension WorkoutExercise {
     func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only replace the sets of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused new sets for \(traceDescription): not planned")
             return
         }
+        let before = workingSets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPlannedPounds, reps: $0.repsPlanned) }
+        let after = sets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPounds, reps: $0.reps) }
+        TraceLog.record(.workout, "Replanned \(traceDescription): \(before.joined(separator: ", ")) → \(after.joined(separator: ", "))")
         for workingSet in workingSets {
             workoutSetsValue?.removeAll { $0 === workingSet }
             modelContext?.delete(workingSet)

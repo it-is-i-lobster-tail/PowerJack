@@ -81,7 +81,7 @@ struct Feedback: View {
 
         // The exercise stays open, so the lifter can still add a set before finishing the workout.
         workoutExercise.answerFeedback(newFeedback, topSet: draft.topSetRepsInReserve)
-        try? modelContext.save()
+        modelContext.saveTraced("feedback answered")
         dismiss()
         onFinished()
     }

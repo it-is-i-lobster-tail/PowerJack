@@ -37,18 +37,22 @@ final class PhoneReferee {
         let programs = try context.fetch(FetchDescriptor<Program>())
         for change in changes.sorted(by: { $0.id < $1.id }) {
             let install = change.install.uuidString
-            guard change.id > applied[install, default: 0] else { continue }
+            guard change.id > applied[install, default: 0] else {
+                TraceLog.record(.watch, "Skipped watch change \(change.id): already applied")
+                continue
+            }
             // A program the iPhone doesn't have is never mistaken for the running one.
             let program = change.row.program.map { id in programs.first { $0.syncID == id } } ?? programs.active
             if program.map({ change.apply(to: $0, in: context) }) != true {
                 // Counted as applied all the same, so one the iPhone can't place never holds up the rest.
                 Logger.sync.warning("Couldn't find the row a watch change names")
+                TraceLog.record(.watch, "Couldn't place watch change \(change.id) (\(change.action.traceName)), counted as applied")
             }
             applied[install] = change.id
         }
         try context.save()
         self.applied = applied
-        try SyncTidyUp.run(in: context)
+        try SyncTidyUp.run(in: context, trigger: "watch changes")
         return try snapshot(in: context)
     }
 }
@@ -109,5 +113,13 @@ extension WatchChange {
         workoutSet.restamp(winner == .watch ? log : iPhoneLog, at: stamp)
         context.insert(SetReceipt(for: workoutSet, device: winner == .watch ? SyncDevice.watch : SyncDevice.iPhone))
         Logger.sync.info("Both devices logged a set; the \(winner == .watch ? "watch" : "iPhone", privacy: .public)'s log stands")
+        TraceLog.record(.watch, "Both devices logged set \(TraceLog.id(workoutSet.syncID)): the \(winner == .watch ? "watch" : "iPhone")'s log stands")
+    }
+}
+
+extension WatchChange.Action {
+    /// The kind of change, like "logSet", without its values, for the trace.
+    var traceName: String {
+        String(String(describing: self).prefix { $0 != "(" })
     }
 }

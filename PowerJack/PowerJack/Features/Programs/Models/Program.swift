@@ -304,6 +304,7 @@ extension Program {
             week.complete()
             if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
                 if nextWeek.workouts.isEmpty {
+                    TraceLog.record(.workout, "Week \(week.order + 1) done, building week \(nextWeek.order + 1) of \(traceDescription)")
                     templateType.weekPlanner.build(nextWeek, in: self)
                     // Days edited after they started take the edit from this new week on.
                     for (workout, editedDay) in zip(nextWeek.workouts, week.workouts) {
@@ -312,6 +313,7 @@ extension Program {
                 }
                 nextWeek.start()
             } else {
+                TraceLog.record(.workout, "Last week done, closing \(traceDescription)")
                 templateType.weekPlanner.close(week, in: self)
             }
         }

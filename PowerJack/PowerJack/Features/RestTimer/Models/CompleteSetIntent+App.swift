@@ -19,9 +19,11 @@ extension CompleteSetIntent {
             let workout = program.nextWorkout,
             workout.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder)
         else {
+            TraceLog.record(.timer, "Live Activity check didn't match the current set (exercise \(exerciseOrder), set \(setOrder))")
             return .result()
         }
         try context.save()
+        TraceLog.record(.timer, "Live Activity check logged exercise \(exerciseOrder), set \(setOrder)")
 
         // The app may not be on screen to notice, so move the activity on to the next set here.
         await RestLiveActivityController.sync(

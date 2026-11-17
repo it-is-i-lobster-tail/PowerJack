@@ -16,10 +16,15 @@ enum SyncTidyUp {
     /// How far back receipts are checked. A device that syncs late is still caught up.
     static let receiptWindow: TimeInterval = 30 * 24 * 60 * 60
 
+    /// What started the current run, for the trace.
+    private static var trigger = "sync"
+
     /// - Parameter running: on the watch, the program the iPhone last said is running.
+    /// - Parameter trigger: what started it, for the trace, like "iCloud import" or "watch changes".
     /// - Returns: Whether anything changed. Changes are saved.
     @discardableResult
-    static func run(in context: ModelContext, running: UUID? = nil, now: Date = .now) throws -> Bool {
+    static func run(in context: ModelContext, running: UUID? = nil, now: Date = .now, trigger: String = "sync") throws -> Bool {
+        self.trigger = trigger
         var changed = try mergeSnapshotCopies(in: context)
         changed = try mergeOwnExercises(in: context) || changed
         changed = try mergeDuplicateDays(in: context) || changed
@@ -70,8 +75,10 @@ enum SyncTidyUp {
         var changed = false
         for copy in copies where !copy.isDeleted {
             guard let original = original(copy) else { continue }
+            let logged = loggedSets(in: copy)
             merge(original, copy)
             context.delete(copy)
+            trace("folded the watch's \(Row.self) copy \(TraceLog.id(syncID(of: copy))) into the iPhone's row, \(logged) logged sets")
             changed = true
         }
         // Saved now, so the next level down no longer sees the rows this one deleted.
@@ -93,6 +100,7 @@ enum SyncTidyUp {
                 survivor.takeOverRows(of: duplicate)
                 context.delete(duplicate)
             }
+            trace("kept \(survivor.traceName), deleted \(ranked.count - 1) copies")
             changed = true
         }
         return changed
@@ -110,6 +118,7 @@ enum SyncTidyUp {
             for days in Dictionary(grouping: week.workouts, by: \.order).values where days.count > 1 {
                 guard let keep = first(of: days, by: { ranksFirst($0, over: $1) }) else { continue }
                 for day in days where day !== keep {
+                    trace("kept day \(TraceLog.id(keep.syncID)), folded in day \(TraceLog.id(day.syncID)) with \(loggedSets(in: day)) logged sets")
                     keep.merge(day, matching: .place)
                     week.detach(day)
                     context.delete(day)
@@ -144,6 +153,7 @@ enum SyncTidyUp {
                 context.delete(log)
                 changed = true
             }
+            trace("kept the latest volume log of workout \(TraceLog.id(logs.first?.sessionID)), \(logs.count) in all")
         }
         for logs in Dictionary(grouping: try StrengthLog.withSession(in: context), by: \.sessionID).values where logs.count > 1 {
             let latest = logs.map(\.date).max()
@@ -151,6 +161,7 @@ enum SyncTidyUp {
                 context.delete(log)
                 changed = true
             }
+            trace("kept the latest strength log of week \(TraceLog.id(logs.first?.sessionID)), \(logs.count) in all")
         }
         return changed
     }
@@ -171,6 +182,7 @@ enum SyncTidyUp {
         }
         guard let keep else { return false }
         for program in active where program !== keep {
+            trace("kept program \(TraceLog.id(keep.syncID)) running, stopped \(TraceLog.id(program.syncID))")
             program.stop()
             program.stopAndCascade()
         }
@@ -193,15 +205,44 @@ enum SyncTidyUp {
         let receipts = try SetReceipt.written(since: date, in: context)
         guard !receipts.isEmpty else { return false }
         let latestBySet = Dictionary(grouping: receipts, by: \.setID).compactMapValues { SetReferee.latest($0.map(\.log)) }
-        var changed = false
+        var shown = 0
         for workoutSet in try WorkoutSet.logged(since: date, in: context) {
             guard let latest = workoutSet.syncID.flatMap({ latestBySet[$0] }) else { continue }
-            changed = workoutSet.showLatest(latest) || changed
+            if workoutSet.showLatest(latest) { shown += 1 }
         }
-        return changed
+        if shown > 0 { trace("showed the latest log on \(shown) sets") }
+        return shown > 0
     }
 
     // MARK: Helpers
+
+    private static func trace(_ action: String) {
+        TraceLog.record(.data, "Tidy-up (\(trigger)): \(action)")
+    }
+
+    private static func syncID(of row: any PersistentModel) -> UUID? {
+        switch row {
+        case let program as Program: program.syncID
+        case let week as ProgramWeek: week.syncID
+        case let workout as Workout: workout.syncID
+        case let workoutExercise as WorkoutExercise: workoutExercise.syncID
+        case let workoutSet as WorkoutSet: workoutSet.syncID
+        default: nil
+        }
+    }
+
+    /// Logged sets in a row and the rows under it.
+    private static func loggedSets(in row: any PersistentModel) -> Int {
+        let sets: [WorkoutSet] = switch row {
+        case let program as Program: program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises).flatMap(\.workoutSets)
+        case let week as ProgramWeek: week.workouts.flatMap(\.workoutExercises).flatMap(\.workoutSets)
+        case let workout as Workout: workout.workoutExercises.flatMap(\.workoutSets)
+        case let workoutExercise as WorkoutExercise: workoutExercise.workoutSets
+        case let workoutSet as WorkoutSet: [workoutSet]
+        default: []
+        }
+        return sets.filter { $0.status == .complete }.count
+    }
 
     /// The row that ranks first over every other, or nil when two can't be told apart.
     private static func first<Row: AnyObject>(of rows: [Row], by ranksFirst: (Row, Row) -> Bool?) -> Row? {

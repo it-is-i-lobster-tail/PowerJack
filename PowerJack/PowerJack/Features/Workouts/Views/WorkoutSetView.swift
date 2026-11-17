@@ -317,7 +317,7 @@ struct WorkoutSetView: View {
 
     /// Saved as it's typed, so it's never lost and the watch shows it straight away.
     private func saveEntry() {
-        try? modelContext.save()
+        modelContext.saveTraced("set entry")
     }
 
     /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
@@ -372,7 +372,7 @@ struct WorkoutSetView: View {
         } else {
             workoutSet.complete()
         }
-        try? modelContext.save()
+        modelContext.saveTraced("set logged")
     }
 
     private static func selectingAll(_ text: String) -> TextSelection {

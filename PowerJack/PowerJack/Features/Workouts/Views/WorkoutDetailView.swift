@@ -380,7 +380,7 @@ struct WorkoutDetailView: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("workout")
     }
 }
 

@@ -149,6 +149,6 @@ struct WatchWorkoutView: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("watch workout")
     }
 }

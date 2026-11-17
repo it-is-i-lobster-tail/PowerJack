@@ -64,7 +64,7 @@ final class WatchStore {
                 guard let context = self?.container.mainContext else { continue }
                 do {
                     if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
-                    try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone)
+                    try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone, trigger: "iCloud import")
                 } catch {
                     Logger.sync.error("Could not tidy up after an iCloud import: \(error.localizedDescription)")
                 }

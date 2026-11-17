@@ -84,6 +84,7 @@ final class RestVoice: NSObject {
             // iOS kept PowerJack suspended past the end of the rest, as through a phone call.
             // Said now, it would only confuse.
             guard !callout.isLate(at: .now) else {
+                TraceLog.record(.timer, "Rest voice dropped a late callout, \(Int(Date.now.timeIntervalSince(callout.endsAt)))s after the rest ended")
                 stopKeepAlive()
                 return
             }
@@ -114,7 +115,11 @@ final class RestVoice: NSObject {
                 finishSpeaking(id)
                 return
             }
-            if let recording, play(recording, id: id) { return }
+            if let recording, play(recording, id: id) {
+                TraceLog.record(.timer, "Rest voice spoke from a recorded clip")
+                return
+            }
+            TraceLog.record(.timer, "Rest voice spoke with the speech synthesizer\(recording == nil ? ", no clip for the phrase" : ", the clip didn't play")")
             let utterance = AVSpeechUtterance(string: phrase.text)
             utterance.voice = Self.voice
             self.utterance = utterance
@@ -134,6 +139,7 @@ final class RestVoice: NSObject {
             try engine.start()
         } catch {
             Logger.restTimer.error("Could not play the rest voice: \(error.localizedDescription)")
+            TraceLog.record(.timer, "Could not play the rest voice's clip: \(TraceLog.describe(error))")
             return false
         }
         player.scheduleBuffer(recording, completionCallbackType: .dataPlayedBack) { [weak self] _ in
@@ -222,6 +228,7 @@ final class RestVoice: NSObject {
     /// A call, Siri or an alarm pauses the silence. With the phone locked, iOS then soon suspends PowerJack,
     /// which misses both the interruption's end and the callout.
     private func interrupted(_ type: AVAudioSession.InterruptionType?) {
+        TraceLog.record(.timer, "Rest voice audio interruption \(type == .began ? "began" : type == .ended ? "ended" : "unknown")")
         switch type {
         case .began:
             // Holds on through a short one, like Siri. A phone call can outlast the time iOS gives.
@@ -260,6 +267,7 @@ final class RestVoice: NSObject {
                     continuation.resume(returning: true)
                 } catch {
                     Logger.restTimer.error("Could not start the rest voice's audio: \(error.localizedDescription)")
+                    TraceLog.record(.timer, "Could not start the rest voice's audio: \(TraceLog.describe(error))")
                     continuation.resume(returning: false)
                 }
             }
@@ -295,6 +303,7 @@ private final class BackgroundTime {
 
     init() {
         task = UIApplication.shared.beginBackgroundTask(withName: "Rest voice") { [weak self] in
+            TraceLog.record(.timer, "Rest voice's background time ran out")
             MainActor.assumeIsolated { self?.end() }
         }
     }
