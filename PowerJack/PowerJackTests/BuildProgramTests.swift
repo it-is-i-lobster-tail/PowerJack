@@ -38,7 +38,9 @@ struct BuildProgramTests {
         log(weekOne, reps: [7, 5], weightTenthsPounds: nil, repsLeft: .three)
         let weekTwo = try #require(program.finishWorkout(weekOne)?.workoutExercises.first)
 
-        #expect(weekTwo.workingSets.map(\.repsPlanned) == [8, 6])
+        // Back is a focus muscle, so the clean week also adds a set after these two.
+        #expect(weekTwo.workingSets.prefix(2).map(\.repsPlanned) == [8, 6])
+        #expect(weekTwo.workingSets.count == 3)
         #expect(weekTwo.workingSets.allSatisfy { $0.weightTenthsPlannedPounds == nil })
         #expect(weekTwo.rirTarget == nil)
     }
@@ -62,13 +64,15 @@ struct BuildProgramTests {
         let weekThree = try #require(program.finishWorkout(weekTwo))
         let next = try #require(weekThree.workoutExercises.first)
 
-        // Week 2 keeps what the engine wrote; week 3 adds a rep to every set and shows no aim.
+        // Week 2 keeps what the engine wrote; week 3 adds a rep to every set and shows no aim. Two clean
+        // weeks in a row also add a set on top.
         #expect(builtByEngine.rirTarget != nil)
         #expect(weeks[2].weekKind == nil)
         #expect(next.rirTarget == nil)
         #expect(next.progressionNote == nil)
-        #expect(next.workingSets.map(\.repsPlanned) == loads.map { _ in 9 })
-        #expect(next.workingSets.map(\.weightTenthsPlannedPounds) == loads)
+        #expect(next.workingSets.prefix(loads.count).map(\.repsPlanned) == loads.map { _ in 9 })
+        #expect(next.workingSets.prefix(loads.count).map(\.weightTenthsPlannedPounds) == loads)
+        #expect(next.workingSets.count == min(loads.count + 1, WorkoutExercise.maxSets))
 
         log(weekThree, reps: [9], weightTenthsPounds: 1000, repsLeft: .three)
         #expect(program.finishWorkout(weekThree) == nil)
@@ -179,7 +183,7 @@ struct BuildProgramTests {
         )
     }
 
-    /// A Build program with one workout of `exercise`. Chest isn't a focus muscle, so no sets are added.
+    /// A Build program with one workout of `exercise`. Chest isn't a focus muscle, so a set takes two clean weeks.
     private func makeProgram(weeks: Int, exercise: Exercise) throws -> Program {
         try makeProgram(weeks: weeks, exercises: [[exercise]])
     }

@@ -82,23 +82,33 @@ enum ProgressionPlanner {
     ) {
         guard let exercise = sourceExercise.exercise else { return }
         let weeks = program.programWeeks
-        let olderWeeks = weeks[..<(weekIndex - 1)].reversed().prefix(2).map { $0 }
-        let matches = olderWeeks.map {
-            matchingExercise(for: sourceExercise, in: sourceWorkout, week: $0)
+        let rules = program.templateType.progressionRules
+        // The slot in each week so far, newest first, back to the last week it held a different exercise.
+        var slots: [(exercise: WorkoutExercise, week: Int)] = [(sourceExercise, weekIndex - 1)]
+        for index in stride(from: weekIndex - 2, through: 0, by: -1) {
+            guard let match = matchingExercise(for: sourceExercise, in: sourceWorkout, week: weeks[index]) else { break }
+            slots.append((match, index))
         }
-        let prescription = program.templateType.progressionRules(
-            ProgressionInput(
-                current: history(sourceExercise, programWeek: weekIndex),
-                previous: matches.first.flatMap { $0 }.map { history($0, programWeek: weekIndex - 1) },
-                twoWeeksAgo: matches.dropFirst().first.flatMap { $0 }.map {
-                    history($0, programWeek: weekIndex - 2)
-                },
+        func input(at position: Int, carry: Int) -> ProgressionInput {
+            let slot = slots[position]
+            let previous = slots.indices.contains(position + 1) ? slots[position + 1] : nil
+            return ProgressionInput(
+                current: history(slot.exercise, programWeek: slot.week + 1),
+                previous: previous.map { history($0.exercise, programWeek: $0.week + 1) },
                 exercise: info(exercise),
                 focusMuscles: Set(program.templateMuscleFocus),
-                programLengthWeeks: program.programLengthWeeks,
-                currentWeekMuscleSetCredits: credits
+                currentWeekMuscleSetCredits: position == 0 ? credits : muscleSetCredits(in: weeks[slot.week]),
+                repCarryHalves: carry
             )
-        )
+        }
+        // A bodyweight exercise banks half reps from week to week, so its earlier weeks are replayed to find them.
+        var carry = 0
+        if exercise.repsOnly {
+            for position in slots.indices.dropFirst().reversed() {
+                carry = rules(input(at: position, carry: carry)).repCarryHalves
+            }
+        }
+        let prescription = rules(input(at: 0, carry: carry))
 
         // Warmups repeat what was logged last week, including how many. They never progress.
         let sourceWarmups = sourceExercise.warmupSets

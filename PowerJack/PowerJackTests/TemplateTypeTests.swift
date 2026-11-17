@@ -127,7 +127,6 @@ struct TemplateTypeTests {
                 repsOnly: false
             ),
             focusMuscles: [],
-            programLengthWeeks: 4,
             currentWeekMuscleSetCredits: [:]
         )
         let expected = ProgressionEngine.nextPrescription(input)

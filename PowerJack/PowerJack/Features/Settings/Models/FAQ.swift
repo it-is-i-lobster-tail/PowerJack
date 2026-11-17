@@ -258,7 +258,7 @@ extension FAQ {
             Entry(
                 question: "How do Hypertrophy programs progress?",
                 answer: [
-                    "Reps first, then weight, one set at a time. Each set's next target comes from what you logged on it, so 7 and 5 reps become 8 and 6.",
+                    "Reps first, then weight, one set at a time. Each set's next target comes from what you logged on it, so 7 and 5 reps become 8 and 6. Weight keeps your reps inside the range, and finishing with reps to spare adds sets on top.",
                     .figure(.hypertrophy),
                     "Hypertrophy programs have no blocks or lighter weeks. Each week is built from the one before it.",
                 ]

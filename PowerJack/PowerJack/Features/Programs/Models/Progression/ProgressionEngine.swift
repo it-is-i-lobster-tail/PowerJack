@@ -42,12 +42,12 @@ struct ProgressionExerciseInfo: Equatable {
 struct ProgressionInput {
     var current: ProgressionHistory
     var previous: ProgressionHistory?
-    var twoWeeksAgo: ProgressionHistory?
     var exercise: ProgressionExerciseInfo
     var focusMuscles: Set<Muscle>
-    var programLengthWeeks: Int
     /// Completed set credits per muscle in `current`'s program week.
     var currentWeekMuscleSetCredits: [Muscle: Double]
+    /// Half reps a reps-only exercise banked in earlier weeks (0 or 1), from the last `Prescription`.
+    var repCarryHalves = 0
 }
 
 struct SetPrescription: Equatable {
@@ -62,8 +62,6 @@ enum ProgressionGate: Equatable {
     case underMinimum
     case moderatePain
     case maxEffort
-    case focusVolume
-    case nonFocusVolume
     case load
     case reps
 }
@@ -73,11 +71,21 @@ struct Prescription: Equatable {
     /// Non-nil when the next exercise must wait on a manual check-in.
     var checkInSourcePain: LevelOfPain?
     var sets: [SetPrescription]
+    /// A set was added on top of this week's step.
+    var addedSet = false
+    /// Half reps banked for next week by a reps-only exercise (0 or 1).
+    var repCarryHalves = 0
 }
 
+/// Pain and missed reps hold progression back, reps left schedule more sets, and weight keeps reps inside
+/// the exercise's range. Otherwise every set adds a rep.
 enum ProgressionEngine {
     static let loadIncrementTenthsPounds = 50
     static let loadReadyRepFraction = 0.85
+    /// From 200 lb, a 5 lb step is 2.5% of the load or less, less than one more rep is worth.
+    static let heavyLoadTenthsPounds = 2000
+    /// The reps left a clean week needs, the aim lifters are shown.
+    static let cleanWeekRepsInReserve = 2
     static let weeklyMuscleSetCap = 25.0
     static let primaryMuscleSetCredit = 1.0
     static let secondaryMuscleSetCredit = 0.5
@@ -87,110 +95,70 @@ enum ProgressionEngine {
     static func nextPrescription(_ input: ProgressionInput) -> Prescription {
         let current = input.current
         let exercise = input.exercise
+        let cap = repCap(exercise)
+        func hold(_ gate: ProgressionGate, _ sets: [SetPrescription], checkIn: LevelOfPain? = nil) -> Prescription {
+            Prescription(gate: gate, checkInSourcePain: checkIn, sets: sets, repCarryHalves: input.repCarryHalves)
+        }
 
         // A check-in that ended in "skip" keeps holding the same prescription.
         if current.status == .skipped,
            current.checkIn == .resolved,
            let sourcePain = current.checkInSourcePain {
-            return Prescription(
-                gate: .skippedCarryForward,
-                checkInSourcePain: sourcePain,
-                sets: carryForward(current.sets)
-            )
+            return hold(.skippedCarryForward, carryForward(current.sets), checkIn: sourcePain)
         }
 
         let completed = completedSets(current)
 
         guard !completed.isEmpty else {
-            return Prescription(gate: .held, checkInSourcePain: nil, sets: carryForward(current.sets))
+            return hold(.held, carryForward(current.sets))
         }
 
         guard let pain = current.pain, let effort = current.effort else {
-            return Prescription(gate: .held, checkInSourcePain: nil, sets: copyActual(completed))
+            return hold(.held, copyActual(completed, cap: cap))
         }
 
         if pain.rawValue >= LevelOfPain.severe.rawValue {
-            return Prescription(gate: .highPain, checkInSourcePain: pain, sets: copyActual(completed))
+            return hold(.highPain, copyActual(completed, cap: cap), checkIn: pain)
         }
 
         if let firstUnder = completed.firstIndex(where: { $0.reps < exercise.minReps }) {
             let retained = completed.enumerated().filter { index, set in
                 set.reps >= exercise.minReps || index == firstUnder
             }
-            return Prescription(
-                gate: .underMinimum,
-                checkInSourcePain: nil,
-                sets: retained.map { _, set in
-                    SetPrescription(
-                        plannedReps: max(set.reps, exercise.minReps),
-                        plannedWeightTenthsPounds: set.weight
-                    )
-                }
-            )
+            return hold(.underMinimum, retained.map { _, set in
+                SetPrescription(
+                    plannedReps: min(max(set.reps, exercise.minReps), cap),
+                    plannedWeightTenthsPounds: set.weight
+                )
+            })
         }
 
         if pain == .moderate {
-            return Prescription(gate: .moderatePain, checkInSourcePain: nil, sets: copyActual(completed))
+            return hold(.moderatePain, copyActual(completed, cap: cap))
         }
 
         if effort == .brutal {
-            return Prescription(gate: .maxEffort, checkInSourcePain: nil, sets: copyActual(completed))
+            return hold(.maxEffort, copyActual(completed, cap: cap))
         }
 
+        var prescription = exercise.repsOnly
+            ? halfRepStep(completed, repsInReserve: repsInReserve(effort), carry: input.repCarryHalves, cap: cap)
+            : weightOrRepStep(completed, exercise: exercise, cap: cap)
+
+        // Sets are their own track: clean weeks add one on top of the step.
         let isFocus = input.focusMuscles.contains(exercise.primaryMuscle)
-        let canAddSet = completed.count < maxWorkingSets &&
-            fitsWeeklyMuscleCap(exercise, credits: input.currentWeekMuscleSetCredits)
-        let eligible = { (history: ProgressionHistory?) in
-            isEligibleForVolume(history, exercise: exercise, programLengthWeeks: input.programLengthWeeks)
+        let isClean = { (history: ProgressionHistory?) in isCleanWeek(history, exercise: exercise) }
+        if completed.count < maxWorkingSets,
+           fitsWeeklyMuscleCap(exercise, credits: input.currentWeekMuscleSetCredits),
+           isClean(current), isFocus || isClean(input.previous),
+           let last = completed.last {
+            prescription.sets.append(SetPrescription(
+                plannedReps: min(max(last.reps - 3, exercise.minReps), cap),
+                plannedWeightTenthsPounds: last.weight
+            ))
+            prescription.addedSet = true
         }
-
-        if canAddSet, eligible(current), eligible(input.previous) {
-            if isFocus {
-                return addVolumeSet(.focusVolume, completed, minReps: exercise.minReps)
-            }
-            if eligible(input.twoWeeksAgo) {
-                return addVolumeSet(.nonFocusVolume, completed, minReps: exercise.minReps)
-            }
-        }
-
-        let loadReadyReps = Int((loadReadyRepFraction * Double(exercise.maxReps)).rounded(.up))
-        let canIncreaseLoad = !exercise.repsOnly && completed.allSatisfy { set in
-            guard let weight = set.weight, weight > 0 || exercise.addsToBodyweight else { return false }
-            return set.reps >= loadReadyReps
-        }
-
-        if canIncreaseLoad {
-            return Prescription(
-                gate: .load,
-                checkInSourcePain: nil,
-                sets: completed.map {
-                    SetPrescription(
-                        plannedReps: $0.reps,
-                        plannedWeightTenthsPounds: ($0.weight ?? 0) + loadIncrementTenthsPounds
-                    )
-                }
-            )
-        }
-
-        let repCap = min(exercise.maxReps, Exercise.maxRepsAllowed)
-        return Prescription(
-            gate: .reps,
-            checkInSourcePain: nil,
-            sets: completed.map {
-                SetPrescription(
-                    plannedReps: min($0.reps + 1, repCap),
-                    plannedWeightTenthsPounds: $0.weight
-                )
-            }
-        )
-    }
-
-    /// Effort allowed for volume increases at a given point in the program.
-    static func targetEffortCeiling(programWeek: Int, programLengthWeeks: Int) -> Int {
-        let progress = Double(programWeek) / Double(max(1, programLengthWeeks))
-        if progress <= 0.2 { return 2 }
-        if progress <= 0.5 { return 3 }
-        return 4
+        return prescription
     }
 
     /// Set credits an added set would contribute to each muscle.
@@ -212,6 +180,16 @@ private extension ProgressionEngine {
         let weight: Int?
     }
 
+    /// No set plans past the top of the exercise's range.
+    static func repCap(_ exercise: ProgressionExerciseInfo) -> Int {
+        min(exercise.maxReps, Exercise.maxRepsAllowed)
+    }
+
+    /// Effort is stored as 5 minus reps left (see `RepsInReserve.storedValue`).
+    static func repsInReserve(_ effort: LevelOfEffort) -> Int {
+        5 - effort.rawValue
+    }
+
     static func completedSets(_ history: ProgressionHistory) -> [CompletedSet] {
         history.sets.compactMap { set in
             guard set.status == .complete,
@@ -226,8 +204,8 @@ private extension ProgressionEngine {
         }
     }
 
-    static func copyActual(_ sets: [CompletedSet]) -> [SetPrescription] {
-        sets.map { SetPrescription(plannedReps: $0.reps, plannedWeightTenthsPounds: $0.weight) }
+    static func copyActual(_ sets: [CompletedSet], cap: Int) -> [SetPrescription] {
+        sets.map { SetPrescription(plannedReps: min($0.reps, cap), plannedWeightTenthsPounds: $0.weight) }
     }
 
     /// Repeats what was logged where possible, otherwise what was planned.
@@ -243,15 +221,42 @@ private extension ProgressionEngine {
             : carried
     }
 
-    /// Repeats every set and adds one at the last set's weight, 3 reps lower (never below the minimum).
-    static func addVolumeSet(_ gate: ProgressionGate, _ sets: [CompletedSet], minReps: Int) -> Prescription {
-        let added = sets.last.map {
-            SetPrescription(plannedReps: max($0.reps - 3, minReps), plannedWeightTenthsPounds: $0.weight)
+    /// Weight keeps the reps in range: 5 lb more at the same reps once any set is near the top of the range or
+    /// every set is past its middle. Otherwise a rep on every set. From 200 lb a rep is the bigger step, so the
+    /// weight waits for every set to pass the middle, and until then only the set with the fewest reps adds one.
+    static func weightOrRepStep(_ sets: [CompletedSet], exercise: ProgressionExerciseInfo, cap: Int) -> Prescription {
+        let canLoad = sets.allSatisfy { set in
+            guard let weight = set.weight else { return false }
+            return weight > 0 || exercise.addsToBodyweight
         }
+        let heavy = sets.contains { ($0.weight ?? 0) >= heavyLoadTenthsPounds }
+        let pastMiddle = sets.allSatisfy { 2 * $0.reps >= exercise.minReps + exercise.maxReps }
+        let loadReadyReps = Int((loadReadyRepFraction * Double(exercise.maxReps)).rounded(.up))
+        let nearTop = sets.contains { $0.reps >= loadReadyReps }
+
+        if canLoad, pastMiddle || (!heavy && nearTop) {
+            return Prescription(gate: .load, checkInSourcePain: nil, sets: sets.map {
+                SetPrescription(plannedReps: min($0.reps, cap), plannedWeightTenthsPounds: ($0.weight ?? 0) + loadIncrementTenthsPounds)
+            })
+        }
+        let fewest = sets.indices.min { sets[$0].reps < sets[$1].reps }
+        return Prescription(gate: .reps, checkInSourcePain: nil, sets: sets.indices.map { index in
+            let adds = !(canLoad && heavy) || index == fewest
+            return SetPrescription(
+                plannedReps: min(sets[index].reps + (adds ? 1 : 0), cap),
+                plannedWeightTenthsPounds: sets[index].weight
+            )
+        })
+    }
+
+    /// Bodyweight has no weight to add, so every set adds half the reps left, and a half rep waits for the next.
+    static func halfRepStep(_ sets: [CompletedSet], repsInReserve: Int, carry: Int, cap: Int) -> Prescription {
+        let halves = carry + repsInReserve
         return Prescription(
-            gate: gate,
+            gate: .reps,
             checkInSourcePain: nil,
-            sets: copyActual(sets) + [added].compactMap { $0 }
+            sets: sets.map { SetPrescription(plannedReps: min($0.reps + halves / 2, cap), plannedWeightTenthsPounds: $0.weight) },
+            repCarryHalves: halves % 2
         )
     }
 
@@ -262,21 +267,15 @@ private extension ProgressionEngine {
             }
     }
 
-    static func isEligibleForVolume(
-        _ history: ProgressionHistory?,
-        exercise: ProgressionExerciseInfo,
-        programLengthWeeks: Int
-    ) -> Bool {
+    /// Done with the aim's reps left or more, pain no worse than noticeable, and every set inside the range.
+    static func isCleanWeek(_ history: ProgressionHistory?, exercise: ProgressionExerciseInfo) -> Bool {
         guard
             let history,
             history.status != .skipped,
             let pain = history.pain,
             let effort = history.effort,
             pain.rawValue <= LevelOfPain.noticeable.rawValue,
-            effort.rawValue <= targetEffortCeiling(
-                programWeek: history.programWeek,
-                programLengthWeeks: programLengthWeeks
-            )
+            repsInReserve(effort) >= cleanWeekRepsInReserve
         else {
             return false
         }

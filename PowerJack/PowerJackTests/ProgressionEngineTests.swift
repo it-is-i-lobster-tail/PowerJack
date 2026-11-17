@@ -100,98 +100,64 @@ struct ProgressionEngineTests {
 
     // MARK: Volume
 
-    @Test("Focus muscles add a set after two eligible weeks")
+    @Test("A focus muscle adds a set after one clean week, on top of the rep step")
     func focusVolume() {
-        let result = next(
-            current: history(week: 2, sets: [(10, 1000), (10, 1000)]),
-            previous: history(week: 1, sets: [(9, 1000), (9, 1000)]),
-            focus: [.chest]
-        )
-        #expect(result.gate == .focusVolume)
-        #expect(result.sets.count == 3)
-        #expect(result.sets.last == prescription(7, 1000))
+        let result = next(current: history(sets: [(8, 1000), (8, 1000)]), focus: [.chest])
+        #expect(result.gate == .reps)
+        #expect(result.addedSet)
+        #expect(result.sets == [prescription(9, 1000), prescription(9, 1000), prescription(6, 1000)])
     }
 
-    @Test("An added set uses the last set's weight with 3 fewer reps")
+    @Test("An added set uses the last set's logged weight with 3 fewer reps, next to a weight step")
     func addedSetTargets() {
-        let result = next(
-            current: history(week: 2, sets: [(12, 1000), (11, 950)]),
-            previous: history(week: 1, sets: [(10, 1000), (10, 950)]),
-            focus: [.chest]
-        )
-        #expect(result.sets == [prescription(12, 1000), prescription(11, 950), prescription(8, 950)])
+        let result = next(current: history(sets: [(12, 1000), (11, 950)]), focus: [.chest])
+        #expect(result.gate == .load)
+        #expect(result.sets == [prescription(12, 1050), prescription(11, 1000), prescription(8, 950)])
     }
 
-    @Test("An added set never targets fewer reps than the exercise minimum")
-    func addedSetRespectsMinimum() {
-        let result = next(
-            current: history(week: 2, sets: [(8, 1000), (7, 1000)]),
-            previous: history(week: 1, sets: [(8, 1000), (7, 1000)]),
-            focus: [.chest]
-        )
-        #expect(result.gate == .focusVolume)
-        #expect(result.sets.last == prescription(6, 1000))
-    }
-
-    @Test("Non-focus muscles need three eligible weeks")
+    @Test("Other muscles need two clean weeks in a row")
     func nonFocusVolume() {
-        let twoWeeks = next(
-            current: history(week: 3, sets: [(10, 1000)]),
-            previous: history(week: 2, sets: [(10, 1000)])
-        )
-        #expect(twoWeeks.gate != .nonFocusVolume)
+        let oneWeek = next(current: history(week: 2, sets: [(8, 1000)]))
+        #expect(!oneWeek.addedSet)
+        #expect(oneWeek.sets == [prescription(9, 1000)])
 
-        let threeWeeks = next(
-            current: history(week: 3, sets: [(10, 1000)]),
-            previous: history(week: 2, sets: [(10, 1000)]),
-            twoWeeksAgo: history(week: 1, sets: [(10, 1000)])
+        let twoWeeks = next(
+            current: history(week: 2, sets: [(8, 1000)]),
+            previous: history(week: 1, sets: [(8, 1000)])
         )
-        #expect(threeWeeks.gate == .nonFocusVolume)
+        #expect(twoWeeks.addedSet)
+        #expect(twoWeeks.sets == [prescription(9, 1000), prescription(6, 1000)])
     }
 
-    @Test("Effort above the program-progress ceiling blocks volume")
-    func effortCeiling() {
-        #expect(ProgressionEngine.targetEffortCeiling(programWeek: 2, programLengthWeeks: 10) == 2)
-        #expect(ProgressionEngine.targetEffortCeiling(programWeek: 5, programLengthWeeks: 10) == 3)
-        #expect(ProgressionEngine.targetEffortCeiling(programWeek: 6, programLengthWeeks: 10) == 4)
-
-        // Week 1 of 4 allows effort 3 at most; "very hard" (4) is too hard to add volume.
+    @Test("A week with fewer than 2 reps left isn't clean")
+    func cleanWeekNeedsTwoRepsLeft() {
         let result = next(
-            current: history(week: 2, sets: [(10, 1000)]),
-            previous: history(week: 1, sets: [(10, 1000)], effort: .veryHard),
-            focus: [.chest]
+            current: history(week: 2, sets: [(8, 1000)]),
+            previous: history(week: 1, sets: [(8, 1000)], effort: .veryHard)
         )
-        #expect(result.gate != .focusVolume)
+        #expect(!result.addedSet)
+
+        let onAim = next(
+            current: history(week: 2, sets: [(8, 1000)], effort: .challenge),
+            previous: history(week: 1, sets: [(8, 1000)], effort: .challenge)
+        )
+        #expect(onAim.addedSet)
     }
 
     @Test("The weekly muscle cap allows exactly 25 sets")
     func weeklyCap() {
-        let atCap = next(
-            current: history(week: 2, sets: [(10, 1000)]),
-            previous: history(week: 1, sets: [(10, 1000)]),
-            focus: [.chest],
-            credits: [.chest: 24]
-        )
-        #expect(atCap.gate == .focusVolume)
+        let atCap = next(current: history(sets: [(10, 1000)]), focus: [.chest], credits: [.chest: 24])
+        #expect(atCap.addedSet)
 
-        let overCap = next(
-            current: history(week: 2, sets: [(10, 1000)]),
-            previous: history(week: 1, sets: [(10, 1000)]),
-            focus: [.chest],
-            credits: [.chest: 24, .triceps: 24.75]
-        )
-        #expect(overCap.gate != .focusVolume)
+        let overCap = next(current: history(sets: [(10, 1000)]), focus: [.chest], credits: [.chest: 24, .triceps: 24.75])
+        #expect(!overCap.addedSet)
     }
 
     @Test("Volume stops at the max working sets")
     func maxSets() {
-        let sets = Array(repeating: (10, 1000), count: WorkoutExercise.maxSets)
-        let result = next(
-            current: history(week: 2, sets: sets),
-            previous: history(week: 1, sets: sets),
-            focus: [.chest]
-        )
-        #expect(result.gate != .focusVolume)
+        let sets = Array(repeating: (8, 1000), count: WorkoutExercise.maxSets)
+        let result = next(current: history(sets: sets), focus: [.chest])
+        #expect(!result.addedSet)
         #expect(result.sets.count == WorkoutExercise.maxSets)
     }
 
@@ -204,6 +170,20 @@ struct ProgressionEngineTests {
         #expect(result.sets == [prescription(11, 1400), prescription(11, 1400)])
     }
 
+    @Test("One set near the top of the range is enough to add weight, and every set keeps its reps")
+    func loadFromOneSet() {
+        let result = next(current: history(sets: [(12, 1000), (7, 1000)]))
+        #expect(result.gate == .load)
+        #expect(result.sets == [prescription(12, 1050), prescription(7, 1050)])
+    }
+
+    @Test("Every set past the middle of the range adds weight")
+    func loadPastMiddle() {
+        let result = next(current: history(sets: [(9, 1000), (9, 1000)]))
+        #expect(result.gate == .load)
+        #expect(result.sets == [prescription(9, 1050), prescription(9, 1050)])
+    }
+
     @Test("Light weights still add 5 lb and keep the reps")
     func loadLightWeight() {
         let result = next(current: history(sets: [(12, 200), (11, 200)]))
@@ -211,20 +191,65 @@ struct ProgressionEngineTests {
         #expect(result.sets == [prescription(12, 250), prescription(11, 250)])
     }
 
-    @Test("Reps-only exercises never add load")
+    @Test("Rep progression adds one rep to every set")
+    func repProgression() {
+        let result = next(current: history(sets: [(8, 1000), (7, 1000)]))
+        #expect(result.gate == .reps)
+        #expect(result.sets == [prescription(9, 1000), prescription(8, 1000)])
+    }
+
+    @Test("Reps above the range come back to its top, whatever the week")
+    func repsNeverPassMax() {
+        let load = next(current: history(sets: [(14, 1000), (13, 1000)]))
+        #expect(load.sets == [prescription(12, 1050), prescription(12, 1050)])
+
+        let held = next(current: history(sets: [(14, 1000)], effort: .brutal))
+        #expect(held.gate == .maxEffort)
+        #expect(held.sets == [prescription(12, 1000)])
+    }
+
+    @Test("From 200 lb, the set with the fewest reps adds one until every set is past the middle")
+    func heavyLoad() {
+        let squat = ProgressionExerciseInfo(minReps: 5, maxReps: 8, primaryMuscle: .quads, secondaryMuscles: [.glutes], repsOnly: false)
+        let first = next(current: history(sets: [(7, 4000), (6, 4000), (5, 4000)]), exercise: squat)
+        #expect(first.gate == .reps)
+        #expect(first.sets == [prescription(7, 4000), prescription(6, 4000), prescription(6, 4000)])
+
+        let second = next(current: history(sets: [(7, 4000), (6, 4000), (6, 4000)]), exercise: squat)
+        #expect(second.sets == [prescription(7, 4000), prescription(7, 4000), prescription(6, 4000)])
+
+        // A set near the top doesn't add weight on its own once the lift is heavy.
+        let nearTop = next(current: history(sets: [(8, 4000), (6, 4000), (6, 4000)]), exercise: squat)
+        #expect(nearTop.gate == .reps)
+
+        let ready = next(current: history(sets: [(7, 4000), (7, 4000), (7, 4000)]), exercise: squat)
+        #expect(ready.gate == .load)
+        #expect(ready.sets == Array(repeating: prescription(7, 4050), count: 3))
+    }
+
+    @Test("Reps-only exercises add half the reps left, banking a half rep for next week")
     func repsOnly() {
         var exercise = chestPress
         exercise.repsOnly = true
-        let result = next(current: history(sets: [(11, nil)]), exercise: exercise)
-        #expect(result.gate == .reps)
-        #expect(result.sets == [prescription(12, nil)])
-    }
+        // 3 reps left: one more rep, half a rep banked.
+        let first = next(current: history(sets: [(8, nil), (7, nil)]), exercise: exercise)
+        #expect(first.gate == .reps)
+        #expect(first.sets == [prescription(9, nil), prescription(8, nil)])
+        #expect(first.repCarryHalves == 1)
 
-    @Test("Rep progression adds one rep, capped at the exercise max")
-    func repProgression() {
-        let result = next(current: history(sets: [(9, 1000), (12, 400)]))
-        #expect(result.gate == .reps)
-        #expect(result.sets == [prescription(10, 1000), prescription(12, 400)])
+        // 3 reps left again, plus the banked half: two more reps.
+        let second = next(current: history(sets: [(9, nil), (8, nil)]), exercise: exercise, carry: 1)
+        #expect(second.sets == [prescription(11, nil), prescription(10, nil)])
+        #expect(second.repCarryHalves == 0)
+
+        // 1 rep left banks half a rep and adds none.
+        let close = next(current: history(sets: [(9, nil)], effort: .veryHard), exercise: exercise)
+        #expect(close.sets == [prescription(9, nil)])
+        #expect(close.repCarryHalves == 1)
+
+        // A held week keeps the banked half.
+        let held = next(current: history(sets: [(9, nil)], pain: .moderate), exercise: exercise, carry: 1)
+        #expect(held.repCarryHalves == 1)
     }
 
     @Test("Logged weight falls back to the planned weight")
@@ -241,20 +266,19 @@ struct ProgressionEngineTests {
     private func next(
         current: ProgressionHistory,
         previous: ProgressionHistory? = nil,
-        twoWeeksAgo: ProgressionHistory? = nil,
         exercise: ProgressionExerciseInfo? = nil,
         focus: Set<Muscle> = [],
-        credits: [Muscle: Double] = [:]
+        credits: [Muscle: Double] = [:],
+        carry: Int = 0
     ) -> Prescription {
         ProgressionEngine.nextPrescription(
             ProgressionInput(
                 current: current,
                 previous: previous,
-                twoWeeksAgo: twoWeeksAgo,
                 exercise: exercise ?? chestPress,
                 focusMuscles: focus,
-                programLengthWeeks: 4,
-                currentWeekMuscleSetCredits: credits
+                currentWeekMuscleSetCredits: credits,
+                repCarryHalves: carry
             )
         )
     }
