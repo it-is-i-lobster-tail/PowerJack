@@ -5,6 +5,7 @@
 //  Created on 6/26/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct WorkoutExercisePager: View {

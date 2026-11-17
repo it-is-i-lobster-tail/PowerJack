@@ -180,21 +180,6 @@ struct WorkoutDetailView: View {
                         .presentationDragIndicator(.visible)
                     }
                 }
-                .sheet(item: $supersetSheet) { sheet in
-                    switch sheet {
-                    case .add(let workoutExercise):
-                        SupersetPicker(workout: workout, workoutExercise: workoutExercise) { choice in
-                            workout.addToSuperset(workoutExercise, with: choice)
-                            save()
-                        }
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
-                    case .edit(let supersetID):
-                        WorkoutSupersetEditor(workout: workout, supersetID: supersetID)
-                            .presentationDetents([.medium, .large])
-                            .presentationDragIndicator(.visible)
-                    }
-                }
                 .navigationDestination(item: $exerciseToEdit) { exercise in
                     ExerciseDetailView(exercise: exercise)
                 }
@@ -219,6 +204,21 @@ struct WorkoutDetailView: View {
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
                     .interactiveDismissDisabled()
                     .presentationDragIndicator(.hidden)
+                }
+            }
+            .sheet(item: $supersetSheet) { sheet in
+                switch sheet {
+                case .add(let workoutExercise):
+                    SupersetPicker(workout: workout, workoutExercise: workoutExercise) { choice in
+                        workout.addToSuperset(workoutExercise, with: choice)
+                        save()
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                case .edit(let supersetID):
+                    WorkoutSupersetEditor(workout: workout, supersetID: supersetID)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
                 }
             }
             .onAppear(perform: presentSheetIfNeeded)
