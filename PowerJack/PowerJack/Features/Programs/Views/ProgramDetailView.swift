@@ -66,6 +66,14 @@ struct ProgramDetailView: View {
             if program.nextWorkout != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        if let workout = program.nextWorkout, workout.status == .active {
+                            Button(
+                                workout.isPaused ? "Resume Workout" : "Pause Workout",
+                                systemImage: workout.isPaused ? "play" : "pause"
+                            ) {
+                                togglePause(workout)
+                            }
+                        }
                         // Pushed through the router like every other Programs screen.
                         Button("Edit Days", systemImage: "square.and.pencil") {
                             router.showEditDays(program)
@@ -88,6 +96,21 @@ struct ProgramDetailView: View {
             Text("Reruns the progression system to determine reps, sets, and weight for any workouts this week not started. This is a development tool and in most cases will change nothing.")
         }
         .saveErrorAlert($saveErrorMessage)
+    }
+
+    /// A paused workout's clock stands still until Resume Workout or the next logged set.
+    private func togglePause(_ workout: Workout) {
+        if workout.isPaused {
+            workout.resume()
+        } else {
+            workout.pause()
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            saveErrorMessage = "The workout couldn't be paused or resumed. Please try again."
+        }
     }
 
     private func resetProgression() {

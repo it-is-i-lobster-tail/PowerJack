@@ -21,6 +21,11 @@ final class Workout {
     // When Start Workout was tapped, and when the workout was finished, stopped, or skipped.
     private var startedAtValue: Date? = nil
     private var endedAtValue: Date? = nil
+    // When Pause Workout was tapped, while it's paused. Paused time is left out of the workout's time.
+    private var pausedAtValue: Date? = nil
+    // Time paused so far, and the part of it since the latest set was logged (left out of the next set's time).
+    private var pausedSecondsValue: Double = 0
+    private var setPausedSecondsValue: Double = 0
     var programWeekValue: ProgramWeek?
     // The day's exercises from next week on, saved when it's edited after it started this week.
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.nextWeekWorkoutValue)
@@ -66,6 +71,11 @@ extension Workout {
     var startedAt: Date? { startedAtValue }
     // Ended At
     var endedAt: Date? { endedAtValue }
+    // Paused At: when the workout was paused, nil while it isn't.
+    var pausedAt: Date? { pausedAtValue }
+    var isPaused: Bool { pausedAtValue != nil }
+    // Paused Seconds: time paused so far, not counting a pause still going.
+    var pausedSeconds: TimeInterval { pausedSecondsValue }
     // Started On: the device Start Workout was tapped on, nil for workouts started before it was kept.
     var startedOn: String? { startedOnValue }
     /// The other device, while this workout is in progress after starting there.
@@ -184,7 +194,9 @@ extension Workout {
         }
         statusValue = Status.complete
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Completed workout")
         TraceLog.record(.workout, "Completed \(traceDescription)")
     }
@@ -198,7 +210,9 @@ extension Workout {
         }
         statusValue = Status.stopped
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Stopped workout")
         TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
@@ -212,7 +226,9 @@ extension Workout {
         }
         statusValue = Status.skipped
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Skipped workout")
         TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
@@ -230,6 +246,38 @@ extension Workout {
         startedOnValue = device
         Logger.workout.debug("Started workout")
         TraceLog.record(.workout, "Started \(traceDescription) on \(device)")
+    }
+    /// Stops the workout's clock until Resume Workout, the next logged set, or the end of the workout.
+    func pause(at date: Date = .now) {
+        guard status == .active, !lockedValue, pausedAtValue == nil else {
+            Logger.workout.warning("Can only pause a Workout in progress.")
+            return
+        }
+        pausedAtValue = date
+        Logger.workout.debug("Paused workout")
+        TraceLog.record(.workout, "Paused \(traceDescription)")
+    }
+    /// Starts the workout's clock again, leaving the paused time out of the workout's and the next set's time.
+    func resume(at date: Date = .now) {
+        guard let pausedAtValue else { return }
+        let paused = max(0, date.timeIntervalSince(pausedAtValue))
+        pausedSecondsValue += paused
+        setPausedSecondsValue += paused
+        self.pausedAtValue = nil
+        Logger.workout.debug("Resumed workout")
+        TraceLog.record(.workout, "Resumed \(traceDescription) after \(Int(paused))s")
+    }
+    /// For a set logged at `date`: ends a pause begun before it and returns where the set's clock starts,
+    /// with the time paused since the set before it left out. The next set's paused time starts from zero.
+    func setClockStart(loggedAt date: Date) -> Date? {
+        if let pausedAtValue, pausedAtValue <= date {
+            resume(at: date)
+        }
+        let start = setClockStart(before: date).map { start in
+            start.addingTimeInterval(min(setPausedSecondsValue, max(0, date.timeIntervalSince(start))))
+        }
+        setPausedSecondsValue = 0
+        return start
     }
     func completeAndCascade() {
         complete()
@@ -269,6 +317,8 @@ extension Workout {
             lockedValue = true
             startedAtValue = nil
             startedOnValue = nil
+            pausedSecondsValue = 0
+            setPausedSecondsValue = 0
             for workoutExercise in workoutExercises {
                 workoutExercise.resetToPlanned()
             }
@@ -469,6 +519,9 @@ extension Workout {
             startedAtValue = other.startedAtValue ?? startedAtValue
             endedAtValue = other.endedAtValue ?? endedAtValue
             startedOnValue = other.startedOnValue ?? startedOnValue
+            pausedAtValue = other.pausedAtValue
+            pausedSecondsValue = other.pausedSecondsValue
+            setPausedSecondsValue = other.setPausedSecondsValue
         }
         if !hasNextWeekLayoutValue, other.hasNextWeekLayoutValue {
             nextWeekExercisesValue = other.nextWeekExercisesValue

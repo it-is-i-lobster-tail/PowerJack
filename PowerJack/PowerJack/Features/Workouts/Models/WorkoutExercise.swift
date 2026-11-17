@@ -449,7 +449,8 @@ extension WorkoutExercise {
     /// still to do, so the workout moves on to the next working set instead of back to them.
     /// Every log writes a `SetReceipt` naming the device it was made on.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now, on device: String = SyncDevice.current) {
-        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(before: date))
+        // Logging a set also ends a pause.
+        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(loggedAt: date))
         if workoutSet.status == .complete {
             modelContext?.insert(SetReceipt(for: workoutSet, device: device))
         }
