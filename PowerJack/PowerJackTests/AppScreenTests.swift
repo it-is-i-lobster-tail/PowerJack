@@ -43,6 +43,7 @@ struct AppScreenTests {
         defer { screen.close() }
 
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.tap("Personalization", settleFor: .milliseconds(600)), "\(screen.labels)")
         let inApp = try #require(screen.label(startingWith: "In-App Timer"), "\(screen.labels)")
         await screen.tap(inApp)
         #expect(defaults.bool(forKey: AppSettings.Key.inAppRestTimer) == false)
@@ -51,7 +52,8 @@ struct AppScreenTests {
         #expect(defaults.bool(forKey: AppSettings.Key.restLiveActivity) == false)
 
         // In memory, turning backup on swaps the container without touching iCloud.
-        await screen.scrollToBottom()
+        #expect(await screen.goBack())
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup)
@@ -59,11 +61,12 @@ struct AppScreenTests {
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
         // The sheet can take longer than a fixed wait to slide away on CI.
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
-        #expect(await screen.waitUntil { screen.label(startingWith: "In-App Timer") == nil }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.contains("Personalization") }, "\(screen.labels)")
     }
 
-    @Test("Switching iCloud Backup keeps Settings open and the chosen section")
+    @Test("Switching iCloud Backup keeps Settings open on Your Data and the chosen section")
     func iCloudSwitchKeepsPlace() async throws {
         let defaults = UserDefaults.standard
         let saved = defaults.object(forKey: AppSettings.Key.iCloudBackup)
@@ -76,12 +79,13 @@ struct AppScreenTests {
 
         await screen.tap("Templates", settleFor: .milliseconds(800))
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
-        await screen.scrollToBottom()
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
         #expect(store.syncsWithICloud)
         #expect(screen.label(startingWith: "iCloud Backup") != nil, "Settings closed: \(screen.labels)")
 
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
     }
@@ -113,7 +117,7 @@ struct AppScreenTests {
 
         // Before the fix, the old page re-rendered on the new container and crashed here.
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
-        await screen.scrollToBottom()
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup, settleFor: .milliseconds(800))
@@ -122,9 +126,40 @@ struct AppScreenTests {
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
         // The new in-memory store is empty, so the screens rebuilt from it show no program.
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
         #expect(!screen.contains("Start Workout"), "\(screen.labels)")
+    }
+
+    @Test("Settings lists its groups, and each opens a page holding its settings")
+    func settingsGroups() async throws {
+        let screen = try await HostedView(
+            SettingsView()
+                .modelContainer(container)
+                .environment(PowerJackStore(inMemory: true))
+        )
+        defer { screen.close() }
+
+        // Each group, and a setting that must be on its page and nowhere else.
+        let groups: [(group: String, setting: String)] = [
+            ("Personalization", "In-App Timer"),
+            ("My Gym", "Weight Unit"),
+            ("Appearance", "Dark"),
+            ("Your Data", "iCloud Backup"),
+            ("FAQ", "What is PowerJack?"),
+            ("Legal", "Privacy Policy"),
+            ("Developer Tools", "Trace Logging"),
+        ]
+        for (_, setting) in groups {
+            #expect(screen.label(startingWith: setting) == nil, "\(setting) is loose on the top page: \(screen.labels)")
+        }
+        for (group, setting) in groups {
+            #expect(await screen.tap(group, settleFor: .milliseconds(600)), "\(group): \(screen.labels)")
+            #expect(screen.label(startingWith: setting) != nil, "\(group) is missing \(setting): \(screen.labels)")
+            #expect(await screen.goBack(), "\(group)")
+            #expect(screen.contains("Personalization"), "\(group) didn't go back: \(screen.labels)")
+        }
     }
 
     @Test("Rest Between Sets opens a wheel that stays inside 0:30...5:00")

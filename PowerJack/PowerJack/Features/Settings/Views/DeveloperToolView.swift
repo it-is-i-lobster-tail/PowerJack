@@ -60,7 +60,7 @@ struct DeveloperToolView: View {
                 }
             }
         }
-        .navigationTitle("Developer Tool")
+        .navigationTitle("Developer Tools")
         .navigationBarTitleDisplayMode(.inline)
         .task { await reloadFiles() }
         .refreshable { await reloadFiles() }
