@@ -98,7 +98,15 @@ extension WatchChange {
     private func referee(_ log: SetLog, on workoutSet: WorkoutSet, of workoutExercise: WorkoutExercise, in context: ModelContext) {
         guard var iPhoneLog = workoutSet.log else {
             guard let reps = log.reps else { return }
+            // The iPhone skipped the set while the lifter was logging it on the watch, say with Skip
+            // Warmups. What the lifter did stands, so the set opens again to take the log.
+            let reopens = workoutSet.status == .skipped && !workoutExercise.locked
+            if reopens { workoutSet.unskip() }
             workoutExercise.log(weightTenthsPounds: log.weightTenthsPounds, reps: reps, on: workoutSet, at: log.completedAt, device: SyncDevice.watch)
+            if workoutSet.status != .complete {
+                if reopens { workoutSet.skip() }
+                Logger.sync.warning("Couldn't place a set logged on the watch: the iPhone had already closed it")
+            }
             return
         }
         iPhoneLog.isCorrection = SetReceipt.wasLogged(workoutSet, before: iPhoneLog.completedAt, in: context)

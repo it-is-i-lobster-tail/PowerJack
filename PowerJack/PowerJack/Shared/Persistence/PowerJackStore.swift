@@ -87,13 +87,21 @@ final class PowerJackStore {
         isReplacingContainer = true
     }
 
-    /// Opens the container for the current iCloud Backup setting, after a switch.
+    /// Opens the container for the current iCloud Backup setting, after a switch. If it won't open,
+    /// the current container stays and the setting goes back to match it.
     func replaceContainer() {
         guard isReplacingContainer else { return }
-        // A save still scheduled on the old container would run after it closes.
-        container.mainContext.autosaveEnabled = false
-        container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
-        isReplacingContainer = false
+        defer { isReplacingContainer = false }
+        do {
+            let replacement = try Self.openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+            // A save still scheduled on the old container would run after it closes.
+            container.mainContext.autosaveEnabled = false
+            container = replacement
+        } catch {
+            Logger.sync.error("Could not open the store after switching iCloud Backup: \(error.localizedDescription)")
+            syncsWithICloud.toggle()
+            UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
+        }
     }
 
     /// The new container reads the same data, so anything not yet saved would be lost.
@@ -163,14 +171,29 @@ final class PowerJackStore {
         }
     }
 
+    /// PowerJack can't run without its store, so only a store that won't open stops the app.
     private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
         do {
-            let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
-            try ExerciseCatalog.seed(in: container.mainContext)
-            try TemplateCatalog.seed(in: container.mainContext)
-            return container
+            return try openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")
+        }
+    }
+
+    private static func openContainer(inMemory: Bool, syncsWithICloud: Bool) throws -> ModelContainer {
+        let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+        seedCatalogs(in: container.mainContext)
+        return container
+    }
+
+    /// A seed that fails is undone and tried again next launch, so it never keeps the app from opening.
+    private static func seedCatalogs(in context: ModelContext) {
+        do {
+            try ExerciseCatalog.seed(in: context)
+            try TemplateCatalog.seed(in: context)
+        } catch {
+            context.rollback()
+            Logger.persistence.error("Could not seed the built-in catalog, trying again next launch: \(error.localizedDescription)")
         }
     }
 }

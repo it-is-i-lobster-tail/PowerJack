@@ -26,6 +26,7 @@ extension Workout {
             setText: workoutExercise.setText(for: workoutSet),
             exerciseOrder: workoutExercise.order,
             setOrder: workoutSet.order,
+            workoutID: syncID?.uuidString,
             sets: workoutExercise.workoutSets.filter(\.showsOnLiveActivity).map {
                 $0.activitySet(
                     label: $0.isWarmup ? "W\(workoutExercise.number(of: $0))" : "\(workoutExercise.number(of: $0))",
@@ -39,10 +40,12 @@ extension Workout {
         )
     }
 
-    /// Logs the current set as entered, if it is the set at these positions and has weight and reps to log.
+    /// Logs the current set as entered, if it is the set at these positions of this workout and has
+    /// weight and reps to log. A `workoutID` of nil, from an older activity, matches any workout.
     @discardableResult
-    func completeCurrentSet(exerciseOrder: Int, setOrder: Int, at date: Date = .now) -> Bool {
+    func completeCurrentSet(exerciseOrder: Int, setOrder: Int, workoutID: String? = nil, at date: Date = .now) -> Bool {
         guard
+            workoutID == nil || workoutID == syncID?.uuidString,
             let current = currentSet,
             current.workoutExercise.order == exerciseOrder,
             current.workoutSet.order == setOrder,
@@ -89,13 +92,14 @@ extension WorkoutSet {
     /// Logs the weight and reps entered, else the target, and completes the set.
     @discardableResult
     func completeAsEntered(repsOnly: Bool, at date: Date = .now) -> Bool {
-        guard canCompleteAsEntered(repsOnly: repsOnly) else { return false }
+        guard canCompleteAsEntered(repsOnly: repsOnly), let workoutExercise = workoutExerciseValue else { return false }
         reps = upcomingReps
         if !repsOnly {
             weightTenthsPounds = upcomingWeightTenthsPounds
         }
-        // Like a set logged on the iPhone, this ends a pause and the set gets its time.
-        complete(at: date, startedAt: workoutExerciseValue?.workoutValue?.setClockStart(loggedAt: date))
+        // Logged the way the app logs a set: it ends a pause, writes a receipt, applies the
+        // program's rules for a completed set and skips the warmups left after the first working set.
+        workoutExercise.completeSet(self, at: date)
         return true
     }
 }
