@@ -127,6 +127,7 @@ enum BuildPlanner: WeekPlanner {
         }
         week.setBlock(kind: plan.week.kind, blockWeek: plan.week.blockWeek, returnBand: band)
         Logger.program.info("Replanned Build week \(weekIndex + 1) after \(Int(days)) days off (band \(band))")
+        TraceLog.record(.workout, "Replanned Build week \(weekIndex + 1) after \(Int(days)) days off, return band \(band), \(plan.week.kind.rawValue) week")
     }
 }
 

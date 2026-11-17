@@ -84,7 +84,7 @@ final class WatchReplica {
         if let running = snapshot.program?.syncID {
             runningOnIPhone = running
         }
-        try SyncTidyUp.run(in: context, running: runningOnIPhone)
+        try SyncTidyUp.run(in: context, running: runningOnIPhone, trigger: "iPhone program")
         return true
     }
 

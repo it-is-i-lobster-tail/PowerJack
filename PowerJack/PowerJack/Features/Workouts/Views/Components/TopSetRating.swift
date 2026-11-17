@@ -25,7 +25,7 @@ struct TopSetRating: View {
                 ForEach(RepsInReserve.allCases) { option in
                     Button {
                         withAnimation { workoutExercise.rateTopSets(option) }
-                        try? modelContext.save()
+                        modelContext.saveTraced("top set rated")
                     } label: {
                         Text(option.valueText)
                             .font(.headline)

@@ -129,6 +129,6 @@ struct SetGroupHeader: View {
 
     private func update(_ change: () -> Void) {
         change()
-        try? modelContext.save()
+        modelContext.saveTraced("sets changed")
     }
 }

@@ -60,6 +60,10 @@ enum TraceHooks {
         for (name, message) in events {
             observe(name) { _ in TraceLog.record(.lifecycle, message) }
         }
+        // The app may not come back, so what's queued goes to disk now.
+        observe(UIApplication.didEnterBackgroundNotification) { _ in
+            Task { await TraceLog.shared.flush() }
+        }
     }
 
     // MARK: Touches
@@ -138,9 +142,9 @@ enum TraceHooks {
                 TraceLog.record(.iCloud, "\(kind) started")
                 return
             }
-            if let error = event.error.map({ $0 as NSError }) {
-                // Only the domain and code: an iCloud error's text can name the account.
-                TraceLog.record(.iCloud, "\(kind) failed: \(error.domain) \(error.code)")
+            if let error = event.error {
+                // Only domains and codes: an iCloud error's text can name the account.
+                TraceLog.record(.iCloud, "\(kind) failed: \(TraceLog.describe(error))")
             } else {
                 TraceLog.record(.iCloud, "\(kind) finished")
             }

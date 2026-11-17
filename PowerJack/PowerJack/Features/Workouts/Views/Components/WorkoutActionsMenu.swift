@@ -74,7 +74,7 @@ struct WorkoutActionsMenu: View {
                     Button {
                         withAnimation {
                             selectedWorkoutExercise.enableWarmups()
-                            try? modelContext.save()
+                            modelContext.saveTraced("warmups turned on")
                         }
                     } label: {
                         HStack(spacing: 4) {
@@ -94,7 +94,7 @@ struct WorkoutActionsMenu: View {
                 if selectedWorkoutExercise.canRestoreSkipped {
                     Button {
                         selectedWorkoutExercise.restoreSkipped()
-                        try? modelContext.save()
+                        modelContext.saveTraced("exercise restored")
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.counterclockwise")
@@ -104,7 +104,7 @@ struct WorkoutActionsMenu: View {
                 } else {
                     Button {
                         selectedWorkoutExercise.skipRemainingSets()
-                        try? modelContext.save()
+                        modelContext.saveTraced("exercise skipped")
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "forward")
@@ -133,7 +133,7 @@ struct WorkoutActionsMenu: View {
             if let selectedWorkoutExercise {
                 SubstitutePicker(workoutExercise: selectedWorkoutExercise) { exercise in
                     selectedWorkoutExercise.substitute(with: exercise)
-                    try? modelContext.save()
+                    modelContext.saveTraced("substitute picked")
                 }
             }
         }
@@ -165,7 +165,7 @@ struct WorkoutActionsMenu: View {
             if workoutExercise.substitute != nil {
                 Button {
                     workoutExercise.undoSubstitute()
-                    try? modelContext.save()
+                    modelContext.saveTraced("substitute undone")
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.uturn.backward")
@@ -183,7 +183,7 @@ struct WorkoutActionsMenu: View {
             Button {
                 withAnimation {
                     workout.removeFromSuperset(workoutExercise)
-                    try? modelContext.save()
+                    modelContext.saveTraced("removed from superset")
                 }
             } label: {
                 Label("Remove from Superset", systemImage: "square.split.1x2")
@@ -210,7 +210,7 @@ struct WorkoutActionsMenu: View {
             onSkipWorkout()
         } else {
             workout.skipAndCascade()
-            try? modelContext.save()
+            modelContext.saveTraced("workout skipped")
         }
     }
 }

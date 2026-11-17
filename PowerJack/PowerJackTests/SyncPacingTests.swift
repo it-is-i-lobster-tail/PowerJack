@@ -28,7 +28,7 @@ struct SyncPacingTests {
         }
         #expect(try copies() == 2)
 
-        for _ in 0..<5 { store.scheduleTidyUp() }
+        for _ in 0..<5 { store.scheduleTidyUp(after: "iCloud import") }
         #expect(try copies() == 2)
 
         try await Task.sleep(for: PowerJackStore.tidyUpInterval + .milliseconds(500))
