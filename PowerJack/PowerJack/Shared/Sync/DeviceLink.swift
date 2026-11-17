@@ -18,6 +18,8 @@ final class DeviceLink: NSObject {
     private nonisolated enum Key {
         static let snapshot = "sync.snapshot"
         static let changes = "sync.changes"
+        /// Marks a file as the watch's trace, and holds its file name.
+        static let trace = "trace.file"
     }
 
     private let settingsSync = SettingsSync()
@@ -57,17 +59,28 @@ final class DeviceLink: NSObject {
     }
 
     #if os(iOS)
+    /// What `send(snapshot:)` did with the program.
+    enum Delivery: String {
+        case skipped = "skipped, no watch app"
+        case sent = "sent, and left for the watch's next launch"
+        case left = "left for the watch's next launch"
+    }
+
     /// Sends the program now when the watch app is reachable, and leaves it for the watch's next launch.
-    func send(snapshot: Data) {
+    @discardableResult
+    func send(snapshot: Data) -> Delivery {
         latestSnapshot = snapshot
         let session = WCSession.default
-        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
-        if session.isReachable {
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return .skipped }
+        let isReachable = session.isReachable
+        if isReachable {
             session.sendMessage([Key.snapshot: snapshot], replyHandler: nil) { error in
                 Logger.sync.debug("Could not send the program to the watch now: \(error.localizedDescription)")
+                TraceLog.record(.watch, "Could not send the program to the watch now: \(TraceLog.describe(error))")
             }
         }
         updateContext()
+        return isReachable ? .sent : .left
     }
 
     /// The watch reads the latest settings and program when it next runs. A program too big for that
@@ -77,17 +90,21 @@ final class DeviceLink: NSObject {
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         var context = settingsSync.settings
         context[Key.snapshot] = latestSnapshot
+        // The watch traces while the Developer Tool trace is on here.
+        context[TraceLog.enabledKey] = TraceLog.shared.isEnabled
         guard !NSDictionary(dictionary: context).isEqual(to: lastContext) else { return }
         do {
             try session.updateApplicationContext(context)
             lastContext = context
         } catch WCError.payloadTooLarge {
+            TraceLog.record(.watch, "Program too big for the watch's context, sending it as a file")
             context[Key.snapshot] = nil
             try? session.updateApplicationContext(context)
             lastContext = context
             sendFile(latestSnapshot)
         } catch {
             Logger.sync.error("Could not update what the watch reads: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not update what the watch reads: \(TraceLog.describe(error))")
         }
     }
 
@@ -100,6 +117,7 @@ final class DeviceLink: NSObject {
             WCSession.default.transferFile(url, metadata: nil)
         } catch {
             Logger.sync.error("Could not send the program to the watch: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not send the program file to the watch: \(TraceLog.describe(error))")
         }
     }
 
@@ -121,8 +139,28 @@ final class DeviceLink: NSObject {
             Task { @MainActor in self?.onSnapshot?(snapshot) }
         } errorHandler: { [weak self] error in
             Logger.sync.debug("Could not reach the iPhone now: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not reach the iPhone now, queued: \(TraceLog.describe(error))")
             Task { @MainActor in self?.queue(changes) }
         }
+    }
+
+    /// Sends the watch's newest trace file to the iPhone, which keeps it with its own so one export
+    /// has both. A copy goes, since the trace keeps writing to the file.
+    func sendTrace() async {
+        guard TraceLog.shared.isEnabled, WCSession.default.activationState == .activated else { return }
+        await TraceLog.shared.flush()
+        guard let newest = await TraceLog.shared.files().first else { return }
+        let copy = URL.temporaryDirectory.appending(path: newest.url.lastPathComponent)
+        do {
+            try? FileManager.default.removeItem(at: copy)
+            try FileManager.default.copyItem(at: newest.url, to: copy)
+        } catch {
+            return
+        }
+        for transfer in WCSession.default.outstandingFileTransfers where transfer.file.metadata?[Key.trace] != nil {
+            transfer.cancel()
+        }
+        WCSession.default.transferFile(copy, metadata: [Key.trace: newest.url.lastPathComponent])
     }
 
     /// Each send holds every pending change, so only the newest needs to wait.
@@ -133,6 +171,10 @@ final class DeviceLink: NSObject {
 
     private func received(context: [String: Any]) {
         settingsSync.apply(context)
+        let tracesOnIPhone = context[TraceLog.enabledKey] as? Bool ?? false
+        if tracesOnIPhone != TraceLog.shared.isEnabled {
+            TraceLog.shared.setEnabled(tracesOnIPhone)
+        }
         if let snapshot = context[Key.snapshot] as? Data {
             onSnapshot?(snapshot)
         }
@@ -143,12 +185,16 @@ final class DeviceLink: NSObject {
 extension DeviceLink: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         let failure = error?.localizedDescription
+        let traced = error.map(TraceLog.describe)
         #if !os(iOS)
         nonisolated(unsafe) let received = session.receivedApplicationContext
         #endif
         Task { @MainActor in
-            if let failure {
+            if let failure, let traced {
                 Logger.sync.error("Watch connection didn't start: \(failure)")
+                TraceLog.record(.watch, "Watch connection didn't start: \(traced)")
+            } else {
+                TraceLog.record(.watch, "Watch connection activated (state \(activationState.rawValue))")
             }
             #if os(iOS)
             self.updateContext()
@@ -205,10 +251,18 @@ extension DeviceLink: WCSessionDelegate {
     /// The watch app came to the front or back in range: give it the latest program now, since one
     /// sent while it was away only waits in the application context.
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        guard session.isReachable else { return }
+        let isReachable = session.isReachable
+        Task { @MainActor in TraceLog.record(.watch, "Watch \(isReachable ? "reachable" : "out of reach")") }
+        guard isReachable else { return }
         Task { @MainActor in
             if let latestSnapshot = self.latestSnapshot { self.send(snapshot: latestSnapshot) }
         }
+    }
+
+    /// The watch's trace file. It's moved before this returns, since the system deletes it then.
+    nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard let name = file.metadata?[Key.trace] as? String else { return }
+        TraceLog.shared.keepWatchTrace(at: file.fileURL, named: name)
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
@@ -224,7 +278,9 @@ extension DeviceLink: WCSessionDelegate {
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        guard session.isReachable else { return }
+        let isReachable = session.isReachable
+        Task { @MainActor in TraceLog.record(.watch, "iPhone \(isReachable ? "reachable" : "out of reach")") }
+        guard isReachable else { return }
         Task { @MainActor in self.onConnected?() }
     }
 

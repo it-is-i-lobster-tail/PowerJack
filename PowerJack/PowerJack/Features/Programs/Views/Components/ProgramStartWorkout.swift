@@ -29,7 +29,7 @@ struct ProgramStartWorkout: View {
             HintOccasion.workoutStarted(weekNumber: program.weekNumber(containing: workout), workout: workout)
             program.prepareToStart(workout)
             workout.startAndCascade()
-            try? modelContext.save()
+            modelContext.saveTraced("workout started")
         }
         WorkoutMirroring.shared.openOnWatch()
         router.showSession(program)

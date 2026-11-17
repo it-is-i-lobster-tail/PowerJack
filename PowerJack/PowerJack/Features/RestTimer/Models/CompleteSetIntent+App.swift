@@ -17,7 +17,12 @@ extension CompleteSetIntent {
         let program = try context.fetch(FetchDescriptor<Program>()).active
         let workout = program?.nextWorkout
         let completed = workout?.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder, workoutID: workoutID) == true
-        if completed { try context.save() }
+        if completed {
+            try context.save()
+            TraceLog.record(.timer, "Live Activity check logged exercise \(exerciseOrder), set \(setOrder)")
+        } else {
+            TraceLog.record(.timer, "Live Activity check didn't match the current set (exercise \(exerciseOrder), set \(setOrder))")
+        }
 
         // The app may not be on screen to notice, so move the activity on to the next set here.
         // A check that no longer matches, say because the watch logged that set, catches the activity up instead.

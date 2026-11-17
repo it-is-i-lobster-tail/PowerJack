@@ -43,6 +43,7 @@ final class PowerJackStore {
     }
 
     func turnOnICloudBackup() {
+        TraceLog.record(.iCloud, "iCloud Backup: turning on")
         saveBeforeSwitching()
         switchContainer(syncsWithICloud: true)
         Logger.sync.info("iCloud Backup turned on")
@@ -52,6 +53,7 @@ final class PowerJackStore {
     /// If iCloud can't be reached, nothing changes and the error is thrown.
     func turnOffICloudBackup() async throws {
         // Saved before the iCloud copy goes, so the save can't upload into it again.
+        TraceLog.record(.iCloud, "iCloud Backup: turning off, deleting the iCloud copy")
         saveBeforeSwitching()
         do {
             try await CKContainer(identifier: PowerJackSchema.cloudKitContainerID)
@@ -59,8 +61,10 @@ final class PowerJackStore {
                 .deleteRecordZone(withID: Self.cloudKitZone)
         } catch let error as CKError where Self.hasNoCopyToDelete(error) {
             Logger.sync.info("No iCloud copy to delete: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: no iCloud copy to delete (\(TraceLog.describe(error)))")
         } catch {
             Logger.sync.error("Could not delete the iCloud copy: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: could not delete the iCloud copy, staying on (\(TraceLog.describe(error)))")
             throw error
         }
         switchContainer(syncsWithICloud: false)
@@ -85,6 +89,7 @@ final class PowerJackStore {
         self.syncsWithICloud = syncsWithICloud
         UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
         isReplacingContainer = true
+        TraceLog.record(.iCloud, "iCloud Backup: screens closing to switch stores, iCloud \(syncsWithICloud ? "on" : "off")")
     }
 
     /// Opens the container for the current iCloud Backup setting, after a switch. If it won't open,
@@ -97,8 +102,10 @@ final class PowerJackStore {
             // A save still scheduled on the old container would run after it closes.
             container.mainContext.autosaveEnabled = false
             container = replacement
+            TraceLog.record(.iCloud, "iCloud Backup: store opened after the switch (iCloud \(syncsWithICloud ? "on" : "off"))")
         } catch {
             Logger.sync.error("Could not open the store after switching iCloud Backup: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: store didn't open after the switch, so the setting goes back (\(TraceLog.describe(error)))")
             syncsWithICloud.toggle()
             UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
         }
@@ -110,6 +117,7 @@ final class PowerJackStore {
             try container.mainContext.save()
         } catch {
             Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: save before the switch failed (\(TraceLog.describe(error)))")
         }
     }
 
@@ -128,7 +136,7 @@ final class PowerJackStore {
     /// See `SyncTidyUp`.
     func tidyUpAfterSync() {
         do {
-            try SyncTidyUp.run(in: container.mainContext)
+            try SyncTidyUp.run(in: container.mainContext, trigger: "iCloud import")
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }

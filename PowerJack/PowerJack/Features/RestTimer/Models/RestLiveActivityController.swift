@@ -25,6 +25,7 @@ enum RestLiveActivityController {
               let state,
               let workoutTitle
         else {
+            if !running.isEmpty { TraceLog.record(.timer, "Live Activity ended (\(running.count))") }
             await end(running)
             return
         }
@@ -36,6 +37,7 @@ enum RestLiveActivityController {
         if let activity = running.first(where: { $0.attributes == attributes }) {
             await end(running.filter { $0.id != activity.id })
             if activity.content.state != state {
+                TraceLog.record(.timer, "Live Activity updated: \(state.setText), resting \(state.rest != nil)")
                 await activity.update(content)
             }
             return
@@ -44,8 +46,10 @@ enum RestLiveActivityController {
         await end(running)
         do {
             _ = try Activity.request(attributes: attributes, content: content)
+            TraceLog.record(.timer, "Live Activity started: \(state.setText)")
         } catch {
             Logger.restTimer.error("Could not start the workout Live Activity: \(error.localizedDescription)")
+            TraceLog.record(.timer, "Could not start the Live Activity: \(TraceLog.describe(error))")
         }
     }
 

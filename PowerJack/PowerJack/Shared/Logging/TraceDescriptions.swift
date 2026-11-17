@@ -28,6 +28,30 @@ extension TraceLog {
     }
 }
 
+extension TraceLog {
+    /// A day's exercises in order, superset members marked by their superset's letter,
+    /// e.g. "Barbell Back Squat, A:Dumbbell Curl, A:custom exercise 1A2B3C4D".
+    static func layout(_ entries: [(exercise: Exercise?, supersetID: UUID?)]) -> String {
+        var letters: [UUID: String] = [:]
+        let names = entries.map { entry in
+            let name = entry.exercise?.traceName ?? "no exercise"
+            guard let supersetID = entry.supersetID else { return name }
+            if letters[supersetID] == nil {
+                letters[supersetID] = String(UnicodeScalar(UInt8(65 + letters.count % 26)))
+            }
+            return "\(letters[supersetID] ?? "?"):\(name)"
+        }
+        return names.isEmpty ? "no exercises" : names.joined(separator: ", ")
+    }
+}
+
+extension Workout {
+    /// This day's exercises, as `TraceLog.layout` writes them.
+    var traceLayout: String {
+        TraceLog.layout(workoutExercises.map { (exercise: $0.exercise, supersetID: $0.supersetID) })
+    }
+}
+
 extension Program {
     var traceDescription: String {
         "program \(TraceLog.id(syncID)) \(templateType.rawValue) \(status.rawValue)"

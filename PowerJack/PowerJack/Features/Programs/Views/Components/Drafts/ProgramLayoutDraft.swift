@@ -63,6 +63,9 @@ struct ProgramLayoutDraft {
         }
         self.dayNotes = dayNotes
         self.lockedDays = lockedDays
+        if !lockedDays.isEmpty {
+            TraceLog.record(.workout, "Edit Days: days \(lockedDays.keys.sorted().map { String($0 + 1) }.joined(separator: ", ")) locked")
+        }
     }
 
     /// Exercises in the day in progress with something logged. They can't be removed.
@@ -83,6 +86,9 @@ struct ProgramLayoutDraft {
             }
             let before = Self.layout(of: workout)
             let applied = workout.applyLayout(drafts.map { (sources[$0.id], $0.exercise, $0.supersetID) })
+            if !Self.same(before, Self.layout(of: workout)) {
+                TraceLog.record(.workout, "Edit Days: day \(index + 1) changes now: \(workout.traceLayout)")
+            }
             // A day changed in progress follows this week's edit, not one saved before it started.
             if workout.nextWeekLayout != nil, !Self.same(before, Self.layout(of: workout)) {
                 workout.clearNextWeekLayout()

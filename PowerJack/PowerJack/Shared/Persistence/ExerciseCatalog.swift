@@ -211,6 +211,7 @@ enum ExerciseCatalog {
                 survivor.takeOverRows(of: duplicate)
                 context.delete(duplicate)
             }
+            TraceLog.record(.data, "Catalog dedupe: kept the oldest \(survivor.catalogID ?? "?"), deleted \(oldestFirst.count - 1) copies")
             changed = true
         }
         return changed

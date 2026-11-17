@@ -58,6 +58,7 @@ final class WorkoutMirroring: NSObject {
         } catch {
             // Health permission declined, or no iPhone to mirror to: the link still works without it.
             Logger.sync.info("Workout session not mirrored: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Workout session not mirrored: \(TraceLog.describe(error))")
         }
     }
 
@@ -101,6 +102,7 @@ final class WorkoutMirroring: NSObject {
             } catch {
                 // No watch, or no watch app: the iPhone runs the workout on its own.
                 Logger.sync.info("Could not open the watch app: \(error.localizedDescription)")
+                TraceLog.record(.watch, "Could not open the watch app: \(TraceLog.describe(error))")
             }
         }
     }
@@ -114,6 +116,7 @@ final class WorkoutMirroring: NSObject {
             return true
         } catch {
             Logger.sync.debug("Could not send over the workout session: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not send over the workout session: \(TraceLog.describe(error))")
             return false
         }
     }
@@ -145,7 +148,11 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         let failure = error.localizedDescription
-        Task { @MainActor in Logger.sync.error("Workout session failed: \(failure)") }
+        let traced = TraceLog.describe(error)
+        Task { @MainActor in
+            Logger.sync.error("Workout session failed: \(failure)")
+            TraceLog.record(.watch, "Workout session failed: \(traced)")
+        }
     }
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
@@ -157,7 +164,9 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
     }
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didDisconnectFromRemoteDeviceWithError error: Error?) {
+        let traced = error.map(TraceLog.describe) ?? "no error"
         Task { @MainActor in
+            TraceLog.record(.watch, "Mirrored workout session disconnected: \(traced)")
             #if os(watchOS)
             self.isMirroring = false
             #else

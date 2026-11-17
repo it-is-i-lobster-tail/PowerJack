@@ -18,6 +18,7 @@ struct PowerJackWatchApp: App {
     @State private var sync: WatchSync
 
     init() {
+        TraceLog.shared.start()
         let store = WatchStore()
         _store = State(initialValue: store)
         _sync = State(initialValue: WatchSync(store: store))
@@ -46,6 +47,8 @@ struct PowerJackWatchApp: App {
         .onChange(of: scenePhase, initial: true) {
             // Opening the app catches up with the iPhone: what's pending goes, its program comes back.
             if scenePhase == .active { sync.push() }
+            // The iPhone's trace export includes the watch's, as of when it last left the screen.
+            if scenePhase == .background { Task { await DeviceLink.shared.sendTrace() } }
         }
     }
 }
