@@ -15,13 +15,17 @@ let maxSecondaryMuscles: Int = 4
 final class Exercise {
     var catalogID: String? = nil
     var exerciseName: String = ""
-    var exerciseEquipment: Equipment = Equipment.barbell
+    // Read and written through `equipment`. Never holds `.loadableBodyweight`, which versions before it
+    // can't read: those exercises store `.bodyweight` with `addsToBodyweightValue`, so older ones see bodyweight.
+    private var exerciseEquipment: Equipment = Equipment.barbell
     var primaryMuscleFocus: Muscle = Muscle.chest
     var secondaryMusclesValue: [Muscle] = []
     var userCreatedValue: Bool = false
     // Rows that use this exercise. Kept so CloudKit has both sides of each link.
     var templateExercisesValue: [TemplateExercise]? = []
     var workoutExercisesValue: [WorkoutExercise]? = []
+    // Workout rows this exercise stood in for as a one-time substitute.
+    var substitutedWorkoutExercisesValue: [WorkoutExercise]? = []
     // Rows stored before this field existed read as the oldest, so catalog dedupe keeps them.
     var createdAtValue: Date = Date.distantPast
     // Hypertrophy rep range used by the progression engine.
@@ -39,6 +43,8 @@ final class Exercise {
     var syncIDValue: UUID?
     // True when the watch made this row from the iPhone's snapshot.
     var fromSnapshotValue: Bool = false
+    // True for `.loadableBodyweight`. See `exerciseEquipment`.
+    private var addsToBodyweightValue: Bool = false
 
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
@@ -59,7 +65,8 @@ final class Exercise {
         fatigueLevel: FatigueLevel = Exercise.defaultFatigueLevel
     ) {
         self.exerciseName = exerciseName
-        self.exerciseEquipment = exerciseEquipment
+        self.exerciseEquipment = exerciseEquipment == .loadableBodyweight ? .bodyweight : exerciseEquipment
+        self.addsToBodyweightValue = exerciseEquipment == .loadableBodyweight
         self.primaryMuscleFocus = primaryMuscleFocus
         self.secondaryMusclesValue = secondaryMuscles
         self.userCreatedValue = userCreated
@@ -74,6 +81,13 @@ final class Exercise {
 // Public
 //
 extension Exercise {
+    var equipment: Equipment {
+        get { exerciseEquipment == .bodyweight && addsToBodyweightValue ? .loadableBodyweight : exerciseEquipment }
+        set {
+            exerciseEquipment = newValue == .loadableBodyweight ? .bodyweight : newValue
+            addsToBodyweightValue = newValue == .loadableBodyweight
+        }
+    }
     var secondaryMuscles: [Muscle] {
         get { secondaryMusclesValue.sorted { $0.rawValue < $1.rawValue } }
         set {
@@ -92,7 +106,9 @@ extension Exercise {
     }
     var repRange: ClosedRange<Int> { minReps...max(minReps, maxReps) }
     // Reps-only exercises never progress by load.
-    var repsOnly: Bool { exerciseEquipment == .bodyweight }
+    var repsOnly: Bool { equipment == .bodyweight }
+    // Weighted pull-ups and dips: the weight is what's added to the body, and 0 is bodyweight alone.
+    var addsToBodyweight: Bool { equipment == .loadableBodyweight }
     // Fatigue level
     var fatigueLevel: FatigueLevel {
         get { fatigueLevelValue }
@@ -128,6 +144,7 @@ extension Exercise {
             syncID: syncIDValue,
             name: exerciseName,
             equipment: exerciseEquipment,
+            addsToBodyweight: addsToBodyweightValue ? true : nil,
             primaryMuscle: primaryMuscleFocus,
             secondaryMuscles: secondaryMusclesValue,
             userCreated: userCreatedValue,
@@ -151,7 +168,8 @@ extension Exercise {
         catalogID = state.catalogID
         syncIDValue = state.syncID
         exerciseName = state.name
-        exerciseEquipment = state.equipment
+        exerciseEquipment = state.equipment == .loadableBodyweight ? .bodyweight : state.equipment
+        addsToBodyweightValue = state.addsToBodyweight == true || state.equipment == .loadableBodyweight
         primaryMuscleFocus = state.primaryMuscle
         secondaryMusclesValue = state.secondaryMuscles
         userCreatedValue = state.userCreated
@@ -169,6 +187,9 @@ extension Exercise {
         }
         for row in duplicate.workoutExercisesValue ?? [] {
             row.replaceDuplicateExercise(with: self)
+        }
+        for row in duplicate.substitutedWorkoutExercisesValue ?? [] {
+            row.replaceDuplicateSubstitute(with: self)
         }
     }
 }

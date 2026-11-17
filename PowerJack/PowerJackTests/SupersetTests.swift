@@ -92,6 +92,49 @@ struct SupersetTests {
         #expect(workout.currentSet?.workoutExercise === workout.workoutExercises[2])
     }
 
+    @Test("Every exercise in a superset shows the rest after its round, and other exercises don't")
+    func restShowsAcrossTheSuperset() throws {
+        let workout = try makeSupersetWorkout()
+        let a = workout.workoutExercises[0]
+        let b = workout.workoutExercises[1]
+        let c = workout.workoutExercises[2]
+        a.skipWarmups()
+        b.skipWarmups()
+
+        // Mid-round there's no rest on either screen.
+        a.completeSet(a.workingSets[0], at: start)
+        #expect(workout.rest(shownOn: a) == nil)
+        #expect(workout.rest(shownOn: b) == nil)
+
+        // The round ends on B, where the lifter still is, so B shows the rest as well as A.
+        b.completeSet(b.workingSets[0], at: start + 30)
+        let rest = try #require(workout.currentRest)
+        #expect(workout.rest(shownOn: a) == rest)
+        #expect(workout.rest(shownOn: b) == rest)
+        #expect(workout.rest(shownOn: c) == nil)
+        #expect(workout.currentExerciseIndex == 0)
+    }
+
+    @Test("Going straight to A's first working set moves on to B's warmups with no rest until B's round is done")
+    func noRestBeforePartnerWarmups() throws {
+        let workout = try makeSupersetWorkout()
+        let a = workout.workoutExercises[0]
+        let b = workout.workoutExercises[1]
+
+        // A's first working set skips A's warmups, but B still has its own to do.
+        a.completeSet(a.workingSets[0], at: start)
+        #expect(workout.currentSet?.workoutSet === b.warmupSets[0])
+        #expect(workout.currentRest == nil)
+
+        // Skipping B's warmups too, the round still waits for B's first working set.
+        b.skipWarmups()
+        #expect(workout.currentSet?.workoutSet === b.workingSets[0])
+        #expect(workout.currentRest == nil)
+
+        b.completeSet(b.workingSets[0], at: start + 30)
+        #expect(workout.currentRest?.duration == 150)
+    }
+
     @Test("Mid-round, the workout opens on the exercise whose turn it is")
     func currentExerciseFollowsTheRound() throws {
         let workout = try makeSupersetWorkout()
@@ -209,16 +252,24 @@ struct SupersetTests {
         #expect(names(day) == [["B", "C"], ["A"], ["D"]])
         #expect(day.blocks.map(\.isSuperset) == [true, false, false])
 
-        // One left stays a superset, ready for a partner, like a new one.
+        // Down to one, it ends, so the builder, the workout and the export all show it on its own.
         day.removeFromSuperset(day.supersets[0].exercises[1].id)
         #expect(names(day) == [["B"], ["C"], ["A"], ["D"]])
-        #expect(day.superset(supersetID)?.exercises.count == 1)
-
-        // Taking the last one out ends it.
-        day.removeFromSuperset(day.supersets[0].exercises[0].id)
         #expect(day.superset(supersetID) == nil)
         #expect(day.supersets.isEmpty)
         #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+    }
+
+    @Test("Removing a superset's partner ends it, but one just started waits for others")
+    func supersetLeftAloneEnds() throws {
+        var day = makeDay(["A", "B", "C"])
+        day.startSuperset(with: day.blocks[0])
+        #expect(day.blocks.map(\.isSuperset) == [true, false, false])
+
+        day.add(day.blocks[1], to: day.supersets[0])
+        day.removeTemplateExercises(at: IndexSet(integer: 1))
+        #expect(names(day) == [["A"], ["C"]])
+        #expect(day.supersets.isEmpty)
     }
 
     @Test("A reordered superset saves and reaches the program in its new order")

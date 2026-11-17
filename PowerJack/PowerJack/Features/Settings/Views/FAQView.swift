@@ -10,6 +10,11 @@ import SwiftUI
 // the question, so the question can't stay put while the answer opens.
 struct FAQView: View {
     var body: some View {
+        content.traceScreen("FAQ")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                 ForEach(FAQ.topics, id: \.self) { topic in

@@ -32,23 +32,28 @@ final class PhoneReferee {
     }
 
     /// Applies every change not applied yet, in order, tidies up, and answers with the program.
-    func receive(_ changes: [WatchChange], in context: ModelContext) throws -> ProgramSnapshot {
+    /// `tidiesUp` false leaves the tidy-up to the caller, which can run it less often.
+    func receive(_ changes: [WatchChange], in context: ModelContext, tidiesUp: Bool = true) throws -> ProgramSnapshot {
         var applied = self.applied
         let programs = try context.fetch(FetchDescriptor<Program>())
         for change in changes.sorted(by: { $0.id < $1.id }) {
             let install = change.install.uuidString
-            guard change.id > applied[install, default: 0] else { continue }
+            guard change.id > applied[install, default: 0] else {
+                TraceLog.record(.watch, "Skipped watch change \(change.id): already applied")
+                continue
+            }
             // A program the iPhone doesn't have is never mistaken for the running one.
             let program = change.row.program.map { id in programs.first { $0.syncID == id } } ?? programs.active
             if program.map({ change.apply(to: $0, in: context) }) != true {
                 // Counted as applied all the same, so one the iPhone can't place never holds up the rest.
                 Logger.sync.warning("Couldn't find the row a watch change names")
+                TraceLog.record(.watch, "Couldn't place watch change \(change.id) (\(change.action.traceName)), counted as applied")
             }
             applied[install] = change.id
         }
         try context.save()
         self.applied = applied
-        try SyncTidyUp.run(in: context)
+        if tidiesUp { try SyncTidyUp.run(in: context, trigger: "watch changes") }
         return try snapshot(in: context)
     }
 }
@@ -72,11 +77,9 @@ extension WatchChange {
             if !workoutExercise.locked { workoutExercise.skipWarmups() }
         case .rateExercise(let feedback, let topSetRepsInReserve):
             guard let workoutExercise = program.workoutExercise(at: row) else { return false }
-            guard workoutExercise.feedback == nil, workoutExercise.allSetsDone() else { break }
-            if let topSetRepsInReserve, let repsInReserve = RepsInReserve(rawValue: topSetRepsInReserve), workoutExercise.topSets > 0 {
-                workoutExercise.rateTopSets(repsInReserve)
-            }
-            workoutExercise.addFeedback(feedback: ExerciseFeedback(snapshot: feedback))
+            // Feedback already answered on the iPhone stands.
+            let topSet = topSetRepsInReserve.flatMap(RepsInReserve.init(rawValue:))
+            workoutExercise.answerFeedback(ExerciseFeedback(snapshot: feedback), topSet: topSet)
         case .resolveCheckIn(let decisionName):
             guard let workoutExercise = program.workoutExercise(at: row) else { return false }
             if workoutExercise.checkInPending, let decision = ManualCheckInDecision(rawValue: decisionName) {
@@ -88,6 +91,12 @@ extension WatchChange {
                 workout.skipRemainingSets()
                 program.finishWorkout(workout)
             }
+        case .skipRemainingSets:
+            guard let workout = program.workout(at: row) else { return false }
+            if workout.status == .active { workout.skipRemainingSets() }
+        case .enterSet(let weightTenthsPounds, let reps):
+            guard let workoutSet = program.workoutSet(at: row), let workoutExercise = workoutSet.workoutExerciseValue else { return false }
+            workoutExercise.enter(weightTenthsPounds: weightTenthsPounds, reps: reps, on: workoutSet)
         }
         return true
     }
@@ -97,7 +106,15 @@ extension WatchChange {
     private func referee(_ log: SetLog, on workoutSet: WorkoutSet, of workoutExercise: WorkoutExercise, in context: ModelContext) {
         guard var iPhoneLog = workoutSet.log else {
             guard let reps = log.reps else { return }
+            // The iPhone skipped the set while the lifter was logging it on the watch, say with Skip
+            // Warmups. What the lifter did stands, so the set opens again to take the log.
+            let reopens = workoutSet.status == .skipped && !workoutExercise.locked
+            if reopens { workoutSet.unskip() }
             workoutExercise.log(weightTenthsPounds: log.weightTenthsPounds, reps: reps, on: workoutSet, at: log.completedAt, device: SyncDevice.watch)
+            if workoutSet.status != .complete {
+                if reopens { workoutSet.skip() }
+                Logger.sync.warning("Couldn't place a set logged on the watch: the iPhone had already closed it")
+            }
             return
         }
         iPhoneLog.isCorrection = SetReceipt.wasLogged(workoutSet, before: iPhoneLog.completedAt, in: context)
@@ -108,5 +125,13 @@ extension WatchChange {
         workoutSet.restamp(winner == .watch ? log : iPhoneLog, at: stamp)
         context.insert(SetReceipt(for: workoutSet, device: winner == .watch ? SyncDevice.watch : SyncDevice.iPhone))
         Logger.sync.info("Both devices logged a set; the \(winner == .watch ? "watch" : "iPhone", privacy: .public)'s log stands")
+        TraceLog.record(.watch, "Both devices logged set \(TraceLog.id(workoutSet.syncID)): the \(winner == .watch ? "watch" : "iPhone")'s log stands")
+    }
+}
+
+extension WatchChange.Action {
+    /// The kind of change, like "logSet", without its values, for the trace.
+    var traceName: String {
+        String(String(describing: self).prefix { $0 != "(" })
     }
 }

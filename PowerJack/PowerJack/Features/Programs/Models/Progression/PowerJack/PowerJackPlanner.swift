@@ -41,14 +41,15 @@ enum PowerJackPlanner: WeekPlanner {
         }
         let closed = Array(weeks[..<index])
         let source = closed[index - 1]
-        let exercises = source.workouts.map { $0.workoutExercises.compactMap(\.exercise) }
         guard let plan = nextPlan(after: closed, in: program) else { return }
 
-        for (workoutIndex, workoutExercises) in exercises.enumerated() {
+        for sourceWorkout in source.workouts {
             guard let workout = week.addWorkout() else { continue }
-            for (entryIndex, exercise) in workoutExercises.enumerated() {
-                guard let workoutExercise = workout.addWorkoutExercise(exercise: exercise) else { continue }
-                let sourceExercise = source.workouts[workoutIndex].workoutExercises[entryIndex]
+            // A row whose exercise is gone is left out, and each row copies its own settings.
+            for sourceExercise in sourceWorkout.workoutExercises {
+                guard let exercise = sourceExercise.exercise,
+                      let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
+                else { continue }
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
                 workoutExercise.inheritSuperset(from: sourceExercise)
             }
@@ -131,7 +132,7 @@ enum PowerJackPlanner: WeekPlanner {
 
     /// The line under the aim on the exercise screen. The aim itself covers deloads and rep-outs.
     private static func note(for entry: PowerJackEntryPlan, in header: PowerJackWeekPlanHeader) -> String? {
-        if header.type == .deload { return "Deload week: don't add reps." }
+        if header.type == .deload { return "Lighter week: don't add reps." }
         let topSet = entry.topSets > 0 ? "Set 1 is your heavy top set." : nil
         if entry.calibrating, entry.sets.first?.load == nil {
             return [topSet, "Pick weights that leave about 3 reps."].compactMap { $0 }.joined(separator: " ")
@@ -172,7 +173,8 @@ enum PowerJackPlanner: WeekPlanner {
             pattern: traits.0,
             multiJoint: traits.1,
             repsOnly: exercise.repsOnly,
-            isBarbell: exercise.exerciseEquipment == .barbell,
+            addsToBodyweight: exercise.addsToBodyweight,
+            isBarbell: exercise.equipment == .barbell,
             fatigue: exercise.fatigueLevel,
             primary: exercise.primaryMuscleFocus,
             secondaries: exercise.secondaryMuscles
@@ -205,9 +207,9 @@ enum PowerJackPlanner: WeekPlanner {
                 lastPlannedReps = set.repsPlanned ?? lastPlannedReps
                 return PowerJackSetLog(
                     plannedReps: set.repsPlanned ?? lastPlannedReps,
-                    plannedLoad: set.weightInPoundsPlanned,
-                    reps: set.reps,
-                    load: set.weightInPounds,
+                    plannedLoad: set.progressionPlannedWeightTenthsPounds.map(pounds),
+                    reps: set.progressionReps,
+                    load: set.progressionWeightTenthsPounds.map(pounds),
                     isComplete: set.status == .complete,
                     isSkipped: set.status == .skipped,
                     completedAt: set.completedAt
@@ -227,6 +229,8 @@ enum PowerJackPlanner: WeekPlanner {
             unplanned: workoutExercise.powerJackRoleValue == nil
         )
     }
+
+    private static func pounds(_ tenthsPounds: Int) -> Double { Double(tenthsPounds) / 10 }
 
     /// Each closed week with its block number, block week and target column replayed (R5.1).
     static func weekLogs(_ weeks: [ProgramWeek], programWeeks: Int) -> [PowerJackWeekLog] {

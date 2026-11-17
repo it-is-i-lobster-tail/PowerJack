@@ -25,6 +25,8 @@ struct PowerJackApp: App {
     init() {
         Hints.configure()
         if !Self.runsInMemory {
+            TraceLog.shared.start()
+            TraceHooks.start()
             PhoneSync.shared.start(store: Self.store)
         }
     }

@@ -8,11 +8,12 @@ struct ExerciseCatalogTests {
     @Test("Catalog entries have unique stable IDs and valid exercise fields")
     func catalogValidity() {
         let entries = ExerciseCatalog.entries
-        #expect(entries.count == 63)
+        #expect(entries.count == 65)
         #expect(Set(entries.map(\.id)).count == entries.count)
         let ids = Set(entries.map(\.id))
         for id in ["dumbbell-goblet-squat", "sliding-leg-curl", "smith-machine-squat", "smith-machine-hip-thrust", "cable-hip-abduction",
-                   "hack-squat", "chest-supported-dumbbell-row", "dip", "close-grip-bench-press", "incline-dumbbell-curl", "hanging-leg-raise"] {
+                   "hack-squat", "chest-supported-dumbbell-row", "dip", "close-grip-bench-press", "incline-dumbbell-curl", "hanging-leg-raise",
+                   "weighted-pull-up", "weighted-dip"] {
             #expect(ids.contains(id), "\(id)")
         }
         #expect(Set(entries.map(\.primaryMuscle)) == Set(Muscle.allCases))
@@ -45,7 +46,7 @@ struct ExerciseCatalogTests {
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 11, .moderate: 19, .low: 33])
+        #expect(counts == [.high: 11, .moderate: 21, .low: 33])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
@@ -92,7 +93,7 @@ struct ExerciseCatalogTests {
         #expect(existing.persistentModelID == existingID)
         #expect(custom.userCreated && custom.catalogID == nil)
         #expect(custom.exerciseName == ExerciseCatalog.entries[1].name)
-        #expect(custom.exerciseEquipment == .bodyweight && custom.primaryMuscleFocus == .abs)
+        #expect(custom.equipment == .bodyweight && custom.primaryMuscleFocus == .abs)
         #expect(legacy.catalogID == nil && legacy.exerciseName == "Legacy Exercise")
     }
 
@@ -115,7 +116,7 @@ struct ExerciseCatalogTests {
             draft.fatigueLevel = .low
             #expect(draft.apply(to: exercise))
             #expect(exercise.exerciseName == originalName)
-            #expect(exercise.exerciseEquipment == .barbell)
+            #expect(exercise.equipment == .barbell)
             #expect(exercise.primaryMuscleFocus == .chest)
             #expect(exercise.secondaryMuscles == originalSecondary)
             #expect(exercise.repRange == 6...7)
@@ -211,9 +212,9 @@ struct ExerciseCatalogTests {
         #expect(bench.fatigueLevel == .high)
     }
 
-    @Test("A new device moves rows iCloud brings in from an older version on its next launch")
-    func fatigueLevelUpgradeAfterSync() throws {
-        let suite = "ExerciseCatalogTests.fatigueLevelUpgradeAfterSync"
+    @Test("A new iPhone or a reinstall leaves the levels iCloud brings in alone, so the lifter's own pick stays")
+    func fatigueLevelKeptAfterReinstall() throws {
+        let suite = "ExerciseCatalogTests.fatigueLevelKeptAfterReinstall"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -223,9 +224,10 @@ struct ExerciseCatalogTests {
 
         // First launch seeds an empty store.
         try ExerciseCatalog.seed(in: context, defaults: defaults)
-        #expect(defaults.object(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == nil)
+        #expect(defaults.integer(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == ExerciseCatalog.fatigueLevelsRevision)
 
-        // The older version's bench syncs in. It's older, so it survives the dedupe.
+        // The lifter's bench syncs in, set back to High after the move on their old iPhone.
+        // It's older, so it survives the dedupe.
         let synced = ExerciseCatalog.entries[0].makeExercise()
         synced.fatigueLevel = .high
         synced.maxReps = 12
@@ -233,10 +235,12 @@ struct ExerciseCatalogTests {
         context.insert(synced)
         try context.save()
 
+        // The next launches leave it as the lifter set it.
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
         try ExerciseCatalog.seed(in: context, defaults: defaults)
         let benches = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID == "barbell-bench-press" }
         #expect(benches.count == 1)
-        #expect(benches.first?.fatigueLevel == .moderate)
-        #expect(defaults.integer(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == ExerciseCatalog.fatigueLevelsRevision)
+        #expect(benches.first?.fatigueLevel == .high)
+        #expect(benches.first?.repRange == 5...12)
     }
 }

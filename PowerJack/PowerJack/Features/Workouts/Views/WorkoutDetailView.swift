@@ -15,6 +15,28 @@ private enum WorkoutSheet: Identifiable, Hashable {
 
     // Models hash by their persistent ID, so each exercise gets its own sheet identity.
     var id: Self { self }
+
+    var workoutExercise: WorkoutExercise {
+        switch self {
+        case .feedback(let workoutExercise), .checkIn(let workoutExercise): workoutExercise
+        }
+    }
+
+    /// Answered already, here or on the watch, so the sheet has nothing left to ask.
+    var isAnswered: Bool {
+        switch self {
+        case .feedback(let workoutExercise): !workoutExercise.needsFeedback
+        case .checkIn(let workoutExercise): !workoutExercise.checkInPending
+        }
+    }
+}
+
+/// The superset sheets opened from the ••• menu.
+private enum SupersetSheet: Identifiable, Hashable {
+    case add(WorkoutExercise)
+    case edit(UUID)
+
+    var id: Self { self }
 }
 
 extension EnvironmentValues {
@@ -40,6 +62,9 @@ struct WorkoutDetailView: View {
     @State private var isShowingWorkoutExerciseSheet = false
     @State private var presentedSheet: WorkoutSheet?
     @State private var exerciseToEdit: Exercise?
+    @State private var supersetSheet: SupersetSheet?
+    /// Finish Workout is asking partly logged exercises for feedback, one at a time, before it finishes.
+    @State private var finishesAfterFeedback = false
 
     /// Lets a set's check draw in before a superset slides to the next exercise.
     private static let supersetSlideDelay = 0.35
@@ -88,10 +113,19 @@ struct WorkoutDetailView: View {
 
     var body: some View {
         if workout.workoutExercises.isEmpty {
-            EmptyStateView(
-                title: "No exercises",
-                systemImage: "dumbbell"
-            )
+            // Nothing to log, so skipping is the way on to the next workout.
+            ContentUnavailableView {
+                Label("No exercises", systemImage: "dumbbell")
+            } description: {
+                if !isReadOnly {
+                    Text("This day has no exercises left.")
+                }
+            } actions: {
+                if !isReadOnly {
+                    Button("Skip Workout", action: skipEmptyWorkout)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
         } else {
             GeometryReader { geometry in
                 WorkoutDetailContent(
@@ -137,7 +171,9 @@ struct WorkoutDetailView: View {
                                 selectedExerciseIndex: selectedExerciseIndex,
                                 isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
                                 onEditExercise: editExercise,
-                                onSkipWorkout: onSkipWorkout
+                                onSkipWorkout: onSkipWorkout,
+                                onAddToSuperset: { showSupersetSheet(.add($0)) },
+                                onEditSuperset: { showSupersetSheet(.edit($0)) }
                             )
                         }
                     }
@@ -155,18 +191,35 @@ struct WorkoutDetailView: View {
                         .presentationDragIndicator(.visible)
                     }
                 }
-                .navigationDestination(item: $exerciseToEdit) { exercise in
-                    ExerciseDetailView(exercise: exercise)
+                .sheet(item: $supersetSheet) { sheet in
+                    switch sheet {
+                    case .add(let workoutExercise):
+                        SupersetPicker(workout: workout, workoutExercise: workoutExercise) { choice in
+                            workout.addToSuperset(workoutExercise, with: choice)
+                            save()
+                        }
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                    case .edit(let supersetID):
+                        WorkoutSupersetEditor(workout: workout, supersetID: supersetID)
+                            .presentationDetents([.medium, .large])
+                            .presentationDragIndicator(.visible)
+                    }
+                }
+                .navigationDestination(isPresented: isEditingExercise) {
+                    if let exerciseToEdit {
+                        ExerciseDetailView(exercise: exerciseToEdit)
+                    }
                 }
             }
             // The number pad covers the exercise strip instead of pushing it up.
             .keyboardSlidesOver()
-            .sheet(item: $presentedSheet) { sheet in
+            .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in
                 switch sheet {
                 case .feedback(let workoutExercise):
                     Feedback(
                         workoutExercise: workoutExercise,
-                        onFinished: { advance() }
+                        onFinished: { if !finishesAfterFeedback { advance() } }
                     )
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
                     .interactiveDismissDisabled()
@@ -185,11 +238,17 @@ struct WorkoutDetailView: View {
             .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
             }
+            .onChange(of: presentedSheet?.isAnswered == true) { _, isAnswered in
+                if isAnswered { closeAnsweredSheet() }
+            }
             .onChange(of: router?.currentExerciseRequest) {
                 showCurrentExercise()
             }
-            .onChange(of: workout.currentSet?.workoutSet.id) {
-                followSuperset()
+            .onChange(of: workout.currentSet?.workoutSet.id) { previousSetID, _ in
+                followSuperset(after: previousSetID)
+            }
+            .onChange(of: workout.workoutExercises.map(ObjectIdentifier.init)) { before, after in
+                keepSelection(from: before, to: after)
             }
         }
     }
@@ -206,12 +265,43 @@ struct WorkoutDetailView: View {
         }
     }
 
+    /// Shows the exercise opened from the ••• menu. A Bool binding rather than `item:`, because the compiler can
+    /// lose track of `Exercise` being Hashable in this file when it's built alongside some other files.
+    private var isEditingExercise: Binding<Bool> {
+        Binding(
+            get: { exerciseToEdit != nil },
+            set: { if !$0 { exerciseToEdit = nil } }
+        )
+    }
+
+    private func showSupersetSheet(_ sheet: SupersetSheet) {
+        focusedSetField = nil
+        supersetSheet = sheet
+    }
+
+    /// Exercises moved, e.g. into or out of a superset: stays on the exercise the user was looking at.
+    private func keepSelection(from before: [ObjectIdentifier], to after: [ObjectIdentifier]) {
+        guard let selectedExerciseIndex else { return }
+        if selectedExerciseIndex == before.count {
+            self.selectedExerciseIndex = after.count
+        } else if before.indices.contains(selectedExerciseIndex),
+                  let index = after.firstIndex(of: before[selectedExerciseIndex]),
+                  index != selectedExerciseIndex {
+            self.selectedExerciseIndex = index
+        }
+    }
+
     /// In a superset, slides to the exercise whose turn it is once a set is checked off.
-    /// Waits for the check to draw in first.
-    private func followSuperset() {
+    /// Waits for the check to draw in first. A superset changed from the menu changes whose turn
+    /// it is without a set being checked off, and the user stays where they are.
+    private func followSuperset(after previousSetID: PersistentIdentifier?) {
         guard
             !isReadOnly,
             presentedSheet == nil,
+            let previousSetID,
+            workout.workoutExercises.contains(where: { workoutExercise in
+                workoutExercise.workoutSets.contains { $0.id == previousSetID && $0.isDone }
+            }),
             let selectedWorkoutExercise,
             let next = workout.currentSet?.workoutExercise,
             selectedWorkoutExercise.supersetPartners.contains(where: { $0 === next }),
@@ -240,12 +330,41 @@ struct WorkoutDetailView: View {
         }
     }
 
-    /// Only the Finish Workout button ends the workout. Anything still unlogged is skipped.
+    private func skipEmptyWorkout() {
+        if let onSkipWorkout {
+            onSkipWorkout()
+        } else {
+            workout.skipAndCascade()
+            save()
+        }
+    }
+
+    /// Only the Finish Workout button ends the workout. Anything still unlogged is skipped, and an
+    /// exercise that was only partly logged is rated first, so next week's plan counts it.
     private func finishWorkout() {
         focusedSetField = nil
         workout.skipRemainingSets()
         save()
-        onWorkoutFinished()
+        finishesAfterFeedback = true
+        askFeedbackOrFinish()
+    }
+
+    /// Runs as each sheet closes, to ask the next question while Finish Workout is waiting on feedback.
+    private func continueFinishing() {
+        if finishesAfterFeedback { askFeedbackOrFinish() }
+    }
+
+    /// Asks the next unrated exercise's feedback, and finishes once none is left.
+    private func askFeedbackOrFinish() {
+        guard let unrated = workout.workoutExercises.first(where: \.needsFeedback) else {
+            finishesAfterFeedback = false
+            onWorkoutFinished()
+            return
+        }
+        // A sheet still closing comes back here when it's gone.
+        if presentedSheet == nil {
+            presentedSheet = .feedback(unrated)
+        }
     }
 
     /// Shows feedback or a manual check-in when the selected exercise is waiting on one.
@@ -274,6 +393,15 @@ struct WorkoutDetailView: View {
         }
     }
 
+    /// The watch answered the open sheet first. Close it and move on, as if it was answered here.
+    private func closeAnsweredSheet() {
+        guard let workoutExercise = presentedSheet?.workoutExercise else { return }
+        presentedSheet = nil
+        if workoutExercise.isDone {
+            advance()
+        }
+    }
+
     private func handleCheckInResolved(_ workoutExercise: WorkoutExercise) {
         save()
         if workoutExercise.isDone {
@@ -292,7 +420,7 @@ struct WorkoutDetailView: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("workout")
     }
 }
 

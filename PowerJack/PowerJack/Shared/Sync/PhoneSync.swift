@@ -21,6 +21,8 @@ final class PhoneSync {
     func start(store: PowerJackStore) {
         self.store = store
         DeviceLink.shared.onChanges = { [weak self] in self?.receive(changes: $0) }
+        // A watch app that turns up later, or a link that comes up after launch, gets the program then.
+        DeviceLink.shared.onWatchAppAvailable = { [weak self] in self?.scheduleSend() }
         WorkoutMirroring.shared.onData = { [weak self] in self?.receive(changes: $0) }
         WorkoutMirroring.shared.start()
         DeviceLink.shared.start()
@@ -39,12 +41,26 @@ final class PhoneSync {
     }
 
     private func receive(changes data: Data) -> Data? {
-        guard let context else { return nil }
+        guard let context else {
+            TraceLog.record(.watch, "Dropped the watch's changes while iCloud Backup switches stores")
+            return nil
+        }
         do {
             let changes = try SyncPayload.decode([WatchChange].self, from: data)
-            return try SyncPayload.encode(try referee.receive(changes, in: context))
+            TraceLog.record(.watch, "Received \(changes.count) changes from the watch")
+            // What the watch did is applied straight away. The tidy-up, which only cleans up after
+            // iCloud, waits to run once for a burst of messages.
+            let snapshot = try referee.receive(changes, in: context, tidiesUp: false)
+            store?.scheduleTidyUp(after: "watch changes")
+            // A set logged on the watch starts a rest, often with the iPhone locked and PowerJack's
+            // screens not running to notice, so the voice and the Live Activity follow it here.
+            let program = (try? context.fetch(FetchDescriptor<Program>()))?.active
+            RestVoice.shared.follow(program?.nextWorkout)
+            Task { await RestLiveActivityController.follow(program) }
+            return try SyncPayload.encode(snapshot)
         } catch {
             Logger.sync.error("Could not apply the watch's changes: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not apply the watch's changes: \(TraceLog.describe(error))")
             return nil
         }
     }
@@ -53,20 +69,24 @@ final class PhoneSync {
     private func scheduleSend() {
         scheduledSend?.cancel()
         scheduledSend = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await self?.send()
         }
     }
 
     private func send() async {
-        guard let context else { return }
+        // Building the program is a fetch, an encode and a compress on the main thread, so it's
+        // only done when a watch app can get it. `onWatchAppAvailable` sends once one can.
+        guard let context, DeviceLink.shared.hasWatchApp else { return }
         do {
             let snapshot = try SyncPayload.encode(try referee.snapshot(in: context))
-            DeviceLink.shared.send(snapshot: snapshot)
-            _ = await WorkoutMirroring.shared.send(snapshot)
+            let delivery = DeviceLink.shared.send(snapshot: snapshot)
+            let mirrored = await WorkoutMirroring.shared.send(snapshot)
+            TraceLog.record(.watch, "Program for the watch (\(snapshot.count) bytes): \(delivery.rawValue)\(mirrored ? ", mirrored" : "")")
         } catch {
             Logger.sync.error("Could not send the program to the watch: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not send the program to the watch: \(TraceLog.describe(error))")
         }
     }
 }

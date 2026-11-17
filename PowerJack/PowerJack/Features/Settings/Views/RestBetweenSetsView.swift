@@ -12,6 +12,11 @@ struct RestBetweenSetsView: View {
     @State var expanded: RestLength?
 
     var body: some View {
+        content.traceScreen("Rest Between Sets")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Form {
             Section {
                 ForEach(RestLength.allCases) { length in

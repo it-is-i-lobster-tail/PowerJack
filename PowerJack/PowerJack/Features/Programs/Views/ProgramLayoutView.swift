@@ -7,7 +7,8 @@ import SwiftData
 import SwiftUI
 
 /// Edits the exercises on a running program's days in the template builder, saving every change as it happens.
-/// Days already started this week stay as they are, and change from next week.
+/// Days not started yet and the day in progress change now, keeping anything logged. Days already done
+/// this week stay as they are, and change from next week.
 struct ProgramLayoutView: View {
     @Environment(\.modelContext) private var modelContext
 
@@ -25,7 +26,9 @@ struct ProgramLayoutView: View {
         TemplateBuilder(
             draft: $draft.days.onSet(save),
             lockedDays: draft.lockedDays,
-            dayNotes: draft.dayNotes
+            dayNotes: draft.dayNotes,
+            loggedExercises: draft.loggedExercises,
+            keepsOneExercisePerDay: true
         )
         .saveErrorAlert($saveErrorMessage)
     }

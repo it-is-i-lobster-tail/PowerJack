@@ -122,24 +122,50 @@ final class HostedView {
     func tap(_ label: String, settleFor duration: Duration = .milliseconds(300)) async -> Bool {
         let matches = elements().filter { $0.accessibilityLabel == label }
         guard !matches.isEmpty else { return false }
-        let activated = matches.contains { $0.accessibilityActivate() }
+        let activated = matches.contains { $0.accessibilityActivate() } || runAlertAction(titled: label)
         await settle(duration)
         return activated
+    }
+
+    /// On some iOS versions a SwiftUI confirmation dialog is a UIKit alert, whose buttons don't respond
+    /// to `accessibilityActivate` in-process. Runs the alert button's own action instead, after
+    /// dismissing the alert, the order UIKit uses when it's tapped.
+    private func runAlertAction(titled title: String) -> Bool {
+        var presented = host.presentedViewController
+        while let controller = presented {
+            if let alert = controller as? UIAlertController,
+               let action = alert.actions.first(where: { $0.title == title && $0.isEnabled }),
+               let block = action.value(forKey: "handler") {
+                typealias Handler = @convention(block) (UIAlertAction) -> Void
+                let handler = unsafeBitCast(block as AnyObject, to: Handler.self)
+                alert.dismiss(animated: false) { handler(action) }
+                return true
+            }
+            presented = controller.presentedViewController
+        }
+        return false
     }
 
     /// Types into the text field with this accessibility label, replacing what it held.
     @discardableResult
     func type(_ text: String, into label: String) async -> Bool {
-        guard
-            let element = elements().first(where: { $0.accessibilityLabel == label }),
-            let field = textField(at: CGPoint(x: element.accessibilityFrame.midX, y: element.accessibilityFrame.midY))
-        else {
-            return false
-        }
+        guard let field = textField(labeled: label) else { return false }
         field.becomeFirstResponder()
         await settle()
         field.selectAll(nil)
         field.deleteBackward()
+        field.insertText(text)
+        await settle()
+        return true
+    }
+
+    /// Focuses the text field with this accessibility label and types, without clearing it first,
+    /// so whatever the field selects on focus decides what the typing replaces.
+    @discardableResult
+    func focusAndType(_ text: String, into label: String) async -> Bool {
+        guard let field = textField(labeled: label) else { return false }
+        field.becomeFirstResponder()
+        await settle()
         field.insertText(text)
         await settle()
         return true
@@ -199,6 +225,13 @@ final class HostedView {
     func dismissKeyboard() async {
         window.endEditing(true)
         await settle()
+    }
+
+    /// The text field under the element with this accessibility label.
+    private func textField(labeled label: String) -> UITextField? {
+        guard let element = elements().first(where: { $0.accessibilityLabel == label }) else { return nil }
+        let frame = element.accessibilityFrame
+        return textField(at: CGPoint(x: frame.midX, y: frame.midY))
     }
 
     /// The text field under a point in screen coordinates.

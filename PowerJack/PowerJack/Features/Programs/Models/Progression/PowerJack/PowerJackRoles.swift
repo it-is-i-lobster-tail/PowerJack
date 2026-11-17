@@ -25,6 +25,8 @@ struct PowerJackExercise: Equatable {
     var pattern: PowerJackPattern?
     var multiJoint: Bool
     var repsOnly: Bool
+    /// Weighted pull-ups and dips: loads are added to the body, starting from 0.
+    var addsToBodyweight: Bool = false
     var assisted: Bool = false
     var isBarbell: Bool = false
     var fatigue: FatigueLevel
@@ -32,7 +34,8 @@ struct PowerJackExercise: Equatable {
     var secondaries: [Muscle] = []
 
     var isMainLiftEligible: Bool {
-        multiJoint && (pattern?.canBeMainLift ?? false) && !repsOnly && !assisted
+        // Percentages of a loadable bodyweight lift's added weight mean little without the lifter's bodyweight.
+        multiJoint && (pattern?.canBeMainLift ?? false) && !repsOnly && !addsToBodyweight && !assisted
     }
 }
 
@@ -80,12 +83,14 @@ extension PowerJackExercise {
         "barbell-overhead-press": (.verticalPush, true),
         "dumbbell-shoulder-press": (.verticalPush, true),
         "dip": (.verticalPush, true),
+        "weighted-dip": (.verticalPush, true),
         "barbell-row": (.horizontalPull, true),
         "seated-cable-row": (.horizontalPull, true),
         "one-arm-dumbbell-row": (.horizontalPull, true),
         "chest-supported-dumbbell-row": (.horizontalPull, true),
         "pull-up": (.verticalPull, true),
         "chin-up": (.verticalPull, true),
+        "weighted-pull-up": (.verticalPull, true),
         "lat-pulldown": (.verticalPull, true),
     ]
 

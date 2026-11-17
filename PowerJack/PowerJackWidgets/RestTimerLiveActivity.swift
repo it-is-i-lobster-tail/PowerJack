@@ -5,7 +5,8 @@
 //  The active workout in the Dynamic Island and on the Lock Screen: the current set, its weight and reps,
 //  and a check to log it as entered. Between sets of an exercise the rest counts down on its own;
 //  once the activity goes stale (the end of the rest) it shows "Start set" instead.
-//  Tapping anywhere else opens PowerJack on the current exercise.
+//  Tapping anywhere else opens PowerJack on the current exercise. On Apple Watch it has its own
+//  smaller layout, and tapping it opens the watch app.
 //
 
 import ActivityKit
@@ -16,7 +17,7 @@ import WidgetKit
 struct RestTimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RestActivityAttributes.self) { context in
-            WorkoutLockScreenView(state: context.state, phase: RestPhase(context))
+            WorkoutActivityView(state: context.state, phase: RestPhase(context))
             .activityBackgroundTint(.black.opacity(0.85))
             .activitySystemActionForegroundColor(.white)
             .widgetURL(RestActivityAttributes.currentExerciseURL)
@@ -60,7 +61,7 @@ struct RestTimerLiveActivity: Widget {
                     RestStatus(phase: phase)
                         .font(.caption.weight(.semibold))
                 case .none:
-                    Text("Set \(state.setOrder + 1)")
+                    Text(state.shortSetText)
                         .font(.caption.weight(.semibold))
                 }
             } minimal: {
@@ -69,6 +70,8 @@ struct RestTimerLiveActivity: Widget {
             .widgetURL(RestActivityAttributes.currentExerciseURL)
             .keylineTint(RestPalette.tint(for: phase))
         }
+        // Its own layout in the Apple Watch Smart Stack, instead of the Dynamic Island's compact one.
+        .supplementalActivityFamilies([.small])
     }
 }
 
@@ -96,6 +99,64 @@ private enum RestPalette {
         case .resting: .orange
         case .ready: .green
         }
+    }
+}
+
+/// The Lock Screen, or the smaller layout on Apple Watch.
+private struct WorkoutActivityView: View {
+    @Environment(\.activityFamily) private var family
+
+    let state: WorkoutActivityState
+    let phase: RestPhase
+
+    var body: some View {
+        if family == .small {
+            WorkoutWatchView(state: state, phase: phase)
+        } else {
+            WorkoutLockScreenView(state: state, phase: phase)
+        }
+    }
+}
+
+/// The Apple Watch Smart Stack: the exercise, the current set's weight and reps, and the rest.
+/// Tapping it opens PowerJack on the watch.
+private struct WorkoutWatchView: View {
+    let state: WorkoutActivityState
+    let phase: RestPhase
+
+    private var currentSet: ActivitySet? {
+        state.sets.first { $0.progress == .current }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(state.exerciseName)
+                .font(.headline)
+                .lineLimit(1)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if let currentSet {
+                    Text("\(currentSet.weightWithUnit(repsOnly: state.repsOnly)) × \(currentSet.repsText)")
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+
+                Spacer(minLength: 4)
+
+                RestStatus(phase: phase)
+                    .font(phase == .ready ? .footnote.weight(.semibold) : .title3.weight(.semibold))
+                    .lineLimit(1)
+            }
+
+            Text(state.setText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .foregroundStyle(.white)
     }
 }
 
@@ -150,15 +211,32 @@ private struct SetTargets: View {
     let state: WorkoutActivityState
 
     var body: some View {
+        let window = state.chipWindow()
         HStack(spacing: 6) {
-            ForEach(Array(state.sets.enumerated()), id: \.offset) { _, activitySet in
+            MoreSets(count: window.before)
+            ForEach(Array(window.sets.enumerated()), id: \.offset) { _, activitySet in
                 SetChip(activitySet: activitySet, repsOnly: state.repsOnly)
+            }
+            MoreSets(count: window.after)
+
+            // The chips' weights in one unit, said once to save room. "BW" and "–" chips need none.
+            if !state.repsOnly, let unit = window.sets.first(where: { ($0.weightTenthsPounds ?? 0) != 0 })?.unitText {
+                Text(unit)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            // The chips' weights in one unit, said once to save room. "BW" and "–" chips need none.
+            if !state.repsOnly, let unit = state.sets.first(where: { ($0.weightTenthsPounds ?? 0) != 0 })?.unitText {
+                Text(unit)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)
 
             if state.canCompleteAtTarget {
-                Button(intent: CompleteSetIntent(exerciseOrder: state.exerciseOrder, setOrder: state.setOrder)) {
+                Button(intent: CompleteSetIntent(exerciseOrder: state.exerciseOrder, setOrder: state.setOrder, workoutID: state.workoutID)) {
                     Image(systemName: "checkmark")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.black)
@@ -168,6 +246,23 @@ private struct SetTargets: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Complete set")
             }
+        }
+    }
+}
+
+/// Sets off one side of the chips, as a dot each (up to three).
+private struct MoreSets: View {
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            VStack(spacing: 3) {
+                ForEach(0..<min(count, 3), id: \.self) { _ in
+                    Circle().frame(width: 4, height: 4)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("\(count) more \(count == 1 ? "set" : "sets")")
         }
     }
 }
@@ -198,7 +293,7 @@ private struct SetChip: View {
             .foregroundStyle(.secondary)
 
             Text(activitySet.weightText(repsOnly: repsOnly))
-                .font(.subheadline.weight(.semibold))
+                .font(isCurrent ? .headline : .subheadline.weight(.semibold))
             Text("× \(activitySet.repsText)")
                 .font(.caption)
         }

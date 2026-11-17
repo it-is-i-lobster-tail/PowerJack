@@ -21,6 +21,11 @@ final class Workout {
     // When Start Workout was tapped, and when the workout was finished, stopped, or skipped.
     private var startedAtValue: Date? = nil
     private var endedAtValue: Date? = nil
+    // When Pause Workout was tapped, while it's paused. Paused time is left out of the workout's time.
+    private var pausedAtValue: Date? = nil
+    // Time paused so far, and the part of it since the latest set was logged (left out of the next set's time).
+    private var pausedSecondsValue: Double = 0
+    private var setPausedSecondsValue: Double = 0
     var programWeekValue: ProgramWeek?
     // The day's exercises from next week on, saved when it's edited after it started this week.
     @Relationship(deleteRule: .cascade, inverse: \TemplateExercise.nextWeekWorkoutValue)
@@ -66,6 +71,11 @@ extension Workout {
     var startedAt: Date? { startedAtValue }
     // Ended At
     var endedAt: Date? { endedAtValue }
+    // Paused At: when the workout was paused, nil while it isn't.
+    var pausedAt: Date? { pausedAtValue }
+    var isPaused: Bool { pausedAtValue != nil }
+    // Paused Seconds: time paused so far, not counting a pause still going.
+    var pausedSeconds: TimeInterval { pausedSecondsValue }
     // Started On: the device Start Workout was tapped on, nil for workouts started before it was kept.
     var startedOn: String? { startedOnValue }
     /// The other device, while this workout is in progress after starting there.
@@ -184,8 +194,11 @@ extension Workout {
         }
         statusValue = Status.complete
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Completed workout")
+        TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func stop() {
         guard
@@ -197,8 +210,11 @@ extension Workout {
         }
         statusValue = Status.stopped
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Stopped workout")
+        TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
     func skip() {
         guard
@@ -210,8 +226,11 @@ extension Workout {
         }
         statusValue = Status.skipped
         lockedValue = true
-        endedAtValue = .now
+        let now = Date.now
+        resume(at: now)
+        endedAtValue = now
         Logger.workout.debug("Skipped workout")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func start(at date: Date = .now, on device: String = SyncDevice.current) {
         guard
@@ -226,6 +245,39 @@ extension Workout {
         startedAtValue = date
         startedOnValue = device
         Logger.workout.debug("Started workout")
+        TraceLog.record(.workout, "Started \(traceDescription) on \(device)")
+    }
+    /// Stops the workout's clock until Resume Workout, the next logged set, or the end of the workout.
+    func pause(at date: Date = .now) {
+        guard status == .active, !lockedValue, pausedAtValue == nil else {
+            Logger.workout.warning("Can only pause a Workout in progress.")
+            return
+        }
+        pausedAtValue = date
+        Logger.workout.debug("Paused workout")
+        TraceLog.record(.workout, "Paused \(traceDescription)")
+    }
+    /// Starts the workout's clock again, leaving the paused time out of the workout's and the next set's time.
+    func resume(at date: Date = .now) {
+        guard let pausedAtValue else { return }
+        let paused = max(0, date.timeIntervalSince(pausedAtValue))
+        pausedSecondsValue += paused
+        setPausedSecondsValue += paused
+        self.pausedAtValue = nil
+        Logger.workout.debug("Resumed workout")
+        TraceLog.record(.workout, "Resumed \(traceDescription) after \(Int(paused))s")
+    }
+    /// For a set logged at `date`: ends a pause begun before it and returns where the set's clock starts,
+    /// with the time paused since the set before it left out. The next set's paused time starts from zero.
+    func setClockStart(loggedAt date: Date) -> Date? {
+        if let pausedAtValue, pausedAtValue <= date {
+            resume(at: date)
+        }
+        let start = setClockStart(before: date).map { start in
+            start.addingTimeInterval(min(setPausedSecondsValue, max(0, date.timeIntervalSince(start))))
+        }
+        setPausedSecondsValue = 0
+        return start
     }
     func completeAndCascade() {
         complete()
@@ -265,11 +317,14 @@ extension Workout {
             lockedValue = true
             startedAtValue = nil
             startedOnValue = nil
+            pausedSecondsValue = 0
+            setPausedSecondsValue = 0
             for workoutExercise in workoutExercises {
                 workoutExercise.resetToPlanned()
             }
         }
         Logger.workout.debug("Unskipped workout")
+        TraceLog.record(.workout, "Unskipped \(traceDescription)")
     }
     func startAndCascade(at date: Date = .now, on device: String = SyncDevice.current) {
         start(at: date, on: device)
@@ -306,36 +361,54 @@ extension Workout {
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(removed)
     }
-    /// Rebuilds a planned workout's exercises from `layout`, in order. Exercises it keeps keep their planned sets;
-    /// new ones start like a swapped-in exercise, with warmups and two sets. Returns the exercises in order.
+    /// Rebuilds a planned or in-progress workout's exercises from `layout`, in order. Exercises it keeps keep
+    /// their sets; new ones start like a swapped-in exercise, with warmups and two sets. In a workout in progress,
+    /// an exercise with anything logged always stays, in its old place, so logged sets are never lost.
+    /// Returns the exercises in order.
     @discardableResult
     func applyLayout(_ layout: [(workoutExercise: WorkoutExercise?, exercise: Exercise, supersetID: UUID?)]) -> [WorkoutExercise] {
-        guard status == .planned else {
-            Logger.workout.warning("Can only change the exercises of a planned Workout.")
+        guard status == .planned || status == .active else {
+            Logger.workout.warning("Can only change the exercises of a planned or active Workout.")
             return workoutExercises
         }
         let kept = Set(layout.compactMap { $0.workoutExercise.map(ObjectIdentifier.init) })
-        for removed in workoutExercises where !kept.contains(ObjectIdentifier(removed)) {
+        var restored: [(index: Int, workoutExercise: WorkoutExercise)] = []
+        for (index, removed) in workoutExercises.enumerated() where !kept.contains(ObjectIdentifier(removed)) {
+            if removed.hasLoggedWork {
+                restored.append((index, removed))
+                continue
+            }
             workoutExercisesValue?.removeAll { $0 === removed }
             // Delete the row too, so it doesn't linger (or sync) as an orphan.
             modelContext?.delete(removed)
         }
 
-        let ordered = layout.compactMap { entry -> WorkoutExercise? in
-            if let workoutExercise = entry.workoutExercise { return workoutExercise }
-            guard let added = addWorkoutExercise(exercise: entry.exercise) else { return nil }
-            added.addWarmupSets()
-            for _ in 0..<WorkoutExercise.initialSets {
-                _ = added.addSet()
-            }
-            return added
+        var ordered = layout.map { entry in
+            (workoutExercise: entry.workoutExercise ?? addLayoutExercise(entry.exercise), supersetID: entry.supersetID)
         }
-        for (order, (workoutExercise, entry)) in zip(ordered, layout).enumerated() {
-            workoutExercise.order = order
-            workoutExercise.setSuperset(entry.supersetID)
+        for (index, workoutExercise) in restored {
+            ordered.insert((workoutExercise, workoutExercise.supersetID), at: min(index, ordered.count))
         }
-        Logger.workout.debug("Changed the exercises of a planned Workout")
-        return ordered
+        for (order, entry) in ordered.enumerated() {
+            entry.workoutExercise.order = order
+            entry.workoutExercise.setSuperset(entry.supersetID)
+        }
+        Logger.workout.debug("Changed the exercises of a Workout")
+        TraceLog.record(.workout, "Changed the exercises of \(traceDescription)")
+        return ordered.map(\.workoutExercise)
+    }
+    /// An exercise added by `applyLayout`. In a workout in progress its sets are ready to log straight away.
+    private func addLayoutExercise(_ exercise: Exercise) -> WorkoutExercise {
+        let added = WorkoutExercise(exercise: exercise, order: workoutExercises.count)
+        workoutExercisesValue = (workoutExercisesValue ?? []) + [added]
+        added.addWarmupSets()
+        for _ in 0..<WorkoutExercise.initialSets {
+            _ = added.addSet()
+        }
+        if status == .active {
+            added.startAndCascade()
+        }
+        return added
     }
     /// The day's exercises from next week on, when it was edited after it started. Nil when no edit is waiting.
     var nextWeekLayout: [TemplateExercise]? {
@@ -343,6 +416,7 @@ extension Workout {
     }
     /// Saves the exercises this day has from next week on. This week's stay as they were.
     func setNextWeekLayout(_ layout: [(exercise: Exercise, supersetID: UUID?)]) {
+        TraceLog.record(.workout, "Next week's layout for \(traceDescription): \(TraceLog.layout(layout.map { (exercise: $0.exercise, supersetID: $0.supersetID) }))")
         clearNextWeekLayout()
         nextWeekExercisesValue = layout.enumerated().map { order, entry in
             TemplateExercise(exercise: entry.exercise, order: order, supersetID: entry.supersetID)
@@ -350,6 +424,7 @@ extension Workout {
         hasNextWeekLayoutValue = true
     }
     func clearNextWeekLayout() {
+        if hasNextWeekLayoutValue { TraceLog.record(.workout, "Cleared next week's layout for \(traceDescription)") }
         for row in nextWeekExercisesValue ?? [] {
             modelContext?.delete(row)
         }
@@ -360,6 +435,7 @@ extension Workout {
     /// Exercises it already has keep the sets the planner gave them.
     func applyNextWeekLayout(from source: Workout) {
         guard let layout = source.nextWeekLayout else { return }
+        TraceLog.record(.workout, "Applying last week's edit to \(traceDescription)")
         var unclaimed = workoutExercises
         applyLayout(layout.compactMap { row in
             guard let exercise = row.exercise else { return nil }
@@ -463,6 +539,9 @@ extension Workout {
             startedAtValue = other.startedAtValue ?? startedAtValue
             endedAtValue = other.endedAtValue ?? endedAtValue
             startedOnValue = other.startedOnValue ?? startedOnValue
+            pausedAtValue = other.pausedAtValue
+            pausedSecondsValue = other.pausedSecondsValue
+            setPausedSecondsValue = other.setPausedSecondsValue
         }
         if !hasNextWeekLayoutValue, other.hasNextWeekLayoutValue {
             nextWeekExercisesValue = other.nextWeekExercisesValue

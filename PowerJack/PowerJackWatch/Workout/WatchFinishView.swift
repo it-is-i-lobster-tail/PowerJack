@@ -25,9 +25,9 @@ struct WatchFinishView: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(workoutExercise.exercise?.exerciseName ?? "")
+                            Text(workoutExercise.shownExercise?.exerciseName ?? "")
                                 .lineLimit(1)
-                            Text("\(workoutExercise.completedWorkingSets) of \(workoutExercise.workingSets.count) sets")
+                            Text(workoutExercise.workingSetsDoneText)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }

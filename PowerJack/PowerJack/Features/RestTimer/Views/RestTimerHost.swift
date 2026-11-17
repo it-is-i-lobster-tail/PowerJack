@@ -39,44 +39,45 @@ private struct RestTimerHost: ViewModifier {
 
     let onOpenCurrentExercise: () -> Void
 
-    private var activeProgram: Program? { programs.active }
-    private var workout: Workout? { activeProgram?.nextWorkout }
-    private var rest: RestPeriod? { workout?.currentRest }
-    private var callout: RestCallout? { speaksRestEnd ? workout?.restCallout : nil }
+    /// The workout's rest timer state, worked out once each time the screen updates.
+    private struct Now {
+        var hint: RestTimerHint?
+        var rest: RestPeriod?
+        var islandRest: RestPeriod?
+        var callout: RestCallout?
+        var liveActivity: LiveActivityInput
+    }
 
-    private var restTimerHint: RestTimerHint? {
-        guard let activeProgram, let workout,
-              let occasion = HintOccasion(weekNumber: activeProgram.weekNumber(containing: workout), workout: workout),
-              occasion.showsWorkoutBasics
-        else {
-            return nil
+    private func now() -> Now {
+        let activeProgram = programs.active
+        let workout = activeProgram?.nextWorkout
+        let rest = workout?.currentRest
+        var hint: RestTimerHint?
+        if let activeProgram, let workout,
+           let occasion = HintOccasion(weekNumber: activeProgram.weekNumber(containing: workout), workout: workout),
+           occasion.showsWorkoutBasics {
+            hint = RestTimerHint(occasion: occasion)
         }
-        return RestTimerHint(occasion: occasion)
-    }
-
-    private var islandRest: RestPeriod? {
-        guard showsInAppTimer, let rest, !rest.isExpired(at: clock) else { return nil }
-        return rest
-    }
-
-    private var workoutTitle: String? {
-        guard let activeProgram, let workout else { return nil }
-        return activeProgram.activityTitle(for: workout)
-    }
-
-    private var liveActivityInput: LiveActivityInput {
-        LiveActivityInput(
-            state: workout?.activityState(),
-            workoutTitle: workoutTitle,
-            isEnabled: showsLiveActivity,
-            isAppActive: scenePhase == .active
+        return Now(
+            hint: hint,
+            rest: rest,
+            islandRest: showsInAppTimer && rest.map { !$0.isExpired(at: clock) } == true ? rest : nil,
+            callout: speaksRestEnd ? workout?.restCallout : nil,
+            liveActivity: LiveActivityInput(
+                state: workout?.activityState(),
+                workoutTitle: workout.flatMap { activeProgram?.activityTitle(for: $0) },
+                isEnabled: showsLiveActivity,
+                isAppActive: scenePhase == .active
+            )
         )
     }
 
     func body(content: Content) -> some View {
+        let now = now()
+        let rest = now.rest
         content
             // Tab pages keep the collapsed island clear of their navigation bars (see `powerJackTabPage`).
-            .environment(\.restIslandHeight, islandRest == nil ? 0 : RestIsland.reservedHeight)
+            .environment(\.restIslandHeight, now.islandRest == nil ? 0 : RestIsland.reservedHeight)
             .overlay {
                 if isExpanded {
                     Color.black.opacity(VisualOpacity.subtle)
@@ -87,36 +88,49 @@ private struct RestTimerHost: ViewModifier {
             }
             // The expanded island draws over the content instead of pushing it down.
             .overlay(alignment: .top) {
-                if let islandRest {
+                if let islandRest = now.islandRest {
                     RestIsland(
                         rest: islandRest,
                         isExpanded: $isExpanded,
                         onOpenExercise: onOpenCurrentExercise
                     )
-                    .popoverHint(restTimerHint)
+                    .popoverHint(now.hint)
                     .padding(.top, 4)
                     .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
                 }
             }
-            .animation(.spring(duration: 0.45, bounce: 0.2), value: islandRest != nil)
-            .onChange(of: islandRest == nil) { _, isHidden in
+            .animation(.spring(duration: 0.45, bounce: 0.2), value: now.islandRest != nil)
+            .onChange(of: now.islandRest == nil) { _, isHidden in
                 if isHidden { isExpanded = false }
             }
             // Tapping the island is the hint's whole lesson, so it's done after that.
             .onChange(of: isExpanded) { _, expanded in
-                if expanded { restTimerHint?.invalidate(reason: .actionPerformed) }
+                if expanded { now.hint?.invalidate(reason: .actionPerformed) }
             }
             .task(id: rest) { await refreshClock(for: rest) }
+            .onChange(of: rest) { _, rest in traceRest(rest) }
+            .onChange(of: isExpanded) { _, expanded in
+                TraceLog.record(.timer, expanded ? "Rest island expanded" : "Rest island collapsed")
+            }
             // Restarts when the app comes back, so cues missed in the background are skipped.
             .task(id: scenePhase == .active ? rest?.interval : nil) { await playCues(for: rest) }
-            .task(id: liveActivityInput) { await syncLiveActivity(liveActivityInput) }
-            .onChange(of: callout, initial: true) { _, callout in RestVoice.shared.sync(callout) }
+            .task(id: now.liveActivity) { await syncLiveActivity(now.liveActivity) }
+            .onChange(of: now.callout, initial: true) { _, callout in RestVoice.shared.sync(callout) }
     }
 
     private func collapse() {
         withAnimation(.spring(duration: 0.4, bounce: 0.25)) {
             isExpanded = false
         }
+    }
+
+    private func traceRest(_ rest: RestPeriod?) {
+        guard let rest else {
+            TraceLog.record(.timer, "Rest cleared")
+            return
+        }
+        let kind = rest.isWarmup ? "warmup" : "working"
+        TraceLog.record(.timer, "Rest of \(Int(rest.duration))s, ends \(rest.endsAt.formatted(.iso8601)), before \(kind) set \(rest.setNumber) of \(rest.setCount)")
     }
 
     /// Hides the island once "Start set" has been up for its whole window.

@@ -2,6 +2,7 @@
 //  WorkoutMirroring.swift
 //  PowerJack
 //
+//  Starting a workout on the iPhone opens it on the watch too (`openOnWatch`).
 //  While a workout is open on the watch, it runs a strength training session that HealthKit
 //  mirrors to the iPhone. That keeps the watch app on screen and gives both devices a fast,
 //  direct channel without polling: the watch sends its changes, the iPhone answers with its
@@ -18,6 +19,13 @@ final class WorkoutMirroring: NSObject {
 
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
+
+    private static var configuration: HKWorkoutConfiguration {
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .traditionalStrengthTraining
+        configuration.locationType = .indoor
+        return configuration
+    }
 
     #if os(watchOS)
     private static let askedForHealthKey = "sync.askedForHealth"
@@ -42,10 +50,7 @@ final class WorkoutMirroring: NSObject {
                 try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [])
             }
             guard healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return }
-            let configuration = HKWorkoutConfiguration()
-            configuration.activityType = .traditionalStrengthTraining
-            configuration.locationType = .indoor
-            let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+            let session = try HKWorkoutSession(healthStore: healthStore, configuration: Self.configuration)
             adopt(session)
             session.startActivity(with: .now)
             try await session.startMirroringToCompanionDevice()
@@ -53,6 +58,7 @@ final class WorkoutMirroring: NSObject {
         } catch {
             // Health permission declined, or no iPhone to mirror to: the link still works without it.
             Logger.sync.info("Workout session not mirrored: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Workout session not mirrored: \(TraceLog.describe(error))")
         }
     }
 
@@ -85,6 +91,21 @@ final class WorkoutMirroring: NSObject {
         session.delegate = self
         self.session = session
     }
+
+    /// Opens PowerJack on the watch, like starting a workout in Apple's Workout app. The watch
+    /// starts its session, which mirrors back here, and opens the workout once it has it.
+    func openOnWatch() {
+        guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
+        Task {
+            do {
+                try await healthStore.startWatchApp(toHandle: Self.configuration)
+            } catch {
+                // No watch, or no watch app: the iPhone runs the workout on its own.
+                Logger.sync.info("Could not open the watch app: \(error.localizedDescription)")
+                TraceLog.record(.watch, "Could not open the watch app: \(TraceLog.describe(error))")
+            }
+        }
+    }
     #endif
 
     /// Sends `data` over the mirrored session. Returns false when there's none, so the caller uses `DeviceLink`.
@@ -95,6 +116,7 @@ final class WorkoutMirroring: NSObject {
             return true
         } catch {
             Logger.sync.debug("Could not send over the workout session: \(error.localizedDescription)")
+            TraceLog.record(.watch, "Could not send over the workout session: \(TraceLog.describe(error))")
             return false
         }
     }
@@ -126,7 +148,11 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         let failure = error.localizedDescription
-        Task { @MainActor in Logger.sync.error("Workout session failed: \(failure)") }
+        let traced = TraceLog.describe(error)
+        Task { @MainActor in
+            Logger.sync.error("Workout session failed: \(failure)")
+            TraceLog.record(.watch, "Workout session failed: \(traced)")
+        }
     }
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
@@ -138,7 +164,9 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
     }
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didDisconnectFromRemoteDeviceWithError error: Error?) {
+        let traced = error.map(TraceLog.describe) ?? "no error"
         Task { @MainActor in
+            TraceLog.record(.watch, "Mirrored workout session disconnected: \(traced)")
             #if os(watchOS)
             self.isMirroring = false
             #else

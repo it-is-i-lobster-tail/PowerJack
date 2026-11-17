@@ -121,6 +121,29 @@ struct RestTimerTests {
         #expect(workout.activityState(at: start) == nil)
     }
 
+    @Test("The Live Activity shows the set before the current one and the next two, with the rest as dots")
+    func activityChipWindow() {
+        func state(sets count: Int, current: Int) -> WorkoutActivityState {
+            WorkoutActivityState(
+                exerciseName: "Squat",
+                setText: "",
+                exerciseOrder: 0,
+                setOrder: current,
+                sets: (0..<count).map { ActivitySet(label: "\($0 + 1)", progress: $0 == current ? .current : .upcoming) },
+                repsOnly: false,
+                canCompleteAtTarget: true
+            )
+        }
+        let short = state(sets: 3, current: 0).chipWindow()
+        #expect((short.before, short.sets.count, short.after) == (0, 3, 0))
+        let first = state(sets: 7, current: 0).chipWindow()
+        #expect((first.before, first.sets.map(\.label), first.after) == (0, ["1", "2", "3", "4"], 3))
+        let middle = state(sets: 7, current: 3).chipWindow()
+        #expect((middle.before, middle.sets.map(\.label), middle.after) == (2, ["3", "4", "5", "6"], 1))
+        let last = state(sets: 7, current: 6).chipWindow()
+        #expect((last.before, last.sets.map(\.label), last.after) == (3, ["4", "5", "6", "7"], 0))
+    }
+
     @Test("Warmups are labeled W1, W2 on the Live Activity and working sets count from 1")
     func activityWarmupLabels() throws {
         let workout = Workout(order: 0)
@@ -140,10 +163,13 @@ struct RestTimerTests {
 
         let warmingUp = try #require(workout.activityState(at: start))
         #expect(warmingUp.setText == "Warmup 1 of 2")
+        #expect(warmingUp.shortSetText == "W1")
         #expect(warmingUp.sets.map(\.label) == ["W1", "W2", "1", "2"])
 
         workoutExercise.warmupSets.forEach { $0.complete(at: start) }
         #expect(workout.activityState(at: start)?.setText == "Set 1 of 2")
+        // The Dynamic Island counts working sets on their own, as the app does.
+        #expect(workout.activityState(at: start)?.shortSetText == "Set 1")
     }
 
     @Test("Done warmups leave the Live Activity, while pending warmups and every working set stay")
@@ -271,10 +297,13 @@ struct RestTimerTests {
         let workout = try makeWorkout([(.moderate, 3)])
         let sets = workout.workoutExercises[0].workoutSets
 
-        // Only the set the activity showed.
+        // Only the set the activity showed, of the workout it showed.
         #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 1))
+        #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, workoutID: UUID().uuidString))
+        let shown = try #require(workout.activityState(at: start))
+        #expect(shown.workoutID == workout.syncID?.uuidString)
 
-        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, at: start))
+        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, workoutID: shown.workoutID, at: start))
         #expect(sets[0].status == .complete)
         #expect(sets[0].reps == 8)
         #expect(sets[0].weightTenthsPounds == 2250)
@@ -381,11 +410,38 @@ struct RestTimerTests {
         #expect(rest.isExpired(at: rest.endsAt.addingTimeInterval(RestPeriod.readyWindow)))
         #expect(rest.detailText == "Set 2 of 3 · 8 reps × 225 lb")
 
+        // An open-ended set shows the exercise's reps-left target, or nothing when it has none.
         var openEnded = rest
         openEnded.reps = nil
-        #expect(openEnded.prescriptionText == "2 RIR × 225 lb")
+        openEnded.repsLeft = 3
+        #expect(openEnded.prescriptionText == "3 reps left × 225 lb")
         openEnded.weightTenthsPounds = nil
-        #expect(openEnded.prescriptionText == "2 RIR")
+        #expect(openEnded.prescriptionText == "3 reps left")
+        openEnded.repsLeft = nil
+        #expect(openEnded.prescriptionText == "")
+        #expect(openEnded.detailText == "Set 2 of 3")
+    }
+
+    @Test("Set counts read \"0 of 1 set\", and plural from 2")
+    func setCountPlurals() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(exerciseName: "Row", exerciseEquipment: .barbell, primaryMuscleFocus: .back)
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet()
+        container.mainContext.insert(workout)
+        #expect(workoutExercise.workingSetsDoneText == "0 of 1 set")
+        _ = workoutExercise.addSet()
+        #expect(workoutExercise.workingSetsDoneText == "0 of 2 sets")
+    }
+
+    @Test("Notes saved in pounds read in the lifter's unit")
+    func notesInLiftersUnit() {
+        let note = "+5.5 lb: every set hit 10 with 2 reps left."
+        #expect(WeightUnit.pounds.showingWeights(in: note) == note)
+        #expect(WeightUnit.kilograms.showingWeights(in: note) == "+2.5 kg: every set hit 10 with 2 reps left.")
+        #expect(WeightUnit.kilograms.showingWeights(in: "Reps up to 12: 1,000 lb is the most a set can log.")
+            == "Reps up to 12: 453.6 kg is the most a set can log.")
+        #expect(WeightUnit.kilograms.showingWeights(in: "Same plan: 8 reps but 4 reps left, aim was 2.") == "Same plan: 8 reps but 4 reps left, aim was 2.")
     }
 
     @Test("A rest gives a heads-up before it ends, then the lift cue when it's over")

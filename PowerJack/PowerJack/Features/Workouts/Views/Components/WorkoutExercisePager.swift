@@ -5,6 +5,7 @@
 //  Created on 6/26/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct WorkoutExercisePager: View {
@@ -15,6 +16,10 @@ struct WorkoutExercisePager: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     /// The Review page after the last exercise. Nil when the workout is read-only.
     var review: WorkoutReviewView? = nil
+    /// Goes up when the selected exercise is tapped again in the strip, to bring its page back.
+    var pageRequests = 0
+
+    @State private var scrollPhase: ScrollPhase = .idle
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -48,10 +53,35 @@ struct WorkoutExercisePager: View {
             .scrollDisabled(isOnReview)
             // Quick strip taps can cut a page scroll short. Once it stops, land on the selected page.
             .onScrollPhaseChange { oldPhase, newPhase in
-                guard oldPhase == .animating, newPhase == .idle, let selectedExerciseIndex else { return }
-                proxy.scrollTo(selectedExerciseIndex)
+                scrollPhase = newPhase
+                guard oldPhase == .animating, newPhase == .idle else { return }
+                showSelectedPage(proxy)
+            }
+            // A workout resumed mid-way sets its page before the pages are laid out, and the scroll
+            // position alone can lose it. Land on it on appear and again once the layout settles,
+            // as the exercise strip does, but never while the lifter is swiping.
+            .onAppear { showSelectedPage(proxy) }
+            .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
+                guard scrollPhase == .idle else { return }
+                showSelectedPage(proxy)
+            }
+            .onChange(of: pageRequests) {
+                withAnimation(.easeInOut(duration: 0.325)) { showSelectedPage(proxy) }
             }
         }
+        // A superset change moves exercises between pages. The pages are keyed by position, so the pager
+        // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
+        .id(workoutExercises.map(\.persistentModelID))
+    }
+
+    private func showSelectedPage(_ proxy: ScrollViewProxy) {
+        guard let selectedExerciseIndex else { return }
+        proxy.scrollTo(selectedExerciseIndex)
+    }
+
+    /// Changes when the pages are laid out or resized, but not when they're scrolled.
+    private static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
+        [geometry.contentSize.width, geometry.containerSize.width]
     }
 
     private var isOnReview: Bool {

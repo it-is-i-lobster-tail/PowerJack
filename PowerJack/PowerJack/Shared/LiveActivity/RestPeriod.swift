@@ -18,8 +18,10 @@ nonisolated struct RestPeriod: Codable, Hashable {
     /// How many warmups or working sets the exercise has, whichever the next set is.
     var setCount: Int
     var isWarmup = false
-    /// `nil` means the set is open ended (2 reps in reserve).
+    /// `nil` means the set is open ended: the lifter stops with `repsLeft` reps left.
     var reps: Int?
+    /// The exercise's reps-left target, shown when the set has no reps to aim for.
+    var repsLeft: Int?
     /// `nil` for bodyweight sets or when no weight is known yet.
     var weightTenthsPounds: Int?
     /// Shows the weight in kilograms. Weights are always stored in tenths of a pound.
@@ -51,13 +53,17 @@ nonisolated struct RestPeriod: Codable, Hashable {
         WorkoutActivityState.setText(number: setNumber, count: setCount, isWarmup: isWarmup)
     }
 
-    /// e.g. "8 reps × 225 lb", "2 RIR × 135 lb", "5 reps × 102.5 kg" or "12 reps".
+    /// e.g. "8 reps × 225 lb", "3 reps left × 135 lb", "5 reps × 102.5 kg", "8 reps × BW" or "12 reps".
     var prescriptionText: String {
-        let repsText = reps.map { $0 == 1 ? "1 rep" : "\($0) reps" } ?? "2 RIR"
-        guard let weightTenthsPounds else { return repsText }
+        let repsText = reps.map { $0 == 1 ? "1 rep" : "\($0) reps" }
+            ?? repsLeft.map { $0 == 1 ? "1 rep left" : "\($0) reps left" }
+        guard let weightTenthsPounds else { return repsText ?? "" }
         let weight = ActivitySet.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
-        return "\(repsText) × \(weight) \(usesKilograms == true ? "kg" : "lb")"
+        let load = weightTenthsPounds == 0 ? weight : "\(weight) \(usesKilograms == true ? "kg" : "lb")"
+        return repsText.map { "\($0) × \(load)" } ?? load
     }
 
-    var detailText: String { "\(setText) · \(prescriptionText)" }
+    var detailText: String {
+        prescriptionText.isEmpty ? setText : "\(setText) · \(prescriptionText)"
+    }
 }

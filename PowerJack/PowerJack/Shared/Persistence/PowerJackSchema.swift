@@ -22,6 +22,7 @@ enum PowerJackSchema {
         WorkoutLog.self,
         StrengthLog.self,
         SetReceipt.self,
+        HistoryRecord.self,
     ]
 
     static let schema = Schema(modelTypes)
@@ -36,9 +37,18 @@ enum PowerJackSchema {
             cloudKitDatabase: syncsWithICloud && !inMemory ? .private(cloudKitContainerID) : .none
         )
 
-        return try ModelContainer(
-            for: schema,
-            configurations: [configuration]
-        )
+        do {
+            return try ModelContainer(
+                for: schema,
+                configurations: [configuration]
+            )
+        } catch {
+            // Written straight to disk: the app usually stops right after a store fails to open.
+            TraceLog.recordNow(
+                .data,
+                "Store didn't open: \(TraceLog.describe(error)), iCloud \(syncsWithICloud ? "on" : "off"), in memory \(inMemory), version \(TraceLog.appVersion), last launched \(TraceLog.previousAppVersion)"
+            )
+            throw error
+        }
     }
 }

@@ -23,8 +23,10 @@ struct UpgradeFixtureWriter {
         let container = try PowerJackSchema.makeModelContainer(syncsWithICloud: true)
         let context = container.mainContext
 
+        // Built-in exercises that take weight. `repsOnly` exists in every version, while
+        // `exerciseEquipment` turned private in 1.0.48 (Loadable Bodyweight).
         let catalog = try context.fetch(FetchDescriptor<Exercise>())
-            .filter { !$0.userCreated && $0.exerciseEquipment == .barbell }
+            .filter { !$0.userCreated && !$0.repsOnly }
             .sorted { $0.exerciseName < $1.exerciseName }
         try #require(catalog.count >= 3, "The app's launch should have seeded the built-in exercises")
 

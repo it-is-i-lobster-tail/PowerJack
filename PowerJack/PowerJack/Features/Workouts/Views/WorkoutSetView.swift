@@ -11,11 +11,18 @@ import SwiftData
 struct WorkoutSetView: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     // The text field fills its whole box so one light tap anywhere on it focuses it.
-    private static let fieldWidth = 76.0
-    private static let fieldHeight = 44.0
+    // Sizes grow with the text size, so large text still fits.
+    @ScaledMetric private var scaledFieldWidth = 76.0
+    @ScaledMetric private var fieldHeight = 44.0
+    @ScaledMetric private var scaledNumberWidth = 28.0
+    @ScaledMetric private var weightLabelWidth = 43.0
+    @ScaledMetric private var repsLabelWidth = 30.0
     private static let animationDuration = 0.050
+    /// How long Undo stays after a done set is reopened.
+    private static let undoWindow: Duration = .seconds(4)
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.workoutIsReadOnly) private var isReadOnly
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
@@ -24,18 +31,29 @@ struct WorkoutSetView: View {
     let number: Int
     /// Called with the new weight and the one it replaced.
     let onWeightChange: (Int?, Int?) -> Void
+    /// The set to do next, which stands out from the others.
+    let isCurrent: Bool
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
     @State private var weightText: String
+    @State private var repsSelection: TextSelection?
+    @State private var weightSelection: TextSelection?
+    /// What a reopened set held when it was done, while Undo can still put it back.
+    @State private var reopened: (completedAt: Date?, startedAt: Date?)?
+    @State private var undoExpiry: Task<Void, Never>?
+    /// Counts sets checked off here, so the success tap is felt for those and not for the watch's.
+    @State private var checksHere = 0
 
     init(
         focusedSetField: FocusState<FocusedSetField?>.Binding,
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
+        isCurrent: Bool = false,
         onWeightChange: @escaping (Int?, Int?) -> Void = { _, _ in }
     ) {
+        self.isCurrent = isCurrent
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
@@ -58,8 +76,33 @@ struct WorkoutSetView: View {
         workoutSet.isWarmup ? "Warmup \(number)" : "Set \(number)"
     }
 
+    // Widths grow only so far, so the row still fits the screen at the largest text sizes.
+    private var fieldWidth: Double { min(scaledFieldWidth, 100) }
+    private var numberWidth: Double { min(scaledNumberWidth, 44) }
+    /// At accessibility text sizes the "Weight" and "Reps" captions give their room to the numbers.
+    /// The fields still say what they hold to VoiceOver.
+    private var showsFieldCaptions: Bool { !dynamicTypeSize.isAccessibilitySize }
+
+    /// The current set's numbers are bigger, so it reads at a glance from the bench.
+    private var fieldFont: Font {
+        isCurrent ? .title2.monospacedDigit() : .default
+    }
+
+    private var statusDescription: String {
+        switch workoutSet.status {
+        case .complete: "Done"
+        case .skipped: "Skipped"
+        default: workoutSet.locked ? "Locked" : "Not done"
+        }
+    }
+
     private var weightIsFocused: Bool {
         focusedSetField.wrappedValue == .weight(workoutSet.id)
+    }
+
+    /// Loadable bodyweight at 0 reads "BW" until the field is tapped to add weight.
+    private var showsBodyweight: Bool {
+        workoutSet.addsToBodyweight && workoutSet.weightTenthsPounds == 0 && !weightIsFocused
     }
 
     private var isEditable: Bool {
@@ -89,8 +132,9 @@ struct WorkoutSetView: View {
             if workoutSet.isWarmup && workoutSet.workoutExerciseValue?.templateType == .hypertrophy {
                 return Text("")
             }
-            // Without a rep target, the prompt is the reps to leave in reserve.
-            return Text("\(workoutSet.workoutExerciseValue?.rirTarget ?? 2)RIR")
+            // Without a rep target, the prompt is the reps to leave, e.g. "2 left".
+            guard let repsLeft = workoutSet.workoutExerciseValue?.rirTarget else { return Text("") }
+            return Text("\(repsLeft) left")
         }
 
         return Text(plannedReps, format: .number)
@@ -101,45 +145,54 @@ struct WorkoutSetView: View {
             return Text("")
         }
 
-        return Text(weightUnit.format(tenthsPounds: plannedWeight))
+        return Text(plannedWeight == 0 ? "BW" : weightUnit.format(tenthsPounds: plannedWeight))
     }
 
     var body: some View {
         GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
             HStack(alignment: .center, spacing: 6) {
                 Text(setLabel)
-                    .frame(width: 28, alignment: .leading)
+                    .frame(width: numberWidth, alignment: .leading)
                     .font(workoutSet.isWarmup ? .callout.weight(.semibold) : .title3)
                     .foregroundStyle(workoutSet.isWarmup ? .secondary : .primary)
 
-                Text("Weight")
-                    .frame(width: 43, alignment: .trailing)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if showsFieldCaptions {
+                    Text("Weight")
+                        .frame(width: weightLabelWidth, alignment: .trailing)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Group {
                     if repsOnly {
                         // Bodyweight sets log reps only, so the weight box just says so.
                         Text("BW")
                             .foregroundStyle(.secondary)
-                            .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                            .frame(width: fieldWidth, height: fieldHeight)
                             .accessibilityValue("Bodyweight")
                     } else {
                         TextField(
                             "Actual weight",
                             text: $weightText,
+                            selection: $weightSelection,
                             prompt: plannedWeightPrompt
                         )
                         .keyboardType(.decimalPad)
                         .disabled(!isEditable)
                         .multilineTextAlignment(.center)
-                        .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                        .foregroundStyle(showsBodyweight ? Color.clear : Color.primary)
+                        .overlay {
+                            if showsBodyweight {
+                                Text("BW").allowsHitTesting(false)
+                            }
+                        }
+                        .frame(width: fieldWidth, height: fieldHeight)
                         .contentShape(.rect)
                         .onTapGesture { focus(.weight(workoutSet.id)) }
                         .focused(focusedSetField, equals: .weight(workoutSet.id))
                     }
                 }
-                .font(.default)
+                .font(fieldFont)
                 .transition(
                     .scale(scale: 0.95, anchor: .center)
                     .combined(with: .opacity)
@@ -150,23 +203,26 @@ struct WorkoutSetView: View {
                 )
                 .accessibilityLabel("\(accessibilityName) weight")
 
-                Text("Reps")
-                    .frame(width: 30, alignment: .trailing)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if showsFieldCaptions {
+                    Text("Reps")
+                        .frame(width: repsLabelWidth, alignment: .trailing)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 TextField(
                     "Actual Reps",
                     text: $repsText,
+                    selection: $repsSelection,
                     prompt: plannedRepsPrompt
                 )
                 .keyboardType(.numberPad)
                 .disabled(!isEditable)
                 .multilineTextAlignment(.center)
-                .frame(width: Self.fieldWidth, height: Self.fieldHeight)
+                .frame(width: fieldWidth, height: fieldHeight)
                 .contentShape(.rect)
                 .onTapGesture { focus(.reps(workoutSet.id)) }
-                .font(.default)
+                .font(fieldFont)
                 .foregroundStyle(repsInvalid ? .red : .primary)
                 .focused(focusedSetField, equals: .reps(workoutSet.id))
                 .transition(
@@ -179,44 +235,77 @@ struct WorkoutSetView: View {
                 )
                 .accessibilityLabel("\(accessibilityName) reps")
 
-                Button(action: toggleCompletion) {
-                    ZStack {
-                        Image(systemName: "circle")
-                            .font(.system(size: 35, weight: .thin))
+                if reopened != nil {
+                    // A brushed tap reopens a done set. Undo puts it back as it was.
+                    Button("Undo", action: undoReopen)
+                        .font(.caption.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHint("Marks \(accessibilityName) done again")
+                } else {
+                    Button(action: toggleCompletion) {
+                        ZStack {
+                            Image(systemName: "circle")
+                                .font(.system(size: 35, weight: .thin))
 
-                        if workoutSet.status == .complete {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 17, weight: .bold))
-                                .transition(
-                                    .symbolEffect(
-                                        .drawOn,
-                                        options: .speed(2.2)
+                            if workoutSet.status == .complete {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 17, weight: .bold))
+                                    .transition(
+                                        .symbolEffect(
+                                            .drawOn,
+                                            options: .speed(2.2)
+                                        )
                                     )
-                                )
-                                .foregroundStyle(.green)
-                        } else if workoutSet.status == .skipped {
-                            Image(systemName: "forward")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        } else if workoutSet.locked {
-                            Image(systemName: "lock")
-                                .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.green)
+                            } else if workoutSet.status == .skipped {
+                                Image(systemName: "forward")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            } else if workoutSet.locked {
+                                Image(systemName: "lock")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
                         }
+                        // Only the circle is tappable, so taps near the reps field stay there.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                     }
-                    // Only the circle is tappable, so taps near the reps field stay there.
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
+                    // A plain style stops the List from turning the whole row into this button.
+                    .buttonStyle(.plain)
+                    .disabled(!canToggleCompletion)
+                    .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
+                    .accessibilityLabel(accessibilityName)
+                    .accessibilityValue(statusDescription)
+                    .accessibilityHint(workoutSet.status == .complete ? "Reopens the set" : "Logs the set at the weight and reps entered")
+                    // Felt as well as seen, with the phone on the bench.
+                    .sensoryFeedback(.success, trigger: checksHere)
                 }
-                // A plain style stops the List from turning the whole row into this button.
-                .buttonStyle(.plain)
-                .disabled(!canToggleCompletion)
-                .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
-                .accessibilityLabel("\(accessibilityName) complete")
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
+        }
+        // Outside the glass, which would draw over it.
+        .overlay {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: LayoutMetrics.cardCornerRadius)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        .onChange(of: focusedSetField.wrappedValue) { _, field in
+            // The whole value is selected on focus, so typing replaces it instead of adding to it.
+            if field == .weight(workoutSet.id) {
+                weightSelection = Self.selectingAll(weightText)
+            } else if field == .reps(workoutSet.id) {
+                repsSelection = Self.selectingAll(repsText)
+            }
         }
         .onChange(of: repsText) { oldValue, newValue in
             updateReps(from: newValue, previous: oldValue)
@@ -231,9 +320,18 @@ struct WorkoutSetView: View {
             }
         }
         .onChange(of: workoutSet.weightTenthsPounds) { _, newValue in
-            if parsedWeight(weightText).map(weightUnit.tenthsPounds(from:)) != newValue {
+            if enteredWeight(weightText) != newValue {
                 weightText = Self.text(forWeight: newValue, in: weightUnit)
             }
+        }
+        .onChange(of: weightUnit) { _, unit in
+            // Switching units in Settings mid-workout shows the same weight in the new unit.
+            weightText = Self.text(forWeight: workoutSet.weightTenthsPounds, in: unit)
+        }
+        .onChange(of: weightIsFocused) { _, isFocused in
+            // Tapping "BW" empties the box, so typed weight replaces the 0 instead of joining it.
+            guard workoutSet.addsToBodyweight, workoutSet.weightTenthsPounds == 0 else { return }
+            weightText = isFocused ? "" : Self.text(forWeight: 0, in: weightUnit)
         }
     }
 
@@ -262,6 +360,7 @@ struct WorkoutSetView: View {
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
         workoutSet.reps = newValue
+        saveEntry()
     }
 
     private func updateWeight(from text: String, previous: String) {
@@ -271,18 +370,28 @@ struct WorkoutSetView: View {
             weightText = allowed
             return
         }
+        // The box already shows the stored weight, e.g. after a unit switch. Reading it back would round it.
+        guard text != Self.text(forWeight: workoutSet.weightTenthsPounds, in: weightUnit) else { return }
         // Stored in tenths of a pound whatever the unit, so a typed weight keeps its value.
-        let newValue = parsedWeight(text).map(weightUnit.tenthsPounds(from:))
+        let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
+        saveEntry()
     }
 
-    private func parsedWeight(_ text: String) -> Double? {
-        let normalized = text.replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(normalized), value > 0 else { return nil }
-        return value
+    /// Saved as it's typed, so it's never lost and the watch shows it straight away.
+    private func saveEntry() {
+        modelContext.saveTraced("set entry")
+    }
+
+    /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
+    /// as is an empty box.
+    private func enteredWeight(_ text: String) -> Int? {
+        let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
+        if value > 0 { return weightUnit.tenthsPounds(from: value) }
+        return workoutSet.addsToBodyweight ? 0 : nil
     }
 
     /// Keeps typed reps to whole numbers from 0 to `WorkoutSet.maxReps`; anything else keeps `previous`.
@@ -296,7 +405,7 @@ struct WorkoutSetView: View {
     }
 
     /// Keeps typed weight from 0 to the heaviest weight a set can log in `unit`, to one decimal;
-    /// anything else keeps `previous`.
+    /// anything else keeps `previous`. A digit typed after a lone 0 replaces it, so "0" then "2" reads "2".
     static func weightInput(_ text: String, previous: String, unit: WeightUnit = .pounds) -> String {
         let parts = text.split(omittingEmptySubsequences: false) { $0 == "." || $0 == "," }
         guard parts.count <= 2,
@@ -306,7 +415,11 @@ struct WorkoutSetView: View {
         else { return previous }
 
         let value = Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return value <= unit.maxEntry ? text : previous
+        guard value <= unit.maxEntry else { return previous }
+        if text.count > 1, text.first == "0", text.dropFirst().first?.isNumber == true {
+            return String(text.dropFirst())
+        }
+        return text
     }
 
     private func toggleCompletion() {
@@ -314,9 +427,33 @@ struct WorkoutSetView: View {
             withAnimation {
                 completeSet()
             }
+            if workoutSet.status == .complete { checksHere += 1 }
         } else {
+            let wasDone = (completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
             workoutSet.start()
+            // Saved now, so the watch shows the set open again and quitting doesn't lose it.
+            modelContext.saveTraced("set reopened")
+            offerUndo(restoring: wasDone)
         }
+    }
+
+    private func offerUndo(restoring wasDone: (completedAt: Date?, startedAt: Date?)) {
+        undoExpiry?.cancel()
+        withAnimation { reopened = wasDone }
+        undoExpiry = Task {
+            try? await Task.sleep(for: Self.undoWindow)
+            guard !Task.isCancelled else { return }
+            withAnimation { reopened = nil }
+        }
+    }
+
+    private func undoReopen() {
+        undoExpiry?.cancel()
+        if let reopened {
+            workoutSet.undoReopen(completedAt: reopened.completedAt, startedAt: reopened.startedAt)
+            modelContext.saveTraced("set reopen undone")
+        }
+        withAnimation { reopened = nil }
     }
 
     private func completeSet() {
@@ -325,7 +462,11 @@ struct WorkoutSetView: View {
         } else {
             workoutSet.complete()
         }
-        try? modelContext.save()
+        modelContext.saveTraced("set logged")
+    }
+
+    private static func selectingAll(_ text: String) -> TextSelection {
+        TextSelection(range: text.startIndex..<text.endIndex)
     }
 
     private static func text(forReps reps: Int?) -> String {

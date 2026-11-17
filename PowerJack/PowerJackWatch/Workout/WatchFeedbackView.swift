@@ -16,6 +16,8 @@ struct WatchFeedbackView: View {
     let onFinished: () -> Void
 
     @State private var draft: FeedbackDraft
+    /// The answers wait a moment, with Undo, before they're saved and the workout moves on.
+    @State private var pendingSave: Task<Void, Never>?
 
     init(workoutExercise: WorkoutExercise, onFinished: @escaping () -> Void) {
         self.workoutExercise = workoutExercise
@@ -27,9 +29,11 @@ struct WatchFeedbackView: View {
     }
 
     var body: some View {
-        // Each answer brings up the next question; the last one saves.
+        // Each answer brings up the next question; the last one saves after a moment.
         Group {
-            if draft.asksTopSet && draft.topSetRepsInReserve == nil {
+            if pendingSave != nil {
+                saved
+            } else if draft.asksTopSet && draft.topSetRepsInReserve == nil {
                 question("Top set: reps left?", selection: $draft.topSetRepsInReserve)
             } else if draft.ratesRepsInReserve && draft.repsInReserve == nil {
                 question("Last set: reps left?", selection: $draft.repsInReserve)
@@ -39,11 +43,44 @@ struct WatchFeedbackView: View {
                 question("Any pain?", selection: $draft.levelOfPain)
             }
         }
-        .navigationTitle(workoutExercise.exercise?.exerciseName ?? "Feedback")
+        .navigationTitle(workoutExercise.shownExercise?.exerciseName ?? "Feedback")
         .interactiveDismissDisabled()
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: draft.canSave) { _, canSave in
-            if canSave { save() }
+            if canSave { saveSoon() }
+        }
+        // Answered on the iPhone first, so this sheet closes without saving its own.
+        .onDisappear { pendingSave?.cancel() }
+    }
+
+    private var saved: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.green)
+            Text("Saved")
+                .font(.headline)
+            Button("Undo") {
+                pendingSave?.cancel()
+                pendingSave = nil
+                draft.levelOfPain = nil
+            }
+        }
+    }
+
+    /// Whether a question came before this one, so Back can return to it.
+    private var canGoBack: Bool {
+        draft.topSetRepsInReserve != nil || draft.repsInReserve != nil || draft.levelOfEffort != nil
+    }
+
+    /// Clears the last answer given, which brings its question back.
+    private func goBack() {
+        if draft.ratesRepsInReserve, draft.repsInReserve != nil {
+            draft.repsInReserve = nil
+        } else if !draft.ratesRepsInReserve, draft.levelOfEffort != nil {
+            draft.levelOfEffort = nil
+        } else {
+            draft.topSetRepsInReserve = nil
         }
     }
 
@@ -71,8 +108,24 @@ struct WatchFeedbackView: View {
                     .font(.headline)
                     .textCase(nil)
             }
+
+            if canGoBack {
+                Button("Back", systemImage: "chevron.backward") {
+                    withAnimation { goBack() }
+                }
+                .foregroundStyle(.secondary)
+            }
         }
         .id(title)
+    }
+
+    private func saveSoon() {
+        pendingSave?.cancel()
+        pendingSave = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            save()
+        }
     }
 
     private func save() {

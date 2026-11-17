@@ -33,16 +33,21 @@ extension Workout {
         guard
             let latest = latestCompletedSet,
             let current = currentSet,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return nil
         }
 
         let group = group(of: latest.workoutExercise)
         let round = latest.workoutExercise.round(of: latest.workoutSet)
+        // A partner still to go in the round means no rest yet, even when it warms up first.
+        let roundIsDone = !group.contains { workoutExercise in
+            guard let workoutSet = workoutExercise.set(in: round) else { return false }
+            return !workoutExercise.allSetsDone() && workoutSet.status == .active
+        }
         guard
             group.contains(where: { $0 === current.workoutExercise }),
-            current.workoutExercise.round(of: current.workoutSet) != round
+            roundIsDone
         else {
             return nil
         }
@@ -64,9 +69,19 @@ extension Workout {
             setCount: current.workoutExercise.count(sameTypeAs: nextSet),
             isWarmup: nextSet.isWarmup,
             reps: nextSet.upcomingReps,
+            repsLeft: nextSet.isWarmup ? nil : current.workoutExercise.rirTarget,
             weightTenthsPounds: exercise.repsOnly ? nil : weight,
             usesKilograms: WeightUnit.current == .kilograms
         )
+    }
+
+    /// The rest to show on `workoutExercise`'s screen: the one running before the next set of its
+    /// exercise or superset. A superset rests after its last exercise, so every exercise in it shows it.
+    func rest(shownOn workoutExercise: WorkoutExercise) -> RestPeriod? {
+        guard let next = currentSet?.workoutExercise,
+              group(of: workoutExercise).contains(where: { $0 === next })
+        else { return nil }
+        return currentRest
     }
 
     private var latestCompletedSet: (workoutExercise: WorkoutExercise, workoutSet: WorkoutSet, completedAt: Date)? {

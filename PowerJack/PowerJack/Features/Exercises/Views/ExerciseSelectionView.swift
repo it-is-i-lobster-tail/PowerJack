@@ -26,9 +26,14 @@ struct ExerciseSelectionView: View {
 
         return exercises.filter {
             $0.exerciseName.localizedStandardContains(searchText) ||
-            $0.exerciseEquipment.rawValue.localizedStandardContains(searchText) ||
+            $0.equipment.displayName.localizedStandardContains(searchText) ||
             $0.primaryMuscleFocus.rawValue.localizedStandardContains(searchText)
         }
+    }
+
+    // A search that finds nothing becomes the new exercise's name.
+    private var newExerciseName: String {
+        filteredExercises.isEmpty ? searchText : ""
     }
 
     private var emptyTitle: LocalizedStringKey {
@@ -50,6 +55,11 @@ struct ExerciseSelectionView: View {
     }
 
     var body: some View {
+        content.traceScreen("Exercise Picker")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         NavigationStack {
             AddableListScaffold(
                 navigationTitle: LocalizedStringKey(navigationTitle),
@@ -73,7 +83,7 @@ struct ExerciseSelectionView: View {
                     }
                 }
             } createDestination: {
-                ExerciseNewView(onSave: handleNewExercise)
+                ExerciseNewView(name: newExerciseName, onSave: handleNewExercise)
             }
             .searchable(text: $searchText, prompt: "Search exercises")
             .searchPresentationToolbarBehavior(.avoidHidingContent)

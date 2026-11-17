@@ -9,6 +9,11 @@ struct LegalDocumentView: View {
     let document: LegalDocument
 
     var body: some View {
+        content.traceScreen("Legal Document")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LayoutMetrics.sectionSpacing) {
                 Text("Last updated \(document.lastUpdated)")

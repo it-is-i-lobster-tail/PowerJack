@@ -200,6 +200,7 @@ extension Program {
         statusValue = Status.complete
         lockedValue = true
         Logger.program.debug("Completed Program")
+        TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func stop() {
         guard
@@ -218,6 +219,7 @@ extension Program {
         statusValue = Status.stopped
         lockedValue = true
         Logger.program.debug("Stopped Program")
+        TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
     func start() {
         guard
@@ -230,6 +232,7 @@ extension Program {
         statusValue = Status.active
         programWeeks.first?.start()
         Logger.program.debug("Started Program")
+        TraceLog.record(.workout, "Started \(traceDescription)")
     }
     /// Lets the program's planner adjust `workout` right before it starts, such as after a long break.
     func prepareToStart(_ workout: Workout, at date: Date = .now) {
@@ -301,6 +304,7 @@ extension Program {
             week.complete()
             if let nextWeek = programWeeks.first(where: { $0.order == week.order + 1 }) {
                 if nextWeek.workouts.isEmpty {
+                    TraceLog.record(.workout, "Week \(week.order + 1) done, building week \(nextWeek.order + 1) of \(traceDescription)")
                     templateType.weekPlanner.build(nextWeek, in: self)
                     // Days edited after they started take the edit from this new week on.
                     for (workout, editedDay) in zip(nextWeek.workouts, week.workouts) {
@@ -309,6 +313,7 @@ extension Program {
                 }
                 nextWeek.start()
             } else {
+                TraceLog.record(.workout, "Last week done, closing \(traceDescription)")
                 templateType.weekPlanner.close(week, in: self)
             }
         }
@@ -330,6 +335,10 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.completeAndCascade()
         }
+        #if os(iOS)
+        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
+        saveHistory()
+        #endif
     }
     func stopAndCascade() {
         guard status == .stopped else {
@@ -339,6 +348,10 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.stopAndCascade()
         }
+        #if os(iOS)
+        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
+        saveHistory()
+        #endif
     }
     func addProgramWeek() -> ProgramWeek? {
         guard
@@ -351,6 +364,7 @@ extension Program {
         let newProgramWeek = ProgramWeek(order: programWeeks.count)
         programWeeksValue = (programWeeksValue ?? []) + [newProgramWeek]
         Logger.program.info("New ProgramWeek added to Program")
+        TraceLog.record(.workout, "Added a week to \(traceDescription)")
         return newProgramWeek
     }
     func removeLastProgramWeek() {
@@ -359,6 +373,7 @@ extension Program {
             return
         }
         Logger.program.info("Removing last ProgramWeek from Program")
+        TraceLog.record(.workout, "Removing the last week of \(traceDescription)")
         programWeeksValue?.removeAll { $0 === lastWeek }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(lastWeek)

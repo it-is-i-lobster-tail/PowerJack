@@ -20,6 +20,11 @@ struct WorkoutReviewView: View {
     private var remainingSets: Int { workout.remainingWorkingSets }
 
     var body: some View {
+        content.traceScreen("Workout Review")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         VStack(spacing: 0) {
             Text("Review")
                 .font(.title)
@@ -102,8 +107,7 @@ private struct ReviewRow: View {
     let workoutExercise: WorkoutExercise
 
     private var setsLabel: String {
-        let sets = workoutExercise.workingSets
-        let label = "\(workoutExercise.completedWorkingSets) of \(sets.count) sets"
+        let label = workoutExercise.workingSetsDoneText
         guard let duration = workoutExercise.duration else { return label }
         return "\(label) · \(duration.elapsedText)"
     }
@@ -129,7 +133,7 @@ private struct ReviewRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(workoutExercise.exercise?.exerciseName ?? "")
+                Text(workoutExercise.shownExercise?.exerciseName ?? "")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Text(setsLabel)

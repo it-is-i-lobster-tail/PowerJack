@@ -350,7 +350,10 @@ extension PowerJackWeekBuilder {
         }
         let jumpSteps = max(1, Int((L * PowerJackRules.saJumpPct / 100 / step - 1e-9).rounded(.toNearestOrAwayFromZero)))
         let jump = step * Double(part.source == .tapped ? jumpSteps : 1)
-        let drop = max(1, (jump / L * 100 / PowerJackRules.repCostPct).roundedHalfUp)
+        // The lifter's bodyweight isn't known, so a loadable bodyweight lift gives up a rep per step.
+        let drop = exercise.addsToBodyweight
+            ? max(1, (jump / step).roundedHalfUp)
+            : max(1, (jump / L * 100 / PowerJackRules.repCostPct).roundedHalfUp)
         if done.min()! - drop >= lo {
             return (sets(done.map { max(lo, $0 - drop) }, L + jump), .loadJump)
         }

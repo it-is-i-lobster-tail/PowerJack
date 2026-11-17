@@ -8,9 +8,17 @@
 import Foundation
 
 nonisolated struct RestCallout: Hashable {
+    /// How long after its rest ends a callout can still be said, like the haptic cues.
+    static let lateLimit: TimeInterval = 2
+
     /// When the rest ends and the callout is spoken.
     var endsAt: Date
     var phrase: RestPhrase
+
+    /// Too long after the rest ended to say, as when iOS kept PowerJack suspended past it.
+    func isLate(at date: Date) -> Bool {
+        date.timeIntervalSince(endsAt) > Self.lateLimit
+    }
 }
 
 /// Words the voice says, and the recorded clips that say them, in order.
@@ -62,6 +70,7 @@ nonisolated struct RestPhrase: Hashable {
 extension Workout {
     /// The callout for the rest running now. A superset only says to start the next round;
     /// otherwise the weight is said when it differs from the last one logged on the exercise.
+    /// Bodyweight alone (a weight of 0) is never said: "0 pounds" would only confuse.
     var restCallout: RestCallout? {
         guard let rest = currentRest, let current = currentSet else { return nil }
         guard group(of: current.workoutExercise).count == 1 else {
@@ -71,7 +80,7 @@ extension Workout {
         let lastWeight = current.workoutExercise.workoutSets
             .last { $0.status == .complete && $0.weightTenthsPounds != nil }?
             .weightTenthsPounds
-        let newWeight = rest.weightTenthsPounds.flatMap { $0 == lastWeight ? nil : $0 }
+        let newWeight = rest.weightTenthsPounds.flatMap { $0 == lastWeight || $0 == 0 ? nil : $0 }
         return RestCallout(
             endsAt: rest.endsAt,
             phrase: .set(weightTenthsPounds: newWeight, reps: rest.reps, unit: WeightUnit.current)

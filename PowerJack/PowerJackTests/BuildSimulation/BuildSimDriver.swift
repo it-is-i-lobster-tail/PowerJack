@@ -378,12 +378,12 @@ private extension BuildSimDriver {
             exercise.fatigueLevel = lifter.rng.pick(FatigueLevel.allCases)
         case 2 where exercise.userCreated:
             // Only the lifter's own exercises can change equipment.
-            exercise.exerciseEquipment = exercise.repsOnly ? .dumbbell : .bodyweight
+            exercise.equipment = exercise.repsOnly ? .dumbbell : .bodyweight
         default:
             exercise.maxReps = lifter.rng.int(exercise.minReps...Exercise.maxRepsAllowed)
         }
         report.edits += 1
-        report.trace("edit \(exercise.exerciseName): \(exercise.minReps)-\(exercise.maxReps) reps, \(exercise.fatigueLevel.name), \(exercise.exerciseEquipment.rawValue)")
+        report.trace("edit \(exercise.exerciseName): \(exercise.minReps)-\(exercise.maxReps) reps, \(exercise.fatigueLevel.name), \(exercise.equipment.rawValue)")
     }
 }
 

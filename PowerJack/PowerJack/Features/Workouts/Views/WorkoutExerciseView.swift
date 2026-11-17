@@ -21,6 +21,8 @@ struct WorkoutExerciseView: View {
 
     @AppStorage(AppSettings.Key.hints) private var hintsEnabled = AppSettings.Default.hints
     // Read once on appear; it looks up the lifter's first logged set.
+    /// Grows with the text size, so large text still fits a set row.
+    @ScaledMetric private var setRowHeight = 55.0
     @State private var showsWarmupHint = false
 
     // Finished warmups fold away, then the heading gets a check.
@@ -44,12 +46,17 @@ struct WorkoutExerciseView: View {
     var body: some View {
         VStack {
             VStack(alignment: .center) {
-                Text(workoutExercise.exercise?.exerciseName ?? "")
+                Text(workoutExercise.shownExercise?.exerciseName ?? "")
                     .font(.title)
                     .foregroundStyle(.primary)
-                Text(workoutExercise.exercise?.exerciseEquipment.rawValue.localizedCapitalized ?? "")
+                Text(workoutExercise.shownExercise?.equipment.displayName ?? "")
                     .font(.default)
                     .foregroundStyle(.primary)
+                if let substituteText {
+                    Label(substituteText, systemImage: "arrow.triangle.swap")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let supersetText {
                     Label(supersetText, systemImage: "link")
                         .font(.caption)
@@ -91,9 +98,15 @@ struct WorkoutExerciseView: View {
         }
     }
 
+    /// e.g. "Sub for Bench Press · this week".
+    private var substituteText: String? {
+        guard workoutExercise.substitute != nil, let planned = workoutExercise.exercise else { return nil }
+        return "Sub for \(planned.exerciseName) · this week"
+    }
+
     /// e.g. "Superset with Skull Crusher".
     private var supersetText: String? {
-        let partners = workoutExercise.supersetPartners.compactMap { $0.exercise?.exerciseName }
+        let partners = workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
         guard !partners.isEmpty else { return nil }
         return "Superset with \(partners.formatted(.list(type: .and)))"
     }
@@ -139,20 +152,24 @@ struct WorkoutExerciseView: View {
     }
 
     private func setRows(_ sets: [WorkoutSet]) -> some View {
-        VStack(spacing: LayoutMetrics.compactSpacing) {
+        // Worked out once for every row.
+        let currentSet = workoutExercise.workoutValue?.currentSet?.workoutSet
+        return VStack(spacing: LayoutMetrics.compactSpacing) {
             ForEach(sets) { workoutSet in
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
                     workoutSet: workoutSet,
-                    repsOnly: workoutExercise.exercise?.repsOnly ?? false,
+                    repsOnly: workoutExercise.shownExercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
+                    isCurrent: workoutSet === currentSet,
                     onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }
                         workoutExercise.applyWeight(weight, after: workoutSet, replacing: previousWeight)
                     }
                 )
-                .frame(width: screenWidth * 0.88, height: 55)
+                .frame(width: screenWidth * 0.88)
+                .frame(minHeight: setRowHeight)
                 .id(workoutSet.id)
 
                 if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {

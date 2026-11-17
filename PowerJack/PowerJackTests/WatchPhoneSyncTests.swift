@@ -91,6 +91,22 @@ struct WatchPhoneSyncTests {
         #expect(try devices.watchContext.fetchCount(FetchDescriptor<WorkoutSet>()) == devices.phoneContext.fetchCount(FetchDescriptor<WorkoutSet>()))
     }
 
+    @Test("A new watch waits for the iPhone, then knows when no program runs there, and remembers it heard")
+    func watchKnowsWhenNothingRuns() throws {
+        let devices = try TwoDevices()
+        #expect(!devices.replica.heardFromIPhone)
+
+        let program = try devices.phoneProgram
+        program.stop()
+        program.stopAndCascade()
+        try devices.phoneContext.save()
+        try devices.sendChanges()
+
+        #expect(devices.replica.heardFromIPhone)
+        #expect(try devices.watchContext.fetch(FetchDescriptor<Program>()).active == nil)
+        #expect(WatchReplica(defaults: devices.replicaDefaults).heardFromIPhone)
+    }
+
     @Test("A workout started and logged on the watch reaches the iPhone, which shows it's in progress on the watch")
     func watchWorkoutReachesIPhone() throws {
         let devices = try TwoDevices()
@@ -382,6 +398,62 @@ struct WatchPhoneSyncTests {
         #expect(phoneReceipts[0].sessionID == watchExercise.workoutValue?.syncID)
     }
 
+    @Test("Finishing on the watch with an exercise partly logged asks its feedback first, and the iPhone keeps it")
+    func watchFinishRatesPartlyLoggedExercise() throws {
+        let (devices, watchSet, watchExercise) = try startedOnWatch()
+        logOnWatch(devices, watchSet, of: watchExercise, reps: 8, at: t0)
+        let watchProgram = try devices.watchProgram
+        let workout = try #require(watchExercise.workoutValue)
+
+        // Finish Workout skips the rest first, so the exercise asks for its feedback.
+        devices.onWatch { $0.skipRemainingSets(of: workout) }
+        try #require(watchExercise.needsFeedback)
+        let feedback = ExerciseFeedback(repsInReserve: .two, levelOfPain: .none)
+        devices.onWatch { $0.rate(watchExercise, feedback: feedback, topSet: nil) }
+        devices.onWatch { $0.finish(workout, in: watchProgram) }
+        try devices.sendChanges()
+
+        let phoneExercise = try #require(try devices.onPhone(watchSet).workoutExerciseValue)
+        #expect(phoneExercise.feedback != nil)
+        #expect(phoneExercise.workoutValue?.status == .complete)
+    }
+
+    @Test("A set logged on the watch after the iPhone skipped it keeps the watch's log on both devices, with a receipt")
+    func watchLogIntoSkippedSet() throws {
+        let (devices, watchSet, watchExercise) = try startedOnWatch()
+        let phoneSet = try devices.onPhone(watchSet)
+        // The iPhone skips the rest of the exercise while the lifter logs the set on the watch.
+        try #require(phoneSet.workoutExerciseValue).skipRemainingSets()
+        try #require(phoneSet.status == .skipped)
+        logOnWatch(devices, watchSet, of: watchExercise, reps: 8, at: t0)
+
+        try devices.sendChanges()
+
+        #expect(phoneSet.status == .complete)
+        #expect(phoneSet.reps == 8)
+        #expect(watchSet.status == .complete)
+        #expect(watchSet.reps == 8)
+        let receipts = try devices.phoneContext.fetch(FetchDescriptor<SetReceipt>())
+        #expect(receipts.contains { $0.setID == phoneSet.syncID && $0.device == SyncDevice.watch })
+    }
+
+    @Test("A watch log for a set of a workout the iPhone already finished leaves that workout as it was")
+    func watchLogIntoFinishedWorkout() throws {
+        let (devices, watchSet, watchExercise) = try startedOnWatch()
+        let phoneSet = try devices.onPhone(watchSet)
+        let phoneProgram = try devices.phoneProgram
+        let phoneWorkout = try #require(phoneSet.workoutExerciseValue?.workoutValue)
+        phoneWorkout.skipRemainingSets()
+        phoneProgram.finishWorkout(phoneWorkout)
+        logOnWatch(devices, watchSet, of: watchExercise, reps: 8, at: t0)
+
+        try devices.sendChanges()
+
+        #expect(phoneSet.status == .skipped)
+        #expect(phoneSet.locked)
+        #expect(devices.replica.pending.isEmpty)
+    }
+
     @Test("Finishing a workout names it in the volume log")
     func workoutLogNamesSession() throws {
         let devices = try TwoDevices()
@@ -422,5 +494,39 @@ struct WatchPhoneSyncTests {
         workoutSet.reps = reps
         workoutSet.weightTenthsPounds = 1000
         workoutSet.workoutExerciseValue?.completeSet(workoutSet, at: date)
+    }
+}
+
+@MainActor
+struct WatchICloudSettingTests {
+    @Test("A new watch keeps iCloud off until the iPhone's settings arrive, then follows them")
+    func newWatchWaitsForTheIPhone() throws {
+        let suite = "WatchICloudSettingTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsSync(defaults: defaults)
+        #expect(!SettingsSync.watchSyncsWithICloud(in: defaults))
+
+        // The iPhone never changed iCloud Backup, so it's on there by default.
+        settings.apply([:])
+        #expect(SettingsSync.watchSyncsWithICloud(in: defaults))
+
+        settings.apply([AppSettings.Key.iCloudBackup: false])
+        #expect(!SettingsSync.watchSyncsWithICloud(in: defaults))
+    }
+
+    @Test("A watch that already has the setting, or already had a program from the iPhone, keeps following it")
+    func existingWatchKeepsItsSetting() throws {
+        let suite = "WatchICloudSettingTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: AppSettings.Key.iCloudBackup)
+        #expect(!SettingsSync.watchSyncsWithICloud(in: defaults))
+        defaults.set(true, forKey: AppSettings.Key.iCloudBackup)
+        #expect(SettingsSync.watchSyncsWithICloud(in: defaults))
+
+        let devices = try TwoDevices()
+        try devices.sendProgram()
+        #expect(SettingsSync.watchSyncsWithICloud(in: devices.replicaDefaults))
     }
 }

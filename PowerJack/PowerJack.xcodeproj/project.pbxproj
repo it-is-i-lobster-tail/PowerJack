@@ -119,6 +119,7 @@
 				"Features/RestTimer/Models/Workout+Activity.swift",
 				"Features/RestTimer/Models/Workout+Rest.swift",
 				Features/Settings/Models/AppSettings.swift,
+				Features/Settings/Models/HistoryRecord.swift,
 				Features/Templates/Models/TemplateExercise.swift,
 				Features/Templates/Models/TemplateProgram.swift,
 				Features/Templates/Models/TemplateWorkout.swift,
@@ -130,6 +131,7 @@
 				"Features/Workouts/Models/Workout+Summary.swift",
 				"Features/Workouts/Models/Workout+Superset.swift",
 				Features/Workouts/Models/Workout.swift,
+				"Features/Workouts/Models/WorkoutExercise+Substitute.swift",
 				Features/Workouts/Models/WorkoutExercise.swift,
 				Features/Workouts/Models/WorkoutSet.swift,
 				Features/Workouts/Views/Components/FeedbackDraft.swift,
@@ -139,6 +141,9 @@
 				Shared/LiveActivity/RestActivityAttributes.swift,
 				Shared/LiveActivity/RestPeriod.swift,
 				"Shared/Logging/Logger+PowerJack.swift",
+				Shared/Logging/TraceDescriptions.swift,
+				Shared/Logging/TraceErrors.swift,
+				Shared/Logging/TraceLog.swift,
 				Shared/Models/Equipment.swift,
 				Shared/Models/FatigueLevel.swift,
 				Shared/Models/Muscle.swift,
@@ -531,7 +536,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -566,7 +571,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -596,7 +601,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -629,7 +634,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -663,7 +668,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1.PowerJackWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -703,7 +708,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -742,7 +747,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackv1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -893,7 +898,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.47;
+				MARKETING_VERSION = 1.0.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stanleycloud.PowerJackTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

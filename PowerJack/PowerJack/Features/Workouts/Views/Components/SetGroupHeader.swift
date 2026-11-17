@@ -90,15 +90,18 @@ struct SetGroupHeader: View {
 
         Divider()
 
-        Button("Disable Warmup for Exercise", systemImage: "nosign") {
-            withAnimation { update { workoutExercise.disableWarmups() } }
-        }
-        .disabled(isLocked)
-
-        Button("Skip Warmup", systemImage: "forward") {
+        Button("Skip Warmups", systemImage: "forward") {
             update { workoutExercise.skipWarmups() }
         }
         .disabled(isLocked || workoutExercise.warmupSets.allSatisfy(\.isDone))
+
+        Button {
+            withAnimation { update { workoutExercise.disableWarmups() } }
+        } label: {
+            Label("Turn Off Warmups on This Day", systemImage: "nosign")
+            Text("For the rest of the program")
+        }
+        .disabled(isLocked)
     }
 
     @ViewBuilder
@@ -129,6 +132,6 @@ struct SetGroupHeader: View {
 
     private func update(_ change: () -> Void) {
         change()
-        try? modelContext.save()
+        modelContext.saveTraced("sets changed")
     }
 }

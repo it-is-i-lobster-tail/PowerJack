@@ -241,6 +241,7 @@ enum TemplateCatalog {
                 // Cascades to the duplicate's workouts and their exercises.
                 context.delete(duplicate)
             }
+            TraceLog.record(.data, "Catalog dedupe: kept the oldest template \(survivor.catalogID ?? "?"), deleted \(oldestFirst.count - 1) copies")
             changed = true
         }
         return changed

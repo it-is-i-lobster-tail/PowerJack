@@ -50,8 +50,8 @@ enum StrengthPlanner: WeekPlanner {
                 for warmup in sourceExercise.warmupSets.prefix(WorkoutExercise.maxWarmupSets) {
                     workoutExercise.addPlannedSet(
                         type: .warmup,
-                        plannedReps: warmup.reps ?? warmup.repsPlanned,
-                        plannedWeightTenthsPounds: warmup.weightTenthsPounds ?? warmup.weightTenthsPlannedPounds
+                        plannedReps: warmup.progressionReps ?? warmup.repsPlanned,
+                        plannedWeightTenthsPounds: warmup.progressionWeightTenthsPounds ?? warmup.progressionPlannedWeightTenthsPounds
                     )
                 }
             }
@@ -249,7 +249,7 @@ enum StrengthPlanner: WeekPlanner {
             "Top set: work up to a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps). Back-off sets follow from it."
         case .calibration where plan.loadKg == nil:
             "Pick a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps)."
-        case .deload: "Deload week: lighter, to shed fatigue."
+        case .deload: "Lighter week: easier on purpose so you can recover."
         case .microDeload: "One lighter week for this lift."
         case .returnWeek1, .returnWeek2: "Back from a break, a little lighter."
         case .painLighter: "Lighter while the pain settles."
@@ -319,7 +319,7 @@ enum StrengthPlanner: WeekPlanner {
             role: slot.role,
             zone: slot.zone,
             curve: StrengthLifts.curve(for: exercise),
-            grid: LoadGrid(equipment: exercise.exerciseEquipment),
+            grid: LoadGrid(equipment: exercise.equipment),
             needsSpotter: StrengthLifts.needsSpotter(exercise),
             repRange: exercise.repRange,
             history: history,
@@ -351,7 +351,7 @@ enum StrengthPlanner: WeekPlanner {
     private static func storedPlan(of workoutExercise: WorkoutExercise, role: StrengthRole) -> StrengthSlotPlan {
         let parsed = StrengthSlotPlan.parse(code: workoutExercise.progressionCode)
         let sets = workoutExercise.workingSets.map {
-            StrengthPlannedSet(reps: $0.repsPlanned, loadKg: $0.weightTenthsPlannedPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) })
+            StrengthPlannedSet(reps: $0.repsPlanned, loadKg: $0.progressionPlannedWeightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) })
         }
         // An accessory stores no target, so its reps are its first set's, or the bottom of its range.
         let fallbackReps = role == .accessory ? workoutExercise.exercise?.repRange.lowerBound : nil
@@ -375,9 +375,9 @@ enum StrengthPlanner: WeekPlanner {
             plan: storedPlan(of: workoutExercise, role: role),
             sets: working.map {
                 StrengthSession.LoggedSet(
-                    loadKg: $0.weightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) },
-                    reps: $0.reps,
-                    plannedLoadKg: $0.weightTenthsPlannedPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) },
+                    loadKg: $0.progressionWeightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) },
+                    reps: $0.progressionReps,
+                    plannedLoadKg: $0.progressionPlannedWeightTenthsPounds.map { WeightUnit.kilograms(fromTenthsPounds: $0) },
                     completed: $0.status == .complete
                 )
             },
@@ -415,9 +415,11 @@ enum StrengthPlanner: WeekPlanner {
 
     /// 6.2: a working set short of its target reps lowers the prefilled loads of the sets still to do.
     /// Sets the lifter already changed keep their weight. A top set's back-offs follow its rating instead.
+    /// A one-time substitute's loads aren't the plan's, so its sets keep the weights they were given.
     static func didComplete(_ workoutSet: WorkoutSet, in workoutExercise: WorkoutExercise) {
         guard
             workoutExercise.strengthRole != nil,
+            workoutExercise.substitute == nil,
             !workoutSet.isWarmup,
             !workoutExercise.isTopSet(workoutSet),
             workoutSet.status == .complete,
@@ -425,7 +427,7 @@ enum StrengthPlanner: WeekPlanner {
             let reps = workoutSet.reps, reps < planned,
             let load = workoutSet.weightTenthsPounds,
             let exercise = workoutExercise.exercise,
-            let grid = LoadGrid(equipment: exercise.exerciseEquipment)
+            let grid = LoadGrid(equipment: exercise.equipment)
         else { return }
 
         for later in workoutExercise.workingSets where later.order > workoutSet.order && later.status == .active {
@@ -450,13 +452,14 @@ extension StrengthPlanner {
     static func didRateTopSet(in workoutExercise: WorkoutExercise) {
         guard
             workoutExercise.strengthRole == .primary,
+            workoutExercise.substitute == nil,
             workoutExercise.topSets > 0,
             let rated = workoutExercise.topSetRepsInReserve?.rawValue,
             let top = workoutExercise.workingSets.first, top.status == .complete,
             let reps = top.reps, reps > 0,
             let lifted = top.weightTenthsPounds,
             let exercise = workoutExercise.exercise,
-            let grid = LoadGrid(equipment: exercise.exerciseEquipment)
+            let grid = LoadGrid(equipment: exercise.equipment)
         else { return }
         let backs = workoutExercise.workingSets.dropFirst(workoutExercise.topSets)
         let liftedKg = WeightUnit.kilograms(fromTenthsPounds: lifted)
@@ -489,7 +492,7 @@ extension WorkoutExercise {
     /// exercise has its own rest. Keyed off the slot's role, which only StrengthPlanner sets, so the rest
     /// timer never reaches up to the Program.
     var strengthRestDuration: Duration? {
-        guard exercise?.customRestTime == nil else { return nil }
+        guard shownExercise?.customRestTime == nil else { return nil }
         switch strengthRole {
         case .primary: return .seconds(StrengthRules.restPrimarySeconds)
         case .secondary: return .seconds(StrengthRules.restSecondarySeconds)

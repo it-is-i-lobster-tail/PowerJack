@@ -12,11 +12,13 @@ import SwiftUI
 
 @main
 struct PowerJackWatchApp: App {
+    @WKApplicationDelegateAdaptor private var delegate: WatchAppDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var store: WatchStore
     @State private var sync: WatchSync
 
     init() {
+        TraceLog.shared.start()
         let store = WatchStore()
         _store = State(initialValue: store)
         _sync = State(initialValue: WatchSync(store: store))
@@ -24,16 +26,29 @@ struct PowerJackWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchRootView()
-                // The iPhone's accent: system blue.
-                .tint(.blue)
-                .environment(store)
-                .environment(sync)
-                .modelContainer(store.container)
+            Group {
+                // Switching iCloud Backup replaces the container. The screens holding its models
+                // come down first, then the new container opens and they rebuild from it.
+                if store.isReplacingContainer {
+                    Color.black
+                        .ignoresSafeArea()
+                        .onAppear { store.replaceContainer() }
+                } else {
+                    WatchRootView()
+                        .id(ObjectIdentifier(store.container))
+                }
+            }
+            // The iPhone's accent: system blue.
+            .tint(.blue)
+            .environment(store)
+            .environment(sync)
+            .modelContainer(store.container)
         }
         .onChange(of: scenePhase, initial: true) {
             // Opening the app catches up with the iPhone: what's pending goes, its program comes back.
             if scenePhase == .active { sync.push() }
+            // The iPhone's trace export includes the watch's, as of when it last left the screen.
+            if scenePhase == .background { Task { await DeviceLink.shared.sendTrace() } }
         }
     }
 }

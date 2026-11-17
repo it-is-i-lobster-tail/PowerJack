@@ -34,12 +34,31 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     /// `order` of the set's exercise and of the current set, so a check completes the set that was shown.
     var exerciseOrder: Int
     var setOrder: Int
+    /// The workout's sync ID, so a check never lands on another workout's set at the same positions.
+    /// Optional, so activities started by an older version still read.
+    var workoutID: String?
     var sets: [ActivitySet]
     var repsOnly: Bool
     /// The current set can be checked off as entered without opening the app.
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
+
+    /// The sets the Live Activity shows as chips, at most `size`: the one before the current set,
+    /// the current one and the ones after. `before` and `after` count the sets left off each side.
+    func chipWindow(size: Int = 4) -> (before: Int, sets: ArraySlice<ActivitySet>, after: Int) {
+        guard sets.count > size else { return (0, sets[...], 0) }
+        let current = sets.firstIndex { $0.progress == .current } ?? sets.count - 1
+        let start = min(max(0, current - 1), sets.count - size)
+        return (start, sets[start..<(start + size)], sets.count - start - size)
+    }
+
+    /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
+    /// Numbered as in the app, so warmups don't count toward a working set's number.
+    var shortSetText: String {
+        guard let current = sets.first(where: { $0.progress == .current }) else { return "" }
+        return current.label.hasPrefix("W") ? current.label : "Set \(current.label)"
+    }
 
     /// "Warmup 1 of 2" or "Set 1 of 2". Shared with the in-app rest island so both read the same.
     static func setText(number: Int, count: Int, isWarmup: Bool) -> String {
@@ -72,8 +91,20 @@ nonisolated struct ActivitySet: Codable, Hashable {
         return Self.weight(tenthsPounds: weightTenthsPounds, inKilograms: usesKilograms == true)
     }
 
+    /// "lb" or "kg".
+    var unitText: String { usesKilograms == true ? "kg" : "lb" }
+
+    /// e.g. "225 lb", "102.5 kg", "BW" or "–".
+    func weightWithUnit(repsOnly: Bool) -> String {
+        let weight = weightText(repsOnly: repsOnly)
+        guard !repsOnly, let weightTenthsPounds, weightTenthsPounds != 0 else { return weight }
+        return "\(weight) \(unitText)"
+    }
+
     /// e.g. "225" or "102.5". `WeightUnit` isn't compiled into the widget, so the conversion lives here too.
+    /// Only loadable bodyweight keeps a weight of 0, so 0 is "BW": bodyweight alone.
     static func weight(tenthsPounds: Int, inKilograms: Bool) -> String {
+        if tenthsPounds == 0 { return "BW" }
         let pounds = Double(tenthsPounds) / 10
         let weight = inKilograms ? pounds * 0.45359237 : pounds
         return weight.formatted(.number.precision(.fractionLength(0...1)))
@@ -94,11 +125,16 @@ struct CompleteSetIntent: LiveActivityIntent {
     @Parameter(title: "Set")
     var setOrder: Int
 
+    /// Missing on buttons of activities started by an older version.
+    @Parameter(title: "Workout")
+    var workoutID: String?
+
     init() {}
 
-    init(exerciseOrder: Int, setOrder: Int) {
+    init(exerciseOrder: Int, setOrder: Int, workoutID: String? = nil) {
         self.exerciseOrder = exerciseOrder
         self.setOrder = setOrder
+        self.workoutID = workoutID
     }
 }
 #endif

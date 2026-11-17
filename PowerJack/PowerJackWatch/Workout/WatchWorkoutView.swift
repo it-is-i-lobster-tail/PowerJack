@@ -16,6 +16,14 @@ private enum WorkoutSheet: Identifiable, Hashable {
     case checkIn(WorkoutExercise)
 
     var id: Self { self }
+
+    /// Answered already, here or on the iPhone, so the sheet has nothing left to ask.
+    var isAnswered: Bool {
+        switch self {
+        case .feedback(let workoutExercise): !workoutExercise.needsFeedback
+        case .checkIn(let workoutExercise): !workoutExercise.checkInPending
+        }
+    }
 }
 
 struct WatchWorkoutView: View {
@@ -28,6 +36,8 @@ struct WatchWorkoutView: View {
 
     @State private var page: Int
     @State private var sheet: WorkoutSheet?
+    /// Finish Workout is asking partly logged exercises for feedback, one at a time, before it finishes.
+    @State private var finishesAfterFeedback = false
 
     init(program: Program, workout: Workout, onFinished: @escaping () -> Void) {
         self.program = program
@@ -60,7 +70,7 @@ struct WatchWorkoutView: View {
         .tabViewStyle(.verticalPage)
         .navigationTitle("Day \(workout.order + 1)")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $sheet) { sheet in
+        .sheet(item: $sheet, onDismiss: continueFinishing) { sheet in
             switch sheet {
             case .feedback(let workoutExercise):
                 WatchFeedbackView(workoutExercise: workoutExercise) { finishedSheet() }
@@ -70,6 +80,11 @@ struct WatchWorkoutView: View {
         }
         .onAppear(perform: presentSheetIfNeeded)
         .onChange(of: page) { presentSheetIfNeeded() }
+        .onChange(of: workout.currentSet?.workoutSet.id) { followSuperset() }
+        // The iPhone answered the open sheet first: close it and move on, as if answered here.
+        .onChange(of: sheet?.isAnswered == true) { _, isAnswered in
+            if isAnswered { finishedSheet() }
+        }
         .task(id: workout.currentRest?.endsAt) {
             await RestAlert.schedule(for: workout.currentRest)
         }
@@ -83,15 +98,24 @@ struct WatchWorkoutView: View {
         save()
         if workoutExercise.needsFeedback {
             sheet = .feedback(workoutExercise)
-        } else if workoutExercise.isDone || isPartnersTurn(after: workoutExercise) {
+        } else if workoutExercise.isDone {
             advance()
         }
     }
 
-    /// In a superset, the next set belongs to another exercise in it.
-    private func isPartnersTurn(after workoutExercise: WorkoutExercise) -> Bool {
-        guard let next = workout.currentSet?.workoutExercise else { return false }
-        return workoutExercise.supersetPartners.contains { $0 === next }
+    /// In a superset, moves to the exercise whose turn it is once a set is logged, here or on the iPhone.
+    /// After the round's last exercise that's back to the first, with the rest counting down.
+    private func followSuperset() {
+        guard
+            sheet == nil,
+            let exerciseOnScreen,
+            let next = workout.currentSet?.workoutExercise,
+            exerciseOnScreen.supersetPartners.contains(where: { $0 === next }),
+            let index = exercises.firstIndex(where: { $0 === next })
+        else { return }
+        withAnimation {
+            page = index
+        }
     }
 
     /// Feedback or a check-in waits on the exercise on screen, e.g. after relaunching mid-workout.
@@ -107,7 +131,7 @@ struct WatchWorkoutView: View {
     private func finishedSheet() {
         save()
         sheet = nil
-        if exerciseOnScreen?.isDone == true {
+        if !finishesAfterFeedback, exerciseOnScreen?.isDone == true {
             advance()
         }
     }
@@ -118,8 +142,27 @@ struct WatchWorkoutView: View {
         }
     }
 
-    /// Skips anything still unlogged, then moves the program on. Finishing a week plans the next one.
+    /// Skips anything still unlogged and asks each partly logged exercise for its feedback, as the
+    /// iPhone does, then moves the program on. Finishing a week plans the next one.
     private func finish() {
+        sync.perform { $0.skipRemainingSets(of: workout) }
+        finishesAfterFeedback = true
+        askFeedbackOrFinish()
+    }
+
+    /// Runs as each sheet closes, to ask the next question while Finish Workout is waiting on feedback.
+    private func continueFinishing() {
+        if finishesAfterFeedback { askFeedbackOrFinish() }
+    }
+
+    /// Asks the next unrated exercise's feedback, and finishes once none is left.
+    private func askFeedbackOrFinish() {
+        if let unrated = exercises.first(where: \.needsFeedback) {
+            // A sheet still closing comes back here when it's gone.
+            if sheet == nil { sheet = .feedback(unrated) }
+            return
+        }
+        finishesAfterFeedback = false
         sync.perform { $0.finish(workout, in: program) }
         WorkoutMirroring.shared.end()
         Task { await RestAlert.schedule(for: nil) }
@@ -127,6 +170,6 @@ struct WatchWorkoutView: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("watch workout")
     }
 }

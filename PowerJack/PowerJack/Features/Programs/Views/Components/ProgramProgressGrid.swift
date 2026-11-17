@@ -51,7 +51,7 @@ struct ProgramProgressGrid: View {
                     let workouts = programWeek.workouts
 
                     GridRow {
-                        Text("W\(week)")
+                        Text("Wk \(week)")
                             .font(.caption)
                             .foregroundStyle(week == highlightedWeek ? .primary : .secondary)
                             .fixedSize()
@@ -90,7 +90,7 @@ struct ProgramProgressGrid: View {
         withAnimation {
             program.restoreWorkout(workout)
         }
-        try? modelContext.save()
+        modelContext.saveTraced("workout restored")
     }
 
     /// Builds speed slowly, then stops hard on the new week with no overshoot.

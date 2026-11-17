@@ -31,6 +31,10 @@ enum ManualCheckInDecision: String, CaseIterable, Identifiable {
 final class WorkoutExercise {
     @Relationship(deleteRule: .nullify, inverse: \Exercise.workoutExercisesValue)
     private var exerciseValue: Exercise?
+    // A one-time substitute for this workout only (see `WorkoutExercise+Substitute`). `exercise` stays the
+    // planned exercise, so progression, later weeks and templates keep following it.
+    @Relationship(deleteRule: .nullify, inverse: \Exercise.substitutedWorkoutExercisesValue)
+    var substituteValue: Exercise?
     private var orderValue: Int = 0
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSet.workoutExerciseValue)
     private var workoutSetsValue: [WorkoutSet]? = []
@@ -42,7 +46,7 @@ final class WorkoutExercise {
     private var checkInSourcePainValue: LevelOfPain?
     // Turned on from the warmup menu. Only this exercise on this program day starts on its working sets.
     private var warmupsDisabledValue: Bool = false
-    // How many warmups Enable Warmup brings back. Set when the user starts removing them.
+    // How many warmups Turn On Warmups brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
     // Shared by the exercises stacked into one superset in the template. Nil when the exercise stands alone.
     private var supersetIDValue: UUID?
@@ -156,6 +160,11 @@ extension WorkoutExercise {
     var completedWorkingSets: Int {
         workingSets.count(where: { $0.status == .complete })
     }
+    /// e.g. "2 of 3 sets" or "0 of 1 set".
+    var workingSetsDoneText: String {
+        let count = workingSets.count
+        return "\(completedWorkingSets) of \(count) \(count == 1 ? "set" : "sets")"
+    }
     /// 1-based position within the set's own type, e.g. the first working set is 1 after two warmups.
     func number(of workoutSet: WorkoutSet) -> Int {
         let sameType = workoutSet.isWarmup ? warmupSets : workingSets
@@ -198,12 +207,17 @@ extension WorkoutExercise {
     var isDone: Bool {
         isFinished || (allSetsDone() && !needsFeedback)
     }
-    // Every set is logged but the user has not rated the exercise yet.
+    // Every set is logged but the user has not rated the exercise yet, or has logged more working sets
+    // since they last rated it, so the rating no longer covers all the work.
     var needsFeedback: Bool {
-        feedbackValue == nil &&
-            (status == .active || status == .skipped) &&
+        (status == .active || status == .skipped) &&
             allSetsDone() &&
-            completedWorkingSets > 0
+            completedWorkingSets > 0 &&
+            feedbackValue?.covers(completedSets: completedWorkingSets) != true
+    }
+    /// A set was logged, or the exercise was finished or skipped. Edit Days never takes it out of a workout in progress.
+    var hasLoggedWork: Bool {
+        status == .complete || status == .skipped || workoutSets.contains { $0.status == .complete }
     }
     // Every working set is complete or skipped. Warmups are optional and don't count.
     func allSetsDone() -> Bool {
@@ -260,6 +274,7 @@ extension WorkoutExercise {
         statusValue = Status.skipped
         lockedValue = true
         Logger.workoutExercise.debug("WorkoutExercise skipped")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func start() {
         guard
@@ -316,6 +331,7 @@ extension WorkoutExercise {
         statusValue = Status.active
         unskipSets()
         Logger.workoutExercise.debug("WorkoutExercise restored")
+        TraceLog.record(.workout, "Restored \(traceDescription)")
     }
     /// Warmups passed over by a logged working set stay skipped.
     private func unskipSets() {
@@ -368,19 +384,25 @@ extension WorkoutExercise {
         if statusValue == .skipped {
             statusValue = .active
         }
-        let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
+        let lastSet = (type == .warmup ? warmupSets : workingSets).last
         let newSet = WorkoutSet(
             order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
-            plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
+            plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSet?.weightTenthsPounds,
         )
-        // Sets of an upcoming workout stay planned until the workout starts.
+        append(newSet)
+        // A set added to a substitute reads as one more of the planned exercise's sets.
+        if substituteValue != nil {
+            newSet.keepOriginalPlannedWeight(lastSet?.originalPlannedWeightTenthsPounds)
+        }
+        // Sets of an upcoming workout stay planned until the workout starts. Started once it's in the
+        // exercise, so a loadable bodyweight set starts at bodyweight.
         if status != .planned {
             newSet.start()
         }
-        append(newSet)
         Logger.workoutExercise.debug("Added new WorkoutSet to WorkoutExercise")
+        TraceLog.record(.workout, "Added a \(type.rawValue) set to \(traceDescription)")
         return newSet
     }
     /// Adds a warmup from the set menu. Turns warmups back on for this exercise on this day.
@@ -445,7 +467,8 @@ extension WorkoutExercise {
     /// still to do, so the workout moves on to the next working set instead of back to them.
     /// Every log writes a `SetReceipt` naming the device it was made on.
     func completeSet(_ workoutSet: WorkoutSet, at date: Date = .now, on device: String = SyncDevice.current) {
-        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(before: date))
+        // Logging a set also ends a pause.
+        workoutSet.complete(at: date, startedAt: workoutValue?.setClockStart(loggedAt: date))
         if workoutSet.status == .complete {
             modelContext?.insert(SetReceipt(for: workoutSet, device: device))
         }
@@ -516,9 +539,11 @@ extension WorkoutExercise {
         warmupsDisabledValue = source.warmupsDisabledValue
     }
     /// Stacks a planned exercise into the template's superset. Call before the workout starts.
+    /// Changes while the exercise is planned, or while its workout is in progress (Edit Days). Logged sets stay as they are.
     func setSuperset(_ supersetID: UUID?) {
-        guard status == .planned else {
-            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise.")
+        guard status == .planned || workoutValue?.status == .active else {
+            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise or one in a workout in progress.")
+            TraceLog.record(.workout, "Refused superset change for \(traceDescription): workout not planned or in progress")
             return
         }
         supersetIDValue = supersetID
@@ -531,11 +556,13 @@ extension WorkoutExercise {
     func setProgression(rirTarget: Int?, code: String?, note: String?) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only set the progression of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused progression for \(traceDescription): not planned")
             return
         }
         rirTargetValue = rirTarget
         progressionCodeValue = code
         progressionNoteValue = note
+        TraceLog.record(.workout, "Progression for \(traceDescription): \(code ?? "no code"), reps left target \(rirTarget.map(String.init) ?? "none")")
     }
     /// Records Strengthen's slot targets on a planned exercise. A priority lift's first working set is its top set,
     /// rated on its own like a PowerJack TOP set, so it shares those fields.
@@ -591,8 +618,12 @@ extension WorkoutExercise {
     func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only replace the sets of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused new sets for \(traceDescription): not planned")
             return
         }
+        let before = workingSets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPlannedPounds, reps: $0.repsPlanned) }
+        let after = sets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPounds, reps: $0.reps) }
+        TraceLog.record(.workout, "Replanned \(traceDescription): \(before.joined(separator: ", ")) → \(after.joined(separator: ", "))")
         for workingSet in workingSets {
             workoutSetsValue?.removeAll { $0 === workingSet }
             modelContext?.delete(workingSet)
@@ -632,20 +663,21 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
     /// At least one working set always stays. Every warmup can go.
+    /// Only a last set with nothing logged can go, so Remove Last Set never throws away a logged set.
     func canRemoveSet(type: SetType) -> Bool {
-        switch type {
-        case .warmup: !lockedValue && !warmupSets.isEmpty
-        case .working: !lockedValue && workingSets.count > Self.minSets
-        }
+        let sets = type == .warmup ? warmupSets : workingSets
+        guard !lockedValue, let last = sets.last, last.status != .complete else { return false }
+        return type == .warmup || sets.count > Self.minSets
     }
     /// Removes the last set of `type`. Sets of the other type stay.
-    /// Removing the last warmup turns warmups off, and Enable Warmup brings them all back.
+    /// Removing the last warmup turns warmups off, and Turn On Warmups brings them all back.
     func removeLastSet(type: SetType = .working) {
         guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
-            Logger.workoutExercise.warning("Cannot remove a set from a locked WorkoutExercise, or its last working set.")
+            Logger.workoutExercise.warning("Cannot remove a logged set, a set from a locked WorkoutExercise, or its last working set.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
+        TraceLog.record(.workout, "Removing \(lastSet.traceDescription) from \(traceDescription)")
         if type == .warmup { rememberWarmupCount() }
         workoutSetsValue?.removeAll { $0 === lastSet }
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
@@ -667,7 +699,9 @@ extension WorkoutExercise {
             return
         }
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
+        TraceLog.record(.workout, "Changing \(traceDescription) to \(newExercise.traceName)")
         exerciseValue = newExercise
+        substituteValue = nil
         // A replacement is a new exercise, so it starts with warmups again.
         warmupsDisabledValue = false
         warmupRestoreCountValue = nil
@@ -696,6 +730,9 @@ extension WorkoutExercise {
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
     }
+    func replaceDuplicateSubstitute(with survivor: Exercise) {
+        substituteValue = survivor
+    }
     /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
     /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.
     /// It stops at the first set that's done or has a weight of its own, and warmup weights never reach working sets.
@@ -706,13 +743,37 @@ extension WorkoutExercise {
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }
-    /// Feedback is recorded once every set is done, including after "Skip Exercise".
+    /// Feedback is recorded once every set is done, including after "Skip Exercise". It remembers how many
+    /// working sets were complete, so logging more afterwards asks again. A new answer replaces the old one.
     func addFeedback(feedback: ExerciseFeedback) {
         guard allSetsDone(), status == .active || status == .skipped else {
             Logger.workoutExercise.debug("Cannot add feedback before every set is done")
             return
         }
+        feedback.recordCompletedSets(completedWorkingSets)
+        if let previous = feedbackValue, previous !== feedback {
+            feedbackValue = nil
+            modelContext?.delete(previous)
+        }
         feedbackValue = feedback
+    }
+
+    /// Saves the lifter's answers to the feedback questions, with the top set's rating when it was asked.
+    /// The first answer stands: one from the other device that lands later never replaces it. Once more working
+    /// sets are logged the exercise asks again, and that answer replaces the earlier one.
+    /// - Returns: false when the exercise wasn't waiting on feedback, e.g. it was answered on the other device.
+    @discardableResult
+    func answerFeedback(_ feedback: ExerciseFeedback, topSet: RepsInReserve?) -> Bool {
+        guard needsFeedback else {
+            Logger.workoutExercise.info("Feedback was already answered or isn't needed yet")
+            return false
+        }
+        if let topSet, topSets > 0 {
+            rateTopSets(topSet)
+        }
+        addFeedback(feedback: feedback)
+        TraceLog.record(.workout, "Answered feedback for \(traceDescription)")
+        return true
     }
 }
 
@@ -737,6 +798,7 @@ extension WorkoutExercise {
         return WorkoutExerciseState(
             syncID: syncIDValue,
             exerciseKey: exerciseValue?.syncKey,
+            substituteKey: substituteValue?.syncKey,
             order: orderValue,
             status: statusValue,
             locked: lockedValue,
@@ -771,9 +833,10 @@ extension WorkoutExercise {
     }
 
     /// Makes this row match the iPhone's copy of it. Sets are matched by the caller.
-    func apply(_ state: WorkoutExerciseState, exercise: Exercise?) {
+    func apply(_ state: WorkoutExerciseState, exercise: Exercise?, substitute: Exercise?) {
         syncIDValue = state.syncID
         if let exercise { exerciseValue = exercise }
+        substituteValue = substitute
         orderValue = state.order
         statusValue = state.status
         lockedValue = state.locked
@@ -832,6 +895,9 @@ extension WorkoutExercise {
         }
         if powerJackTopRIRValue == nil {
             powerJackTopRIRValue = other.powerJackTopRIRValue
+        }
+        if substituteValue == nil {
+            substituteValue = other.substituteValue
         }
         SyncMerge.fold(
             other.workoutSets,

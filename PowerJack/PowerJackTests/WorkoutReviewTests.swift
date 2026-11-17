@@ -35,7 +35,114 @@ struct WorkoutReviewTests {
         extra.reps = 8
         extra.weightTenthsPounds = 1000
         extra.complete()
-        // The rating already given still counts, so it isn't asked for again.
+        // The rating given before the extra set no longer covers all the work, so it's asked again.
+        #expect(exercise.needsFeedback)
+        #expect(!exercise.isDone)
+    }
+
+    @Test("Sets added and logged after rating ask again, and the new answer replaces the old one")
+    func feedbackAskedAgainAfterMoreSets() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        let context = container.mainContext
+        logWorkingSets(of: exercise)
+        let logged = exercise.completedWorkingSets
+        #expect(exercise.needsFeedback)
+        #expect(exercise.answerFeedback(ExerciseFeedback(levelOfEffort: .easy, levelOfPain: .none), topSet: nil))
+        #expect(exercise.feedback?.completedSets == logged)
+
+        // Two more sets, then the last one is removed again, and only the one left is logged.
+        _ = try #require(exercise.addSet())
+        _ = try #require(exercise.addSet())
+        exercise.removeLastSet()
+        #expect(exercise.workingSets.count == logged + 1)
+        #expect(!exercise.needsFeedback)
+        let extra = try #require(exercise.workingSets.last)
+        extra.reps = 8
+        extra.weightTenthsPounds = 1000
+        exercise.completeSet(extra)
+
+        #expect(exercise.needsFeedback)
+        #expect(!exercise.isDone)
+        #expect(workout.currentExerciseIndex == 0)
+        #expect(exercise.answerFeedback(ExerciseFeedback(levelOfEffort: .veryHard, levelOfPain: .mild), topSet: nil))
+        #expect(exercise.feedback?.levelOfEffort == .veryHard)
+        #expect(exercise.feedback?.completedSets == logged + 1)
+        #expect(!exercise.needsFeedback)
+        #expect(exercise.isDone)
+        try context.save()
+        // The first answer's row is gone, not left behind.
+        #expect(try context.fetchCount(FetchDescriptor<ExerciseFeedback>()) == 1)
+    }
+
+    @Test("Logging one of two added sets, then removing the other, asks again")
+    func feedbackAskedAgainWhenUnloggedSetRemoved() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        logWorkingSets(of: exercise)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+
+        let logged = try #require(exercise.addSet())
+        _ = try #require(exercise.addSet())
+        logged.reps = 8
+        logged.weightTenthsPounds = 1000
+        exercise.completeSet(logged)
+        // The second added set is still open, so the lifter isn't done yet.
+        #expect(!exercise.needsFeedback)
+
+        exercise.removeLastSet()
+
+        #expect(exercise.allSetsDone())
+        #expect(exercise.needsFeedback)
+        #expect(!exercise.isDone)
+    }
+
+    @Test("A set added after rating but skipped, not logged, doesn't ask again")
+    func addedSetSkippedKeepsFeedback() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        logWorkingSets(of: exercise)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+
+        _ = try #require(exercise.addSet())
+        exercise.skipRemainingSets()
+
+        #expect(!exercise.needsFeedback)
+        #expect(exercise.isDone)
+    }
+
+    @Test("Unchecking and logging a set again after rating doesn't ask again")
+    func relogKeepsFeedback() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        logWorkingSets(of: exercise)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        let last = try #require(exercise.workingSets.last)
+
+        last.start()
+        #expect(!exercise.isDone)
+        last.complete()
+
+        #expect(!exercise.needsFeedback)
+        #expect(exercise.isDone)
+    }
+
+    @Test("A rating saved before the set count was kept isn't asked again")
+    func olderFeedbackStands() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        logWorkingSets(of: exercise)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+        let feedback = try #require(exercise.feedback)
+        var older = feedback.syncState
+        older.completedSets = nil
+        feedback.apply(older)
+
+        let extra = try #require(exercise.addSet())
+        extra.reps = 8
+        extra.weightTenthsPounds = 1000
+        extra.complete()
+
         #expect(!exercise.needsFeedback)
         #expect(exercise.isDone)
     }

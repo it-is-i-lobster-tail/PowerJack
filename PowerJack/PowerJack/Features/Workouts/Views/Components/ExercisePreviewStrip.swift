@@ -18,6 +18,8 @@ struct ExercisePreviewStrip: View {
     private static let underlineGap: CGFloat = 6
 
     @Binding var selectedExerciseIndex: Int?
+    /// Tapping the exercise already selected, so the pages can come back to it.
+    var onReselect: () -> Void = {}
 
     var body: some View {
         // Three whole cards fit on screen, so nothing is left half cut off.
@@ -29,7 +31,7 @@ struct ExercisePreviewStrip: View {
                 HStack(spacing: spacing) {
                     ForEach(workoutExercises.indices, id: \.self) { index in
                         card(
-                            workoutExercises[index].exercise?.exerciseName ?? "",
+                            workoutExercises[index].shownExercise?.exerciseName ?? "",
                             index: index,
                             isDone: workoutExercises[index].isDone,
                             width: cardWidth
@@ -70,6 +72,8 @@ struct ExercisePreviewStrip: View {
             }
         }
         .frame(height: 75)
+        // The cards keep their size, so their names stop growing where they still fit.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     /// Changes when the strip is laid out or resized, but not when it is scrolled.
@@ -77,7 +81,7 @@ struct ExercisePreviewStrip: View {
         [geometry.contentSize.width, geometry.containerSize.width, geometry.contentInsets.leading]
     }
 
-    /// Selected is solid blue, done exercises are tinted blue, the rest stay plain.
+    /// Selected is solid blue, done exercises are tinted blue with a check, the rest stay plain.
     private func card(_ title: String, index: Int, isDone: Bool, width: CGFloat) -> some View {
         let isSelected = selectedExerciseIndex == index
 
@@ -85,10 +89,20 @@ struct ExercisePreviewStrip: View {
             selectExercise(at: index)
         } label: {
             Text(title)
-                .font(isSelected ? .default : .caption2)
-                .fontWeight(isSelected ? .medium : .thin)
+                .font(isSelected ? .default : .caption)
+                .fontWeight(.medium)
                 .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
                 .frame(width: width, height: 54)
+                // Done is marked with more than color.
+                .overlay(alignment: .topTrailing) {
+                    if isDone {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+                            .padding(4)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .background(
                     RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
                         .fill(
@@ -121,6 +135,10 @@ struct ExercisePreviewStrip: View {
     }
 
     private func selectExercise(at index: Int) {
+        guard index != selectedExerciseIndex else {
+            onReselect()
+            return
+        }
         withAnimation(.easeInOut(duration: 0.325)) {
             selectedExerciseIndex = index
         }

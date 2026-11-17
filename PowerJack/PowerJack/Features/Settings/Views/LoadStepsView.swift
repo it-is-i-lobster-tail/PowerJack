@@ -11,6 +11,11 @@ struct LoadStepsView: View {
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
 
     var body: some View {
+        content.traceScreen("Load Steps")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Form {
             Section {
                 ForEach(Equipment.allCases.filter { $0 != .bodyweight }) { equipment in
@@ -46,20 +51,6 @@ private struct LoadStepRow: View {
                 Text("\(option.formatted(.number.precision(.fractionLength(0...2)))) \(unit.symbol)")
                     .tag(option)
             }
-        }
-    }
-}
-
-private extension Equipment {
-    var displayName: String {
-        switch self {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .bodyweight: "Bodyweight"
-        case .cable: "Cable"
-        case .machine: "Machine"
-        case .kettlebell: "Kettlebell"
-        case .legPress: "Leg Press"
         }
     }
 }

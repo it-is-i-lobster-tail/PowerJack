@@ -16,6 +16,10 @@ struct TemplateBuilder: View {
     private let lockedDays: [Int: LockedDay]
     /// A line shown above a day's exercises, like why a running program's edit starts next week.
     private let dayNotes: [Int: String]
+    /// Exercises with sets logged in a workout in progress. They show a check and can't be removed.
+    private let loggedExercises: Set<UUID>
+    /// A running program's days each keep at least one exercise, since a workout can't run empty.
+    private let keepsOneExercisePerDay: Bool
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -30,7 +34,9 @@ struct TemplateBuilder: View {
     init(
         draft: Binding<TemplateProgramDraft>,
         lockedDays: [Int: LockedDay] = [:],
-        dayNotes: [Int: String] = [:]
+        dayNotes: [Int: String] = [:],
+        loggedExercises: Set<UUID> = [],
+        keepsOneExercisePerDay: Bool = false
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -44,6 +50,8 @@ struct TemplateBuilder: View {
         _draft = draft
         self.lockedDays = lockedDays
         self.dayNotes = dayNotes
+        self.loggedExercises = loggedExercises
+        self.keepsOneExercisePerDay = keepsOneExercisePerDay
         _options = State(initialValue: initialOptions)
         _selection = State(initialValue: initialOptions[0])
     }
@@ -110,6 +118,8 @@ struct TemplateBuilder: View {
                     // the exercise rows, so swipe to edit or delete never flips the day.
                     TemplateWorkoutBuilder(
                         templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
+                        loggedExercises: loggedExercises,
+                        keepsOneExercise: keepsOneExercisePerDay,
                         handleEdit: handleShowEditExerciseSheet
                     )
                     .id(selection.id)
@@ -188,8 +198,13 @@ private struct TemplateBuilderPreviewContent: View {
 struct TemplateWorkoutBuilder: View {
     
     @Binding var templateWorkoutDraft: TemplateWorkoutDraft
+    var loggedExercises: Set<UUID> = []
+    /// The day's last exercise stays, with a note saying why.
+    var keepsOneExercise = false
     
     let handleEdit: (Exercise) -> Void
+
+    @State private var isExplainingLastExercise = false
 
     /// The exercise waiting to be added to a superset, once the day has one to choose from.
     @State private var exerciseToSuperset: TemplateExerciseBlock?
@@ -226,6 +241,11 @@ struct TemplateWorkoutBuilder: View {
         .scrollContentBackground(.hidden)
         .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
         .powerJackGlassCard(interactive: true)
+        .alert("A Day Needs an Exercise", isPresented: $isExplainingLastExercise) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Add another exercise before you remove this one. To take the day off, skip its workout instead.")
+        }
         .sheet(
             isPresented: Binding(
                 get: { supersetToEdit != nil },
@@ -253,7 +273,8 @@ struct TemplateWorkoutBuilder: View {
             } label: {
                 SupersetBuilder(
                     letter: templateWorkoutDraft.supersetLetter(for: block),
-                    exercises: block.exercises.map(\.exercise)
+                    exercises: block.exercises.map(\.exercise),
+                    logged: block.exercises.map { loggedExercises.contains($0.id) }
                 )
                 .contentShape(.rect)
             }
@@ -266,7 +287,8 @@ struct TemplateWorkoutBuilder: View {
                 }
         } else {
             let templateExerciseDraft = block.exercises[0]
-            TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise)
+            let isLogged = loggedExercises.contains(templateExerciseDraft.id)
+            TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise, isLogged: isLogged)
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
                         superset(block)
@@ -276,12 +298,19 @@ struct TemplateWorkoutBuilder: View {
                     .tint(.indigo)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button {
-                        templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                    } label: {
-                        Label("Trash", systemImage: "trash")
+                    // Logged sets are never thrown away.
+                    if !isLogged {
+                        Button {
+                            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
+                                isExplainingLastExercise = true
+                            } else {
+                                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+                            }
+                        } label: {
+                            Label("Trash", systemImage: "trash")
+                        }
+                        .tint(.red)
                     }
-                    .tint(.red)
 
                     Button {
                         handleEdit(templateExerciseDraft.exercise)
@@ -342,13 +371,11 @@ extension TemplateWorkoutBuilder {
 
 struct TemplateExerciseBuilder: View {
     let exercise: Exercise
+    var isLogged = false
 
     var body: some View {
-        HStack {
-            TemplateExerciseLabel(exercise: exercise)
-            Spacer()
-        }
-        .powerJackGlassPanel()
+        TemplateExerciseLabel(exercise: exercise, isLogged: isLogged)
+            .powerJackGlassPanel()
     }
 }
 
@@ -356,6 +383,8 @@ struct TemplateExerciseBuilder: View {
 struct SupersetBuilder: View {
     let letter: String
     let exercises: [Exercise]
+    /// Whether each exercise has sets logged in a workout in progress.
+    var logged: [Bool] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -376,7 +405,7 @@ struct SupersetBuilder: View {
                     Divider()
                         .padding(.horizontal, 15)
                 }
-                TemplateExerciseLabel(exercise: exercises[index])
+                TemplateExerciseLabel(exercise: exercises[index], isLogged: logged.indices.contains(index) && logged[index])
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -384,17 +413,32 @@ struct SupersetBuilder: View {
     }
 }
 
-/// An exercise's name, equipment and main muscle.
+/// An exercise's name, equipment and main muscle, with a check once it has sets logged in a workout in progress.
 struct TemplateExerciseLabel: View {
     let exercise: Exercise
+    var isLogged = false
 
     var body: some View {
+        HStack {
+            details
+            Spacer()
+            if isLogged {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.blue)
+                    .accessibilityLabel("Logged")
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 8)
+    }
+
+    private var details: some View {
         VStack(alignment: .leading) {
             Text(exercise.exerciseName.localizedCapitalized)
                 .foregroundStyle(.blue)
 
             HStack {
-                Text(exercise.exerciseEquipment.rawValue.localizedCapitalized)
+                Text(exercise.equipment.displayName)
                     .font(.caption)
                     .foregroundStyle(.blue)
                     .foregroundStyle(.secondary)
@@ -408,7 +452,5 @@ struct TemplateExerciseLabel: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 8)
     }
 }

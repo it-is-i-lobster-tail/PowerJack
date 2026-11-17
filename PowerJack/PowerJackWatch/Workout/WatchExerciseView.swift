@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import WatchKit
 
 struct WatchExerciseView: View {
     private enum Field {
@@ -22,16 +23,13 @@ struct WatchExerciseView: View {
     @State private var entry: SetEntry?
     @FocusState private var focusedField: Field?
 
-    private var exercise: Exercise? { workoutExercise.exercise }
+    private var exercise: Exercise? { workoutExercise.shownExercise }
     private var repsOnly: Bool { exercise?.repsOnly ?? false }
     private var workoutSet: WorkoutSet? { workoutExercise.nextSet }
 
-    /// The rest running before this exercise's next set.
+    /// The rest running before this exercise's next set, or its superset's next round.
     private var rest: RestPeriod? {
-        guard let workout = workoutExercise.workoutValue,
-              workout.currentSet?.workoutExercise === workoutExercise
-        else { return nil }
-        return workout.currentRest
+        workoutExercise.workoutValue?.rest(shownOn: workoutExercise)
     }
 
     var body: some View {
@@ -48,7 +46,7 @@ struct WatchExerciseView: View {
                     .foregroundStyle(.orange)
             } else if let workoutSet, let entry = Binding($entry) {
                 setHeader(workoutSet)
-                valueBoxes(entry)
+                valueBoxes(dial(entry, on: workoutSet))
                 logButtons(workoutSet)
             } else {
                 doneSummary
@@ -59,36 +57,73 @@ struct WatchExerciseView: View {
             entry = workoutSet.map { SetEntry(for: $0) }
             focusedField = repsOnly ? .reps : .weight
         }
+        // Weight or reps entered on the iPhone show here as soon as they arrive.
+        .onChange(of: shownValues) { followSet() }
+        // Out of the way of Log Set, since a skip can't be taken back here.
+        .toolbar {
+            if let workoutSet, workoutSet.isWarmup, !workoutExercise.checkInPending {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Skip Warmups", systemImage: "forward") {
+                        WKInterfaceDevice.current().play(.click)
+                        sync.perform { $0.skipWarmups(of: workoutExercise) }
+                        onSetLogged()
+                    }
+                    .accessibilityLabel("Skip warmups")
+                }
+            }
+        }
     }
 
+    /// What the next set shows: what's entered, else its target.
+    private var shownValues: [Int?] {
+        [workoutSet?.upcomingWeightTenthsPounds, workoutSet?.upcomingReps]
+    }
+
+    /// Starts the dial over from the set when it changed elsewhere. What was dialed in here is
+    /// already in the set, so it's left alone.
+    private func followSet() {
+        guard let workoutSet, let entry, !entry.matches(workoutSet, repsOnly: repsOnly) else { return }
+        self.entry = SetEntry(for: workoutSet)
+    }
+
+    /// The entry the value boxes turn. Each turn is entered on the set, so the iPhone shows it too.
+    private func dial(_ entry: Binding<SetEntry>, on workoutSet: WorkoutSet) -> Binding<SetEntry> {
+        Binding {
+            entry.wrappedValue
+        } set: { newValue in
+            guard newValue != entry.wrappedValue else { return }
+            entry.wrappedValue = newValue
+            sync.performSoon { $0.enter(newValue, on: workoutSet, of: workoutExercise) }
+        }
+    }
+
+    /// The set, and while resting a countdown big enough to read at a glance.
     private func setHeader(_ workoutSet: WorkoutSet) -> some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text(workoutExercise.setText(for: workoutSet))
+                .font(.footnote)
                 .foregroundStyle(workoutSet.isWarmup ? .secondary : .primary)
             Spacer()
             if let rest {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     if rest.isResting(at: context.date) {
-                        Label {
-                            Text(timerInterval: rest.interval, countsDown: true)
-                                .monospacedDigit()
-                        } icon: {
-                            Image(systemName: "timer")
-                        }
-                        .foregroundStyle(.orange)
+                        Text(timerInterval: rest.interval, countsDown: true)
+                            .font(.title2.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel("Rest")
                     }
                 }
             }
         }
-        .font(.footnote)
     }
 
     private func valueBoxes(_ entry: Binding<SetEntry>) -> some View {
         HStack(spacing: 6) {
             if !repsOnly {
                 valueBox(
-                    entry.wrappedValue.weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never)),
-                    unit: entry.wrappedValue.unit.symbol,
+                    entry.wrappedValue.weightText,
+                    unit: entry.wrappedValue.isBodyweight ? "bodyweight" : entry.wrappedValue.unit.symbol,
                     field: .weight
                 )
                 .digitalCrownRotation(
@@ -144,27 +179,19 @@ struct WatchExerciseView: View {
     }
 
     private func logButtons(_ workoutSet: WorkoutSet) -> some View {
-        HStack(spacing: 6) {
-            if workoutSet.isWarmup {
-                Button("Skip Warmups", systemImage: "forward") {
-                    sync.perform { $0.skipWarmups(of: workoutExercise) }
-                    onSetLogged()
-                }
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Skip warmups")
-            }
-
-            Button("Log Set", systemImage: "checkmark") {
-                guard let entry else { return }
-                sync.perform { $0.log(entry, on: workoutSet, of: workoutExercise) }
-                onSetLogged()
-            }
-            .labelStyle(.iconOnly)
-            .tint(.green)
-            .buttonStyle(.borderedProminent)
-            .disabled(entry?.weightTenthsPounds == nil && !repsOnly)
-            .accessibilityLabel("Log \(workoutExercise.setText(for: workoutSet))")
+        Button {
+            guard let entry else { return }
+            WKInterfaceDevice.current().play(.success)
+            sync.perform { $0.log(entry, on: workoutSet, of: workoutExercise) }
+            onSetLogged()
+        } label: {
+            Label("Log Set", systemImage: "checkmark")
+                .frame(maxWidth: .infinity)
         }
+        .tint(.green)
+        .buttonStyle(.borderedProminent)
+        .disabled(entry?.weightTenthsPounds == nil && !repsOnly)
+        .accessibilityLabel("Log \(workoutExercise.setText(for: workoutSet))")
     }
 
     private var doneSummary: some View {
@@ -172,7 +199,7 @@ struct WatchExerciseView: View {
             Image(systemName: workoutExercise.status == .skipped ? "forward.circle.fill" : "checkmark.circle.fill")
                 .font(.title)
                 .foregroundStyle(workoutExercise.status == .skipped ? .secondary : Color.green)
-            Text("\(workoutExercise.completedWorkingSets) of \(workoutExercise.workingSets.count) sets")
+            Text(workoutExercise.workingSetsDoneText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

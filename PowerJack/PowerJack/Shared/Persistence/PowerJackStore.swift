@@ -23,6 +23,11 @@ final class PowerJackStore {
     private(set) var isReplacingContainer = false
 
     private let inMemory: Bool
+    @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
+    /// What the scheduled tidy-up follows, for the trace.
+    @ObservationIgnored private var tidyUpTriggers: Set<String> = []
+    /// At most one tidy-up pass this often, however many changes iCloud or the watch bring.
+    static let tidyUpInterval: Duration = .seconds(1.5)
 
     // The zone SwiftData's CloudKit mirroring writes every record to.
     private static let cloudKitZone = CKRecordZone.ID(zoneName: "com.apple.coredata.cloudkit.zone")
@@ -43,6 +48,7 @@ final class PowerJackStore {
     }
 
     func turnOnICloudBackup() {
+        TraceLog.record(.iCloud, "iCloud Backup: turning on")
         saveBeforeSwitching()
         switchContainer(syncsWithICloud: true)
         Logger.sync.info("iCloud Backup turned on")
@@ -52,19 +58,28 @@ final class PowerJackStore {
     /// If iCloud can't be reached, nothing changes and the error is thrown.
     func turnOffICloudBackup() async throws {
         // Saved before the iCloud copy goes, so the save can't upload into it again.
+        TraceLog.record(.iCloud, "iCloud Backup: turning off, deleting the iCloud copy")
         saveBeforeSwitching()
         do {
             try await CKContainer(identifier: PowerJackSchema.cloudKitContainerID)
                 .privateCloudDatabase
                 .deleteRecordZone(withID: Self.cloudKitZone)
-        } catch let error as CKError where error.code == .zoneNotFound {
-            // Nothing was uploaded yet, so there is nothing to delete.
+        } catch let error as CKError where Self.hasNoCopyToDelete(error) {
+            Logger.sync.info("No iCloud copy to delete: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: no iCloud copy to delete (\(TraceLog.describe(error)))")
         } catch {
             Logger.sync.error("Could not delete the iCloud copy: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: could not delete the iCloud copy, staying on (\(TraceLog.describe(error)))")
             throw error
         }
         switchContainer(syncsWithICloud: false)
         Logger.sync.info("iCloud Backup turned off and the iCloud copy deleted")
+    }
+
+    /// Nothing was uploaded yet, or this iPhone isn't signed in to iCloud, so it backed nothing up
+    /// and backup can be turned off without deleting anything.
+    static func hasNoCopyToDelete(_ error: CKError) -> Bool {
+        error.code == .zoneNotFound || error.code == .notAuthenticated
     }
 
     /// Whether this iPhone is signed in to iCloud, so backup can actually run.
@@ -79,15 +94,26 @@ final class PowerJackStore {
         self.syncsWithICloud = syncsWithICloud
         UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
         isReplacingContainer = true
+        TraceLog.record(.iCloud, "iCloud Backup: screens closing to switch stores, iCloud \(syncsWithICloud ? "on" : "off")")
     }
 
-    /// Opens the container for the current iCloud Backup setting, after a switch.
+    /// Opens the container for the current iCloud Backup setting, after a switch. If it won't open,
+    /// the current container stays and the setting goes back to match it.
     func replaceContainer() {
         guard isReplacingContainer else { return }
-        // A save still scheduled on the old container would run after it closes.
-        container.mainContext.autosaveEnabled = false
-        container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
-        isReplacingContainer = false
+        defer { isReplacingContainer = false }
+        do {
+            let replacement = try Self.openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+            // A save still scheduled on the old container would run after it closes.
+            container.mainContext.autosaveEnabled = false
+            container = replacement
+            TraceLog.record(.iCloud, "iCloud Backup: store opened after the switch (iCloud \(syncsWithICloud ? "on" : "off"))")
+        } catch {
+            Logger.sync.error("Could not open the store after switching iCloud Backup: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: store didn't open after the switch, so the setting goes back (\(TraceLog.describe(error)))")
+            syncsWithICloud.toggle()
+            UserDefaults.standard.set(syncsWithICloud, forKey: AppSettings.Key.iCloudBackup)
+        }
     }
 
     /// The new container reads the same data, so anything not yet saved would be lost.
@@ -96,6 +122,7 @@ final class PowerJackStore {
             try container.mainContext.save()
         } catch {
             Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
+            TraceLog.record(.iCloud, "iCloud Backup: save before the switch failed (\(TraceLog.describe(error)))")
         }
     }
 
@@ -105,16 +132,33 @@ final class PowerJackStore {
     private func mergeDuplicatesAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                self?.mergeCatalogDuplicates()
-                self?.tidyUpAfterSync()
+                self?.scheduleTidyUp(after: "iCloud import")
             }
         }
     }
 
+    /// Tidies up once the changes coming in settle, at most once per `tidyUpInterval`: an iCloud import
+    /// or a workout's worth of watch messages can bring many changes a second.
+    func scheduleTidyUp(after trigger: String) {
+        tidyUpTriggers.insert(trigger)
+        guard scheduledTidyUp == nil else { return }
+        scheduledTidyUp = Task { [weak self] in
+            try? await Task.sleep(for: Self.tidyUpInterval)
+            guard let self else { return }
+            scheduledTidyUp = nil
+            let triggers = tidyUpTriggers.sorted().joined(separator: ", ")
+            tidyUpTriggers = []
+            // The store being replaced can't be read; the new one tidies up after its next import.
+            guard !isReplacingContainer else { return }
+            mergeCatalogDuplicates()
+            tidyUpAfterSync(trigger: triggers)
+        }
+    }
+
     /// See `SyncTidyUp`.
-    func tidyUpAfterSync() {
+    func tidyUpAfterSync(trigger: String) {
         do {
-            try SyncTidyUp.run(in: container.mainContext)
+            try SyncTidyUp.run(in: container.mainContext, trigger: trigger)
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }
@@ -157,14 +201,40 @@ final class PowerJackStore {
         }
     }
 
+    /// Fills the long history with any program that ended before it existed, or while this
+    /// iPhone wasn't the one running it. A failure never stops the app opening: the export tries again.
+    private static func saveEndedPrograms(in context: ModelContext) {
+        do {
+            try HistoryArchive.saveEndedPrograms(in: context)
+        } catch {
+            Logger.persistence.error("Could not save ended programs' history: \(error.localizedDescription)")
+        }
+    }
+
+    /// PowerJack can't run without its store, so only a store that won't open stops the app.
     private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
         do {
-            let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
-            try ExerciseCatalog.seed(in: container.mainContext)
-            try TemplateCatalog.seed(in: container.mainContext)
-            return container
+            return try openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")
+        }
+    }
+
+    private static func openContainer(inMemory: Bool, syncsWithICloud: Bool) throws -> ModelContainer {
+        let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+        seedCatalogs(in: container.mainContext)
+        saveEndedPrograms(in: container.mainContext)
+        return container
+    }
+
+    /// A seed that fails is undone and tried again next launch, so it never keeps the app from opening.
+    private static func seedCatalogs(in context: ModelContext) {
+        do {
+            try ExerciseCatalog.seed(in: context)
+            try TemplateCatalog.seed(in: context)
+        } catch {
+            context.rollback()
+            Logger.persistence.error("Could not seed the built-in catalog, trying again next launch: \(error.localizedDescription)")
         }
     }
 }

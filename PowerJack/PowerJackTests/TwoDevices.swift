@@ -89,7 +89,8 @@ enum ICloud {
         let state = try #require(program.syncState)
         // Exercises come over too, when the store doesn't have them yet.
         let known = Set(try context.fetch(FetchDescriptor<Exercise>()).compactMap(\.syncKey))
-        let used = program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises).compactMap(\.exercise)
+        let rows = program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises)
+        let used = rows.compactMap(\.exercise) + rows.compactMap(\.substitute)
         for exerciseState in Dictionary(used.compactMap { $0.syncState.map { ($0.key, $0) } }, uniquingKeysWith: { first, _ in first }).values
         where !known.contains(exerciseState.key) {
             let exercise = Exercise(snapshot: exerciseState)
@@ -124,7 +125,7 @@ enum ICloud {
         for exerciseState in state.exercises {
             let exercise = try #require(exerciseState.exerciseKey.flatMap { exercises[$0] })
             let workoutExercise = WorkoutExercise(snapshot: exerciseState, exercise: exercise)
-            workoutExercise.apply(exerciseState, exercise: exercise)
+            workoutExercise.apply(exerciseState, exercise: exercise, substitute: exerciseState.substituteKey.flatMap { exercises[$0] })
             workoutExercise.fromSnapshotValue = asSnapshotCopy
             workout.attach(workoutExercise)
             for setState in exerciseState.sets {

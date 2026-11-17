@@ -14,10 +14,20 @@ struct ExerciseNewView: View {
 
     let onSave: (Exercise) -> Void
 
-    @State private var draft = ExerciseDraft()
+    @State private var draft: ExerciseDraft
     @State private var saveErrorMessage: String?
 
+    init(name: String = "", onSave: @escaping (Exercise) -> Void) {
+        self.onSave = onSave
+        _draft = State(initialValue: ExerciseDraft(name: name))
+    }
+
     var body: some View {
+        content.traceScreen("New Exercise")
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ExerciseForm(
             draft: $draft,
             editExistingExercise: false,
@@ -42,5 +52,11 @@ struct ExerciseNewView: View {
 #Preview("ExerciseNew - Default") {
     NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
         ExerciseNewView(onSave: { _ in })
+    }
+}
+
+#Preview("ExerciseNew - From Search") {
+    NavigationPreviewHost(modelContainer: PowerJackSeed.makeInMemoryContainer()) {
+        ExerciseNewView(name: "Landmine Press", onSave: { _ in })
     }
 }

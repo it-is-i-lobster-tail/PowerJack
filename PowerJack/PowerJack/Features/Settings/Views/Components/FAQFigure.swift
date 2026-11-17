@@ -204,7 +204,7 @@ private struct HypertrophyChart: View {
             FlowOutcome(tone: .stepUp, when: "Yes", title: "Add a set", detail: "At the same weight, 3 reps lower. Up to 25 sets a week for each muscle.")
             FlowArrow(label: "No")
             FlowQuestion(title: "Every set near the top of the range?")
-            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "5 lb more, same reps.")
+            FlowOutcome(tone: .stepUp, when: "Yes", title: "Add weight", detail: "One weight step more, same reps.")
             FlowOutcome(tone: .stepUp, when: "Not yet", title: "Add a rep", detail: "One more on every set.", isLast: true)
         }
     }

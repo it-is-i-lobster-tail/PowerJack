@@ -5,15 +5,17 @@
 //  How long a workout, each exercise, and each set took, from stored start and completion times.
 //  A set's clock starts when the set before it was logged anywhere in the workout, so exercises
 //  done back to back (A1, B1, A2, B2) each get the time since the set before.
+//  Time the workout was paused counts toward neither.
 //
 
 import Foundation
 
 extension Workout {
-    /// Time since Start Workout, up to when it ended or `now` while it's running.
+    /// Time since Start Workout, up to when it ended or `now` while it's running. Paused time doesn't count.
     func duration(at now: Date = .now) -> TimeInterval? {
         guard let startedAt else { return nil }
-        return max(0, (endedAt ?? now).timeIntervalSince(startedAt))
+        let end = endedAt ?? pausedAt ?? now
+        return max(0, end.timeIntervalSince(startedAt) - pausedSeconds)
     }
 
     /// Where the clock of a set logged at `date` starts: the latest set logged before it, or the workout's start.
