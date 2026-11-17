@@ -26,6 +26,15 @@ struct FeedbackDraft {
         self.asksTopSet = asksTopSet
     }
 
+    /// The questions `workoutExercise` asks: reps left or effort by its program's type, and its top set
+    /// when that's still unrated.
+    init(for workoutExercise: WorkoutExercise) {
+        self.init(
+            ratesRepsInReserve: workoutExercise.templateType?.ratesRepsInReserve ?? false,
+            asksTopSet: workoutExercise.topSetsNeedRating
+        )
+    }
+
     init(exerciseFeedback: ExerciseFeedback) {
         repsInReserve = exerciseFeedback.repsInReserve
         ratesRepsInReserve = repsInReserve != nil

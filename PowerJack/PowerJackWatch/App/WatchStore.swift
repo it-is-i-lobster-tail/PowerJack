@@ -44,7 +44,7 @@ final class WatchStore {
         container = Self.makeContainer(syncsWithICloud: syncs)
         followICloudBackupSetting()
         tidyUpAfterImports()
-        logSyncErrors()
+        PowerJackSchema.logCloudKitErrors()
     }
 
     private func followICloudBackupSetting() {
@@ -92,20 +92,6 @@ final class WatchStore {
                 } catch {
                     Logger.sync.error("Could not tidy up after an iCloud import: \(error.localizedDescription)")
                 }
-            }
-        }
-    }
-
-    /// iCloud fails quietly, so log every failed sync to make it show up in Console.
-    private func logSyncErrors() {
-        Task {
-            for await notification in NotificationCenter.default.notifications(named: NSPersistentCloudKitContainer.eventChangedNotification) {
-                guard
-                    let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event,
-                    event.endDate != nil,
-                    let error = event.error
-                else { continue }
-                Logger.sync.error("iCloud sync failed: \(String(describing: error), privacy: .public)")
             }
         }
     }

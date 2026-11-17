@@ -22,10 +22,7 @@ struct Feedback: View {
     init(workoutExercise: WorkoutExercise, onFinished: @escaping () -> Void) {
         self.workoutExercise = workoutExercise
         self.onFinished = onFinished
-        _draft = State(initialValue: FeedbackDraft(
-            ratesRepsInReserve: workoutExercise.templateType?.ratesRepsInReserve ?? false,
-            asksTopSet: workoutExercise.topSetsNeedRating
-        ))
+        _draft = State(initialValue: FeedbackDraft(for: workoutExercise))
     }
 
     var body: some View {
