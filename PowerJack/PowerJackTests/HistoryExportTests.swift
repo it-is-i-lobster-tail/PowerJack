@@ -88,14 +88,146 @@ struct HistoryExportTests {
         let url = try HistoryExport.writeFile(from: container.mainContext, unit: .pounds)
         defer { try? FileManager.default.removeItem(at: url) }
         #expect(url.lastPathComponent.hasPrefix("PowerJack History ") && url.pathExtension == "csv")
-        #expect(try String(contentsOf: url, encoding: .utf8).hasPrefix("Program #,Program,"))
+        #expect(try String(contentsOf: url, encoding: .utf8).hasPrefix("Program #,Program ID,Program,"))
+    }
+
+    // MARK: Long view
+
+    @Test("A finished program's sets are saved once, and the export reads the same from them")
+    func finishedProgramIsSaved() throws {
+        let context = container.mainContext
+        let workout = try makeLoggedWorkout()
+        let program = try #require(workout.programWeekValue?.programValue)
+        program.finishWorkout(workout)
+        #expect(program.status == .complete)
+
+        let saved = try HistoryArchive.records(in: context)
+        let setCount = workout.workoutExercises.map(\.workoutSets.count).reduce(0, +)
+        #expect(saved.count == setCount)
+        #expect(saved.allSatisfy { $0.programID == program.syncID && $0.programStatus == .completed })
+        #expect(HistoryExport.csv(for: [], saved: saved, unit: .pounds) == HistoryExport.csv(for: [program], unit: .pounds))
+        #expect(HistoryExport.csv(for: [program], saved: saved, unit: .pounds) == HistoryExport.csv(for: [program], unit: .pounds))
+
+        // Saving again, as the export and each launch do, adds nothing.
+        try HistoryArchive.saveEndedPrograms(in: context)
+        #expect(try context.fetchCount(FetchDescriptor<HistoryRecord>()) == setCount)
+        let rows = records(HistoryExport.csv(for: [program], saved: saved, unit: .pounds))
+        #expect(rows.allSatisfy { $0["Program Status"] == "Completed" && $0["Program ID"] == program.syncID?.uuidString })
+    }
+
+    @Test("A deleted program stays in the export, marked deleted")
+    func deletedProgramStays() throws {
+        let context = container.mainContext
+        let workout = try makeLoggedWorkout()
+        let program = try #require(workout.programWeekValue?.programValue)
+        program.finishWorkout(workout)
+        let id = try #require(program.syncID)
+        let before = records(HistoryExport.csv(for: [program], unit: .pounds))
+
+        try HistoryArchive.programWillBeDeleted(program, in: context)
+        program.delete()
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<Program>()).isEmpty)
+        let url = try HistoryExport.writeFile(from: context, unit: .pounds)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let after = records(try String(contentsOf: url, encoding: .utf8))
+        #expect(after.count == before.count)
+        #expect(after.allSatisfy { $0["Program Status"] == "Deleted" && $0["Program ID"] == id.uuidString })
+        #expect(after.map { $0.filter { $0.key != "Program Status" } } == before.map { $0.filter { $0.key != "Program Status" } })
+    }
+
+    @Test("A program skipped for another is saved as skipped, and deleting it later keeps it")
+    func skippedProgram() throws {
+        let context = container.mainContext
+        let workout = try makeLoggedWorkout()
+        let program = try #require(workout.programWeekValue?.programValue)
+        program.stop()
+        program.stopAndCascade()
+        #expect(try HistoryArchive.records(in: context).allSatisfy { $0.programStatus == .skipped })
+        #expect(try !HistoryArchive.records(in: context).isEmpty)
+
+        try HistoryArchive.programWillBeDeleted(program, in: context)
+        program.delete()
+        try context.save()
+        let rows = records(HistoryExport.csv(for: [], saved: try HistoryArchive.records(in: context), unit: .pounds))
+        #expect(!rows.isEmpty && rows.allSatisfy { $0["Program Status"] == "Deleted" })
+    }
+
+    @Test("A program deleted before any workout started leaves nothing behind")
+    func untrainedProgram() throws {
+        let context = container.mainContext
+        let template = TemplateProgram(templateName: "Push", workoutsPerWeek: 1, templateMuscleFocus: [.chest])
+        _ = template.addTemplateWorkout()
+        context.insert(template)
+        let program = Program(programLengthWeeks: 1, templateProgram: template)
+        try context.insertAndSave(program)
+
+        try HistoryArchive.programWillBeDeleted(program, in: context)
+        program.delete()
+        try context.save()
+        #expect(try context.fetchCount(FetchDescriptor<HistoryRecord>()) == 0)
+    }
+
+    @Test("The running program is read live, marked in progress")
+    func runningProgramIsLive() throws {
+        let context = container.mainContext
+        let workout = try makeLoggedWorkout()
+        let program = try #require(workout.programWeekValue?.programValue)
+
+        let url = try HistoryExport.writeFile(from: context, unit: .pounds)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(try context.fetchCount(FetchDescriptor<HistoryRecord>()) == 0)
+        let rows = records(try String(contentsOf: url, encoding: .utf8))
+        #expect(!rows.isEmpty && rows.allSatisfy { $0["Program Status"] == "In Progress" && $0["Program ID"] == program.syncID?.uuidString })
+    }
+
+    @Test("Programs that ended before the long view existed are saved once, and kept in start order")
+    func backfill() throws {
+        let context = container.mainContext
+        let first = try #require(try makeLoggedWorkout().programWeekValue?.programValue)
+        first.finishWorkout(try #require(first.programWeeks.first?.workouts.first))
+        // As if saved by a version without the long view.
+        for record in try context.fetch(FetchDescriptor<HistoryRecord>()) { context.delete(record) }
+        try context.save()
+        let second = try #require(try makeLoggedWorkout(at: start + 86_400).programWeekValue?.programValue)
+
+        try HistoryArchive.saveEndedPrograms(in: context)
+        try HistoryArchive.saveEndedPrograms(in: context)
+        let saved = try HistoryArchive.records(in: context)
+        #expect(Set(saved.compactMap(\.programID)) == [first.syncID])
+
+        let rows = records(HistoryExport.csv(for: [second, first], saved: saved, unit: .pounds))
+        #expect(rows.filter { $0["Program #"] == "1" }.allSatisfy { $0["Program ID"] == first.syncID?.uuidString })
+        #expect(rows.filter { $0["Program #"] == "2" }.allSatisfy { $0["Program ID"] == second.syncID?.uuidString })
+        #expect(rows.count == HistoryExport.rows(for: first).count + HistoryExport.rows(for: second).count)
+    }
+
+    @Test("When two iPhones saved the same program, the export keeps one copy")
+    func duplicateBatches() throws {
+        let context = container.mainContext
+        let workout = try makeLoggedWorkout()
+        let program = try #require(workout.programWeekValue?.programValue)
+        program.finishWorkout(workout)
+        let rows = HistoryExport.rows(for: program)
+        // The other iPhone's copy, saved a little later, arriving through iCloud.
+        let otherBatch = UUID()
+        for (order, row) in rows.enumerated() {
+            context.insert(HistoryRecord(row, batchID: otherBatch, savedAt: .now + 60, programStarted: start, order: order))
+        }
+        try context.save()
+
+        #expect(try context.fetchCount(FetchDescriptor<HistoryRecord>()) == rows.count * 2)
+        let saved = try HistoryArchive.records(in: context)
+        #expect(saved.count == rows.count && saved.allSatisfy { $0.batchID != otherBatch })
     }
 
     // MARK: Helpers
 
     /// A one-day program: Bench and a weighted dip in a superset, one set of each logged,
     /// the rest skipped, then rated.
-    private func makeLoggedWorkout() throws -> Workout {
+    private func makeLoggedWorkout(at start: Date? = nil) throws -> Workout {
+        let start = start ?? self.start
         let context = container.mainContext
         let bench = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
         let dip = Exercise(exerciseName: #"Dip, "Weighted""#, exerciseEquipment: .loadableBodyweight, primaryMuscleFocus: .chest, userCreated: true)

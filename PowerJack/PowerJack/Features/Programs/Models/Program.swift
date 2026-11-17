@@ -335,6 +335,10 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.completeAndCascade()
         }
+        #if os(iOS)
+        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
+        saveHistory()
+        #endif
     }
     func stopAndCascade() {
         guard status == .stopped else {
@@ -344,6 +348,10 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.stopAndCascade()
         }
+        #if os(iOS)
+        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
+        saveHistory()
+        #endif
     }
     func addProgramWeek() -> ProgramWeek? {
         guard

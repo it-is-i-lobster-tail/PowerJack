@@ -62,6 +62,7 @@ enum UpgradeCheck {
         check("Own exercises", saved.userExercises, upgraded.userExercises)
         check("Own templates", saved.templates, upgraded.templates)
         problems += try checkSync(context, upgraded: upgraded)
+        problems += try checkHistory(context, upgraded: upgraded)
 
         // The lifter picks up where they left off.
         if let program = try context.fetch(FetchDescriptor<Program>()).active, let workout = program.nextWorkout {
@@ -94,6 +95,35 @@ enum UpgradeCheck {
         guard problems.isEmpty else {
             throw UpgradeProblems(version: version, problems: problems)
         }
+    }
+
+    /// Every program that ended before the update gets its long-view rows on first launch, once,
+    /// and the export still holds every logged set.
+    private static func checkHistory(_ context: ModelContext, upgraded: UpgradeManifest) throws -> [String] {
+        var problems: [String] = []
+        // The app does this as it opens, so an installed upgrade already has the rows.
+        try HistoryArchive.saveEndedPrograms(in: context)
+        let firstCount = try context.fetchCount(FetchDescriptor<HistoryRecord>())
+        try HistoryArchive.saveEndedPrograms(in: context)
+        if try context.fetchCount(FetchDescriptor<HistoryRecord>()) != firstCount {
+            problems.append("Saving ended programs' history twice added rows")
+        }
+
+        let saved = try HistoryArchive.records(in: context)
+        let savedIDs = Set(saved.compactMap(\.programID))
+        let programs = try context.fetch(FetchDescriptor<Program>())
+        for program in programs where program.status == .complete || (program.status == .stopped && program.hasLoggedSets) {
+            let rows = saved.filter { $0.programID != nil && $0.programID == program.syncID }
+            if rows.isEmpty || rows.count != HistoryExport.rows(for: program).count {
+                problems.append("A \(program.status.rawValue) program's history has \(rows.count) of \(HistoryExport.rows(for: program).count) rows")
+            }
+        }
+        let live = programs.filter { $0.syncID.map { !savedIDs.contains($0) } ?? true }.flatMap { HistoryExport.rows(for: $0) }
+        let exportedSets = (saved.map(\.row) + live).filter { $0.setStatus == "Complete" }.count
+        if exportedSets != upgraded.completedSets {
+            problems.append("History export: \(upgraded.completedSets) logged sets before, \(exportedSets) after")
+        }
+        return problems
     }
 
     /// Syncing with the watch changes nothing the lifter did: the iPhone gives the old rows sync IDs as it
