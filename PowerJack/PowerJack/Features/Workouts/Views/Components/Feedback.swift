@@ -69,7 +69,7 @@ struct Feedback: View {
             .padding(.vertical, 28)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             if pendingSave != nil {
                 savedBar
                     .transition(.opacity)

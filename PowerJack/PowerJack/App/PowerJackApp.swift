@@ -50,5 +50,8 @@ struct PowerJackAppContent: View {
         PowerJackRootView()
             .modelContainer(store.container)
             .windowAppearance(appearance)
+            // Content fades softly under the bars instead of stopping at a hard line.
+            // Sheets don't inherit this, so each one with a navigation bar sets it too.
+            .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }

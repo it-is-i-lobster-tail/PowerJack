@@ -69,6 +69,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }
 

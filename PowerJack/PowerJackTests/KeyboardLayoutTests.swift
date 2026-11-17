@@ -26,7 +26,9 @@ struct KeyboardLayoutTests {
         #expect(bottom.after < bottom.before)
     }
 
-    @Test func tabPageStopsAboveTheBottomBar() async throws {
+    /// Content may scroll under the floating bar, but the page's safe area ends above it,
+    /// so anything that respects it (the exercise strip, a Save button) rests clear of the bar.
+    @Test func tabPageSafeAreaEndsAboveTheBottomBar() async throws {
         let bottom = try await bottomEdgeAroundNumberPad(tabPage: .powerJackTabPage, screen: true, showNumberPad: false)
         let withoutBar = try await bottomEdgeAroundNumberPad(tabPage: .none, screen: true, showNumberPad: false)
         #expect(bottom.before == withoutBar.before - Self.barHeight)
@@ -59,6 +61,8 @@ struct KeyboardLayoutTests {
                             ProbeScreen(probe: probe, optsOut: optsOut)
                         }
                     }
+                    // Like the app, which shows its own bar instead of the system tab bar.
+                    .toolbar(.hidden, for: .tabBar)
                     .modifier(TabPage(layout: tabPage, bottomBarHeight: Self.barHeight))
                 }
             }

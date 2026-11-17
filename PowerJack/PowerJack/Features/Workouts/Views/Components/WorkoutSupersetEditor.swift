@@ -66,7 +66,7 @@ struct WorkoutSupersetEditor: View {
                     Button("Done", action: dismiss.callAsFunction)
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 Button(role: .destructive) {
                     workout.removeSuperset(supersetID)
                     save()
@@ -81,6 +81,7 @@ struct WorkoutSupersetEditor: View {
                 .padding(.bottom, LayoutMetrics.compactSpacing)
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
         // Down to one exercise, or removed: the superset has ended, so there's nothing left to show.
         .onChange(of: superset == nil) { _, isGone in
             if isGone { dismiss() }
