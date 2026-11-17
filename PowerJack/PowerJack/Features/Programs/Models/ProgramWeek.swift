@@ -85,32 +85,18 @@ extension ProgramWeek {
         returnBandValue = 0
     }
 
-    func complete() {
+    func complete() { end(as: .complete) }
+    func stop() { end(as: .stopped) }
+    func skip() { end(as: .skipped) }
+    /// Locks the week as `status`. Once locked, it never changes again.
+    private func end(as status: Status) {
         guard !lockedValue else {
-            Logger.programWeek.warning("Cannot complete a locked ProgramWeek.")
+            Logger.programWeek.warning("Cannot end a locked ProgramWeek as \(status.rawValue).")
             return
         }
-        statusValue = Status.complete
+        statusValue = status
         lockedValue = true
-        Logger.programWeek.debug("Completed ProgramWeek")
-    }
-    func stop() {
-        guard !lockedValue else {
-            Logger.programWeek.warning("Cannot stop a locked ProgramWeek.")
-            return
-        }
-        statusValue = Status.stopped
-        lockedValue = true
-        Logger.programWeek.debug("Stopped ProgramWeek")
-    }
-    func skip() {
-        guard !lockedValue else {
-            Logger.programWeek.warning("Cannot skip a locked ProgramWeek.")
-            return
-        }
-        statusValue = Status.skipped
-        lockedValue = true
-        Logger.programWeek.debug("Skipped ProgramWeek")
+        Logger.programWeek.debug("ProgramWeek ended as \(status.rawValue)")
     }
     func start() {
         guard
@@ -143,7 +129,6 @@ extension ProgramWeek {
     }
     func startAndCascade() {
         start()
-
         for workout in workouts {
             workout.startAndCascade()
         }

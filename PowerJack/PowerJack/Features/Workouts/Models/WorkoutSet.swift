@@ -40,7 +40,7 @@ final class WorkoutSet {
     ) {
         self.orderValue = order
         self.setTypeValue = setType.rawValue
-        self.repsPlannedValue = plannedReps.flatMap { Self.isValidReps($0) ? $0 : nil }
+        self.repsPlannedValue = Self.validReps(plannedReps)
         self.weightTenthsPoundsPlannedValue = plannedWeightTenthsPounds
         self.statusValue = .planned
         self.lockedValue = false
@@ -65,12 +65,7 @@ extension WorkoutSet {
         get { repsValue }
         set {
             guard status == .active else { return }
-
-            if let newValue, Self.isValidReps(newValue) {
-                repsValue = newValue
-            } else {
-                repsValue = nil
-            }
+            repsValue = Self.validReps(newValue)
         }
     }
     // Reps Planned
@@ -78,12 +73,7 @@ extension WorkoutSet {
         get { repsPlannedValue }
         set {
             guard status == .active else { return }
-
-            if let newValue, Self.isValidReps(newValue) {
-                repsPlannedValue = newValue
-            } else {
-                repsPlannedValue = nil
-            }
+            repsPlannedValue = Self.validReps(newValue)
         }
     }
     // Weight
@@ -137,6 +127,11 @@ extension WorkoutSet {
         (1...maxReps).contains(reps)
     }
 
+    /// `reps` when a set can hold it, otherwise nil.
+    private static func validReps(_ reps: Int?) -> Int? {
+        reps.flatMap { isValidReps($0) ? $0 : nil }
+    }
+
     /// When the lifter logged their first set in any program, or nil before they've logged one.
     static func firstCompletedAt(in context: ModelContext) -> Date? {
         var descriptor = FetchDescriptor<WorkoutSet>(
@@ -153,6 +148,8 @@ extension WorkoutSet {
     }
     /// The set's exercise takes weight on top of bodyweight, so a weight of 0 is bodyweight alone.
     var addsToBodyweight: Bool { workoutExerciseValue?.shownExercise?.addsToBodyweight == true }
+    /// What an open set holds when it has no weight to show: bodyweight alone (0) on a loadable bodyweight exercise.
+    var emptyWeightTenthsPounds: Int? { addsToBodyweight ? 0 : nil }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
     /// How long the set took, rest before it included. `nil` until it's logged.
@@ -232,7 +229,7 @@ extension WorkoutSet {
     func skip() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workoutSet.warning("Cannot skip a locked WorkoutSet.")
             return
@@ -286,7 +283,7 @@ extension WorkoutSet {
         }
         weightTenthsPoundsPlannedValue = weight
         if status == .active {
-            weightTenthsPoundsValue = weight ?? (addsToBodyweight ? 0 : nil)
+            weightTenthsPoundsValue = weight ?? emptyWeightTenthsPounds
         }
     }
     /// Puts back the planned weight a substitute held in its place.
@@ -294,7 +291,7 @@ extension WorkoutSet {
         if !isDone {
             weightTenthsPoundsPlannedValue = originalPlannedWeightTenthsPoundsValue
             if status == .active {
-                weightTenthsPoundsValue = originalPlannedWeightTenthsPoundsValue ?? (addsToBodyweight ? 0 : nil)
+                weightTenthsPoundsValue = originalPlannedWeightTenthsPoundsValue ?? emptyWeightTenthsPounds
             }
         }
         originalPlannedWeightTenthsPoundsValue = nil
@@ -319,7 +316,7 @@ extension WorkoutSet {
         // Loadable bodyweight with no target starts at bodyweight alone.
         if wasPlanned {
             reps = reps ?? repsPlanned
-            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds ?? (addsToBodyweight ? 0 : nil)
+            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds ?? emptyWeightTenthsPounds
         }
         Logger.workoutSet.debug("Starting WorkoutSet")
     }

@@ -9,8 +9,6 @@ import Foundation
 import SwiftData
 import OSLog
 
-// ToDo: Restrict appending to `workoutExercisesValue` to an extention function to ensure order is maintained
-
 @Model
 final class Workout {
     private var orderValue: Int = 0
@@ -89,25 +87,13 @@ extension Workout {
 // Derived Values
 //
 extension Workout {
-    func countSetStatus(status: Status) -> Int {
-        var c: Int = 0
-        for workout in workoutExercises {
-            c = c + workout.countSetStatus(status: status)
-        }
-        return c
+    /// How many of the workout's sets, warmups included, have `status`.
+    func setCount(_ status: Status) -> Int {
+        workoutExercises.reduce(0) { $0 + $1.setCount(status) }
     }
-
     // Total Sets
     var totalSets: Int {
-        var c: Int = 0
-        for workout in workoutExercises {
-            c = c + workout.totalSets
-        }
-        return c
-    }
-    // Completed Sets
-    func getCountCompletedSets() -> Int {
-        return countSetStatus(status: Status.complete)
+        workoutExercises.reduce(0) { $0 + $1.totalSets }
     }
     // Working sets only, for progress. Warmups are optional.
     var workingSetCount: Int {
@@ -133,19 +119,6 @@ extension Workout {
         guard total > 0 else { return (0, status == .skipped ? 1 : 0) }
         return (Double(completedWorkingSets) / Double(total), Double(skippedWorkingSets) / Double(total))
     }
-    // Planned Sets
-    func getCountPlannedSets() -> Int {
-        return countSetStatus(status: Status.planned)
-    }
-    // Skipped Sets
-    func getCountSkippedSets() -> Int {
-        return countSetStatus(status: Status.skipped)
-    }
-    // Active Sets
-    func getCountActiveSets() -> Int {
-        return countSetStatus(status: Status.active)
-    }
-
     /// Where the user should be: the first exercise still being logged or waiting on feedback.
     /// In a superset, that's the exercise whose turn it is. Derived from stored state so it survives relaunches.
     var currentExerciseIndex: Int {
@@ -175,9 +148,8 @@ extension Workout {
         }
     }
 
-    var isFinished: Bool {
-        status == .complete || status == .skipped || status == .stopped
-    }
+    // Complete, skipped, or stopped.
+    var isFinished: Bool { status.isFinished }
 }
 
 //
@@ -192,45 +164,41 @@ extension Workout {
             Logger.workout.warning("Cannot complete a locked Workout.")
             return
         }
-        statusValue = Status.complete
-        lockedValue = true
-        let now = Date.now
-        resume(at: now)
-        endedAtValue = now
+        end(as: .complete)
         Logger.workout.debug("Completed workout")
         TraceLog.record(.workout, "Completed \(traceDescription)")
     }
     func stop() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workout.warning("Cannot stop a locked Workout.")
             return
         }
-        statusValue = Status.stopped
-        lockedValue = true
-        let now = Date.now
-        resume(at: now)
-        endedAtValue = now
+        end(as: .stopped)
         Logger.workout.debug("Stopped workout")
         TraceLog.record(.workout, "Stopped \(traceDescription)")
     }
     func skip() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workout.warning("Cannot skip a locked Workout.")
             return
         }
-        statusValue = Status.skipped
+        end(as: .skipped)
+        Logger.workout.debug("Skipped workout")
+        TraceLog.record(.workout, "Skipped \(traceDescription)")
+    }
+    /// Locks the workout as `status` now. A pause still going ends, so its time stays out of the workout's.
+    private func end(as status: Status) {
+        statusValue = status
         lockedValue = true
         let now = Date.now
         resume(at: now)
         endedAtValue = now
-        Logger.workout.debug("Skipped workout")
-        TraceLog.record(.workout, "Skipped \(traceDescription)")
     }
     func start(at date: Date = .now, on device: String = SyncDevice.current) {
         guard
@@ -304,9 +272,8 @@ extension Workout {
             Logger.workout.warning("Can only unskip a skipped Workout.")
             return
         }
-        let wasLogged = workoutExercises.contains { $0.workoutSets.contains { $0.status == .complete } }
         endedAtValue = nil
-        if wasLogged {
+        if hasLoggedSets {
             statusValue = Status.active
             lockedValue = false
             for workoutExercise in workoutExercises {
@@ -332,7 +299,6 @@ extension Workout {
         for workoutExercise in workoutExercises {
             workoutExercise.startAndCascade()
         }
-
     }
     /// Skips every set still to do, so finishing never marks an unlogged set complete.
     func skipRemainingSets() {
@@ -356,10 +322,12 @@ extension Workout {
     func removeWorkoutExercise(index: Int) {
         let exercises = workoutExercises
         guard exercises.indices.contains(index) else { return }
-        let removed = exercises[index]
-        workoutExercisesValue?.removeAll { $0 === removed }
-        // Delete the row too, so it doesn't linger (or sync) as an orphan.
-        modelContext?.delete(removed)
+        deleteWorkoutExercise(exercises[index])
+    }
+    /// Takes `workoutExercise` out of the workout and deletes its row too, so it doesn't linger (or sync) as an orphan.
+    private func deleteWorkoutExercise(_ workoutExercise: WorkoutExercise) {
+        workoutExercisesValue?.removeAll { $0 === workoutExercise }
+        modelContext?.delete(workoutExercise)
     }
     /// Rebuilds a planned or in-progress workout's exercises from `layout`, in order. Exercises it keeps keep
     /// their sets; new ones start like a swapped-in exercise, with warmups and two sets. In a workout in progress,
@@ -367,7 +335,7 @@ extension Workout {
     /// Returns the exercises in order.
     @discardableResult
     func applyLayout(_ layout: [(workoutExercise: WorkoutExercise?, exercise: Exercise, supersetID: UUID?)]) -> [WorkoutExercise] {
-        guard status == .planned || status == .active else {
+        guard status.isOpen else {
             Logger.workout.warning("Can only change the exercises of a planned or active Workout.")
             return workoutExercises
         }
@@ -378,9 +346,7 @@ extension Workout {
                 restored.append((index, removed))
                 continue
             }
-            workoutExercisesValue?.removeAll { $0 === removed }
-            // Delete the row too, so it doesn't linger (or sync) as an orphan.
-            modelContext?.delete(removed)
+            deleteWorkoutExercise(removed)
         }
 
         var ordered = layout.map { entry in
@@ -401,10 +367,7 @@ extension Workout {
     private func addLayoutExercise(_ exercise: Exercise) -> WorkoutExercise {
         let added = WorkoutExercise(exercise: exercise, order: workoutExercises.count)
         workoutExercisesValue = (workoutExercisesValue ?? []) + [added]
-        added.addWarmupSets()
-        for _ in 0..<WorkoutExercise.initialSets {
-            _ = added.addSet()
-        }
+        added.addInitialSets()
         if status == .active {
             added.startAndCascade()
         }

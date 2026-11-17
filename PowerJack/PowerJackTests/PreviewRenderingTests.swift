@@ -110,8 +110,8 @@ final class PreviewRenderingTests: XCTestCase {
         XCTAssertEqual(scenario.program.workoutsFinished, 1)
         XCTAssertTrue(scenario.program.nextWorkout === scenario.weekOneWorkouts[1])
         XCTAssertEqual(scenario.weekOneWorkouts.map(\.totalSets), [6, 6, 6])
-        XCTAssertEqual(scenario.weekOneWorkouts[0].getCountCompletedSets(), 6)
-        XCTAssertEqual(scenario.weekOneWorkouts[1].getCountSkippedSets(), 2)
+        XCTAssertEqual(scenario.weekOneWorkouts[0].setCount(.complete), 6)
+        XCTAssertEqual(scenario.weekOneWorkouts[1].setCount(.skipped), 2)
         XCTAssertEqual(scenario.weekOneWorkouts[0].workoutExercises[0].workoutSets[0].reps, 8)
         XCTAssertTrue(scenario.weekOneWorkouts[0].workoutExercises.allSatisfy { $0.feedback != nil })
     }
