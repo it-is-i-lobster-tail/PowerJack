@@ -311,37 +311,54 @@ extension Workout {
         // Delete the row too, so it doesn't linger (or sync) as an orphan.
         modelContext?.delete(removed)
     }
-    /// Rebuilds a planned workout's exercises from `layout`, in order. Exercises it keeps keep their planned sets;
-    /// new ones start like a swapped-in exercise, with warmups and two sets. Returns the exercises in order.
+    /// Rebuilds a planned or in-progress workout's exercises from `layout`, in order. Exercises it keeps keep
+    /// their sets; new ones start like a swapped-in exercise, with warmups and two sets. In a workout in progress,
+    /// an exercise with anything logged always stays, in its old place, so logged sets are never lost.
+    /// Returns the exercises in order.
     @discardableResult
     func applyLayout(_ layout: [(workoutExercise: WorkoutExercise?, exercise: Exercise, supersetID: UUID?)]) -> [WorkoutExercise] {
-        guard status == .planned else {
-            Logger.workout.warning("Can only change the exercises of a planned Workout.")
+        guard status == .planned || status == .active else {
+            Logger.workout.warning("Can only change the exercises of a planned or active Workout.")
             return workoutExercises
         }
         let kept = Set(layout.compactMap { $0.workoutExercise.map(ObjectIdentifier.init) })
-        for removed in workoutExercises where !kept.contains(ObjectIdentifier(removed)) {
+        var restored: [(index: Int, workoutExercise: WorkoutExercise)] = []
+        for (index, removed) in workoutExercises.enumerated() where !kept.contains(ObjectIdentifier(removed)) {
+            if removed.hasLoggedWork {
+                restored.append((index, removed))
+                continue
+            }
             workoutExercisesValue?.removeAll { $0 === removed }
             // Delete the row too, so it doesn't linger (or sync) as an orphan.
             modelContext?.delete(removed)
         }
 
-        let ordered = layout.compactMap { entry -> WorkoutExercise? in
-            if let workoutExercise = entry.workoutExercise { return workoutExercise }
-            guard let added = addWorkoutExercise(exercise: entry.exercise) else { return nil }
-            added.addWarmupSets()
-            for _ in 0..<WorkoutExercise.initialSets {
-                _ = added.addSet()
-            }
-            return added
+        var ordered = layout.map { entry in
+            (workoutExercise: entry.workoutExercise ?? addLayoutExercise(entry.exercise), supersetID: entry.supersetID)
         }
-        for (order, (workoutExercise, entry)) in zip(ordered, layout).enumerated() {
-            workoutExercise.order = order
-            workoutExercise.setSuperset(entry.supersetID)
+        for (index, workoutExercise) in restored {
+            ordered.insert((workoutExercise, workoutExercise.supersetID), at: min(index, ordered.count))
         }
-        Logger.workout.debug("Changed the exercises of a planned Workout")
+        for (order, entry) in ordered.enumerated() {
+            entry.workoutExercise.order = order
+            entry.workoutExercise.setSuperset(entry.supersetID)
+        }
+        Logger.workout.debug("Changed the exercises of a Workout")
         TraceLog.record(.workout, "Changed the exercises of \(traceDescription)")
-        return ordered
+        return ordered.map(\.workoutExercise)
+    }
+    /// An exercise added by `applyLayout`. In a workout in progress its sets are ready to log straight away.
+    private func addLayoutExercise(_ exercise: Exercise) -> WorkoutExercise {
+        let added = WorkoutExercise(exercise: exercise, order: workoutExercises.count)
+        workoutExercisesValue = (workoutExercisesValue ?? []) + [added]
+        added.addWarmupSets()
+        for _ in 0..<WorkoutExercise.initialSets {
+            _ = added.addSet()
+        }
+        if status == .active {
+            added.startAndCascade()
+        }
+        return added
     }
     /// The day's exercises from next week on, when it was edited after it started. Nil when no edit is waiting.
     var nextWeekLayout: [TemplateExercise]? {
