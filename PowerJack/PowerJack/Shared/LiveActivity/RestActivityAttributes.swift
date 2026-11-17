@@ -44,6 +44,13 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
 
+    /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
+    /// Numbered as in the app, so warmups don't count toward a working set's number.
+    var shortSetText: String {
+        guard let current = sets.first(where: { $0.progress == .current }) else { return "" }
+        return current.label.hasPrefix("W") ? current.label : "Set \(current.label)"
+    }
+
     /// "Warmup 1 of 2" or "Set 1 of 2". Shared with the in-app rest island so both read the same.
     static func setText(number: Int, count: Int, isWarmup: Bool) -> String {
         "\(isWarmup ? "Warmup" : "Set") \(number) of \(count)"

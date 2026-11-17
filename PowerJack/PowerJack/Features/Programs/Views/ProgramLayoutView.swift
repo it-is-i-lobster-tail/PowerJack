@@ -27,7 +27,8 @@ struct ProgramLayoutView: View {
             draft: $draft.days.onSet(save),
             lockedDays: draft.lockedDays,
             dayNotes: draft.dayNotes,
-            loggedExercises: draft.loggedExercises
+            loggedExercises: draft.loggedExercises,
+            keepsOneExercisePerDay: true
         )
         .saveErrorAlert($saveErrorMessage)
     }

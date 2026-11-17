@@ -90,6 +90,9 @@ extension WatchChange {
                 workout.skipRemainingSets()
                 program.finishWorkout(workout)
             }
+        case .skipRemainingSets:
+            guard let workout = program.workout(at: row) else { return false }
+            if workout.status == .active { workout.skipRemainingSets() }
         case .enterSet(let weightTenthsPounds, let reps):
             guard let workoutSet = program.workoutSet(at: row), let workoutExercise = workoutSet.workoutExerciseValue else { return false }
             workoutExercise.enter(weightTenthsPounds: weightTenthsPounds, reps: reps, on: workoutSet)

@@ -61,7 +61,7 @@ struct RestTimerLiveActivity: Widget {
                     RestStatus(phase: phase)
                         .font(.caption.weight(.semibold))
                 case .none:
-                    Text("Set \(state.setOrder + 1)")
+                    Text(state.shortSetText)
                         .font(.caption.weight(.semibold))
                 }
             } minimal: {

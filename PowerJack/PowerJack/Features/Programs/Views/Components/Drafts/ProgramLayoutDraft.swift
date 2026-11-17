@@ -80,6 +80,9 @@ struct ProgramLayoutDraft {
     mutating func apply() {
         for (index, workout) in workouts.enumerated() where lockedDays[index] == nil {
             let drafts = days.templateWorkoutDraftsValue[index].templateExerciseDrafts
+            // A workout can't run empty, so a day keeps its exercises until it has another.
+            // Logged exercises always stay, so an edit that leaves only those is fine.
+            guard !drafts.isEmpty || workout.workoutExercises.contains(where: \.hasLoggedWork) else { continue }
             guard workout.status == .planned || workout.status == .active else {
                 applyNextWeek(drafts, to: workout)
                 continue

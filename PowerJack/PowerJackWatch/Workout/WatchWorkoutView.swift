@@ -36,6 +36,8 @@ struct WatchWorkoutView: View {
 
     @State private var page: Int
     @State private var sheet: WorkoutSheet?
+    /// Finish Workout is asking partly logged exercises for feedback, one at a time, before it finishes.
+    @State private var finishesAfterFeedback = false
 
     init(program: Program, workout: Workout, onFinished: @escaping () -> Void) {
         self.program = program
@@ -68,7 +70,7 @@ struct WatchWorkoutView: View {
         .tabViewStyle(.verticalPage)
         .navigationTitle("Day \(workout.order + 1)")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $sheet) { sheet in
+        .sheet(item: $sheet, onDismiss: continueFinishing) { sheet in
             switch sheet {
             case .feedback(let workoutExercise):
                 WatchFeedbackView(workoutExercise: workoutExercise) { finishedSheet() }
@@ -129,7 +131,7 @@ struct WatchWorkoutView: View {
     private func finishedSheet() {
         save()
         sheet = nil
-        if exerciseOnScreen?.isDone == true {
+        if !finishesAfterFeedback, exerciseOnScreen?.isDone == true {
             advance()
         }
     }
@@ -140,8 +142,27 @@ struct WatchWorkoutView: View {
         }
     }
 
-    /// Skips anything still unlogged, then moves the program on. Finishing a week plans the next one.
+    /// Skips anything still unlogged and asks each partly logged exercise for its feedback, as the
+    /// iPhone does, then moves the program on. Finishing a week plans the next one.
     private func finish() {
+        sync.perform { $0.skipRemainingSets(of: workout) }
+        finishesAfterFeedback = true
+        askFeedbackOrFinish()
+    }
+
+    /// Runs as each sheet closes, to ask the next question while Finish Workout is waiting on feedback.
+    private func continueFinishing() {
+        if finishesAfterFeedback { askFeedbackOrFinish() }
+    }
+
+    /// Asks the next unrated exercise's feedback, and finishes once none is left.
+    private func askFeedbackOrFinish() {
+        if let unrated = exercises.first(where: \.needsFeedback) {
+            // A sheet still closing comes back here when it's gone.
+            if sheet == nil { sheet = .feedback(unrated) }
+            return
+        }
+        finishesAfterFeedback = false
         sync.perform { $0.finish(workout, in: program) }
         WorkoutMirroring.shared.end()
         Task { await RestAlert.schedule(for: nil) }

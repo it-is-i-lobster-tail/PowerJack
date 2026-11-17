@@ -398,6 +398,26 @@ struct WatchPhoneSyncTests {
         #expect(phoneReceipts[0].sessionID == watchExercise.workoutValue?.syncID)
     }
 
+    @Test("Finishing on the watch with an exercise partly logged asks its feedback first, and the iPhone keeps it")
+    func watchFinishRatesPartlyLoggedExercise() throws {
+        let (devices, watchSet, watchExercise) = try startedOnWatch()
+        logOnWatch(devices, watchSet, of: watchExercise, reps: 8, at: t0)
+        let watchProgram = try devices.watchProgram
+        let workout = try #require(watchExercise.workoutValue)
+
+        // Finish Workout skips the rest first, so the exercise asks for its feedback.
+        devices.onWatch { $0.skipRemainingSets(of: workout) }
+        try #require(watchExercise.needsFeedback)
+        let feedback = ExerciseFeedback(repsInReserve: .two, levelOfPain: .none)
+        devices.onWatch { $0.rate(watchExercise, feedback: feedback, topSet: nil) }
+        devices.onWatch { $0.finish(workout, in: watchProgram) }
+        try devices.sendChanges()
+
+        let phoneExercise = try #require(try devices.onPhone(watchSet).workoutExerciseValue)
+        #expect(phoneExercise.feedback != nil)
+        #expect(phoneExercise.workoutValue?.status == .complete)
+    }
+
     @Test("A set logged on the watch after the iPhone skipped it keeps the watch's log on both devices, with a receipt")
     func watchLogIntoSkippedSet() throws {
         let (devices, watchSet, watchExercise) = try startedOnWatch()
