@@ -43,7 +43,8 @@ struct SharedHelperTests {
             #expect(WeightUnit.kilograms(fromTenthsPounds: tenths) == kilograms.value(fromTenthsPounds: tenths))
         }
         #expect(WeightUnit.tenthsPounds(fromKilograms: 100) == 2205)
-        #expect(abs(WeightUnit.kilograms(fromTenthsPounds: 2205) - 100) < 0.01)
+        // Sets store tenths of a pound, so a round trip lands within one tenth of a pound.
+        #expect(abs(WeightUnit.kilograms(fromTenthsPounds: 2205) - 100) < WeightUnit.kilogramsPerPound / 10)
     }
 
     @Test("Weights show at most one decimal and never a thousands separator")
