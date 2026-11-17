@@ -37,9 +37,11 @@ struct SupersetPicker: View {
                         .buttonStyle(.plain)
                         .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 20))
                     }
-                } footer: {
+                } header: {
+                    // Above the list, so it shows at half height.
                     if let name = workoutExercise.exercise?.exerciseName {
                         Text("\(name.localizedCapitalized) stays first. What you pick moves to follow it.")
+                            .textCase(nil)
                     }
                 }
             }
@@ -64,13 +66,13 @@ struct SupersetPicker: View {
                     .padding(.top, 8)
                 ForEach(choice) { member in
                     if let exercise = member.exercise {
-                        TemplateExerciseLabel(exercise: exercise)
+                        SupersetExerciseLabel(exercise: exercise)
                     }
                 }
             }
             .accessibilityElement(children: .combine)
         } else if let exercise = choice.first?.exercise {
-            TemplateExerciseLabel(exercise: exercise)
+            SupersetExerciseLabel(exercise: exercise)
         }
     }
 }

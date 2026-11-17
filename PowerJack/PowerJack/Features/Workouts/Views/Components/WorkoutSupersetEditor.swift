@@ -32,7 +32,7 @@ struct WorkoutSupersetEditor: View {
                     ForEach(superset ?? []) { workoutExercise in
                         HStack {
                             if let exercise = workoutExercise.exercise {
-                                TemplateExerciseLabel(exercise: exercise)
+                                SupersetExerciseLabel(exercise: exercise)
                             }
                             Spacer()
                             Image(systemName: "line.3.horizontal")
@@ -73,6 +73,7 @@ struct WorkoutSupersetEditor: View {
                 } label: {
                     Text("Remove Superset")
                         .font(.subheadline)
+                        .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, minHeight: 28)
                 }
                 .buttonStyle(.glass)
@@ -88,5 +89,21 @@ struct WorkoutSupersetEditor: View {
 
     private func save() {
         try? modelContext.save()
+    }
+}
+
+/// An exercise's name and equipment in plain text colors, so the superset sheets' rows don't read as links.
+struct SupersetExerciseLabel: View {
+    let exercise: Exercise
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(exercise.exerciseName.localizedCapitalized)
+            Text(exercise.equipment.displayName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 8)
     }
 }

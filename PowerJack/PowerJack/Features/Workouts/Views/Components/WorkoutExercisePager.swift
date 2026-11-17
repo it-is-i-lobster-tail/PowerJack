@@ -28,9 +28,6 @@ struct WorkoutExercisePager: View {
                             focusedSetField: focusedSetField,
                             workoutExercise: workoutExercises[index]
                         )
-                            // A superset change moves exercises between pages. Each page starts fresh
-                            // for its new exercise instead of keeping the last one's state.
-                            .id(workoutExercises[index].persistentModelID)
                             .containerRelativeFrame(.horizontal)
                             .id(index)
                     }
@@ -56,6 +53,9 @@ struct WorkoutExercisePager: View {
                 proxy.scrollTo(selectedExerciseIndex)
             }
         }
+        // A superset change moves exercises between pages. The pages are keyed by position, so the pager
+        // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
+        .id(workoutExercises.map(\.persistentModelID))
     }
 
     private var isOnReview: Bool {

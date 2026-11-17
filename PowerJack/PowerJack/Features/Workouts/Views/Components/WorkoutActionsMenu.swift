@@ -148,28 +148,19 @@ struct WorkoutActionsMenu: View {
                     try? modelContext.save()
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "square.split.1x2")
-                    Text("Remove from Superset")
-                }
+                Label("Remove from Superset", systemImage: "square.split.1x2")
             }
 
             Button {
                 onEditSuperset(supersetID)
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text("Edit Superset")
-                }
+                Label("Edit Superset", systemImage: "arrow.up.arrow.down")
             }
         } else {
             Button {
                 onAddToSuperset(workoutExercise)
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "link.badge.plus")
-                    Text("Add to Superset")
-                }
+                Label("Add to Superset", systemImage: "link.badge.plus")
             }
             // A finished exercise has nothing left to do in turn, and there may be nothing to join.
             .disabled(workoutExercise.isDone || workout.supersetChoices(for: workoutExercise).isEmpty)
