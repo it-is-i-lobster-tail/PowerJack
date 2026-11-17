@@ -76,8 +76,9 @@ extension WorkoutExercise {
 
     /// The rest after this exercise's latest set. PowerJack rests by role and tag (R9.2): longest after
     /// heavy main-lift sets, a minute more after a short M or S set, and a minute after a warm-up.
+    /// A one-time substitute rests by its own fatigue level and rest.
     var restDuration: Duration {
-        guard let exercise else { return .zero }
+        guard let exercise = shownExercise else { return .zero }
         // Only PowerJack's planner sets a role. Reading it here, rather than the program's type,
         // keeps the rest timer from reaching up to the Program.
         guard let role = powerJackRole else { return strengthRestDuration ?? exercise.restDuration }

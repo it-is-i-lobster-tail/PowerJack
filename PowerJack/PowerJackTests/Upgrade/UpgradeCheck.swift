@@ -69,6 +69,9 @@ enum UpgradeCheck {
             if workout.status == .planned {
                 workout.startAndCascade()
             }
+            // Workouts saved before pausing existed come back unpaused, and pause like any other.
+            if workout.isPaused || workout.pausedSeconds != 0 { problems.append("The running workout comes back paused") }
+            workout.pause()
             for exercise in workout.workoutExercises where exercise.status != .complete {
                 for set in exercise.workoutSets where set.status != .complete {
                     set.reps = 10
@@ -83,6 +86,7 @@ enum UpgradeCheck {
 
             let trained = try UpgradeManifest(context: context)
             check("Finished workouts after one more", upgraded.completedWorkouts + 1, trained.completedWorkouts)
+            if workout.isPaused { problems.append("Finishing a paused workout leaves it paused") }
             if program.nextWorkout == nil { problems.append("The program doesn't move on to its next workout") }
         } else {
             problems.append("No running program with a next workout")

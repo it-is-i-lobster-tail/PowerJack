@@ -67,7 +67,8 @@ enum HistoryExport {
             for (dayIndex, workout) in week.workouts.enumerated() {
                 let supersets = supersetLetters(in: workout)
                 for (exerciseIndex, workoutExercise) in workout.workoutExercises.enumerated() {
-                    let exercise = workoutExercise.exercise
+                    // What was actually done, so a one-time substitute shows as itself.
+                    let exercise = workoutExercise.shownExercise
                     let feedback = workoutExercise.feedback
                     for workoutSet in workoutExercise.workoutSets {
                         rows.append(HistoryRow(

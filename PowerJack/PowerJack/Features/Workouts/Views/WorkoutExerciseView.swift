@@ -44,12 +44,17 @@ struct WorkoutExerciseView: View {
     var body: some View {
         VStack {
             VStack(alignment: .center) {
-                Text(workoutExercise.exercise?.exerciseName ?? "")
+                Text(workoutExercise.shownExercise?.exerciseName ?? "")
                     .font(.title)
                     .foregroundStyle(.primary)
-                Text(workoutExercise.exercise?.equipment.displayName ?? "")
+                Text(workoutExercise.shownExercise?.equipment.displayName ?? "")
                     .font(.default)
                     .foregroundStyle(.primary)
+                if let substituteText {
+                    Label(substituteText, systemImage: "arrow.triangle.swap")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let supersetText {
                     Label(supersetText, systemImage: "link")
                         .font(.caption)
@@ -91,9 +96,15 @@ struct WorkoutExerciseView: View {
         }
     }
 
+    /// e.g. "Sub for Bench Press · this week".
+    private var substituteText: String? {
+        guard workoutExercise.substitute != nil, let planned = workoutExercise.exercise else { return nil }
+        return "Sub for \(planned.exerciseName) · this week"
+    }
+
     /// e.g. "Superset with Skull Crusher".
     private var supersetText: String? {
-        let partners = workoutExercise.supersetPartners.compactMap { $0.exercise?.exerciseName }
+        let partners = workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
         guard !partners.isEmpty else { return nil }
         return "Superset with \(partners.formatted(.list(type: .and)))"
     }
@@ -144,7 +155,7 @@ struct WorkoutExerciseView: View {
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
                     workoutSet: workoutSet,
-                    repsOnly: workoutExercise.exercise?.repsOnly ?? false,
+                    repsOnly: workoutExercise.shownExercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
                     onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.

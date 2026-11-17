@@ -13,7 +13,7 @@ extension Workout {
     func activityState(at now: Date = .now) -> WorkoutActivityState? {
         guard
             let current = currentSet,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return nil
         }
@@ -46,7 +46,7 @@ extension Workout {
             let current = currentSet,
             current.workoutExercise.order == exerciseOrder,
             current.workoutSet.order == setOrder,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return false
         }
@@ -94,7 +94,8 @@ extension WorkoutSet {
         if !repsOnly {
             weightTenthsPounds = upcomingWeightTenthsPounds
         }
-        complete(at: date)
+        // Like a set logged on the iPhone, this ends a pause and the set gets its time.
+        complete(at: date, startedAt: workoutExerciseValue?.workoutValue?.setClockStart(loggedAt: date))
         return true
     }
 }
