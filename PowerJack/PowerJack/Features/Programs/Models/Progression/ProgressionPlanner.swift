@@ -11,34 +11,12 @@ import OSLog
 enum ProgressionPlanner {
     /// Fills an empty `week` by copying the previous week's structure and progressing every exercise.
     static func build(_ week: ProgramWeek, in program: Program) {
-        let weeks = program.programWeeks
-        guard
-            week.workouts.isEmpty,
-            let weekIndex = weeks.firstIndex(where: { $0 === week }),
-            weekIndex > 0
-        else {
-            Logger.program.warning("Can only build an empty ProgramWeek that follows another week.")
-            return
-        }
-
-        let sourceWeek = weeks[weekIndex - 1]
+        guard let weekIndex = buildIndex(of: week, in: program) else { return }
+        let sourceWeek = program.programWeeks[weekIndex - 1]
         let credits = muscleSetCredits(in: sourceWeek)
 
-        for sourceWorkout in sourceWeek.workouts {
-            guard let workout = week.addWorkout() else { continue }
-
-            for sourceExercise in sourceWorkout.workoutExercises {
-                guard
-                    let exercise = sourceExercise.exercise,
-                    let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
-                else {
-                    continue
-                }
-                // An exercise with warmups disabled on this day gets none (see `WorkoutExercise.canAddSet`).
-                workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
-                workoutExercise.inheritSuperset(from: sourceExercise)
-                plan(workoutExercise, from: sourceExercise, in: sourceWorkout, weekIndex: weekIndex, credits: credits, program: program)
-            }
+        copyDays(of: sourceWeek, into: week) { workoutExercise, sourceExercise, sourceWorkout in
+            plan(workoutExercise, from: sourceExercise, in: sourceWorkout, weekIndex: weekIndex, credits: credits, program: program)
         }
         Logger.program.info("Built ProgramWeek \(weekIndex + 1) from week \(weekIndex)")
     }

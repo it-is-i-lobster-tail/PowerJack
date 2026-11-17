@@ -50,10 +50,10 @@ struct BuildProgramTests {
         let program = try makeProgram(weeks: 3, exercise: bench())
         let weeks = program.programWeeks
         // Before this change, the Build engine set up week 1 and wrote week 2.
-        BuildPlanner.setUpFirstWeek(weeks[0], in: program)
+        markAsBuildEngineWeek(weeks[0], blockWeek: 1)
         let weekOne = try #require(program.nextWorkout)
         log(weekOne, reps: [10, 10], weightTenthsPounds: 1000, repsLeft: .three)
-        BuildPlanner.build(weeks[1], in: program)
+        writeAsBuildEngine(weeks[1], from: weeks[0], blockWeek: 2)
         let weekTwo = try #require(program.finishWorkout(weekOne))
         let builtByEngine = try #require(weekTwo.workoutExercises.first)
         #expect(weeks[1].weekKind == .build)
@@ -149,7 +149,7 @@ struct BuildProgramTests {
             log(weekOne, reps: [10, 9], weightTenthsPounds: 1000, repsLeft: .two)
             if program === fromEngine {
                 // Before Build went back to the per-set rules, the Build engine wrote week 2.
-                BuildPlanner.build(program.programWeeks[1], in: program)
+                writeAsBuildEngine(program.programWeeks[1], from: program.programWeeks[0], blockWeek: 2)
             }
             program.finishWorkout(weekOne)
         }
@@ -167,6 +167,35 @@ struct BuildProgramTests {
     }
 
     // MARK: Helpers
+
+    /// What the Build engine, since removed, left on a week it planned: the week's place in a block, and on
+    /// each exercise an aim (reps left) and a reason line. Programs saved back then still hold weeks like this.
+    private func markAsBuildEngineWeek(_ week: ProgramWeek, blockWeek: Int) {
+        week.setBlock(kind: .build, blockWeek: blockWeek)
+        for workoutExercise in week.workouts.flatMap(\.workoutExercises) {
+            workoutExercise.setProgression(rirTarget: 2, code: "PROGRESS", note: "+1 rep: you had reps to spare.")
+        }
+    }
+
+    /// Fills the empty `week` the way the Build engine wrote one from `source`: the same exercises, its own
+    /// warmups and working sets (8 reps, no weight yet), then its block and aims.
+    private func writeAsBuildEngine(_ week: ProgramWeek, from source: ProgramWeek, blockWeek: Int) {
+        for sourceWorkout in source.workouts {
+            guard let workout = week.addWorkout() else { continue }
+            for sourceExercise in sourceWorkout.workoutExercises {
+                guard let exercise = sourceExercise.exercise,
+                      let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
+                else { continue }
+                for _ in 0..<WorkoutExercise.initialWarmupSets {
+                    workoutExercise.addPlannedSet(type: .warmup, plannedReps: 10, plannedWeightTenthsPounds: nil)
+                }
+                for _ in 0..<sourceExercise.workingSets.count {
+                    workoutExercise.addPlannedSet(plannedReps: 8, plannedWeightTenthsPounds: nil)
+                }
+            }
+        }
+        markAsBuildEngineWeek(week, blockWeek: blockWeek)
+    }
 
     private func pullUp() -> Exercise {
         Exercise(exerciseName: "Pull Up", exerciseEquipment: .bodyweight, primaryMuscleFocus: .back)

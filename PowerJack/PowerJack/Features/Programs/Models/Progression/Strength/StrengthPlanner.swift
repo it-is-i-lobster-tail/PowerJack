@@ -24,36 +24,20 @@ enum StrengthPlanner: WeekPlanner {
 
     /// Closes the week before `week`, logs the lift records and plans `week` from them.
     static func build(_ week: ProgramWeek, in program: Program) {
+        guard let index = buildIndex(of: week, in: program) else { return }
         let weeks = program.programWeeks
-        guard
-            week.workouts.isEmpty,
-            let index = weeks.firstIndex(where: { $0 === week }),
-            index > 0
-        else {
-            Logger.program.warning("Can only build an empty ProgramWeek that follows another week.")
-            return
-        }
         let now = currentDate ?? .now
         let source = weeks[index - 1]
         let state = close(source, in: program, at: now)
 
-        for sourceWorkout in source.workouts {
-            guard let workout = week.addWorkout() else { continue }
-            for sourceExercise in sourceWorkout.workoutExercises {
-                guard
-                    let exercise = sourceExercise.exercise,
-                    let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
-                else { continue }
-                workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
-                workoutExercise.inheritSuperset(from: sourceExercise)
-                // Last week's warmups carry over until the plan writes its own (5.7).
-                for warmup in sourceExercise.warmupSets.prefix(WorkoutExercise.maxWarmupSets) {
-                    workoutExercise.addPlannedSet(
-                        type: .warmup,
-                        plannedReps: warmup.progressionReps ?? warmup.repsPlanned,
-                        plannedWeightTenthsPounds: warmup.progressionWeightTenthsPounds ?? warmup.progressionPlannedWeightTenthsPounds
-                    )
-                }
+        copyDays(of: source, into: week) { workoutExercise, sourceExercise, _ in
+            // Last week's warmups carry over until the plan writes its own (5.7).
+            for warmup in sourceExercise.warmupSets.prefix(WorkoutExercise.maxWarmupSets) {
+                workoutExercise.addPlannedSet(
+                    type: .warmup,
+                    plannedReps: warmup.progressionReps ?? warmup.repsPlanned,
+                    plannedWeightTenthsPounds: warmup.progressionWeightTenthsPounds ?? warmup.progressionPlannedWeightTenthsPounds
+                )
             }
         }
         week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
