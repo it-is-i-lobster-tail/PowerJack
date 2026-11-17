@@ -51,6 +51,9 @@ struct TemplateCatalogTests {
         #expect(Set(entries.map(\.id)).isDisjoint(with: TemplateCatalog.retiredIDs))
     }
 
+    /// The most set credits one muscle gets in one Build session, as the templates were designed.
+    private static let maxCreditsPerSessionPerMuscle = 12.0
+
     @Test("Build templates train every muscle they work at least twice a week, within the per-session cap")
     func buildEnvelope() throws {
         let exercises = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0) })
@@ -64,7 +67,7 @@ struct TemplateCatalogTests {
                     credits[exercise.primaryMuscle, default: 0] += 2
                     for muscle in exercise.secondaryMuscles { credits[muscle, default: 0] += 1 }
                 }
-                #expect(credits.values.allSatisfy { $0 <= BuildRules.maxCreditsPerSessionPerMuscle }, "\(entry.id)")
+                #expect(credits.values.allSatisfy { $0 <= Self.maxCreditsPerSessionPerMuscle }, "\(entry.id)")
                 for muscle in Set(workout.compactMap { exercises[$0]?.primaryMuscle }) {
                     sessions[muscle, default: 0] += 1
                 }
