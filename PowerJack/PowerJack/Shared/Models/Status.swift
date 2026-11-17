@@ -15,4 +15,9 @@ enum Status: String, Codable, CaseIterable, Identifiable {
     case stopped
 
     var id: Self { self }
+
+    /// Planned or in progress: it hasn't ended yet.
+    var isOpen: Bool { self == .planned || self == .active }
+    /// Complete, skipped, or stopped.
+    var isFinished: Bool { !isOpen }
 }
