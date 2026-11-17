@@ -57,6 +57,8 @@ final class ExerciseFeedback {
     private var levelOfPainValue: LevelOfPain = LevelOfPain.none
     // 1 stores a `LevelOfEffort` word, 2 stores `RepsInReserve`. Rows saved before this existed are 1.
     private var effortScaleVersionValue: Int = 1
+    // Working sets complete when this was answered. More than this asks again. Nil on rows saved before it existed.
+    private var completedSetsValue: Int?
     var workoutExerciseValue: WorkoutExercise?
 
     init(levelOfEffort: LevelOfEffort, levelOfPain: LevelOfPain) {
@@ -96,6 +98,18 @@ extension ExerciseFeedback {
             levelOfPainValue = newValue
         }
     }
+    // Completed Sets
+    var completedSets: Int? { completedSetsValue }
+    /// Whether this answer still rates the exercise with `count` working sets complete. One answered before
+    /// more sets were logged doesn't, so the lifter is asked again. Rows saved before the count existed always do.
+    func covers(completedSets count: Int) -> Bool {
+        guard let completedSetsValue else { return true }
+        return count <= completedSetsValue
+    }
+    /// Called by `WorkoutExercise.addFeedback` when the answer is saved.
+    func recordCompletedSets(_ count: Int) {
+        completedSetsValue = count
+    }
 }
 
 //
@@ -103,7 +117,12 @@ extension ExerciseFeedback {
 //
 extension ExerciseFeedback {
     var syncState: FeedbackState {
-        FeedbackState(levelOfEffort: levelOfEffortValue, levelOfPain: levelOfPainValue, effortScaleVersion: effortScaleVersionValue)
+        FeedbackState(
+            levelOfEffort: levelOfEffortValue,
+            levelOfPain: levelOfPainValue,
+            effortScaleVersion: effortScaleVersionValue,
+            completedSets: completedSetsValue
+        )
     }
 
     convenience init(snapshot state: FeedbackState) {
@@ -115,5 +134,6 @@ extension ExerciseFeedback {
         levelOfEffortValue = state.levelOfEffort
         levelOfPainValue = state.levelOfPain
         effortScaleVersionValue = state.effortScaleVersion
+        completedSetsValue = state.completedSets
     }
 }

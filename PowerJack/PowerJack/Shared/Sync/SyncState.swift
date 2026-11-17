@@ -100,6 +100,8 @@ struct FeedbackState: Codable, Equatable {
     var levelOfEffort: LevelOfEffort
     var levelOfPain: LevelOfPain
     var effortScaleVersion: Int
+    /// Nil from a device on a version before it existed.
+    var completedSets: Int? = nil
 }
 
 struct SetState: Codable, Equatable {

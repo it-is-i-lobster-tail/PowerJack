@@ -86,6 +86,31 @@ struct FeedbackAnsweredOnceTests {
         #expect(watchExercise.feedback?.levelOfPain == .moderate)
     }
 
+    @Test("More sets logged on the iPhone after the watch's answer ask again there, and the watch hears the new answer")
+    func moreSetsAskAgainAcrossDevices() throws {
+        let (devices, watchExercise, phoneExercise) = try lastSetLoggedOnWatch()
+        devices.onWatch { $0.rate(watchExercise, feedback: feedback(pain: .mild, for: watchExercise), topSet: topSet(for: watchExercise)) }
+        try devices.sendChanges()
+        let logged = phoneExercise.completedWorkingSets
+        #expect(phoneExercise.feedback?.completedSets == logged)
+        #expect(!phoneExercise.needsFeedback)
+
+        let extra = try #require(phoneExercise.addSet())
+        if extra.weightTenthsPounds == nil { extra.weightTenthsPounds = 1000 }
+        if extra.reps == nil { extra.reps = 8 }
+        phoneExercise.completeSet(extra)
+        #expect(phoneExercise.needsFeedback)
+        #expect(phoneExercise.answerFeedback(feedback(pain: .moderate, for: phoneExercise), topSet: nil))
+        try devices.phoneContext.save()
+        try devices.sendProgram()
+
+        #expect(watchExercise.completedWorkingSets == logged + 1)
+        #expect(watchExercise.feedback?.levelOfPain == .moderate)
+        #expect(watchExercise.feedback?.completedSets == logged + 1)
+        #expect(!watchExercise.needsFeedback)
+        #expect(try devices.phoneContext.fetchCount(FetchDescriptor<ExerciseFeedback>()) == 1)
+    }
+
     // MARK: Helpers
 
     /// A workout started on the watch, with its first exercise's working sets all logged there and sent
