@@ -216,8 +216,8 @@ private struct SetTargets: View {
                 SetChip(activitySet: activitySet, repsOnly: state.repsOnly)
             }
 
-            // The chips' weights in one unit, said once to save room.
-            if !state.repsOnly, let unit = state.sets.first?.unitText {
+            // The chips' weights in one unit, said once to save room. "BW" and "–" chips need none.
+            if !state.repsOnly, let unit = state.sets.first(where: { ($0.weightTenthsPounds ?? 0) != 0 })?.unitText {
                 Text(unit)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
