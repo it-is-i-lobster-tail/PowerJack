@@ -103,14 +103,24 @@ extension TemplateWorkoutDraft {
             templateExerciseDraftsValue = []
         }
 
+        // A copied superset stays a superset, under a new ID so it never joins one already on this day.
+        var copiedSupersetIDs: [UUID: UUID] = [:]
         for templateExerciseDraft in source.templateExerciseDrafts {
-            addTemplateExerciseDraft(exercise: templateExerciseDraft.exercise)
+            let supersetID = templateExerciseDraft.supersetID.map { sourceID in
+                if let copiedID = copiedSupersetIDs[sourceID] { return copiedID }
+                let copiedID = UUID()
+                copiedSupersetIDs[sourceID] = copiedID
+                return copiedID
+            }
+            addTemplateExerciseDraft(exercise: templateExerciseDraft.exercise, supersetID: supersetID)
         }
     }
 
     mutating func removeTemplateExercises(at offsets: IndexSet) {
         var ordered = templateExerciseDrafts
+        let supersetIDs = Set(offsets.compactMap { ordered.indices.contains($0) ? ordered[$0].supersetID : nil })
         ordered.remove(atOffsets: offsets)
+        Self.endSupersetsLeftAlone(supersetIDs, in: &ordered)
         reorder(&ordered)
         templateExerciseDraftsValue = ordered
     }
@@ -205,8 +215,20 @@ extension TemplateWorkoutDraft {
         leaving.supersetID = nil
         let lastIndex = ordered.lastIndex { $0.supersetID == supersetID }
         ordered.insert(leaving, at: lastIndex.map { $0 + 1 } ?? index)
+        Self.endSupersetsLeftAlone([supersetID], in: &ordered)
         reorder(&ordered)
         templateExerciseDraftsValue = ordered
+    }
+
+    /// A superset that a removal leaves with one exercise ends, so that exercise reads the same in the
+    /// builder, the workout and the export. One just started with Superset waits for others instead.
+    private static func endSupersetsLeftAlone(_ supersetIDs: Set<UUID>, in drafts: inout [TemplateExerciseDraft]) {
+        for supersetID in supersetIDs {
+            let members = drafts.indices.filter { drafts[$0].supersetID == supersetID }
+            if members.count == 1 {
+                drafts[members[0]].supersetID = nil
+            }
+        }
     }
 
     /// Splits a superset back into exercises on their own.

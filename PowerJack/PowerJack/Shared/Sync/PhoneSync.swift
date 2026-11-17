@@ -39,19 +39,23 @@ final class PhoneSync {
     }
 
     private func receive(changes data: Data) -> Data? {
-        guard let context else { return nil }
+        guard let context else {
+            TraceLog.record(.watch, "Dropped the watch's changes while iCloud Backup switches stores")
+            return nil
+        }
         do {
             let changes = try SyncPayload.decode([WatchChange].self, from: data)
             TraceLog.record(.watch, "Received \(changes.count) changes from the watch")
             let snapshot = try referee.receive(changes, in: context)
             // A set logged on the watch starts a rest, often with the iPhone locked and PowerJack's
-            // screens not running to notice, so the voice is set here.
-            let programs = try? context.fetch(FetchDescriptor<Program>())
-            RestVoice.shared.follow(programs?.active?.nextWorkout)
+            // screens not running to notice, so the voice and the Live Activity follow it here.
+            let program = (try? context.fetch(FetchDescriptor<Program>()))?.active
+            RestVoice.shared.follow(program?.nextWorkout)
+            Task { await RestLiveActivityController.follow(program) }
             return try SyncPayload.encode(snapshot)
         } catch {
             Logger.sync.error("Could not apply the watch's changes: \(error.localizedDescription)")
-            TraceLog.record(.watch, "Could not apply the watch's changes: \(String(describing: type(of: error)))")
+            TraceLog.record(.watch, "Could not apply the watch's changes: \(TraceLog.describe(error))")
             return nil
         }
     }
@@ -70,12 +74,12 @@ final class PhoneSync {
         guard let context else { return }
         do {
             let snapshot = try SyncPayload.encode(try referee.snapshot(in: context))
-            DeviceLink.shared.send(snapshot: snapshot)
+            let delivery = DeviceLink.shared.send(snapshot: snapshot)
             let mirrored = await WorkoutMirroring.shared.send(snapshot)
-            TraceLog.record(.watch, "Sent the program to the watch (\(snapshot.count) bytes\(mirrored ? ", mirrored" : ""))")
+            TraceLog.record(.watch, "Program for the watch (\(snapshot.count) bytes): \(delivery.rawValue)\(mirrored ? ", mirrored" : "")")
         } catch {
             Logger.sync.error("Could not send the program to the watch: \(error.localizedDescription)")
-            TraceLog.record(.watch, "Could not send the program to the watch: \(String(describing: type(of: error)))")
+            TraceLog.record(.watch, "Could not send the program to the watch: \(TraceLog.describe(error))")
         }
     }
 }

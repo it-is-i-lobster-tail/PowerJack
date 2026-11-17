@@ -185,8 +185,10 @@ enum ExerciseCatalog {
         if changed {
             try context.save()
         }
-        // An empty store waits a launch, so rows iCloud brings in from an older version move too.
-        if updatesFatigue, !existingByID.isEmpty {
+        // Only rows already on this device move. Rows iCloud brings in later, on a new iPhone or after
+        // a reinstall, were moved by the device that saved them, and a level the lifter set again since
+        // must stay. A device still on an older version moves its own rows once it updates.
+        if updatesFatigue {
             defaults.set(fatigueLevelsRevision, forKey: fatigueLevelsRevisionKey)
         }
     }
@@ -209,6 +211,7 @@ enum ExerciseCatalog {
                 survivor.takeOverRows(of: duplicate)
                 context.delete(duplicate)
             }
+            TraceLog.record(.data, "Catalog dedupe: kept the oldest \(survivor.catalogID ?? "?"), deleted \(oldestFirst.count - 1) copies")
             changed = true
         }
         return changed

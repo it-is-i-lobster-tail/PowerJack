@@ -34,6 +34,9 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     /// `order` of the set's exercise and of the current set, so a check completes the set that was shown.
     var exerciseOrder: Int
     var setOrder: Int
+    /// The workout's sync ID, so a check never lands on another workout's set at the same positions.
+    /// Optional, so activities started by an older version still read.
+    var workoutID: String?
     var sets: [ActivitySet]
     var repsOnly: Bool
     /// The current set can be checked off as entered without opening the app.
@@ -48,6 +51,13 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
         let current = sets.firstIndex { $0.progress == .current } ?? sets.count - 1
         let start = min(max(0, current - 1), sets.count - size)
         return (start, sets[start..<(start + size)], sets.count - start - size)
+    }
+
+    /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
+    /// Numbered as in the app, so warmups don't count toward a working set's number.
+    var shortSetText: String {
+        guard let current = sets.first(where: { $0.progress == .current }) else { return "" }
+        return current.label.hasPrefix("W") ? current.label : "Set \(current.label)"
     }
 
     /// "Warmup 1 of 2" or "Set 1 of 2". Shared with the in-app rest island so both read the same.
@@ -105,11 +115,16 @@ struct CompleteSetIntent: LiveActivityIntent {
     @Parameter(title: "Set")
     var setOrder: Int
 
+    /// Missing on buttons of activities started by an older version.
+    @Parameter(title: "Workout")
+    var workoutID: String?
+
     init() {}
 
-    init(exerciseOrder: Int, setOrder: Int) {
+    init(exerciseOrder: Int, setOrder: Int, workoutID: String? = nil) {
         self.exerciseOrder = exerciseOrder
         self.setOrder = setOrder
+        self.workoutID = workoutID
     }
 }
 #endif

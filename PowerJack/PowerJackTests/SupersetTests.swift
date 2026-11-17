@@ -252,16 +252,24 @@ struct SupersetTests {
         #expect(names(day) == [["B", "C"], ["A"], ["D"]])
         #expect(day.blocks.map(\.isSuperset) == [true, false, false])
 
-        // One left stays a superset, ready for a partner, like a new one.
+        // Down to one, it ends, so the builder, the workout and the export all show it on its own.
         day.removeFromSuperset(day.supersets[0].exercises[1].id)
         #expect(names(day) == [["B"], ["C"], ["A"], ["D"]])
-        #expect(day.superset(supersetID)?.exercises.count == 1)
-
-        // Taking the last one out ends it.
-        day.removeFromSuperset(day.supersets[0].exercises[0].id)
         #expect(day.superset(supersetID) == nil)
         #expect(day.supersets.isEmpty)
         #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+    }
+
+    @Test("Removing a superset's partner ends it, but one just started waits for others")
+    func supersetLeftAloneEnds() throws {
+        var day = makeDay(["A", "B", "C"])
+        day.startSuperset(with: day.blocks[0])
+        #expect(day.blocks.map(\.isSuperset) == [true, false, false])
+
+        day.add(day.blocks[1], to: day.supersets[0])
+        day.removeTemplateExercises(at: IndexSet(integer: 1))
+        #expect(names(day) == [["A"], ["C"]])
+        #expect(day.supersets.isEmpty)
     }
 
     @Test("A reordered superset saves and reaches the program in its new order")

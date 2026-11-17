@@ -382,7 +382,7 @@ struct WorkoutSetView: View {
 
     /// Saved as it's typed, so it's never lost and the watch shows it straight away.
     private func saveEntry() {
-        try? modelContext.save()
+        modelContext.saveTraced("set entry")
     }
 
     /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
@@ -430,7 +430,8 @@ struct WorkoutSetView: View {
         } else {
             let wasDone = (completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
             workoutSet.start()
-            try? modelContext.save()
+            // Saved now, so the watch shows the set open again and quitting doesn't lose it.
+            modelContext.saveTraced("set reopened")
             offerUndo(restoring: wasDone)
         }
     }
@@ -449,7 +450,7 @@ struct WorkoutSetView: View {
         undoExpiry?.cancel()
         if let reopened {
             workoutSet.undoReopen(completedAt: reopened.completedAt, startedAt: reopened.startedAt)
-            try? modelContext.save()
+            modelContext.saveTraced("set reopen undone")
         }
         withAnimation { reopened = nil }
     }
@@ -460,7 +461,7 @@ struct WorkoutSetView: View {
         } else {
             workoutSet.complete()
         }
-        try? modelContext.save()
+        modelContext.saveTraced("set logged")
     }
 
     private static func selectingAll(_ text: String) -> TextSelection {

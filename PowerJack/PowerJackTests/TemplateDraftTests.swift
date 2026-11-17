@@ -206,6 +206,32 @@ struct TemplateDraftTests {
         #expect(draft.templateWorkoutDraftsValue[1].templateExerciseDrafts.map(\.exercise.exerciseName) == ["Row"])
     }
 
+    @Test("Copying a day keeps its supersets, each under an ID of its own")
+    func copyDayKeepsSupersets() throws {
+        let row = makeExercise()
+        let curl = Exercise(exerciseName: "Curl", exerciseEquipment: .dumbbell, primaryMuscleFocus: .biceps)
+        let press = Exercise(exerciseName: "Press", exerciseEquipment: .dumbbell, primaryMuscleFocus: .shoulders)
+        var draft = TemplateProgramDraft()
+        draft.workoutsPerWeek = 2
+        var day = draft.templateWorkoutDraftsValue[0]
+        for exercise in [row, curl, press] {
+            day.addTemplateExerciseDraft(exercise: exercise)
+        }
+        day.startSuperset(with: day.blocks[0])
+        day.add(day.blocks[1], to: day.supersets[0])
+        draft.templateWorkoutDraftsValue[0] = day
+
+        draft.copyTemplateWorkout(from: 0, to: 1, replacing: true)
+        let copied = draft.templateWorkoutDraftsValue[1]
+        #expect(copied.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["Row", "Curl"], ["Press"]])
+        let sourceID = try #require(day.templateExerciseDrafts[0].supersetID)
+        #expect(copied.templateExerciseDrafts[0].supersetID != sourceID)
+
+        // Added to the end again, the second copy is a superset of its own.
+        draft.copyTemplateWorkout(from: 0, to: 1, replacing: false)
+        #expect(draft.templateWorkoutDraftsValue[1].supersets.count == 2)
+    }
+
     @Test("Copying a day onto itself or a missing day changes nothing")
     func copyDayIgnoresBadDays() {
         var draft = TemplateProgramDraft()

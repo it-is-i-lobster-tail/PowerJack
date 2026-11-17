@@ -30,8 +30,10 @@ extension Program {
     func resetProgression() {
         guard canResetProgression, let week = currentWeek else {
             Logger.program.warning("This Program has no workouts to reset this week.")
+            TraceLog.record(.workout, "Reset Progression refused for \(traceDescription): nothing to reset")
             return
         }
+        TraceLog.record(.workout, "Reset Progression of \(traceDescription), \(templateType.rawValue): week \(week.order + 1), \(workoutsToReplan.count) workouts")
         templateType.weekPlanner.replan(workoutsToReplan, of: week, in: self)
     }
 }

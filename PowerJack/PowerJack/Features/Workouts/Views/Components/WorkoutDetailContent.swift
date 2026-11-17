@@ -15,6 +15,8 @@ struct WorkoutDetailContent: View {
     let onExerciseSetsDone: (WorkoutExercise) -> Void
     var review: WorkoutReviewView? = nil
 
+    @State private var pageRequests = 0
+
     var body: some View {
         // The sets take every point the exercise strip doesn't need, less a gap above the strip.
         VStack(spacing: LayoutMetrics.compactSpacing) {
@@ -24,7 +26,8 @@ struct WorkoutDetailContent: View {
                 onExerciseSetsDone: onExerciseSetsDone,
                 selectedExerciseIndex: $selectedExerciseIndex,
                 focusedSetField: focusedSetField,
-                review: review
+                review: review,
+                pageRequests: pageRequests
             )
             .frame(maxHeight: .infinity)
 
@@ -32,7 +35,8 @@ struct WorkoutDetailContent: View {
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
                 showsReview: review != nil,
-                selectedExerciseIndex: $selectedExerciseIndex
+                selectedExerciseIndex: $selectedExerciseIndex,
+                onReselect: { pageRequests += 1 }
             )
         }
         .frame(width: screenWidth)

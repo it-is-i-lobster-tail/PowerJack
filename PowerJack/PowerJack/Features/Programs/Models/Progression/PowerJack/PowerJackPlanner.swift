@@ -41,14 +41,15 @@ enum PowerJackPlanner: WeekPlanner {
         }
         let closed = Array(weeks[..<index])
         let source = closed[index - 1]
-        let exercises = source.workouts.map { $0.workoutExercises.compactMap(\.exercise) }
         guard let plan = nextPlan(after: closed, in: program) else { return }
 
-        for (workoutIndex, workoutExercises) in exercises.enumerated() {
+        for sourceWorkout in source.workouts {
             guard let workout = week.addWorkout() else { continue }
-            for (entryIndex, exercise) in workoutExercises.enumerated() {
-                guard let workoutExercise = workout.addWorkoutExercise(exercise: exercise) else { continue }
-                let sourceExercise = source.workouts[workoutIndex].workoutExercises[entryIndex]
+            // A row whose exercise is gone is left out, and each row copies its own settings.
+            for sourceExercise in sourceWorkout.workoutExercises {
+                guard let exercise = sourceExercise.exercise,
+                      let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
+                else { continue }
                 workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
                 workoutExercise.inheritSuperset(from: sourceExercise)
             }

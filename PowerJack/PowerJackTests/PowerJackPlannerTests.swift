@@ -139,6 +139,47 @@ struct PowerJackPlannerTests {
         #expect(weekTwo.planSummary == builtWeekTwo)
     }
 
+    @Test("A row whose exercise is gone leaves next week's rows each with its own settings")
+    func missingExerciseKeepsRowsLinedUp() throws {
+        let gone = Exercise(exerciseName: "Gone", exerciseEquipment: .dumbbell, primaryMuscleFocus: .chest, fatigueLevel: .low)
+        let squat = Exercise(exerciseName: "Squat", exerciseEquipment: .barbell, primaryMuscleFocus: .quads, fatigueLevel: .high)
+        let curl = Exercise(exerciseName: "Curl", exerciseEquipment: .dumbbell, primaryMuscleFocus: .biceps, fatigueLevel: .low)
+        let template = TemplateProgram(templateName: "Jack", workoutsPerWeek: 1, templateMuscleFocus: [], templateType: .powerJack)
+        let day = template.addTemplateWorkout()
+        for exercise in [gone, squat, curl] {
+            container.mainContext.insert(exercise)
+            day.addTemplateExercise(exercise: exercise)
+        }
+        container.mainContext.insert(template)
+        let program = Program(programLengthWeeks: 4, templateProgram: template)
+        try container.mainContext.insertAndSave(program)
+        program.start()
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        workout.workoutExercises[2].disableWarmups()
+        container.mainContext.delete(gone)
+        try container.mainContext.save()
+        try #require(workout.workoutExercises[0].exercise == nil)
+
+        for exercise in workout.workoutExercises where exercise.exercise != nil {
+            for set in exercise.workingSets {
+                set.reps = set.repsPlanned ?? 8
+                set.weightTenthsPounds = 1000
+                exercise.completeSet(set)
+                if exercise.needsTopSetRating, exercise.isLastTopSet(set) {
+                    exercise.rateTopSets(.three)
+                }
+            }
+            exercise.addFeedback(feedback: ExerciseFeedback(repsInReserve: .three, levelOfPain: .none))
+        }
+        program.finishWorkout(workout)
+
+        let next = try #require(program.programWeeks[1].workouts.first).workoutExercises
+        #expect(next.map { $0.exercise?.exerciseName } == ["Squat", "Curl"])
+        #expect(!next[0].warmupsDisabled)
+        #expect(next[1].warmupsDisabled)
+    }
+
     // MARK: Helpers
 
     /// Logs every set at its planned reps (8 when none was planned): the squat at `squatLoads`, the rest

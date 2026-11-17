@@ -416,6 +416,7 @@ extension Workout {
     }
     /// Saves the exercises this day has from next week on. This week's stay as they were.
     func setNextWeekLayout(_ layout: [(exercise: Exercise, supersetID: UUID?)]) {
+        TraceLog.record(.workout, "Next week's layout for \(traceDescription): \(TraceLog.layout(layout.map { (exercise: $0.exercise, supersetID: $0.supersetID) }))")
         clearNextWeekLayout()
         nextWeekExercisesValue = layout.enumerated().map { order, entry in
             TemplateExercise(exercise: entry.exercise, order: order, supersetID: entry.supersetID)
@@ -423,6 +424,7 @@ extension Workout {
         hasNextWeekLayoutValue = true
     }
     func clearNextWeekLayout() {
+        if hasNextWeekLayoutValue { TraceLog.record(.workout, "Cleared next week's layout for \(traceDescription)") }
         for row in nextWeekExercisesValue ?? [] {
             modelContext?.delete(row)
         }
@@ -433,6 +435,7 @@ extension Workout {
     /// Exercises it already has keep the sets the planner gave them.
     func applyNextWeekLayout(from source: Workout) {
         guard let layout = source.nextWeekLayout else { return }
+        TraceLog.record(.workout, "Applying last week's edit to \(traceDescription)")
         var unclaimed = workoutExercises
         applyLayout(layout.compactMap { row in
             guard let exercise = row.exercise else { return nil }
