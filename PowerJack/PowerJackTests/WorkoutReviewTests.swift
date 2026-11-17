@@ -75,6 +75,28 @@ struct WorkoutReviewTests {
         #expect(try context.fetchCount(FetchDescriptor<ExerciseFeedback>()) == 1)
     }
 
+    @Test("Logging one of two added sets, then removing the other, asks again")
+    func feedbackAskedAgainWhenUnloggedSetRemoved() throws {
+        let workout = try makeStartedWorkout(exercises: 1)
+        let exercise = workout.workoutExercises[0]
+        logWorkingSets(of: exercise)
+        exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
+
+        let logged = try #require(exercise.addSet())
+        _ = try #require(exercise.addSet())
+        logged.reps = 8
+        logged.weightTenthsPounds = 1000
+        exercise.completeSet(logged)
+        // The second added set is still open, so the lifter isn't done yet.
+        #expect(!exercise.needsFeedback)
+
+        exercise.removeLastSet()
+
+        #expect(exercise.allSetsDone())
+        #expect(exercise.needsFeedback)
+        #expect(!exercise.isDone)
+    }
+
     @Test("A set added after rating but skipped, not logged, doesn't ask again")
     func addedSetSkippedKeepsFeedback() throws {
         let workout = try makeStartedWorkout(exercises: 1)
