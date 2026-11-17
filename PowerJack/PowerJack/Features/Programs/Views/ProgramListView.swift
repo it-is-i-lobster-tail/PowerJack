@@ -108,8 +108,10 @@ struct ProgramListView: View {
     }
 
     private func delete(_ program: Program) {
-        program.delete()
         do {
+            // Its sets stay in the exported history, marked deleted.
+            try HistoryArchive.programWillBeDeleted(program, in: modelContext)
+            program.delete()
             try modelContext.save()
         } catch {
             modelContext.rollback()

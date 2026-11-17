@@ -18,7 +18,7 @@ enum HistoryExport {
     /// The header row. Weights are in `unit`, so the weight headers name it.
     static func columns(unit: WeightUnit) -> [String] {
         [
-            "Program #", "Program", "Program Type", "Program Weeks", "Days Per Week", "Program Status",
+            "Program #", "Program ID", "Program", "Program Type", "Program Weeks", "Days Per Week", "Program Status",
             "Week", "Week Type", "Day", "Workout Status", "Workout Started", "Workout Ended", "Workout Minutes",
             "Exercise #", "Exercise", "Equipment", "Primary Muscle", "Exercise Source", "Superset", "Exercise Status",
             "Effort", "Pain", "Top Set RIR", "RIR Target", "Progression",
@@ -27,82 +27,138 @@ enum HistoryExport {
         ]
     }
 
-    /// The whole history as CSV text, oldest program first.
-    static func csv(for programs: [Program], unit: WeightUnit = .current) -> String {
+    /// The whole history as CSV text, oldest program first: the saved rows of programs that
+    /// ended (see `HistoryRecord`), then each of `programs` not among them, read as it is now.
+    static func csv(for programs: [Program], saved: [HistoryRecord] = [], unit: WeightUnit = .current) -> String {
+        let savedIDs = Set(saved.compactMap(\.programID))
+        let savedPrograms = Dictionary(grouping: saved) { $0.programID ?? $0.batchID }.values.map { records in
+            (started: records.first?.programStarted ?? .distantFuture, rows: records.sorted { $0.order < $1.order }.map(\.row))
+        }
+        let livePrograms = programs
+            .filter { program in program.syncID.map { !savedIDs.contains($0) } ?? true }
+            .map { (started: firstActivity(of: $0) ?? .distantFuture, rows: rows(for: $0)) }
+        let ordered = (savedPrograms + livePrograms).enumerated()
+            .sorted { ($0.element.started, $0.offset) < ($1.element.started, $1.offset) }
+            .map(\.element.rows)
+
         var lines = [row(columns(unit: unit))]
         var names = Names()
-        for (index, program) in programs.sorted(by: { firstActivity(of: $0) < firstActivity(of: $1) }).enumerated() {
-            lines += rows(for: program, number: index + 1, unit: unit, names: &names)
+        for (index, rows) in ordered.enumerated() {
+            lines += rows.map { line(for: $0, number: index + 1, unit: unit, names: &names) }
         }
         return lines.joined(separator: "\r\n") + "\r\n"
     }
 
     /// Writes the history to a temporary file named for today, ready to share.
     static func writeFile(from context: ModelContext, unit: WeightUnit = .current) throws -> URL {
+        try HistoryArchive.saveEndedPrograms(in: context)
+        let saved = try HistoryArchive.records(in: context)
         let programs = try context.fetch(FetchDescriptor<Program>())
         let url = URL.temporaryDirectory.appending(path: "PowerJack History \(Date.now.formatted(Self.day)).csv")
-        try csv(for: programs, unit: unit).write(to: url, atomically: true, encoding: .utf8)
+        try csv(for: programs, saved: saved, unit: unit).write(to: url, atomically: true, encoding: .utf8)
         return url
     }
 
-    private static func rows(for program: Program, number: Int, unit: WeightUnit, names: inout Names) -> [String] {
-        var lines: [String] = []
-        let programName = names.template(program.templateName)
+    /// Every set of `program`, in week, day, exercise and set order. `status` stands in for the
+    /// program's own, such as when it is about to be deleted.
+    static func rows(for program: Program, status: HistoryProgramStatus? = nil) -> [HistoryRow] {
+        var rows: [HistoryRow] = []
         for (weekIndex, week) in program.programWeeks.enumerated() {
             for (dayIndex, workout) in week.workouts.enumerated() {
                 let supersets = supersetLetters(in: workout)
                 for (exerciseIndex, workoutExercise) in workout.workoutExercises.enumerated() {
                     let exercise = workoutExercise.exercise
-                    let exerciseName = exercise.map { names.exercise($0) } ?? ""
                     let feedback = workoutExercise.feedback
                     for workoutSet in workoutExercise.workoutSets {
-                        lines.append(row([
-                            "\(number)",
-                            programName,
-                            program.templateType.name,
-                            "\(program.programLengthWeeks)",
-                            "\(program.workoutsPerWeek)",
-                            program.status.label,
-                            "\(weekIndex + 1)",
-                            week.weekKind?.rawValue.capitalized ?? "",
-                            "\(dayIndex + 1)",
-                            workout.status.label,
-                            date(workout.startedAt),
-                            date(workout.endedAt),
-                            workout.endedAt == nil ? "" : decimal(workout.duration().map { $0 / 60 }),
-                            "\(exerciseIndex + 1)",
-                            exerciseName,
-                            exercise?.equipment.displayName ?? "",
-                            exercise?.primaryMuscleFocus.rawValue.capitalized ?? "",
-                            exercise.map { $0.userCreated ? "Custom" : "Built-in" } ?? "",
-                            supersets[ObjectIdentifier(workoutExercise)] ?? "",
-                            workoutExercise.status.label,
-                            feedback.map(effort) ?? "",
-                            feedback?.levelOfPain.label ?? "",
-                            workoutExercise.topSetRepsInReserve?.valueText ?? "",
-                            workoutExercise.rirTarget.map(String.init) ?? "",
-                            workoutExercise.progressionNote ?? workoutExercise.progressionCode ?? "",
-                            setType(of: workoutSet, in: workoutExercise),
-                            "\(workoutExercise.number(of: workoutSet))",
-                            workoutSet.status.label,
-                            workoutSet.repsPlanned.map(String.init) ?? "",
-                            workoutSet.reps.map(String.init) ?? "",
-                            weight(workoutSet.weightTenthsPlannedPounds, in: unit),
-                            weight(workoutSet.weightTenthsPounds, in: unit),
-                            date(workoutSet.startedAt),
-                            date(workoutSet.completedAt),
-                            workoutSet.duration.map { "\(Int($0.rounded()))" } ?? "",
-                        ]))
+                        rows.append(HistoryRow(
+                            programID: program.syncID,
+                            programName: program.templateName,
+                            programType: program.templateType.name,
+                            programWeeks: program.programLengthWeeks,
+                            daysPerWeek: program.workoutsPerWeek,
+                            programStatus: status ?? HistoryProgramStatus(program.status),
+                            week: weekIndex + 1,
+                            weekType: week.weekKind?.rawValue.capitalized ?? "",
+                            day: dayIndex + 1,
+                            workoutStatus: workout.status.label,
+                            workoutStarted: workout.startedAt,
+                            workoutEnded: workout.endedAt,
+                            workoutSeconds: workout.endedAt == nil ? nil : workout.duration(),
+                            exerciseNumber: exerciseIndex + 1,
+                            exerciseName: exercise?.exerciseName ?? "",
+                            exerciseKey: exercise.map { $0.syncID?.uuidString ?? $0.exerciseName } ?? "",
+                            exerciseSource: exercise.map { $0.userCreated ? "Custom" : "Built-in" } ?? "",
+                            equipment: exercise?.equipment.displayName ?? "",
+                            primaryMuscle: exercise?.primaryMuscleFocus.rawValue.capitalized ?? "",
+                            superset: supersets[ObjectIdentifier(workoutExercise)] ?? "",
+                            exerciseStatus: workoutExercise.status.label,
+                            effort: feedback.map(effort) ?? "",
+                            pain: feedback?.levelOfPain.label ?? "",
+                            topSetRIR: workoutExercise.topSetRepsInReserve?.valueText ?? "",
+                            rirTarget: workoutExercise.rirTarget.map(String.init) ?? "",
+                            progression: workoutExercise.progressionNote ?? workoutExercise.progressionCode ?? "",
+                            setType: setType(of: workoutSet, in: workoutExercise),
+                            setNumber: workoutExercise.number(of: workoutSet),
+                            setStatus: workoutSet.status.label,
+                            targetReps: workoutSet.repsPlanned,
+                            reps: workoutSet.reps,
+                            targetWeightTenthsPounds: workoutSet.weightTenthsPlannedPounds,
+                            weightTenthsPounds: workoutSet.weightTenthsPounds,
+                            setStarted: workoutSet.startedAt,
+                            setLogged: workoutSet.completedAt,
+                            setSeconds: workoutSet.duration.map { Int($0.rounded()) }
+                        ))
                     }
                 }
             }
         }
-        return lines
+        return rows
     }
 
-    /// Programs are numbered by when they started. One never started goes after the rest.
-    private static func firstActivity(of program: Program) -> Date {
-        program.programWeeks.flatMap(\.workouts).compactMap { $0.startedAt ?? $0.createdAt }.min() ?? .distantFuture
+    private static func line(for row: HistoryRow, number: Int, unit: WeightUnit, names: inout Names) -> String {
+        Self.row([
+            "\(number)",
+            row.programID?.uuidString ?? "",
+            names.template(row.programName),
+            row.programType,
+            "\(row.programWeeks)",
+            "\(row.daysPerWeek)",
+            row.programStatus.rawValue,
+            "\(row.week)",
+            row.weekType,
+            "\(row.day)",
+            row.workoutStatus,
+            date(row.workoutStarted),
+            date(row.workoutEnded),
+            decimal(row.workoutSeconds.map { $0 / 60 }),
+            "\(row.exerciseNumber)",
+            names.exercise(row),
+            row.equipment,
+            row.primaryMuscle,
+            row.exerciseSource,
+            row.superset,
+            row.exerciseStatus,
+            row.effort,
+            row.pain,
+            row.topSetRIR,
+            row.rirTarget,
+            row.progression,
+            row.setType,
+            "\(row.setNumber)",
+            row.setStatus,
+            row.targetReps.map(String.init) ?? "",
+            row.reps.map(String.init) ?? "",
+            weight(row.targetWeightTenthsPounds, in: unit),
+            weight(row.weightTenthsPounds, in: unit),
+            date(row.setStarted),
+            date(row.setLogged),
+            row.setSeconds.map(String.init) ?? "",
+        ])
+    }
+
+    /// Programs are numbered by when they started. One never started has none and goes after the rest.
+    static func firstActivity(of program: Program) -> Date? {
+        program.programWeeks.flatMap(\.workouts).compactMap { $0.startedAt ?? $0.createdAt }.min()
     }
 
     /// Supersets get letters by their place in the day, as in the template. An exercise on its own gets none.
@@ -157,7 +213,7 @@ enum HistoryExport {
 private struct Names {
     private static let builtInTemplates = Set(TemplateCatalog.entries.map(\.name))
     private var templates: [String: String] = [:]
-    private var exercises: [ObjectIdentifier: String] = [:]
+    private var exercises: [String: String] = [:]
 
     /// A built-in template's name, even for a program made from an edited copy, as long as the name is unchanged.
     mutating func template(_ name: String) -> String {
@@ -169,11 +225,11 @@ private struct Names {
     }
 
     /// Built-in exercises can't be renamed, so only the lifter's own get a stand-in.
-    mutating func exercise(_ exercise: Exercise) -> String {
-        guard exercise.userCreated else { return exercise.exerciseName }
-        if let label = exercises[ObjectIdentifier(exercise)] { return label }
+    mutating func exercise(_ row: HistoryRow) -> String {
+        guard row.isCustomExercise else { return row.exerciseName }
+        if let label = exercises[row.exerciseKey] { return label }
         let label = "Custom Exercise \(exercises.count + 1)"
-        exercises[ObjectIdentifier(exercise)] = label
+        exercises[row.exerciseKey] = label
         return label
     }
 }

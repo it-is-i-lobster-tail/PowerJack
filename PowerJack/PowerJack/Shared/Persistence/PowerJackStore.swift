@@ -163,11 +163,22 @@ final class PowerJackStore {
         }
     }
 
+    /// Fills the long history with any program that ended before it existed, or while this
+    /// iPhone wasn't the one running it. A failure never stops the app opening: the export tries again.
+    private static func saveEndedPrograms(in context: ModelContext) {
+        do {
+            try HistoryArchive.saveEndedPrograms(in: context)
+        } catch {
+            Logger.persistence.error("Could not save ended programs' history: \(error.localizedDescription)")
+        }
+    }
+
     private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
         do {
             let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
             try ExerciseCatalog.seed(in: container.mainContext)
             try TemplateCatalog.seed(in: container.mainContext)
+            saveEndedPrograms(in: container.mainContext)
             return container
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")
