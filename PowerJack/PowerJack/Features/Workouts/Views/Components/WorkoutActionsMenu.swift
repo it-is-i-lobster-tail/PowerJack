@@ -14,6 +14,10 @@ struct WorkoutActionsMenu: View {
     @Binding var isShowingWorkoutExerciseSheet: Bool
     let onEditExercise: (Exercise) -> Void
     var onSkipWorkout: (() -> Void)? = nil
+    /// Opens the list of exercises and supersets the selected exercise can join.
+    var onAddToSuperset: (WorkoutExercise) -> Void = { _ in }
+    /// Opens the selected exercise's superset to reorder it or take exercises out.
+    var onEditSuperset: (UUID) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @State private var isConfirmingSkipWorkout = false
@@ -79,6 +83,10 @@ struct WorkoutActionsMenu: View {
                         }
                     }
                     .disabled(!canModifySelectedExercise)
+                }
+
+                if workout.canEditSupersets {
+                    supersetButtons(for: selectedWorkoutExercise)
                 }
 
                 Divider()
@@ -165,6 +173,35 @@ struct WorkoutActionsMenu: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Add to Superset for an exercise on its own. In a superset, Remove from Superset and Edit Superset instead.
+    @ViewBuilder
+    private func supersetButtons(for workoutExercise: WorkoutExercise) -> some View {
+        if let supersetID = workoutExercise.supersetID, !workoutExercise.supersetPartners.isEmpty {
+            Button {
+                withAnimation {
+                    workout.removeFromSuperset(workoutExercise)
+                    try? modelContext.save()
+                }
+            } label: {
+                Label("Remove from Superset", systemImage: "square.split.1x2")
+            }
+
+            Button {
+                onEditSuperset(supersetID)
+            } label: {
+                Label("Edit Superset", systemImage: "arrow.up.arrow.down")
+            }
+        } else {
+            Button {
+                onAddToSuperset(workoutExercise)
+            } label: {
+                Label("Add to Superset", systemImage: "link.badge.plus")
+            }
+            // A finished exercise has nothing left to do in turn, and there may be nothing to join.
+            .disabled(workoutExercise.isDone || workout.supersetChoices(for: workoutExercise).isEmpty)
         }
     }
 

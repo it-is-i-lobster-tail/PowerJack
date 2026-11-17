@@ -209,6 +209,10 @@ extension WorkoutExercise {
             allSetsDone() &&
             completedWorkingSets > 0
     }
+    /// A set was logged, or the exercise was finished or skipped. Edit Days never takes it out of a workout in progress.
+    var hasLoggedWork: Bool {
+        status == .complete || status == .skipped || workoutSets.contains { $0.status == .complete }
+    }
     // Every working set is complete or skipped. Warmups are optional and don't count.
     func allSetsDone() -> Bool {
         let sets = workingSets
@@ -528,9 +532,10 @@ extension WorkoutExercise {
         warmupsDisabledValue = source.warmupsDisabledValue
     }
     /// Stacks a planned exercise into the template's superset. Call before the workout starts.
+    /// Changes while the exercise is planned, or while its workout is in progress (Edit Days). Logged sets stay as they are.
     func setSuperset(_ supersetID: UUID?) {
-        guard status == .planned else {
-            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise.")
+        guard status == .planned || workoutValue?.status == .active else {
+            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise or one in a workout in progress.")
             return
         }
         supersetIDValue = supersetID
