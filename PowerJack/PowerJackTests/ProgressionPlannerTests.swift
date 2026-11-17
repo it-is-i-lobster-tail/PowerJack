@@ -54,7 +54,8 @@ struct ProgressionPlannerTests {
 
     @Test("A swapped exercise starts its history over")
     func changedExerciseHasNoHistory() throws {
-        let program = try makeProgram(weeks: 4, focus: [.chest])
+        // Chest isn't a focus muscle, so a set would take two clean weeks of the same exercise.
+        let program = try makeProgram(weeks: 4, focus: [.back])
         try finishWeeks(1, of: program)
 
         // Week two swaps to another chest exercise, so week one no longer matches.
