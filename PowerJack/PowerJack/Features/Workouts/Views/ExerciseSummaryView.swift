@@ -46,7 +46,7 @@ struct ExerciseSummaryView: View {
             .padding(LayoutMetrics.sectionSpacing)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .safeAreaBar(edge: .bottom, spacing: 0) {
             Button(action: onContinue) {
                 Text("Done")
                     .font(.title3)

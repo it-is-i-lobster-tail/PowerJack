@@ -8,7 +8,7 @@
 
 Every agent MUST run this check on the iOS Simulator before handing off any change that touches UI, layout, navigation, or text input. Do it in both light and dark mode, with the software keyboard showing (Simulator > I/O > Keyboard > uncheck "Connect Hardware Keyboard").
 
-1. **Bottom bar is never covered.** On Program detail (Resume / Start), New Program (Start Program), New Template (Save) and a workout's exercise screen (the exercise strip), nothing sits under, touches or covers the gear and the Programs / Templates switcher.
+1. **At rest, nothing sits under the bottom bar.** On Program detail (Resume / Start), New Program (Start Program), New Template (Save) and a workout's exercise screen (the exercise strip), nothing sits under, touches or covers the gear and the Programs / Templates switcher once scrolling stops. Scrolled content may pass under the glass, like Safari.
 2. **The number pad covers the bottom of the screen.** On a workout's exercise screen, tap a Weight or Reps field. The number pad slides over the bottom of the screen. The exercise strip, the gear and the switcher stay where they were and do not move up above the number pad.
 
 Also run `PowerJackTests/KeyboardLayoutTests`. It guards the layout pieces behind these rules (`powerJackTabPage` and `keyboardSlidesOver()`), but only the simulator shows the real screens, so the check above is still required. Say in your hand-off that you ran both and what you saw.

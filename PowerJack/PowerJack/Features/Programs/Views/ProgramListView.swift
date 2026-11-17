@@ -87,7 +87,6 @@ struct ProgramListView: View {
             }
             .listRowSpacing(10)
             .scrollContentBackground(.hidden)
-            .background(Color(uiColor: .systemBackground))
         }
         .alert(
             "Delete “\(programPendingDelete?.templateName ?? "")”?",

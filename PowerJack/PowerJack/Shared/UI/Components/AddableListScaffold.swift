@@ -41,7 +41,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
 
     var body: some View {
         content()
-            .safeAreaInset(edge: .top, spacing: 0) {
+            .safeAreaBar(edge: .top, spacing: 0) {
                 if let hint {
                     HintView(hint)
                         .padding(.horizontal)

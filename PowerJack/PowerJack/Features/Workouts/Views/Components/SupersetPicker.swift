@@ -53,6 +53,7 @@ struct SupersetPicker: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 
     @ViewBuilder

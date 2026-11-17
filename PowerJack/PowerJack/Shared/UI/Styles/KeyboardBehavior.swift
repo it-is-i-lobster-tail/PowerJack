@@ -18,9 +18,10 @@ extension View {
             .background(TapOutsideEndsEditing())
     }
 
-    /// Lays out one page of the root TabView: it stops above the floating bottom bar,
-    /// and the keyboard slides over the page instead of squeezing it.
-    /// While the rest island shows, the page's navigation bar moves down below it.
+    /// Lays out one page of the root TabView: scrolling content runs under the floating
+    /// bottom bar but comes to rest above it, and the keyboard slides over the page
+    /// instead of squeezing it. While the rest island shows, the page's navigation bar
+    /// moves down below it.
     func powerJackTabPage(bottomBarHeight: CGFloat) -> some View {
         modifier(TabPageLayout(bottomBarHeight: bottomBarHeight))
     }
@@ -81,16 +82,44 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
 }
 
 private struct TabPageLayout: ViewModifier {
-    // Tab pages don't inherit a safe-area inset set on the TabView, so each page keeps its own.
     @Environment(\.restIslandHeight) private var restIslandHeight
 
     let bottomBarHeight: CGFloat
 
     func body(content: Content) -> some View {
         content
-            .padding(.top, restIslandHeight)
-            .padding(.bottom, bottomBarHeight)
+            .background(TabSafeArea(top: restIslandHeight, bottom: bottomBarHeight))
             .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+}
+
+/// Adds the floating bars to the TabView's safe area. UIKit hands that safe area down to
+/// every tab and every screen pushed inside one, which SwiftUI's safe-area modifiers
+/// on a tab page don't reach.
+private struct TabSafeArea: UIViewControllerRepresentable {
+    let top: CGFloat
+    let bottom: CGFloat
+
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.insets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+    }
+
+    final class Controller: UIViewController {
+        var insets = UIEdgeInsets.zero {
+            didSet { apply() }
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            apply()
+        }
+
+        private func apply() {
+            guard let tabBarController, tabBarController.additionalSafeAreaInsets != insets else { return }
+            tabBarController.additionalSafeAreaInsets = insets
+        }
     }
 }
 

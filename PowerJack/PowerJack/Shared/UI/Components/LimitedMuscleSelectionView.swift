@@ -82,7 +82,6 @@ struct LimitedMuscleSelectionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, LayoutMetrics.sectionSpacing)
         .padding(.bottom, LayoutMetrics.sectionSpacing)
-        .background(Color(uiColor: .systemBackground))
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
     }

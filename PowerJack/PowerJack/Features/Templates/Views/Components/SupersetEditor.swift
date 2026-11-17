@@ -65,6 +65,7 @@ struct SupersetEditor: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
         // Taking the last exercise out ends the superset, so there's nothing left to show.
         .onChange(of: superset == nil) { _, isGone in
             if isGone { dismiss() }
