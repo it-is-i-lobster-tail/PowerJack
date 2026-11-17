@@ -44,6 +44,15 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
 
+    /// The sets the Live Activity shows as chips, at most `size`: the one before the current set,
+    /// the current one and the ones after. `before` and `after` count the sets left off each side.
+    func chipWindow(size: Int = 4) -> (before: Int, sets: ArraySlice<ActivitySet>, after: Int) {
+        guard sets.count > size else { return (0, sets[...], 0) }
+        let current = sets.firstIndex { $0.progress == .current } ?? sets.count - 1
+        let start = min(max(0, current - 1), sets.count - size)
+        return (start, sets[start..<(start + size)], sets.count - start - size)
+    }
+
     /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
     /// Numbered as in the app, so warmups don't count toward a working set's number.
     var shortSetText: String {

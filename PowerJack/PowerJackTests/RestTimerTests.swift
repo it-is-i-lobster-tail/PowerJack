@@ -121,6 +121,29 @@ struct RestTimerTests {
         #expect(workout.activityState(at: start) == nil)
     }
 
+    @Test("The Live Activity shows the set before the current one and the next two, with the rest as dots")
+    func activityChipWindow() {
+        func state(sets count: Int, current: Int) -> WorkoutActivityState {
+            WorkoutActivityState(
+                exerciseName: "Squat",
+                setText: "",
+                exerciseOrder: 0,
+                setOrder: current,
+                sets: (0..<count).map { ActivitySet(label: "\($0 + 1)", progress: $0 == current ? .current : .upcoming) },
+                repsOnly: false,
+                canCompleteAtTarget: true
+            )
+        }
+        let short = state(sets: 3, current: 0).chipWindow()
+        #expect((short.before, short.sets.count, short.after) == (0, 3, 0))
+        let first = state(sets: 7, current: 0).chipWindow()
+        #expect((first.before, first.sets.map(\.label), first.after) == (0, ["1", "2", "3", "4"], 3))
+        let middle = state(sets: 7, current: 3).chipWindow()
+        #expect((middle.before, middle.sets.map(\.label), middle.after) == (2, ["3", "4", "5", "6"], 1))
+        let last = state(sets: 7, current: 6).chipWindow()
+        #expect((last.before, last.sets.map(\.label), last.after) == (3, ["4", "5", "6", "7"], 0))
+    }
+
     @Test("Warmups are labeled W1, W2 on the Live Activity and working sets count from 1")
     func activityWarmupLabels() throws {
         let workout = Workout(order: 0)
