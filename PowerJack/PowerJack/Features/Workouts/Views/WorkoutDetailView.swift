@@ -117,72 +117,7 @@ struct WorkoutDetailView: View {
             )
         } else {
             GeometryReader { geometry in
-                WorkoutDetailContent(
-                    screenWidth: geometry.size.width,
-                    workoutExercises: workout.workoutExercises,
-                    selectedExerciseIndex: $selectedExerciseIndex,
-                    focusedSetField: $focusedSetField,
-                    onExerciseSetsDone: handleSetsDone,
-                    review: isReadOnly ? nil : WorkoutReviewView(
-                        workout: workout,
-                        onSelectExercise: selectExercise,
-                        onSkipRemainingSets: skipRemainingSets,
-                        onFinish: finishWorkout
-                    )
-                )
-                .environment(\.workoutIsReadOnly, isReadOnly)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        VStack(spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("Day \(workout.order + 1)")
-                                    .font(.headline)
-                                Text("\(workout.percentComplete)%")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                            }
-
-                            if let weekLabel {
-                                Text(weekLabel)
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 6)
-                        .glassEffect(.regular, in: .capsule)
-                    }
-
-                    if !isReadOnly {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            WorkoutActionsMenu(
-                                workout: workout,
-                                selectedExerciseIndex: selectedExerciseIndex,
-                                isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
-                                onEditExercise: editExercise,
-                                onSkipWorkout: onSkipWorkout,
-                                onAddToSuperset: { showSupersetSheet(.add($0)) },
-                                onEditSuperset: { showSupersetSheet(.edit($0)) }
-                            )
-                        }
-                    }
-                }
-                .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
-                    if let selectedWorkoutExercise {
-                        ExerciseSelectionView(
-                            navigationTitle: "Change Exercise",
-                            onSelect: { exercise in
-                                selectedWorkoutExercise.changeExercise(newExercise: exercise)
-                                save()
-                            }
-                        )
-                        .presentationDetents([.large])
-                        .presentationDragIndicator(.visible)
-                    }
-                }
-                .navigationDestination(item: $exerciseToEdit) { exercise in
-                    ExerciseDetailView(exercise: exercise)
-                }
+                exercisePages(screenWidth: geometry.size.width)
             }
             // The number pad covers the exercise strip instead of pushing it up.
             .keyboardSlidesOver()
@@ -234,7 +169,7 @@ struct WorkoutDetailView: View {
             .onChange(of: workout.currentSet?.workoutSet.id) { previousSetID, _ in
                 followSuperset(after: previousSetID)
             }
-            .onChange(of: workout.workoutExercises.map(ObjectIdentifier.init)) { before, after in
+            .onChange(of: exerciseOrder) { before, after in
                 keepSelection(from: before, to: after)
             }
         }
@@ -250,6 +185,81 @@ struct WorkoutDetailView: View {
         withAnimation(.easeInOut(duration: 0.325)) {
             selectedExerciseIndex = Self.nextIndex(in: workout)
         }
+    }
+
+    /// The exercise pages with their toolbar. Kept out of `body` so the compiler can type-check each part quickly.
+    private func exercisePages(screenWidth: CGFloat) -> some View {
+        WorkoutDetailContent(
+            screenWidth: screenWidth,
+            workoutExercises: workout.workoutExercises,
+            selectedExerciseIndex: $selectedExerciseIndex,
+            focusedSetField: $focusedSetField,
+            onExerciseSetsDone: handleSetsDone,
+            review: isReadOnly ? nil : WorkoutReviewView(
+                workout: workout,
+                onSelectExercise: selectExercise,
+                onSkipRemainingSets: skipRemainingSets,
+                onFinish: finishWorkout
+            )
+        )
+        .environment(\.workoutIsReadOnly, isReadOnly)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Day \(workout.order + 1)")
+                            .font(.headline)
+                        Text("\(workout.percentComplete)%")
+                            .font(.caption)
+                            .monospacedDigit()
+                    }
+
+                    if let weekLabel {
+                        Text(weekLabel)
+                            .font(.caption)
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 6)
+                .glassEffect(.regular, in: .capsule)
+            }
+
+            if !isReadOnly {
+                ToolbarItem(placement: .topBarTrailing) {
+                    WorkoutActionsMenu(
+                        workout: workout,
+                        selectedExerciseIndex: selectedExerciseIndex,
+                        isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
+                        onEditExercise: editExercise,
+                        onSkipWorkout: onSkipWorkout,
+                        onAddToSuperset: { showSupersetSheet(.add($0)) },
+                        onEditSuperset: { showSupersetSheet(.edit($0)) }
+                    )
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
+            if let selectedWorkoutExercise {
+                ExerciseSelectionView(
+                    navigationTitle: "Change Exercise",
+                    onSelect: { exercise in
+                        selectedWorkoutExercise.changeExercise(newExercise: exercise)
+                        save()
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .navigationDestination(item: $exerciseToEdit) { exercise in
+            ExerciseDetailView(exercise: exercise)
+        }
+    }
+
+    /// The exercises in workout order, to notice when a superset change moves them.
+    private var exerciseOrder: [ObjectIdentifier] {
+        workout.workoutExercises.map(ObjectIdentifier.init)
     }
 
     private func showSupersetSheet(_ sheet: SupersetSheet) {
