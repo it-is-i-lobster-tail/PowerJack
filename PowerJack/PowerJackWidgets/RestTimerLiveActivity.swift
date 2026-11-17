@@ -136,7 +136,7 @@ private struct WorkoutWatchView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if let currentSet {
-                    Text("\(currentSet.weightText(repsOnly: state.repsOnly)) × \(currentSet.repsText)")
+                    Text("\(currentSet.weightWithUnit(repsOnly: state.repsOnly)) × \(currentSet.repsText)")
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
                         .lineLimit(1)
@@ -214,6 +214,13 @@ private struct SetTargets: View {
         HStack(spacing: 6) {
             ForEach(Array(state.sets.enumerated()), id: \.offset) { _, activitySet in
                 SetChip(activitySet: activitySet, repsOnly: state.repsOnly)
+            }
+
+            // The chips' weights in one unit, said once to save room.
+            if !state.repsOnly, let unit = state.sets.first?.unitText {
+                Text(unit)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)

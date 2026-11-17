@@ -68,6 +68,17 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
         value(fromTenthsPounds: tenths).formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
     }
 
+    /// `text` with each weight written as "<number> lb" shown in this unit. Planner notes are saved
+    /// as finished lines in pounds, older ones too, so a lifter in kilograms reads "+2.5 kg" for "+5.5 lb".
+    func showingWeights(in text: String) -> String {
+        guard self == .kilograms else { return text }
+        return text.replacing(/(\d[\d.,]*) lb\b/) { match in
+            guard let pounds = try? Double(String(match.1), format: .number) else { return String(match.0) }
+            let kilograms = pounds * Self.kilogramsPerPound
+            return "\(kilograms.formatted(.number.precision(.fractionLength(0...1)))) kg"
+        }
+    }
+
     static func kilograms(fromTenthsPounds tenths: Int) -> Double {
         Double(tenths) / 10 * kilogramsPerPound
     }

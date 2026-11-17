@@ -93,7 +93,7 @@ struct ProgramDetailView: View {
             Button("Reset", role: .destructive, action: resetProgression)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Reruns the progression system to determine reps, sets, and weight for any workouts this week not started. This is a development tool and in most cases will change nothing.")
+            Text("Workouts you haven't started this week get fresh sets, reps and weights from your ratings. Any changes you made to them will be replaced.")
         }
         .saveErrorAlert($saveErrorMessage)
     }

@@ -96,8 +96,9 @@ struct WorkoutSetView: View {
             if workoutSet.isWarmup && workoutSet.workoutExerciseValue?.templateType == .hypertrophy {
                 return Text("")
             }
-            // Without a rep target, the prompt is the reps to leave in reserve.
-            return Text("\(workoutSet.workoutExerciseValue?.rirTarget ?? 2)RIR")
+            // Without a rep target, the prompt is the reps to leave, e.g. "2 left".
+            guard let repsLeft = workoutSet.workoutExerciseValue?.rirTarget else { return Text("") }
+            return Text("\(repsLeft) left")
         }
 
         return Text(plannedReps, format: .number)

@@ -143,7 +143,7 @@ struct WarmupSetTests {
         #expect(exercise.warmupSets.count == 3)
     }
 
-    @Test("Removing every warmup turns them off, and Enable Warmup brings back the same count")
+    @Test("Removing every warmup turns them off, and Turn On Warmups brings back the same count")
     func removeAllWarmupsThenEnable() throws {
         let program = try makeProgram(weeks: 1)
         let workout = try #require(program.nextWorkout)
@@ -183,7 +183,7 @@ struct WarmupSetTests {
         #expect(exercise.warmupSets.count == 3)
     }
 
-    @Test("Adding a warmup back resets what Enable Warmup restores")
+    @Test("Adding a warmup back resets what Turn On Warmups restores")
     func addingWarmupForgetsRestoreCount() throws {
         let program = try makeProgram(weeks: 1)
         let workout = try #require(program.nextWorkout)
@@ -347,7 +347,7 @@ struct WarmupSetTests {
         }
     }
 
-    @Test("Enable Warmup adds two when the exercise has no warmups to bring back")
+    @Test("Turn On Warmups adds two when the exercise has no warmups to bring back")
     func enableWarmupsWithNoneBefore() throws {
         let program = try makeProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
@@ -366,7 +366,7 @@ struct WarmupSetTests {
         #expect(next.warmupSets.count == WorkoutExercise.initialWarmupSets)
     }
 
-    @Test("Disabled warmups are hidden, even logged ones, until Enable Warmup brings them back")
+    @Test("Disabled warmups are hidden, even logged ones, until Turn On Warmups brings them back")
     func enableWarmups() throws {
         let program = try makeProgram(weeks: 1)
         let workout = try #require(program.nextWorkout)

@@ -133,7 +133,7 @@ struct WorkoutScreenTests {
 
         let exercise = try #require(next.workoutExercises.first)
         #expect(screen.contains("Check In"), "\(screen.labels)")
-        let decision = try #require(screen.labels.first { $0.hasPrefix("Continue") }, "\(screen.labels)")
+        let decision = try #require(screen.labels.first { $0.hasPrefix("Same as Last Time") }, "\(screen.labels)")
         await screen.tap(decision)
         #expect(exercise.checkIn == .resolved)
         #expect(exercise.status == .active)

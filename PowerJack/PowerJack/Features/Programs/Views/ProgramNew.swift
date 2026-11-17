@@ -61,9 +61,11 @@ struct ProgramNew: View {
             )
         }
         .saveErrorAlert($saveErrorMessage)
-        .alert("Starting this program will halt any active ones. Continue?", isPresented: $isConfirmingStart) {
-            Button("Yes", action: save)
-            Button("No", role: .cancel) {}
+        .alert("Stop \(programs.active?.templateName ?? "Your Current Program")?", isPresented: $isConfirmingStart) {
+            Button("Stop and Start", role: .destructive, action: save)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You run one program at a time. Starting this one ends your current program for good. Its logged workouts are kept.")
         }
     }
 

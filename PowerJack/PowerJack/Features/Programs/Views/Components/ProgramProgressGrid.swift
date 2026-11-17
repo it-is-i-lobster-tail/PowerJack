@@ -51,7 +51,7 @@ struct ProgramProgressGrid: View {
                     let workouts = programWeek.workouts
 
                     GridRow {
-                        Text("W\(week)")
+                        Text("Wk \(week)")
                             .font(.caption)
                             .foregroundStyle(week == highlightedWeek ? .primary : .secondary)
                             .fixedSize()

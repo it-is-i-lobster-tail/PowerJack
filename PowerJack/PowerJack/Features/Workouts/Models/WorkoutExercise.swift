@@ -160,6 +160,11 @@ extension WorkoutExercise {
     var completedWorkingSets: Int {
         workingSets.count(where: { $0.status == .complete })
     }
+    /// e.g. "2 of 3 sets" or "0 of 1 set".
+    var workingSetsDoneText: String {
+        let count = workingSets.count
+        return "\(completedWorkingSets) of \(count) \(count == 1 ? "set" : "sets")"
+    }
     /// 1-based position within the set's own type, e.g. the first working set is 1 after two warmups.
     func number(of workoutSet: WorkoutSet) -> Int {
         let sameType = workoutSet.isWarmup ? warmupSets : workingSets

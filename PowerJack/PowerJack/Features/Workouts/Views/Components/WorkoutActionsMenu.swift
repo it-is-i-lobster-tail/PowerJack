@@ -48,10 +48,8 @@ struct WorkoutActionsMenu: View {
                 Button {
                     isShowingWorkoutExerciseSheet.toggle()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "slider.horizontal.3")
-                        Text("Change Exercise")
-                    }
+                    Label("Change Exercise", systemImage: "slider.horizontal.3")
+                    Text("Replaces this exercise on this day from now on. Your template stays the same.")
                 }
                 // Changing a finished exercise would throw away its logged sets.
                 .disabled(!canModifySelectedExercise || selectedWorkoutExercise.isDone)
@@ -79,7 +77,7 @@ struct WorkoutActionsMenu: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "flame")
-                            Text("Enable Warmup")
+                            Text("Turn On Warmups")
                         }
                     }
                     .disabled(!canModifySelectedExercise)
@@ -156,10 +154,8 @@ struct WorkoutActionsMenu: View {
             Button {
                 isPickingSubstitute = true
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.triangle.swap")
-                    Text("One-Time Substitute")
-                }
+                Label("One-Time Substitute", systemImage: "arrow.triangle.swap")
+                Text("Just this workout")
             }
 
             if workoutExercise.substitute != nil {
