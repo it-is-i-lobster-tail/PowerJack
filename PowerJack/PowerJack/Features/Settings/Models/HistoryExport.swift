@@ -86,7 +86,7 @@ enum HistoryExport {
                             workoutSeconds: workout.endedAt == nil ? nil : workout.duration(),
                             exerciseNumber: exerciseIndex + 1,
                             exerciseName: exercise?.exerciseName ?? "",
-                            exerciseKey: exercise.map { $0.syncID?.uuidString ?? $0.exerciseName } ?? "",
+                            exerciseKey: exercise.map { $0.syncKey ?? $0.exerciseName } ?? "",
                             exerciseSource: exercise.map { $0.userCreated ? "Custom" : "Built-in" } ?? "",
                             equipment: exercise?.equipment.displayName ?? "",
                             primaryMuscle: exercise?.primaryMuscleFocus.rawValue.capitalized ?? "",
