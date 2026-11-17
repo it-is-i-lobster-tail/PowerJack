@@ -18,6 +18,8 @@ struct TemplateBuilder: View {
     private let dayNotes: [Int: String]
     /// Exercises with sets logged in a workout in progress. They show a check and can't be removed.
     private let loggedExercises: Set<UUID>
+    /// A running program's days each keep at least one exercise, since a workout can't run empty.
+    private let keepsOneExercisePerDay: Bool
     @State private var options: [BrowserOption]
     @State private var selection: BrowserOption
     @State private var isShowingWorkoutExerciseSheet = false
@@ -33,7 +35,8 @@ struct TemplateBuilder: View {
         draft: Binding<TemplateProgramDraft>,
         lockedDays: [Int: LockedDay] = [:],
         dayNotes: [Int: String] = [:],
-        loggedExercises: Set<UUID> = []
+        loggedExercises: Set<UUID> = [],
+        keepsOneExercisePerDay: Bool = false
     ) {
         let dayCount = draft.wrappedValue.workoutsPerWeek ?? 3
         let initialOptions = (1...dayCount).map { day in
@@ -48,6 +51,7 @@ struct TemplateBuilder: View {
         self.lockedDays = lockedDays
         self.dayNotes = dayNotes
         self.loggedExercises = loggedExercises
+        self.keepsOneExercisePerDay = keepsOneExercisePerDay
         _options = State(initialValue: initialOptions)
         _selection = State(initialValue: initialOptions[0])
     }
@@ -115,6 +119,7 @@ struct TemplateBuilder: View {
                     TemplateWorkoutBuilder(
                         templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
                         loggedExercises: loggedExercises,
+                        keepsOneExercise: keepsOneExercisePerDay,
                         handleEdit: handleShowEditExerciseSheet
                     )
                     .id(selection.id)
@@ -194,8 +199,12 @@ struct TemplateWorkoutBuilder: View {
     
     @Binding var templateWorkoutDraft: TemplateWorkoutDraft
     var loggedExercises: Set<UUID> = []
+    /// The day's last exercise stays, with a note saying why.
+    var keepsOneExercise = false
     
     let handleEdit: (Exercise) -> Void
+
+    @State private var isExplainingLastExercise = false
 
     /// The exercise waiting to be added to a superset, once the day has one to choose from.
     @State private var exerciseToSuperset: TemplateExerciseBlock?
@@ -232,6 +241,11 @@ struct TemplateWorkoutBuilder: View {
         .scrollContentBackground(.hidden)
         .animation(.default, value: templateWorkoutDraft.templateExerciseDrafts)
         .powerJackGlassCard(interactive: true)
+        .alert("A Day Needs an Exercise", isPresented: $isExplainingLastExercise) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Add another exercise before you remove this one. To take the day off, skip its workout instead.")
+        }
         .sheet(
             isPresented: Binding(
                 get: { supersetToEdit != nil },
@@ -287,7 +301,11 @@ struct TemplateWorkoutBuilder: View {
                     // Logged sets are never thrown away.
                     if !isLogged {
                         Button {
-                            templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+                            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
+                                isExplainingLastExercise = true
+                            } else {
+                                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+                            }
                         } label: {
                             Label("Trash", systemImage: "trash")
                         }

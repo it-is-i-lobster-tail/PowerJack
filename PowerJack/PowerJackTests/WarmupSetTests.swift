@@ -143,6 +143,31 @@ struct WarmupSetTests {
         #expect(exercise.warmupSets.count == 3)
     }
 
+    @Test("Remove Last Set never removes a logged set")
+    func loggedLastSetStays() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        _ = exercise.addSet()
+        for workoutSet in exercise.workoutSets {
+            workoutSet.reps = 8
+            workoutSet.weightTenthsPounds = 1000
+            exercise.completeSet(workoutSet)
+        }
+
+        #expect(!exercise.canRemoveSet(type: .working))
+        #expect(!exercise.canRemoveSet(type: .warmup))
+        let count = exercise.workoutSets.count
+        exercise.removeLastSet()
+        exercise.removeLastSet(type: .warmup)
+        #expect(exercise.workoutSets.count == count)
+
+        // A set added after them, with nothing logged, can go again.
+        _ = exercise.addSet()
+        #expect(exercise.canRemoveSet(type: .working))
+    }
+
     @Test("Removing every warmup turns them off, and Turn On Warmups brings back the same count")
     func removeAllWarmupsThenEnable() throws {
         let program = try makeProgram(weeks: 1)

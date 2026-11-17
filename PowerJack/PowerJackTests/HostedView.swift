@@ -122,9 +122,28 @@ final class HostedView {
     func tap(_ label: String, settleFor duration: Duration = .milliseconds(300)) async -> Bool {
         let matches = elements().filter { $0.accessibilityLabel == label }
         guard !matches.isEmpty else { return false }
-        let activated = matches.contains { $0.accessibilityActivate() }
+        let activated = matches.contains { $0.accessibilityActivate() } || runAlertAction(titled: label)
         await settle(duration)
         return activated
+    }
+
+    /// On some iOS versions a SwiftUI confirmation dialog is a UIKit alert, whose buttons don't respond
+    /// to `accessibilityActivate` in-process. Runs the alert button's own action instead, after
+    /// dismissing the alert, the order UIKit uses when it's tapped.
+    private func runAlertAction(titled title: String) -> Bool {
+        var presented = host.presentedViewController
+        while let controller = presented {
+            if let alert = controller as? UIAlertController,
+               let action = alert.actions.first(where: { $0.title == title && $0.isEnabled }),
+               let block = action.value(forKey: "handler") {
+                typealias Handler = @convention(block) (UIAlertAction) -> Void
+                let handler = unsafeBitCast(block as AnyObject, to: Handler.self)
+                alert.dismiss(animated: false) { handler(action) }
+                return true
+            }
+            presented = controller.presentedViewController
+        }
+        return false
     }
 
     /// Types into the text field with this accessibility label, replacing what it held.

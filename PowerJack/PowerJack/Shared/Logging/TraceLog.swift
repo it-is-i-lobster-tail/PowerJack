@@ -61,11 +61,17 @@ nonisolated final class TraceLog: @unchecked Sendable {
 
     var isEnabled: Bool { enabled.load(ordering: .relaxed) }
 
+    /// The app version that ran before this launch, so a trace can tell a crash after an update apart.
+    private static let lastVersionKey = "developer.lastLaunchedVersion"
+    nonisolated(unsafe) private(set) static var previousAppVersion = "unknown"
+
     /// Picks up the saved switch at launch.
     func start(defaults: UserDefaults = .standard) {
+        Self.previousAppVersion = defaults.string(forKey: Self.lastVersionKey) ?? "none"
+        defaults.set(Self.appVersion, forKey: Self.lastVersionKey)
         guard defaults.bool(forKey: Self.enabledKey) else { return }
         enabled.store(true, ordering: .relaxed)
-        write(.lifecycle, "Launched")
+        write(.lifecycle, "Launched \(Self.appVersion), last launched \(Self.previousAppVersion)")
     }
 
     /// Turning tracing off deletes every trace file.
@@ -92,6 +98,35 @@ nonisolated final class TraceLog: @unchecked Sendable {
             // Tracing may have been turned off, and the files deleted, since this line was queued.
             guard self.isEnabled else { return }
             self.append("\(date.formatted(self.timestamp)) [\(category.rawValue)] \(text)\n")
+        }
+    }
+
+    /// Records one line and waits until it's on disk, for a moment the app may not outlive,
+    /// like a store that won't open.
+    static func recordNow(_ category: Category, _ message: @autoclosure () -> String) {
+        shared.writeNow(category, message())
+    }
+
+    func writeNow(_ category: Category, _ message: @autoclosure () -> String) {
+        guard isEnabled else { return }
+        let date = Date.now
+        let text = message()
+        queue.sync {
+            append("\(date.formatted(timestamp)) [\(category.rawValue)] \(text)\n")
+            try? handle?.synchronize()
+        }
+    }
+
+    /// Keeps a trace file the watch sent, in a folder of its own that the export includes.
+    /// Moved before this returns, since the file it came in is deleted then.
+    func keepWatchTrace(at url: URL, named name: String) {
+        guard isEnabled else { return }
+        queue.sync {
+            let folder = directory.appending(path: "Watch")
+            let destination = folder.appending(path: URL(filePath: name).lastPathComponent)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? FileManager.default.removeItem(at: destination)
+            try? FileManager.default.moveItem(at: url, to: destination)
         }
     }
 
@@ -235,7 +270,7 @@ nonisolated final class TraceLog: @unchecked Sendable {
 
     // MARK: Device
 
-    private static var appVersion: String {
+    static var appVersion: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"

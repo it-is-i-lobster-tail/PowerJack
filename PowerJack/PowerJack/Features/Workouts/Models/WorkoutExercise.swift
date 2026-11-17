@@ -46,7 +46,7 @@ final class WorkoutExercise {
     private var checkInSourcePainValue: LevelOfPain?
     // Turned on from the warmup menu. Only this exercise on this program day starts on its working sets.
     private var warmupsDisabledValue: Bool = false
-    // How many warmups Enable Warmup brings back. Set when the user starts removing them.
+    // How many warmups Turn On Warmups brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
     // Shared by the exercises stacked into one superset in the template. Nil when the exercise stands alone.
     private var supersetIDValue: UUID?
@@ -543,6 +543,7 @@ extension WorkoutExercise {
     func setSuperset(_ supersetID: UUID?) {
         guard status == .planned || workoutValue?.status == .active else {
             Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise or one in a workout in progress.")
+            TraceLog.record(.workout, "Refused superset change for \(traceDescription): workout not planned or in progress")
             return
         }
         supersetIDValue = supersetID
@@ -555,11 +556,13 @@ extension WorkoutExercise {
     func setProgression(rirTarget: Int?, code: String?, note: String?) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only set the progression of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused progression for \(traceDescription): not planned")
             return
         }
         rirTargetValue = rirTarget
         progressionCodeValue = code
         progressionNoteValue = note
+        TraceLog.record(.workout, "Progression for \(traceDescription): \(code ?? "no code"), reps left target \(rirTarget.map(String.init) ?? "none")")
     }
     /// Records Strengthen's slot targets on a planned exercise. A priority lift's first working set is its top set,
     /// rated on its own like a PowerJack TOP set, so it shares those fields.
@@ -615,8 +618,12 @@ extension WorkoutExercise {
     func replacePlannedWorkingSets(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
         guard status == .planned else {
             Logger.workoutExercise.warning("Can only replace the sets of a planned WorkoutExercise.")
+            TraceLog.record(.workout, "Refused new sets for \(traceDescription): not planned")
             return
         }
+        let before = workingSets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPlannedPounds, reps: $0.repsPlanned) }
+        let after = sets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPounds, reps: $0.reps) }
+        TraceLog.record(.workout, "Replanned \(traceDescription): \(before.joined(separator: ", ")) → \(after.joined(separator: ", "))")
         for workingSet in workingSets {
             workoutSetsValue?.removeAll { $0 === workingSet }
             modelContext?.delete(workingSet)
@@ -656,17 +663,17 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Resolved manual check-in for \(self.exercise?.exerciseName ?? "an exercise")")
     }
     /// At least one working set always stays. Every warmup can go.
+    /// Only a last set with nothing logged can go, so Remove Last Set never throws away a logged set.
     func canRemoveSet(type: SetType) -> Bool {
-        switch type {
-        case .warmup: !lockedValue && !warmupSets.isEmpty
-        case .working: !lockedValue && workingSets.count > Self.minSets
-        }
+        let sets = type == .warmup ? warmupSets : workingSets
+        guard !lockedValue, let last = sets.last, last.status != .complete else { return false }
+        return type == .warmup || sets.count > Self.minSets
     }
     /// Removes the last set of `type`. Sets of the other type stay.
-    /// Removing the last warmup turns warmups off, and Enable Warmup brings them all back.
+    /// Removing the last warmup turns warmups off, and Turn On Warmups brings them all back.
     func removeLastSet(type: SetType = .working) {
         guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
-            Logger.workoutExercise.warning("Cannot remove a set from a locked WorkoutExercise, or its last working set.")
+            Logger.workoutExercise.warning("Cannot remove a logged set, a set from a locked WorkoutExercise, or its last working set.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")

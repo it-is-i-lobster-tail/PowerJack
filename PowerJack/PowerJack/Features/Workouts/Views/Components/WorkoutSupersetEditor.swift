@@ -88,7 +88,7 @@ struct WorkoutSupersetEditor: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("superset edited")
     }
 }
 

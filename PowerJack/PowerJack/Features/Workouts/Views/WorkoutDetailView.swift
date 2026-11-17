@@ -63,6 +63,8 @@ struct WorkoutDetailView: View {
     @State private var presentedSheet: WorkoutSheet?
     @State private var exerciseToEdit: Exercise?
     @State private var supersetSheet: SupersetSheet?
+    /// Finish Workout is asking partly logged exercises for feedback, one at a time, before it finishes.
+    @State private var finishesAfterFeedback = false
 
     /// Lets a set's check draw in before a superset slides to the next exercise.
     private static let supersetSlideDelay = 0.35
@@ -111,10 +113,19 @@ struct WorkoutDetailView: View {
 
     var body: some View {
         if workout.workoutExercises.isEmpty {
-            EmptyStateView(
-                title: "No exercises",
-                systemImage: "dumbbell"
-            )
+            // Nothing to log, so skipping is the way on to the next workout.
+            ContentUnavailableView {
+                Label("No exercises", systemImage: "dumbbell")
+            } description: {
+                if !isReadOnly {
+                    Text("This day has no exercises left.")
+                }
+            } actions: {
+                if !isReadOnly {
+                    Button("Skip Workout", action: skipEmptyWorkout)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
         } else {
             GeometryReader { geometry in
                 WorkoutDetailContent(
@@ -203,12 +214,12 @@ struct WorkoutDetailView: View {
             }
             // The number pad covers the exercise strip instead of pushing it up.
             .keyboardSlidesOver()
-            .sheet(item: $presentedSheet) { sheet in
+            .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in
                 switch sheet {
                 case .feedback(let workoutExercise):
                     Feedback(
                         workoutExercise: workoutExercise,
-                        onFinished: { advance() }
+                        onFinished: { if !finishesAfterFeedback { advance() } }
                     )
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
                     .interactiveDismissDisabled()
@@ -319,12 +330,41 @@ struct WorkoutDetailView: View {
         }
     }
 
-    /// Only the Finish Workout button ends the workout. Anything still unlogged is skipped.
+    private func skipEmptyWorkout() {
+        if let onSkipWorkout {
+            onSkipWorkout()
+        } else {
+            workout.skipAndCascade()
+            save()
+        }
+    }
+
+    /// Only the Finish Workout button ends the workout. Anything still unlogged is skipped, and an
+    /// exercise that was only partly logged is rated first, so next week's plan counts it.
     private func finishWorkout() {
         focusedSetField = nil
         workout.skipRemainingSets()
         save()
-        onWorkoutFinished()
+        finishesAfterFeedback = true
+        askFeedbackOrFinish()
+    }
+
+    /// Runs as each sheet closes, to ask the next question while Finish Workout is waiting on feedback.
+    private func continueFinishing() {
+        if finishesAfterFeedback { askFeedbackOrFinish() }
+    }
+
+    /// Asks the next unrated exercise's feedback, and finishes once none is left.
+    private func askFeedbackOrFinish() {
+        guard let unrated = workout.workoutExercises.first(where: \.needsFeedback) else {
+            finishesAfterFeedback = false
+            onWorkoutFinished()
+            return
+        }
+        // A sheet still closing comes back here when it's gone.
+        if presentedSheet == nil {
+            presentedSheet = .feedback(unrated)
+        }
     }
 
     /// Shows feedback or a manual check-in when the selected exercise is waiting on one.
@@ -380,7 +420,7 @@ struct WorkoutDetailView: View {
     }
 
     private func save() {
-        try? modelContext.save()
+        modelContext.saveTraced("workout")
     }
 }
 

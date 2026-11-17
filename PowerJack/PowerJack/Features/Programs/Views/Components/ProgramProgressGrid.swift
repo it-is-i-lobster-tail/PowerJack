@@ -90,7 +90,7 @@ struct ProgramProgressGrid: View {
         withAnimation {
             program.restoreWorkout(workout)
         }
-        try? modelContext.save()
+        modelContext.saveTraced("workout restored")
     }
 
     /// Builds speed slowly, then stops hard on the new week with no overshoot.

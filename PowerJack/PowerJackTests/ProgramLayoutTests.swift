@@ -302,6 +302,23 @@ struct ProgramLayoutTests {
         #expect(draft.dayNotes[1] == "Day 2 is in progress. Changes start now, and logged exercises stay.")
     }
 
+    @Test("A day emptied in Edit Days keeps its exercises, so its workout never runs empty")
+    func emptiedDayKeepsExercises() throws {
+        let (container, template) = try makeTemplate(TemplateCatalog.entries[0].name)
+        let program = try startProgram(template, in: container)
+        let dayOne = try #require(program.programWeeks.first?.workouts.first)
+        let before = dayOne.workoutExercises.map(ObjectIdentifier.init)
+
+        var draft = ProgramLayoutDraft(program: program)
+        var day = draft.days.templateWorkoutDraftsValue[0]
+        day.removeTemplateExercises(at: IndexSet(day.templateExerciseDrafts.indices))
+        draft.days.templateWorkoutDraftsValue[0] = day
+        draft.apply()
+
+        #expect(!before.isEmpty)
+        #expect(dayOne.workoutExercises.map(ObjectIdentifier.init) == before)
+    }
+
     // MARK: Helpers
 
     private func makeTemplate(_ name: String) throws -> (ModelContainer, TemplateProgram) {
