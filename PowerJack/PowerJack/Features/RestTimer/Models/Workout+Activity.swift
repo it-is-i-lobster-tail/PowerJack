@@ -94,7 +94,8 @@ extension WorkoutSet {
         if !repsOnly {
             weightTenthsPounds = upcomingWeightTenthsPounds
         }
-        complete(at: date)
+        // Like a set logged on the iPhone, this ends a pause and the set gets its time.
+        complete(at: date, startedAt: workoutExerciseValue?.workoutValue?.setClockStart(loggedAt: date))
         return true
     }
 }

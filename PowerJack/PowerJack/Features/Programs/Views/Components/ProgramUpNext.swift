@@ -14,10 +14,11 @@ struct ProgramUpNext: View {
 
     private var isInProgress: Bool { workout.status == .active }
 
+    /// e.g. "Week 3 · Day 1", with "(paused)" after it while the workout is paused.
     private var title: String {
         let day = workout.order + 1
-        guard let week = program.weekNumber(containing: workout) else { return "Day \(day)" }
-        return "Week \(week) · Day \(day)"
+        let title = program.weekNumber(containing: workout).map { "Week \($0) · Day \(day)" } ?? "Day \(day)"
+        return workout.isPaused ? "\(title) (paused)" : title
     }
 
     var body: some View {
