@@ -274,10 +274,13 @@ struct RestTimerTests {
         let workout = try makeWorkout([(.moderate, 3)])
         let sets = workout.workoutExercises[0].workoutSets
 
-        // Only the set the activity showed.
+        // Only the set the activity showed, of the workout it showed.
         #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 1))
+        #expect(!workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, workoutID: UUID().uuidString))
+        let shown = try #require(workout.activityState(at: start))
+        #expect(shown.workoutID == workout.syncID?.uuidString)
 
-        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, at: start))
+        #expect(workout.completeCurrentSet(exerciseOrder: 0, setOrder: 0, workoutID: shown.workoutID, at: start))
         #expect(sets[0].status == .complete)
         #expect(sets[0].reps == 8)
         #expect(sets[0].weightTenthsPounds == 2250)

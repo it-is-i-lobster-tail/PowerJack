@@ -219,7 +219,7 @@ private struct SetTargets: View {
             Spacer(minLength: 0)
 
             if state.canCompleteAtTarget {
-                Button(intent: CompleteSetIntent(exerciseOrder: state.exerciseOrder, setOrder: state.setOrder)) {
+                Button(intent: CompleteSetIntent(exerciseOrder: state.exerciseOrder, setOrder: state.setOrder, workoutID: state.workoutID)) {
                     Image(systemName: "checkmark")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.black)

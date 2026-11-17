@@ -193,6 +193,33 @@ struct StrengthPlannerTests {
         #expect(squat.workingSets.dropFirst(2).map { $0.weightTenthsPounds?.pounds } == [275, 275])
     }
 
+    @Test("A short set checked off on the Live Activity is logged like one in the app: a receipt and the miss rule (6.2)")
+    func missRuleFromLiveActivity() throws {
+        let program = try makeProgram()
+        let workout = try #require(program.nextWorkout)
+        program.prepareToStart(workout)
+        workout.startAndCascade()
+        let squat = try slot("barbell-back-squat", day: 0, in: program)
+        for set in squat.workingSets {
+            set.weightTenthsPounds = 3000
+        }
+        // Everything before the first back-off set is logged, so the Live Activity shows it.
+        let back = squat.workingSets[1]
+        for _ in 0..<50 {
+            guard let current = workout.currentSet, current.workoutSet !== back else { break }
+            current.workoutExercise.completeSet(current.workoutSet)
+        }
+        try #require(workout.currentSet?.workoutSet === back)
+
+        // Two reps short of its 3: 300 × 0.92 = 276, so 275 lb for the rest.
+        back.reps = 1
+        #expect(workout.completeCurrentSet(exerciseOrder: squat.order, setOrder: back.order, workoutID: workout.syncID?.uuidString))
+        #expect(back.status == .complete)
+        #expect(squat.workingSets.dropFirst(2).map { $0.weightTenthsPounds?.pounds } == [275, 275])
+        let receipts = try context.fetch(FetchDescriptor<SetReceipt>())
+        #expect(receipts.contains { $0.setID == back.syncID && $0.device == SyncDevice.iPhone })
+    }
+
     @Test("A program's last week still moves the lift records, so the next program starts from it (the weekly loop)")
     func lastWeekCloses() throws {
         let program = try makeProgram(weeks: 1)

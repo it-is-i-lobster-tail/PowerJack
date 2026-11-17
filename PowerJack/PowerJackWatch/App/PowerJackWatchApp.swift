@@ -25,12 +25,23 @@ struct PowerJackWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchRootView()
-                // The iPhone's accent: system blue.
-                .tint(.blue)
-                .environment(store)
-                .environment(sync)
-                .modelContainer(store.container)
+            Group {
+                // Switching iCloud Backup replaces the container. The screens holding its models
+                // come down first, then the new container opens and they rebuild from it.
+                if store.isReplacingContainer {
+                    Color.black
+                        .ignoresSafeArea()
+                        .onAppear { store.replaceContainer() }
+                } else {
+                    WatchRootView()
+                        .id(ObjectIdentifier(store.container))
+                }
+            }
+            // The iPhone's accent: system blue.
+            .tint(.blue)
+            .environment(store)
+            .environment(sync)
+            .modelContainer(store.container)
         }
         .onChange(of: scenePhase, initial: true) {
             // Opening the app catches up with the iPhone: what's pending goes, its program comes back.
