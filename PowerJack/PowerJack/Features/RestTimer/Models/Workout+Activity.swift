@@ -13,7 +13,7 @@ extension Workout {
     func activityState(at now: Date = .now) -> WorkoutActivityState? {
         guard
             let current = currentSet,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return nil
         }
@@ -46,7 +46,7 @@ extension Workout {
             let current = currentSet,
             current.workoutExercise.order == exerciseOrder,
             current.workoutSet.order == setOrder,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return false
         }

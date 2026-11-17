@@ -24,6 +24,8 @@ final class WorkoutSet {
     private var completedAtValue: Date? = nil
     // When the set's clock started: the set logged before it anywhere in the workout, or the workout's start.
     private var startedAtValue: Date? = nil
+    // The planned exercise's planned weight while a one-time substitute holds its own (see `WorkoutExercise+Substitute`).
+    private var originalPlannedWeightTenthsPoundsValue: Int? = nil
     var workoutExerciseValue: WorkoutExercise?
     // The same on the iPhone and the watch (see `SyncState`). Nil on rows saved before it existed.
     var syncIDValue: UUID?
@@ -118,6 +120,8 @@ extension WorkoutSet {
     var completedAt: Date? { completedAtValue }
     // Started At
     var startedAt: Date? { startedAtValue }
+    // Original Planned Weight
+    var originalPlannedWeightTenthsPounds: Int? { originalPlannedWeightTenthsPoundsValue }
 }
 //
 // Derived Values
@@ -148,7 +152,7 @@ extension WorkoutSet {
         (1...maxWeightPounds * 10).contains(weightTenthsPounds)
     }
     /// The set's exercise takes weight on top of bodyweight, so a weight of 0 is bodyweight alone.
-    var addsToBodyweight: Bool { workoutExerciseValue?.exercise?.addsToBodyweight == true }
+    var addsToBodyweight: Bool { workoutExerciseValue?.shownExercise?.addsToBodyweight == true }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
     /// How long the set took, rest before it included. `nil` until it's logged.
@@ -262,6 +266,32 @@ extension WorkoutSet {
         startedAtValue = nil
         Logger.workoutSet.debug("WorkoutSet reset to planned")
     }
+    /// Holds a one-time substitute's weight in place of the plan. The first substitute keeps the planned weight,
+    /// so progression can read it and Undo Substitute can put it back. Logged sets keep what was logged.
+    func substituteWeight(_ weight: Int?, keepingPlanned: Bool) {
+        guard !isDone else { return }
+        if keepingPlanned {
+            originalPlannedWeightTenthsPoundsValue = weightTenthsPoundsPlannedValue
+        }
+        weightTenthsPoundsPlannedValue = weight
+        if status == .active {
+            weightTenthsPoundsValue = weight ?? (addsToBodyweight ? 0 : nil)
+        }
+    }
+    /// Puts back the planned weight a substitute held in its place.
+    func restorePlannedWeight() {
+        if !isDone {
+            weightTenthsPoundsPlannedValue = originalPlannedWeightTenthsPoundsValue
+            if status == .active {
+                weightTenthsPoundsValue = originalPlannedWeightTenthsPoundsValue ?? (addsToBodyweight ? 0 : nil)
+            }
+        }
+        originalPlannedWeightTenthsPoundsValue = nil
+    }
+    /// A set added to a substitute takes the planned weight of the set before it.
+    func keepOriginalPlannedWeight(_ weight: Int?) {
+        originalPlannedWeightTenthsPoundsValue = weight
+    }
     func start() {
         guard
             !lockedValue
@@ -312,6 +342,7 @@ extension WorkoutSet {
             repsPlanned: repsPlannedValue,
             weightTenthsPounds: weightTenthsPoundsValue,
             weightTenthsPoundsPlanned: weightTenthsPoundsPlannedValue,
+            originalWeightTenthsPoundsPlanned: originalPlannedWeightTenthsPoundsValue,
             status: statusValue,
             locked: lockedValue,
             completedAt: completedAtValue,
@@ -335,6 +366,7 @@ extension WorkoutSet {
         repsPlannedValue = state.repsPlanned
         weightTenthsPoundsValue = state.weightTenthsPounds
         weightTenthsPoundsPlannedValue = state.weightTenthsPoundsPlanned
+        originalPlannedWeightTenthsPoundsValue = state.originalWeightTenthsPoundsPlanned
         statusValue = state.status
         lockedValue = state.locked
         completedAtValue = state.completedAt
@@ -356,6 +388,7 @@ extension WorkoutSet {
         repsPlannedValue = other.repsPlannedValue
         weightTenthsPoundsValue = other.weightTenthsPoundsValue
         weightTenthsPoundsPlannedValue = other.weightTenthsPoundsPlannedValue
+        originalPlannedWeightTenthsPoundsValue = other.originalPlannedWeightTenthsPoundsValue
         statusValue = other.statusValue
         lockedValue = other.lockedValue
         completedAtValue = other.completedAtValue

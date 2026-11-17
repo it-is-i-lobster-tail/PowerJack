@@ -22,7 +22,7 @@ struct WatchExerciseView: View {
     @State private var entry: SetEntry?
     @FocusState private var focusedField: Field?
 
-    private var exercise: Exercise? { workoutExercise.exercise }
+    private var exercise: Exercise? { workoutExercise.shownExercise }
     private var repsOnly: Bool { exercise?.repsOnly ?? false }
     private var workoutSet: WorkoutSet? { workoutExercise.nextSet }
 

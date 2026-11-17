@@ -39,7 +39,7 @@ struct WatchFeedbackView: View {
                 question("Any pain?", selection: $draft.levelOfPain)
             }
         }
-        .navigationTitle(workoutExercise.exercise?.exerciseName ?? "Feedback")
+        .navigationTitle(workoutExercise.shownExercise?.exerciseName ?? "Feedback")
         .interactiveDismissDisabled()
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: draft.canSave) { _, canSave in

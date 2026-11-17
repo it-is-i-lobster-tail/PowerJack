@@ -31,6 +31,10 @@ enum ManualCheckInDecision: String, CaseIterable, Identifiable {
 final class WorkoutExercise {
     @Relationship(deleteRule: .nullify, inverse: \Exercise.workoutExercisesValue)
     private var exerciseValue: Exercise?
+    // A one-time substitute for this workout only (see `WorkoutExercise+Substitute`). `exercise` stays the
+    // planned exercise, so progression, later weeks and templates keep following it.
+    @Relationship(deleteRule: .nullify, inverse: \Exercise.substitutedWorkoutExercisesValue)
+    var substituteValue: Exercise?
     private var orderValue: Int = 0
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSet.workoutExerciseValue)
     private var workoutSetsValue: [WorkoutSet]? = []
@@ -370,14 +374,18 @@ extension WorkoutExercise {
         if statusValue == .skipped {
             statusValue = .active
         }
-        let lastSetWeight = (type == .warmup ? warmupSets : workingSets).last?.weightTenthsPounds
+        let lastSet = (type == .warmup ? warmupSets : workingSets).last
         let newSet = WorkoutSet(
             order: nextSetOrder,
             setType: type,
             plannedReps: plannedReps,
-            plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSetWeight,
+            plannedWeightTenthsPounds: plannedWeightTenthsPounds ?? lastSet?.weightTenthsPounds,
         )
         append(newSet)
+        // A set added to a substitute reads as one more of the planned exercise's sets.
+        if substituteValue != nil {
+            newSet.keepOriginalPlannedWeight(lastSet?.originalPlannedWeightTenthsPounds)
+        }
         // Sets of an upcoming workout stay planned until the workout starts. Started once it's in the
         // exercise, so a loadable bodyweight set starts at bodyweight.
         if status != .planned {
@@ -674,6 +682,7 @@ extension WorkoutExercise {
         Logger.workoutExercise.info("Changing \(self.exercise?.exerciseName ?? "an exercise") to \(newExercise.exerciseName) and resetting progression.")
         TraceLog.record(.workout, "Changing \(traceDescription) to \(newExercise.traceName)")
         exerciseValue = newExercise
+        substituteValue = nil
         // A replacement is a new exercise, so it starts with warmups again.
         warmupsDisabledValue = false
         warmupRestoreCountValue = nil
@@ -701,6 +710,9 @@ extension WorkoutExercise {
     /// Points a row at the surviving copy of a duplicated catalog exercise. Logged sets are kept.
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
+    }
+    func replaceDuplicateSubstitute(with survivor: Exercise) {
+        substituteValue = survivor
     }
     /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
     /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.
@@ -760,6 +772,7 @@ extension WorkoutExercise {
         return WorkoutExerciseState(
             syncID: syncIDValue,
             exerciseKey: exerciseValue?.syncKey,
+            substituteKey: substituteValue?.syncKey,
             order: orderValue,
             status: statusValue,
             locked: lockedValue,
@@ -794,9 +807,10 @@ extension WorkoutExercise {
     }
 
     /// Makes this row match the iPhone's copy of it. Sets are matched by the caller.
-    func apply(_ state: WorkoutExerciseState, exercise: Exercise?) {
+    func apply(_ state: WorkoutExerciseState, exercise: Exercise?, substitute: Exercise?) {
         syncIDValue = state.syncID
         if let exercise { exerciseValue = exercise }
+        substituteValue = substitute
         orderValue = state.order
         statusValue = state.status
         lockedValue = state.locked
@@ -855,6 +869,9 @@ extension WorkoutExercise {
         }
         if powerJackTopRIRValue == nil {
             powerJackTopRIRValue = other.powerJackTopRIRValue
+        }
+        if substituteValue == nil {
+            substituteValue = other.substituteValue
         }
         SyncMerge.fold(
             other.workoutSets,

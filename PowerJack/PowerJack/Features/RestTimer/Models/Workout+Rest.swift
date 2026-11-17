@@ -33,7 +33,7 @@ extension Workout {
         guard
             let latest = latestCompletedSet,
             let current = currentSet,
-            let exercise = current.workoutExercise.exercise
+            let exercise = current.workoutExercise.shownExercise
         else {
             return nil
         }

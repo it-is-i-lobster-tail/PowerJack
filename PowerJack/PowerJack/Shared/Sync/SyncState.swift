@@ -70,6 +70,8 @@ struct WorkoutState: Codable, Equatable {
 struct WorkoutExerciseState: Codable, Equatable {
     var syncID: UUID
     var exerciseKey: String?
+    /// A one-time substitute's key. Optional, so a watch on an older version still decodes the rest.
+    var substituteKey: String? = nil
     var order: Int
     var status: Status
     var locked: Bool
@@ -110,6 +112,8 @@ struct SetState: Codable, Equatable {
     var repsPlanned: Int?
     var weightTenthsPounds: Int?
     var weightTenthsPoundsPlanned: Int?
+    /// The planned exercise's weight while a one-time substitute holds its own. Optional for older versions.
+    var originalWeightTenthsPoundsPlanned: Int? = nil
     var status: Status
     var locked: Bool
     var completedAt: Date?

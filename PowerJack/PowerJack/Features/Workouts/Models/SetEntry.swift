@@ -22,7 +22,7 @@ struct SetEntry: Equatable {
     /// starts at the empty bar for a barbell, and at the exercise's lowest rep target.
     init(for workoutSet: WorkoutSet, unit: WeightUnit = .current) {
         let workoutExercise = workoutSet.workoutExerciseValue
-        let equipment = workoutExercise?.exercise?.equipment ?? .machine
+        let equipment = workoutExercise?.shownExercise?.equipment ?? .machine
         self.unit = unit
         self.weightStep = StrengthLoadSteps.step(for: equipment, in: unit) ?? 1
         self.addsToBodyweight = equipment == .loadableBodyweight
@@ -96,7 +96,7 @@ extension WorkoutExercise {
     /// this too for a set logged on the watch, naming the watch as the `device`.
     func log(weightTenthsPounds: Int?, reps: Int, on workoutSet: WorkoutSet, at date: Date = .now, device: String = SyncDevice.current) {
         guard workoutSet.status == .active, !workoutSet.locked, WorkoutSet.isValidReps(reps) else { return }
-        let repsOnly = exercise?.repsOnly ?? false
+        let repsOnly = shownExercise?.repsOnly ?? false
         guard repsOnly || weightTenthsPounds != nil else { return }
 
         enter(weightTenthsPounds: weightTenthsPounds, reps: reps, on: workoutSet)
@@ -111,7 +111,7 @@ extension WorkoutExercise {
         if let reps, WorkoutSet.isValidReps(reps) {
             workoutSet.reps = reps
         }
-        guard let weightTenthsPounds, !(exercise?.repsOnly ?? false) else { return }
+        guard let weightTenthsPounds, !(shownExercise?.repsOnly ?? false) else { return }
         let previousWeight = workoutSet.weightTenthsPounds
         workoutSet.weightTenthsPounds = weightTenthsPounds
         if !isTopSet(workoutSet) {
