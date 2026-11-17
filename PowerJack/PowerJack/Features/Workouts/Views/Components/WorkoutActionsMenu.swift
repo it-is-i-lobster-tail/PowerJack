@@ -14,6 +14,10 @@ struct WorkoutActionsMenu: View {
     @Binding var isShowingWorkoutExerciseSheet: Bool
     let onEditExercise: (Exercise) -> Void
     var onSkipWorkout: (() -> Void)? = nil
+    /// Opens the list of exercises and supersets the selected exercise can join.
+    var onAddToSuperset: (WorkoutExercise) -> Void = { _ in }
+    /// Opens the selected exercise's superset to reorder it or take exercises out.
+    var onEditSuperset: (UUID) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
     @State private var isConfirmingSkipWorkout = false
@@ -78,6 +82,10 @@ struct WorkoutActionsMenu: View {
                     .disabled(!canModifySelectedExercise)
                 }
 
+                if workout.canEditSupersets {
+                    supersetButtons(for: selectedWorkoutExercise)
+                }
+
                 Divider()
 
                 if selectedWorkoutExercise.canRestoreSkipped {
@@ -127,6 +135,44 @@ struct WorkoutActionsMenu: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Sets you've finished stay logged. The rest are skipped.")
+        }
+    }
+
+    /// Add to Superset for an exercise on its own. In a superset, Remove from Superset and Edit Superset instead.
+    @ViewBuilder
+    private func supersetButtons(for workoutExercise: WorkoutExercise) -> some View {
+        if let supersetID = workoutExercise.supersetID, !workoutExercise.supersetPartners.isEmpty {
+            Button {
+                withAnimation {
+                    workout.removeFromSuperset(workoutExercise)
+                    try? modelContext.save()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "square.split.1x2")
+                    Text("Remove from Superset")
+                }
+            }
+
+            Button {
+                onEditSuperset(supersetID)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down")
+                    Text("Edit Superset")
+                }
+            }
+        } else {
+            Button {
+                onAddToSuperset(workoutExercise)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "link.badge.plus")
+                    Text("Add to Superset")
+                }
+            }
+            // A finished exercise has nothing left to do in turn, and there may be nothing to join.
+            .disabled(workoutExercise.isDone || workout.supersetChoices(for: workoutExercise).isEmpty)
         }
     }
 

@@ -520,9 +520,10 @@ extension WorkoutExercise {
         warmupsDisabledValue = source.warmupsDisabledValue
     }
     /// Stacks a planned exercise into the template's superset. Call before the workout starts.
+    /// Changes while the exercise is planned, or while its workout is in progress (Edit Days). Logged sets stay as they are.
     func setSuperset(_ supersetID: UUID?) {
-        guard status == .planned else {
-            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise.")
+        guard status == .planned || workoutValue?.status == .active else {
+            Logger.workoutExercise.warning("Can only set the superset of a planned WorkoutExercise or one in a workout in progress.")
             return
         }
         supersetIDValue = supersetID

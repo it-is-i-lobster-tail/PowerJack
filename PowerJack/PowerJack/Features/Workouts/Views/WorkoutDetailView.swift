@@ -31,6 +31,14 @@ private enum WorkoutSheet: Identifiable, Hashable {
     }
 }
 
+/// The superset sheets opened from the ••• menu.
+private enum SupersetSheet: Identifiable, Hashable {
+    case add(WorkoutExercise)
+    case edit(UUID)
+
+    var id: Self { self }
+}
+
 extension EnvironmentValues {
     /// Set by `WorkoutDetailView` when it shows a finished workout.
     @Entry var workoutIsReadOnly = false
@@ -54,6 +62,7 @@ struct WorkoutDetailView: View {
     @State private var isShowingWorkoutExerciseSheet = false
     @State private var presentedSheet: WorkoutSheet?
     @State private var exerciseToEdit: Exercise?
+    @State private var supersetSheet: SupersetSheet?
 
     /// Lets a set's check draw in before a superset slides to the next exercise.
     private static let supersetSlideDelay = 0.35
@@ -151,7 +160,9 @@ struct WorkoutDetailView: View {
                                 selectedExerciseIndex: selectedExerciseIndex,
                                 isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
                                 onEditExercise: editExercise,
-                                onSkipWorkout: onSkipWorkout
+                                onSkipWorkout: onSkipWorkout,
+                                onAddToSuperset: { showSupersetSheet(.add($0)) },
+                                onEditSuperset: { showSupersetSheet(.edit($0)) }
                             )
                         }
                     }
@@ -167,6 +178,21 @@ struct WorkoutDetailView: View {
                         )
                         .presentationDetents([.large])
                         .presentationDragIndicator(.visible)
+                    }
+                }
+                .sheet(item: $supersetSheet) { sheet in
+                    switch sheet {
+                    case .add(let workoutExercise):
+                        SupersetPicker(workout: workout, workoutExercise: workoutExercise) { choice in
+                            workout.addToSuperset(workoutExercise, with: choice)
+                            save()
+                        }
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                    case .edit(let supersetID):
+                        WorkoutSupersetEditor(workout: workout, supersetID: supersetID)
+                            .presentationDetents([.medium, .large])
+                            .presentationDragIndicator(.visible)
                     }
                 }
                 .navigationDestination(item: $exerciseToEdit) { exercise in
@@ -205,8 +231,11 @@ struct WorkoutDetailView: View {
             .onChange(of: router?.currentExerciseRequest) {
                 showCurrentExercise()
             }
-            .onChange(of: workout.currentSet?.workoutSet.id) {
-                followSuperset()
+            .onChange(of: workout.currentSet?.workoutSet.id) { previousSetID, _ in
+                followSuperset(after: previousSetID)
+            }
+            .onChange(of: workout.workoutExercises.map(ObjectIdentifier.init)) { before, after in
+                keepSelection(from: before, to: after)
             }
         }
     }
@@ -223,12 +252,34 @@ struct WorkoutDetailView: View {
         }
     }
 
+    private func showSupersetSheet(_ sheet: SupersetSheet) {
+        focusedSetField = nil
+        supersetSheet = sheet
+    }
+
+    /// Exercises moved, e.g. into or out of a superset: stays on the exercise the user was looking at.
+    private func keepSelection(from before: [ObjectIdentifier], to after: [ObjectIdentifier]) {
+        guard let selectedExerciseIndex else { return }
+        if selectedExerciseIndex == before.count {
+            self.selectedExerciseIndex = after.count
+        } else if before.indices.contains(selectedExerciseIndex),
+                  let index = after.firstIndex(of: before[selectedExerciseIndex]),
+                  index != selectedExerciseIndex {
+            self.selectedExerciseIndex = index
+        }
+    }
+
     /// In a superset, slides to the exercise whose turn it is once a set is checked off.
-    /// Waits for the check to draw in first.
-    private func followSuperset() {
+    /// Waits for the check to draw in first. A superset changed from the menu changes whose turn
+    /// it is without a set being checked off, and the user stays where they are.
+    private func followSuperset(after previousSetID: PersistentIdentifier?) {
         guard
             !isReadOnly,
             presentedSheet == nil,
+            let previousSetID,
+            workout.workoutExercises.contains(where: { workoutExercise in
+                workoutExercise.workoutSets.contains { $0.id == previousSetID && $0.isDone }
+            }),
             let selectedWorkoutExercise,
             let next = workout.currentSet?.workoutExercise,
             selectedWorkoutExercise.supersetPartners.contains(where: { $0 === next }),

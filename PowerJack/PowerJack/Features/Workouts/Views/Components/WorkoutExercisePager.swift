@@ -27,6 +27,9 @@ struct WorkoutExercisePager: View {
                             focusedSetField: focusedSetField,
                             workoutExercise: workoutExercises[index]
                         )
+                            // A superset change moves exercises between pages. Each page starts fresh
+                            // for its new exercise instead of keeping the last one's state.
+                            .id(workoutExercises[index].persistentModelID)
                             .containerRelativeFrame(.horizontal)
                             .id(index)
                     }
