@@ -58,7 +58,7 @@ extension PowerJackWeekBuilder {
     /// R8.4: the median of the newest 3 estimates within 42 days, raised to any floor since,
     /// else the previous anchor raised only by floors.
     func currentE1RM(_ exercise: PowerJackExercise, _ series: PowerJackSeries, previous: Double?) -> Double? {
-        let oldest = context.now.addingTimeInterval(-Double(PowerJackRules.anchorMaxAgeDays) * 86_400)
+        let oldest = context.now.adding(days: -PowerJackRules.anchorMaxAgeDays)
         let values = parts(of: exercise, in: series).compactMap { item -> (date: Date, value: Double, estimate: Bool, floor: Double)? in
             guard item.date >= oldest,
                   item.exposure.weekType != .deload,
@@ -80,7 +80,7 @@ extension PowerJackWeekBuilder {
     /// Days since the exercise's last completed working set, anywhere.
     func daysSinceLastSet(_ exercise: PowerJackExercise) -> Double? {
         let last = context.history(exercise.id).compactMap(\.entry.lastCompletedAt).max()
-        return last.map { context.now.timeIntervalSince($0) / 86_400 }
+        return last.map { context.now.days(since: $0) }
     }
 
     /// The share a break or a lift's own gap cuts, from 14, 28 and 84 days off (R6.7, R8.8).

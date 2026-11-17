@@ -100,7 +100,7 @@ struct StrengthLiftRecord: Codable, Equatable {
     var pain = StrengthPainState()
 
     func confidence(at date: Date) -> Int {
-        let start = date.addingTimeInterval(-Double(StrengthRules.confidenceWindowDays) * 86_400)
+        let start = date.adding(days: -StrengthRules.confidenceWindowDays)
         return ratedDates.count { $0 > start }
     }
 

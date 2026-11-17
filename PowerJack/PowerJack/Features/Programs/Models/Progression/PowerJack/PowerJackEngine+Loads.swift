@@ -84,7 +84,7 @@ extension PowerJackWeekBuilder {
         }
 
         // R9.1: the exercise's newest exposure within 12 weeks, in any program or style.
-        let oldest = context.now.addingTimeInterval(-Double(PowerJackRules.historyMaxAgeWeeks) * 7 * 86_400)
+        let oldest = context.now.adding(days: -PowerJackRules.historyMaxAgeWeeks * 7)
         let recent = context.history(exercise.id).last { $0.date >= oldest && $0.entry.hasCompletedSets }
         var load: Double?
         if !exercise.repsOnly, let recent, let value = recent.entry.parts.last?.value?.value,
@@ -111,7 +111,7 @@ extension PowerJackWeekBuilder {
     /// R2.5: the heaviest completed working load in the last 14 days, else the heaviest of the latest
     /// exposure, so a TOP set is never capped by its own BACK sets.
     func bestRecentLoad(_ exercise: PowerJackExercise) -> Double? {
-        let oldest = context.now.addingTimeInterval(-Double(PowerJackRules.lookbackDays) * 86_400)
+        let oldest = context.now.adding(days: -PowerJackRules.lookbackDays)
         let history = context.history(exercise.id)
         let recent = history
             .filter { $0.date >= oldest }

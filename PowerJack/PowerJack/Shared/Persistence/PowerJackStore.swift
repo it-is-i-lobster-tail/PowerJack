@@ -44,7 +44,7 @@ final class PowerJackStore {
         syncsWithICloud = syncs
         container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncs)
         mergeDuplicatesAfterImports()
-        logSyncErrors()
+        PowerJackSchema.logCloudKitErrors()
     }
 
     func turnOnICloudBackup() {
@@ -161,30 +161,6 @@ final class PowerJackStore {
             try SyncTidyUp.run(in: container.mainContext, trigger: trigger)
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
-        }
-    }
-
-    /// iCloud fails quietly, for example when a field is missing from the Production schema,
-    /// so log every failed sync to make it show up in Console.
-    private func logSyncErrors() {
-        Task {
-            for await notification in NotificationCenter.default.notifications(named: NSPersistentCloudKitContainer.eventChangedNotification) {
-                guard
-                    let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event,
-                    event.endDate != nil,
-                    let error = event.error
-                else { continue }
-                Logger.sync.error("iCloud \(Self.name(of: event.type), privacy: .public) failed: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
-
-    private static func name(of eventType: NSPersistentCloudKitContainer.EventType) -> String {
-        switch eventType {
-        case .setup: "setup"
-        case .import: "download"
-        case .export: "upload"
-        @unknown default: "sync"
         }
     }
 

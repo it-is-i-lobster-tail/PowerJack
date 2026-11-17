@@ -79,11 +79,14 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Kilograms as a unit, for the two conversions below, which share their names with it.
+    private static let kilogramsUnit: WeightUnit = .kilograms
+
     static func kilograms(fromTenthsPounds tenths: Int) -> Double {
-        Double(tenths) / 10 * kilogramsPerPound
+        kilogramsUnit.value(fromTenthsPounds: tenths)
     }
 
     static func tenthsPounds(fromKilograms kilograms: Double) -> Int {
-        Int((kilograms / kilogramsPerPound * 10).rounded())
+        kilogramsUnit.tenthsPounds(from: kilograms)
     }
 }
