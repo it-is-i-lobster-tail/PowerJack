@@ -24,8 +24,8 @@ struct SupersetPicker: View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(choices.indices, id: \.self) { index in
-                        let choice = choices[index]
+                    // Keyed by exercise, not position: a pick shrinks the list while the sheet is still closing.
+                    ForEach(choices, id: \.first?.persistentModelID) { choice in
                         Button {
                             onPick(choice)
                             dismiss()
