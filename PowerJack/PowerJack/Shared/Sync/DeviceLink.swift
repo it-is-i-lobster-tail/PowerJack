@@ -23,11 +23,14 @@ final class DeviceLink: NSObject {
     }
 
     private let settingsSync = SettingsSync()
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
     #if os(iOS)
     /// Applies changes from the watch and answers with the program. Set by `PhoneSync`.
     var onChanges: ((Data) -> Data?)?
+    /// The link is up with a paired watch that has the app, after launch or once one is installed.
+    /// Set by `PhoneSync`.
+    var onWatchAppAvailable: (() -> Void)?
     private var lastContext: [String: Any] = [:]
     private var latestSnapshot: Data?
     #else
@@ -43,12 +46,12 @@ final class DeviceLink: NSObject {
         WCSession.default.delegate = self
         WCSession.default.activate()
         #if os(iOS)
-        observer = NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: UserDefaults.standard,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.updateContext() }
+        SettingsSync.startWatching()
+        // The watch reads the settings and the Developer Tool trace switch from the context.
+        observers = [SettingsSync.didChange, TraceLog.didChangeEnabled].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateContext() }
+            }
         }
         #endif
     }
@@ -59,6 +62,12 @@ final class DeviceLink: NSObject {
     }
 
     #if os(iOS)
+    /// Whether a paired watch with PowerJack installed can be sent the program.
+    var hasWatchApp: Bool {
+        let session = WCSession.default
+        return WCSession.isSupported() && session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
+    }
+
     /// What `send(snapshot:)` did with the program.
     enum Delivery: String {
         case skipped = "skipped, no watch app"
@@ -198,6 +207,7 @@ extension DeviceLink: WCSessionDelegate {
             }
             #if os(iOS)
             self.updateContext()
+            if self.hasWatchApp { self.onWatchAppAvailable?() }
             #else
             if !received.isEmpty { self.received(context: received) }
             if activationState == .activated { self.onConnected?() }
@@ -245,6 +255,7 @@ extension DeviceLink: WCSessionDelegate {
         Task { @MainActor in
             self.lastContext = [:]
             self.updateContext()
+            if self.hasWatchApp { self.onWatchAppAvailable?() }
         }
     }
 

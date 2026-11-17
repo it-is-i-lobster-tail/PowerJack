@@ -48,3 +48,31 @@ final class SettingsSync {
         Logger.sync.debug("Applied settings from iPhone")
     }
 }
+
+extension SettingsSync {
+    /// Posted on the main thread when a setting changes. Other writes to UserDefaults, which happen
+    /// all the time, don't post it.
+    static let didChange = Notification.Name("PowerJack.SettingsSync.didChange")
+
+    private static var observer: NSObjectProtocol?
+    private static var lastSettings: NSDictionary = [:]
+
+    /// Starts posting `didChange`. The settings are read once for each UserDefaults change, however
+    /// many parts of the app follow them.
+    static func startWatching(_ defaults: UserDefaults = .standard) {
+        guard observer == nil else { return }
+        lastSettings = NSDictionary(dictionary: SettingsSync(defaults: defaults).settings)
+        observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: defaults,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                let settings = NSDictionary(dictionary: SettingsSync(defaults: defaults).settings)
+                guard settings != lastSettings else { return }
+                lastSettings = settings
+                NotificationCenter.default.post(name: didChange, object: nil)
+            }
+        }
+    }
+}

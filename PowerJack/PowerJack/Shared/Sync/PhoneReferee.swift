@@ -32,7 +32,8 @@ final class PhoneReferee {
     }
 
     /// Applies every change not applied yet, in order, tidies up, and answers with the program.
-    func receive(_ changes: [WatchChange], in context: ModelContext) throws -> ProgramSnapshot {
+    /// `tidiesUp` false leaves the tidy-up to the caller, which can run it less often.
+    func receive(_ changes: [WatchChange], in context: ModelContext, tidiesUp: Bool = true) throws -> ProgramSnapshot {
         var applied = self.applied
         let programs = try context.fetch(FetchDescriptor<Program>())
         for change in changes.sorted(by: { $0.id < $1.id }) {
@@ -52,7 +53,7 @@ final class PhoneReferee {
         }
         try context.save()
         self.applied = applied
-        try SyncTidyUp.run(in: context, trigger: "watch changes")
+        if tidiesUp { try SyncTidyUp.run(in: context, trigger: "watch changes") }
         return try snapshot(in: context)
     }
 }

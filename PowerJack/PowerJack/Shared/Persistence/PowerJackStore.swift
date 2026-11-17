@@ -23,6 +23,11 @@ final class PowerJackStore {
     private(set) var isReplacingContainer = false
 
     private let inMemory: Bool
+    @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
+    /// What the scheduled tidy-up follows, for the trace.
+    @ObservationIgnored private var tidyUpTriggers: Set<String> = []
+    /// At most one tidy-up pass this often, however many changes iCloud or the watch bring.
+    static let tidyUpInterval: Duration = .seconds(1.5)
 
     // The zone SwiftData's CloudKit mirroring writes every record to.
     private static let cloudKitZone = CKRecordZone.ID(zoneName: "com.apple.coredata.cloudkit.zone")
@@ -127,16 +132,33 @@ final class PowerJackStore {
     private func mergeDuplicatesAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                self?.mergeCatalogDuplicates()
-                self?.tidyUpAfterSync()
+                self?.scheduleTidyUp(after: "iCloud import")
             }
         }
     }
 
+    /// Tidies up once the changes coming in settle, at most once per `tidyUpInterval`: an iCloud import
+    /// or a workout's worth of watch messages can bring many changes a second.
+    func scheduleTidyUp(after trigger: String) {
+        tidyUpTriggers.insert(trigger)
+        guard scheduledTidyUp == nil else { return }
+        scheduledTidyUp = Task { [weak self] in
+            try? await Task.sleep(for: Self.tidyUpInterval)
+            guard let self else { return }
+            scheduledTidyUp = nil
+            let triggers = tidyUpTriggers.sorted().joined(separator: ", ")
+            tidyUpTriggers = []
+            // The store being replaced can't be read; the new one tidies up after its next import.
+            guard !isReplacingContainer else { return }
+            mergeCatalogDuplicates()
+            tidyUpAfterSync(trigger: triggers)
+        }
+    }
+
     /// See `SyncTidyUp`.
-    func tidyUpAfterSync() {
+    func tidyUpAfterSync(trigger: String) {
         do {
-            try SyncTidyUp.run(in: container.mainContext, trigger: "iCloud import")
+            try SyncTidyUp.run(in: container.mainContext, trigger: trigger)
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }

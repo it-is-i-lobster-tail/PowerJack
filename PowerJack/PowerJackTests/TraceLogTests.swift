@@ -38,9 +38,24 @@ struct TraceLogTests {
         #expect(!FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)))
     }
 
-    @Test("The switch stays on this device: it never syncs to the watch")
+    @Test("The switch isn't a synced setting: the watch follows it through the watch link")
     func switchIsDeviceOnly() {
         #expect(!TraceLog.enabledKey.hasPrefix(SettingsSync.keyPrefix))
+    }
+
+    @Test("Turning it on or off is posted, so the watch link sends the switch to the watch")
+    func switchChangesArePosted() async throws {
+        let log = makeLog()
+        var heard = 0
+        let observer = NotificationCenter.default.addObserver(forName: TraceLog.didChangeEnabled, object: log, queue: .main) { _ in
+            MainActor.assumeIsolated { heard += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        log.setEnabled(true, defaults: defaults)
+        log.setEnabled(false, defaults: defaults)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(heard == 2)
     }
 
     @Test("Turned on, it writes timestamped lines under a header, and stays on after a relaunch")

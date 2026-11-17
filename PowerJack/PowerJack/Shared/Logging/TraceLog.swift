@@ -28,8 +28,12 @@ nonisolated final class TraceLog: @unchecked Sendable {
 
     static let shared = TraceLog(directory: .applicationSupportDirectory.appending(path: "TraceLogs"))
 
-    /// Kept out of the `settings.` prefix so it stays on this device and never goes to the watch.
+    /// Kept out of the `settings.` prefix: the watch follows it through `DeviceLink`, which turns the
+    /// watch's own trace on and off with it.
     static let enabledKey = "developer.traceLog"
+
+    /// Posted when tracing is turned on or off.
+    static let didChangeEnabled = Notification.Name("PowerJack.TraceLog.didChangeEnabled")
 
     /// Where the last shared zip waits. Replaced by the next one, and deleted when tracing turns off.
     private static let exportDirectory = URL.temporaryDirectory.appending(path: "TraceExport")
@@ -83,6 +87,7 @@ nonisolated final class TraceLog: @unchecked Sendable {
         } else {
             queue.async { self.deleteAllFiles() }
         }
+        NotificationCenter.default.post(name: Self.didChangeEnabled, object: self)
     }
 
     /// Records one line on the shared trace, when it's on.
