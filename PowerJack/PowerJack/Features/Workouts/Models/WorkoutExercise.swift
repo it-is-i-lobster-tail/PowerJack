@@ -198,12 +198,13 @@ extension WorkoutExercise {
     var isDone: Bool {
         isFinished || (allSetsDone() && !needsFeedback)
     }
-    // Every set is logged but the user has not rated the exercise yet.
+    // Every set is logged but the user has not rated the exercise yet, or has logged more working sets
+    // since they last rated it, so the rating no longer covers all the work.
     var needsFeedback: Bool {
-        feedbackValue == nil &&
-            (status == .active || status == .skipped) &&
+        (status == .active || status == .skipped) &&
             allSetsDone() &&
-            completedWorkingSets > 0
+            completedWorkingSets > 0 &&
+            feedbackValue?.covers(completedSets: completedWorkingSets) != true
     }
     /// A set was logged, or the exercise was finished or skipped. Edit Days never takes it out of a workout in progress.
     var hasLoggedWork: Bool {
@@ -717,17 +718,24 @@ extension WorkoutExercise {
             laterSet.weightTenthsPounds = weightTenthsPounds
         }
     }
-    /// Feedback is recorded once every set is done, including after "Skip Exercise".
+    /// Feedback is recorded once every set is done, including after "Skip Exercise". It remembers how many
+    /// working sets were complete, so logging more afterwards asks again. A new answer replaces the old one.
     func addFeedback(feedback: ExerciseFeedback) {
         guard allSetsDone(), status == .active || status == .skipped else {
             Logger.workoutExercise.debug("Cannot add feedback before every set is done")
             return
         }
+        feedback.recordCompletedSets(completedWorkingSets)
+        if let previous = feedbackValue, previous !== feedback {
+            feedbackValue = nil
+            modelContext?.delete(previous)
+        }
         feedbackValue = feedback
     }
 
     /// Saves the lifter's answers to the feedback questions, with the top set's rating when it was asked.
-    /// The first answer stands: one from the other device that lands later never replaces it.
+    /// The first answer stands: one from the other device that lands later never replaces it. Once more working
+    /// sets are logged the exercise asks again, and that answer replaces the earlier one.
     /// - Returns: false when the exercise wasn't waiting on feedback, e.g. it was answered on the other device.
     @discardableResult
     func answerFeedback(_ feedback: ExerciseFeedback, topSet: RepsInReserve?) -> Bool {
