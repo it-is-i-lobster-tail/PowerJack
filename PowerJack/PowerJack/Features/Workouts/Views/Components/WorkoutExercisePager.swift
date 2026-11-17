@@ -5,6 +5,7 @@
 //  Created on 6/26/26.
 //
 
+import SwiftData
 import SwiftUI
 
 struct WorkoutExercisePager: View {
@@ -52,6 +53,9 @@ struct WorkoutExercisePager: View {
                 proxy.scrollTo(selectedExerciseIndex)
             }
         }
+        // A superset change moves exercises between pages. The pages are keyed by position, so the pager
+        // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
+        .id(workoutExercises.map(\.persistentModelID))
     }
 
     private var isOnReview: Bool {
