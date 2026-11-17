@@ -46,5 +46,8 @@ struct ProgressionCue: View {
     }
 
     /// The note explains the planned exercise's weights, so a one-time substitute leaves it out.
-    private var note: String? { workoutExercise.substitute == nil ? workoutExercise.progressionNote : nil }
+    private var note: String? {
+        guard workoutExercise.substitute == nil, let note = workoutExercise.progressionNote else { return nil }
+        return WeightUnit.current.showingWeights(in: note)
+    }
 }

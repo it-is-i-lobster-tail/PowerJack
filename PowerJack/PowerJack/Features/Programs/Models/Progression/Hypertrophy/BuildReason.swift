@@ -50,14 +50,14 @@ extension BuildReason {
             code: .calibrate,
             message: repsOnly
                 ? "New exercise: stop with about 3 reps left."
-                : "New exercise: pick a weight that leaves 3 reps in reserve."
+                : "New exercise: pick a weight you'd stop with 3 reps left."
         )
     }
     static let startHistory = Self(code: .startHistory, message: "Weight from your recent sets.")
     static let calibrated = Self(code: .calibrated, message: "Set from what you lifted last time.")
 
     static func painCheckIn(_ pain: LevelOfPain, advice: Bool) -> Self {
-        let line = "Pain was \(pain.label) last time: lighter, fewer sets. Check in before you lift."
+        let line = "Pain was \(pain.label.lowercased()) last time: lighter, fewer sets. Check in before you lift."
         return Self(code: .painCheckIn, message: advice ? line + " " + professionalAdvice : line)
     }
     static func painHold(_ pain: LevelOfPain) -> Self {
@@ -79,7 +79,7 @@ extension BuildReason {
     static func deload(reactive: Bool) -> Self {
         reactive
             ? Self(code: .deloadReactive, message: "Lighter week: lifts were harder than planned two weeks running.")
-            : Self(code: .deloadPlanned, message: "Deload week: lighter on purpose to shed fatigue.")
+            : Self(code: .deloadPlanned, message: "Lighter week: easier on purpose so you can recover.")
     }
 
     static func fatigueCut(_ muscle: Muscle) -> Self {
@@ -108,7 +108,7 @@ extension BuildReason {
         )
     }
     static func repsBeforeStep(_ reps: Int, jumpPct: Int) -> Self {
-        Self(code: .repsUp, message: "Reps up to \(reps) first: 5 lb is a \(jumpPct)% jump.")
+        Self(code: .repsUp, message: "Reps up to \(reps) first: the next weight step is a \(jumpPct)% jump.")
     }
     static let returnCap = Self(code: .repsUp, message: "Reps up first: weights stay near your return weeks this block.")
     static func repsAtMaxLoad(_ reps: Int) -> Self {
@@ -139,14 +139,14 @@ extension BuildReason {
     }
     static let repCap = Self(code: .repCap, message: "40 reps: add weight or pick a harder variation for more.")
     static func stepTooLarge(reps: Int) -> Self {
-        Self(code: .stepTooLarge, message: "Holding at \(reps) reps: the next 5 lb is too big a jump.")
+        Self(code: .stepTooLarge, message: "Holding at \(reps) reps: the next weight step is too big a jump.")
     }
     static let unratedRep = Self(code: .unratedStep, message: "+1 rep: effort wasn't rated, so a small step.")
-    static let unratedLoad = Self(code: .unratedStep, message: "+5 lb: top of the range twice in a row.")
+    static let unratedLoad = Self(code: .unratedStep, message: "One weight step up: top of the range twice in a row.")
     static let unratedHold = Self(code: .unratedStep, message: "Same plan: top of the range once more, then more weight.")
     static let repeatNotDone = Self(code: .repeatNotDone, message: "Same plan: nothing was logged last time.")
-    static let blockRebase = Self(code: .blockRebase, message: "New block: reps set for 3 reps in reserve.")
-    static let breakRebase = Self(code: .blockRebase, message: "Welcome back: your time off counted as a deload.")
+    static let blockRebase = Self(code: .blockRebase, message: "New block: reps set for 3 reps left.")
+    static let breakRebase = Self(code: .blockRebase, message: "Welcome back: your time off counted as a lighter week.")
 
     /// "5 lb", "2.5 lb".
     static func pounds(_ tenths: Int) -> String {

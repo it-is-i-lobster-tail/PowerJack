@@ -194,7 +194,7 @@ struct WatchExerciseView: View {
             Image(systemName: workoutExercise.status == .skipped ? "forward.circle.fill" : "checkmark.circle.fill")
                 .font(.title)
                 .foregroundStyle(workoutExercise.status == .skipped ? .secondary : Color.green)
-            Text("\(workoutExercise.completedWorkingSets) of \(workoutExercise.workingSets.count) sets")
+            Text(workoutExercise.workingSetsDoneText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

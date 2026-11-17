@@ -387,11 +387,38 @@ struct RestTimerTests {
         #expect(rest.isExpired(at: rest.endsAt.addingTimeInterval(RestPeriod.readyWindow)))
         #expect(rest.detailText == "Set 2 of 3 · 8 reps × 225 lb")
 
+        // An open-ended set shows the exercise's reps-left target, or nothing when it has none.
         var openEnded = rest
         openEnded.reps = nil
-        #expect(openEnded.prescriptionText == "2 RIR × 225 lb")
+        openEnded.repsLeft = 3
+        #expect(openEnded.prescriptionText == "3 reps left × 225 lb")
         openEnded.weightTenthsPounds = nil
-        #expect(openEnded.prescriptionText == "2 RIR")
+        #expect(openEnded.prescriptionText == "3 reps left")
+        openEnded.repsLeft = nil
+        #expect(openEnded.prescriptionText == "")
+        #expect(openEnded.detailText == "Set 2 of 3")
+    }
+
+    @Test("Set counts read \"0 of 1 set\", and plural from 2")
+    func setCountPlurals() throws {
+        let workout = Workout(order: 0)
+        let exercise = Exercise(exerciseName: "Row", exerciseEquipment: .barbell, primaryMuscleFocus: .back)
+        let workoutExercise = try #require(workout.addWorkoutExercise(exercise: exercise))
+        _ = workoutExercise.addSet()
+        container.mainContext.insert(workout)
+        #expect(workoutExercise.workingSetsDoneText == "0 of 1 set")
+        _ = workoutExercise.addSet()
+        #expect(workoutExercise.workingSetsDoneText == "0 of 2 sets")
+    }
+
+    @Test("Notes saved in pounds read in the lifter's unit")
+    func notesInLiftersUnit() {
+        let note = "+5.5 lb: every set hit 10 with 2 reps left."
+        #expect(WeightUnit.pounds.showingWeights(in: note) == note)
+        #expect(WeightUnit.kilograms.showingWeights(in: note) == "+2.5 kg: every set hit 10 with 2 reps left.")
+        #expect(WeightUnit.kilograms.showingWeights(in: "Reps up to 12: 1,000 lb is the most a set can log.")
+            == "Reps up to 12: 453.6 kg is the most a set can log.")
+        #expect(WeightUnit.kilograms.showingWeights(in: "Same plan: 8 reps but 4 reps left, aim was 2.") == "Same plan: 8 reps but 4 reps left, aim was 2.")
     }
 
     @Test("A rest gives a heads-up before it ends, then the lift cue when it's over")

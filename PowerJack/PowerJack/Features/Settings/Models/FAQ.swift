@@ -172,7 +172,7 @@ extension FAQ {
                 question: "What happens during a workout?",
                 answer: [
                     "Every set is filled in with its target weight and reps, and each exercise shows its aim: how many reps to leave in the tank.",
-                    "Warm-up sets come first and don't count toward your progress. For each working set, tap the circle when you're done. If you lifted a different weight or did different reps, change the numbers first, so next week is planned from what really happened.",
+                    "Warmup sets come first and don't count toward your progress. For each working set, tap the circle when you're done. If you lifted a different weight or did different reps, change the numbers first, so next week is planned from what really happened.",
                     "A rest timer counts down between sets. It can show in the Dynamic Island and on your Lock Screen too.",
                     "After an exercise's last set, rate it: how many more good reps you could have done, and whether anything hurt. It takes a few seconds, and it's what your next week is planned from.",
                     "After the last exercise, you'll see the whole workout. Tap any exercise to go back to it, or tap Finish Workout to see your summary.",

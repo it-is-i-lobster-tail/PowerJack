@@ -70,9 +70,10 @@ private struct CheckInOption: View {
 
     private var title: String {
         switch decision {
-        case .continue: isLighter ? "Lighter" : "Continue"
-        case .reset: "Reset"
-        case .skip: "Skip Exercise"
+        // The same names as on the watch.
+        case .continue: isLighter ? "Go Lighter" : "Same as Last Time"
+        case .reset: "Start Over"
+        case .skip: "Skip Today"
         }
     }
 
