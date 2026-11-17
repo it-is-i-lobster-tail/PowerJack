@@ -53,6 +53,19 @@ enum RestLiveActivityController {
         }
     }
 
+    /// Brings the activity in line with `program`'s current workout, for changes made while
+    /// PowerJack's screens may not be running to notice: a check on the Lock Screen, a set logged
+    /// or a workout finished on the watch.
+    static func follow(_ program: Program?) async {
+        let workout = program?.nextWorkout
+        await sync(
+            state: workout?.activityState(),
+            workoutTitle: workout.flatMap { program?.activityTitle(for: $0) },
+            isEnabled: UserDefaults.standard.object(forKey: AppSettings.Key.restLiveActivity) as? Bool
+                ?? AppSettings.Default.restLiveActivity
+        )
+    }
+
     private static func end(_ activities: [Activity<RestActivityAttributes>]) async {
         for activity in activities {
             await activity.end(nil, dismissalPolicy: .immediate)

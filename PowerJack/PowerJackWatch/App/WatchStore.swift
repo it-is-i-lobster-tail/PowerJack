@@ -19,13 +19,16 @@ final class WatchStore {
     /// Replaced when iCloud Backup is switched on the iPhone, so views must rebuild from it.
     private(set) var container: ModelContainer
     private(set) var syncsWithICloud: Bool
+    /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
+    /// because reading a model after its container closes crashes the app.
+    private(set) var isReplacingContainer = false
 
     private static var runsInPreviews: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
     private static var iCloudBackupSetting: Bool {
-        UserDefaults.standard.object(forKey: AppSettings.Key.iCloudBackup) as? Bool ?? AppSettings.Default.iCloudBackup
+        SettingsSync.watchSyncsWithICloud()
     }
 
     init() {
@@ -48,12 +51,32 @@ final class WatchStore {
         guard !Self.runsInPreviews else { return }
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
-                guard let self, Self.iCloudBackupSetting != syncsWithICloud else { continue }
-                syncsWithICloud = Self.iCloudBackupSetting
-                container = Self.makeContainer(syncsWithICloud: syncsWithICloud)
-                Logger.sync.info("iCloud Backup turned \(self.syncsWithICloud ? "on" : "off") from iPhone")
+                guard let self, !isReplacingContainer, Self.iCloudBackupSetting != syncsWithICloud else { continue }
+                switchContainer()
             }
         }
+    }
+
+    /// Only asks for the switch. The app calls `replaceContainer()` once no screen holds a model
+    /// from the current container. The new container reads the same data, so it's saved first.
+    private func switchContainer() {
+        do {
+            try container.mainContext.save()
+        } catch {
+            Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
+        }
+        // A save still scheduled on the old container would run after it closes.
+        container.mainContext.autosaveEnabled = false
+        syncsWithICloud = Self.iCloudBackupSetting
+        isReplacingContainer = true
+    }
+
+    /// Opens the container for the current iCloud Backup setting, after a switch.
+    func replaceContainer() {
+        guard isReplacingContainer else { return }
+        container = Self.makeContainer(syncsWithICloud: syncsWithICloud)
+        isReplacingContainer = false
+        Logger.sync.info("iCloud Backup turned \(self.syncsWithICloud ? "on" : "off") from iPhone")
     }
 
     /// iCloud can bring the iPhone's own copy of rows the watch already copied from it directly,
@@ -61,7 +84,8 @@ final class WatchStore {
     private func tidyUpAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                guard let context = self?.container.mainContext else { continue }
+                guard let self, !isReplacingContainer else { continue }
+                let context = container.mainContext
                 do {
                     if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
                     try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone, trigger: "iCloud import")

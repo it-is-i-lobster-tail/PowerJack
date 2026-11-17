@@ -48,9 +48,10 @@ final class PhoneSync {
             TraceLog.record(.watch, "Received \(changes.count) changes from the watch")
             let snapshot = try referee.receive(changes, in: context)
             // A set logged on the watch starts a rest, often with the iPhone locked and PowerJack's
-            // screens not running to notice, so the voice is set here.
-            let programs = try? context.fetch(FetchDescriptor<Program>())
-            RestVoice.shared.follow(programs?.active?.nextWorkout)
+            // screens not running to notice, so the voice and the Live Activity follow it here.
+            let program = (try? context.fetch(FetchDescriptor<Program>()))?.active
+            RestVoice.shared.follow(program?.nextWorkout)
+            Task { await RestLiveActivityController.follow(program) }
             return try SyncPayload.encode(snapshot)
         } catch {
             Logger.sync.error("Could not apply the watch's changes: \(error.localizedDescription)")

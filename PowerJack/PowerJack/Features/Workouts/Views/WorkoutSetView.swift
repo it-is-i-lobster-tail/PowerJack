@@ -363,6 +363,8 @@ struct WorkoutSetView: View {
             }
         } else {
             workoutSet.start()
+            // Saved now, so the watch shows the set open again and quitting doesn't lose it.
+            modelContext.saveTraced("set reopened")
         }
     }
 
