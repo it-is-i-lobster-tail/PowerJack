@@ -29,7 +29,7 @@ struct ExercisePreviewStrip: View {
                 HStack(spacing: spacing) {
                     ForEach(workoutExercises.indices, id: \.self) { index in
                         card(
-                            workoutExercises[index].exercise?.exerciseName ?? "",
+                            workoutExercises[index].shownExercise?.exerciseName ?? "",
                             index: index,
                             isDone: workoutExercises[index].isDone,
                             width: cardWidth

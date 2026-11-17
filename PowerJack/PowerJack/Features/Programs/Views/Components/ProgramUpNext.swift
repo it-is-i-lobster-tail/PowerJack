@@ -33,7 +33,7 @@ struct ProgramUpNext: View {
             VStack(spacing: 6) {
                 ForEach(workout.workoutExercises) { workoutExercise in
                     HStack {
-                        Text(workoutExercise.exercise?.exerciseName ?? "Exercise")
+                        Text(workoutExercise.shownExercise?.exerciseName ?? "Exercise")
                         Spacer()
                         Text(setCount(workoutExercise.workingSets.count))
                             .foregroundStyle(.secondary)

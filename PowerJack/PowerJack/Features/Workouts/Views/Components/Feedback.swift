@@ -30,7 +30,7 @@ struct Feedback: View {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 4) {
                     // The exercise's name is the title, so the lifter always knows what they're rating.
-                    Text(workoutExercise.exercise?.exerciseName ?? "Exercise Feedback")
+                    Text(workoutExercise.shownExercise?.exerciseName ?? "Exercise Feedback")
                         .font(.title2.bold())
                         .accessibilityAddTraits(.isHeader)
                     Text("Your answers set next week's weight, reps, and sets.")

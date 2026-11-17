@@ -106,8 +106,8 @@ enum ProgressionPlanner {
         workoutExercise.replacePlannedWarmups((0..<warmupCount).map { index in
             let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
             return (
-                reps: warmup.flatMap { $0.reps ?? $0.repsPlanned },
-                weightTenthsPounds: warmup.flatMap { $0.weightTenthsPounds ?? $0.weightTenthsPlannedPounds }
+                reps: warmup.flatMap { $0.progressionReps ?? $0.repsPlanned },
+                weightTenthsPounds: warmup.flatMap { $0.progressionWeightTenthsPounds ?? $0.progressionPlannedWeightTenthsPounds }
             )
         })
         workoutExercise.replacePlannedWorkingSets(prescription.sets.prefix(WorkoutExercise.maxSets).map {
@@ -154,9 +154,9 @@ enum ProgressionPlanner {
             sets: workoutExercise.workingSets.map {
                 ProgressionSet(
                     plannedReps: $0.repsPlanned,
-                    plannedWeightTenthsPounds: $0.weightTenthsPlannedPounds,
-                    actualReps: $0.reps,
-                    actualWeightTenthsPounds: $0.weightTenthsPounds,
+                    plannedWeightTenthsPounds: $0.progressionPlannedWeightTenthsPounds,
+                    actualReps: $0.progressionReps,
+                    actualWeightTenthsPounds: $0.progressionWeightTenthsPounds,
                     status: $0.status
                 )
             }

@@ -14,24 +14,16 @@ extension CompleteSetIntent {
     func perform() async throws -> some IntentResult {
         // The app's own context, so open screens see the set complete right away.
         let context = PowerJackApp.modelContainer.mainContext
-        guard
-            let program = try context.fetch(FetchDescriptor<Program>()).active,
-            let workout = program.nextWorkout,
-            workout.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder)
-        else {
-            return .result()
-        }
-        try context.save()
+        let program = try context.fetch(FetchDescriptor<Program>()).active
+        let workout = program?.nextWorkout
+        let completed = workout?.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder, workoutID: workoutID) == true
+        if completed { try context.save() }
 
         // The app may not be on screen to notice, so move the activity on to the next set here.
-        await RestLiveActivityController.sync(
-            state: workout.activityState(),
-            workoutTitle: program.activityTitle(for: workout),
-            isEnabled: UserDefaults.standard.object(forKey: AppSettings.Key.restLiveActivity) as? Bool
-                ?? AppSettings.Default.restLiveActivity
-        )
+        // A check that no longer matches, say because the watch logged that set, catches the activity up instead.
+        await RestLiveActivityController.follow(program)
         // Starts the next rest's callout while the phone is still locked.
-        RestVoice.shared.follow(workout)
+        if completed { RestVoice.shared.follow(workout) }
         return .result()
     }
 }

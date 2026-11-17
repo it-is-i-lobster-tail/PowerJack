@@ -82,8 +82,8 @@ enum BuildPlanner: WeekPlanner {
                     let warmup = sourceWarmups.indices.contains(index) ? sourceWarmups[index] : nil
                     workoutExercise.addPlannedSet(
                         type: .warmup,
-                        plannedReps: warmup.flatMap { $0.reps ?? $0.repsPlanned },
-                        plannedWeightTenthsPounds: warmup.flatMap { $0.weightTenthsPounds ?? $0.weightTenthsPlannedPounds }
+                        plannedReps: warmup.flatMap { $0.progressionReps ?? $0.repsPlanned },
+                        plannedWeightTenthsPounds: warmup.flatMap { $0.progressionWeightTenthsPounds ?? $0.progressionPlannedWeightTenthsPounds }
                     )
                 }
                 write(slotPlan, to: workoutExercise)
@@ -194,9 +194,9 @@ extension BuildPlanner {
             sets: workoutExercise.workingSets.map {
                 BuildSet(
                     plannedReps: $0.repsPlanned,
-                    plannedLoad: $0.weightTenthsPlannedPounds,
-                    reps: $0.reps,
-                    load: $0.weightTenthsPounds,
+                    plannedLoad: $0.progressionPlannedWeightTenthsPounds,
+                    reps: $0.progressionReps,
+                    load: $0.progressionWeightTenthsPounds,
                     completed: $0.status == .complete,
                     completedAt: $0.completedAt
                 )
@@ -272,13 +272,13 @@ extension BuildPlanner {
                 past.workoutValue?.programWeekValue?.programValue !== program,
                 let rir = past.feedback?.repsInReserve?.rawValue,
                 let last = past.workingSets.last(where: { $0.status == .complete }),
-                let reps = last.reps,
+                let reps = last.progressionReps,
                 let completedAt = last.completedAt,
                 date.timeIntervalSince(completedAt) <= maxAge
             else {
                 return nil
             }
-            return (reps, last.weightTenthsPounds, rir, completedAt)
+            return (reps, last.progressionWeightTenthsPounds, rir, completedAt)
         }
         .sorted { $0.3 > $1.3 }
         // Short sets estimate the max best (AUTO-14).
@@ -335,7 +335,7 @@ private struct ShortGaps {
                     end = max(end ?? date, date)
                 }
                 trained.insert(muscle)
-                let missed = done.contains { set in set.repsPlanned.map { (set.reps ?? $0) < $0 } ?? false }
+                let missed = done.contains { set in set.repsPlanned.map { (set.progressionReps ?? $0) < $0 } ?? false }
                 if missed || workoutExercise.feedback?.repsInReserve == .zero {
                     endedHard.insert(muscle)
                 }
