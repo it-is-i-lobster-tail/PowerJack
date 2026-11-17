@@ -212,9 +212,9 @@ struct ExerciseCatalogTests {
         #expect(bench.fatigueLevel == .high)
     }
 
-    @Test("A new device moves rows iCloud brings in from an older version on its next launch")
-    func fatigueLevelUpgradeAfterSync() throws {
-        let suite = "ExerciseCatalogTests.fatigueLevelUpgradeAfterSync"
+    @Test("A new iPhone or a reinstall leaves the levels iCloud brings in alone, so the lifter's own pick stays")
+    func fatigueLevelKeptAfterReinstall() throws {
+        let suite = "ExerciseCatalogTests.fatigueLevelKeptAfterReinstall"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -224,9 +224,10 @@ struct ExerciseCatalogTests {
 
         // First launch seeds an empty store.
         try ExerciseCatalog.seed(in: context, defaults: defaults)
-        #expect(defaults.object(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == nil)
+        #expect(defaults.integer(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == ExerciseCatalog.fatigueLevelsRevision)
 
-        // The older version's bench syncs in. It's older, so it survives the dedupe.
+        // The lifter's bench syncs in, set back to High after the move on their old iPhone.
+        // It's older, so it survives the dedupe.
         let synced = ExerciseCatalog.entries[0].makeExercise()
         synced.fatigueLevel = .high
         synced.maxReps = 12
@@ -234,10 +235,12 @@ struct ExerciseCatalogTests {
         context.insert(synced)
         try context.save()
 
+        // The next launches leave it as the lifter set it.
+        try ExerciseCatalog.seed(in: context, defaults: defaults)
         try ExerciseCatalog.seed(in: context, defaults: defaults)
         let benches = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID == "barbell-bench-press" }
         #expect(benches.count == 1)
-        #expect(benches.first?.fatigueLevel == .moderate)
-        #expect(defaults.integer(forKey: ExerciseCatalog.fatigueLevelsRevisionKey) == ExerciseCatalog.fatigueLevelsRevision)
+        #expect(benches.first?.fatigueLevel == .high)
+        #expect(benches.first?.repRange == 5...12)
     }
 }
