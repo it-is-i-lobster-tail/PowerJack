@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 /// Writes a program's weeks for one template type.
 protocol WeekPlanner {
@@ -30,6 +31,45 @@ extension WeekPlanner {
     static func prepareToStart(_ workout: Workout, in program: Program, at date: Date) {}
     static func close(_ week: ProgramWeek, in program: Program) {}
     static func canReplan(_ week: ProgramWeek, in program: Program) -> Bool { true }
+}
+
+/// What every planner's `build` shares: the week it builds, and the days it copies from the week before.
+extension WeekPlanner {
+    /// Where `week` sits in `program`, when `build` can fill it: it's empty and follows another week.
+    static func buildIndex(of week: ProgramWeek, in program: Program) -> Int? {
+        guard
+            week.workouts.isEmpty,
+            let index = program.programWeeks.firstIndex(where: { $0 === week }),
+            index > 0
+        else {
+            Logger.program.warning("Can only build an empty ProgramWeek that follows another week.")
+            return nil
+        }
+        return index
+    }
+
+    /// Gives the empty `week` the days and exercises of `source`, in order. A row whose exercise is gone is
+    /// left out. Each new exercise keeps its day's warmup setting and superset, then `copied` runs with it,
+    /// the exercise it copies, and that exercise's day, before the next exercise is added.
+    static func copyDays(
+        of source: ProgramWeek,
+        into week: ProgramWeek,
+        copied: (_ workoutExercise: WorkoutExercise, _ sourceExercise: WorkoutExercise, _ sourceWorkout: Workout) -> Void = { _, _, _ in }
+    ) {
+        for sourceWorkout in source.workouts {
+            guard let workout = week.addWorkout() else { continue }
+            for sourceExercise in sourceWorkout.workoutExercises {
+                guard
+                    let exercise = sourceExercise.exercise,
+                    let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
+                else { continue }
+                // An exercise with warmups disabled on this day gets none (see `WorkoutExercise.canAddSet`).
+                workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
+                workoutExercise.inheritSuperset(from: sourceExercise)
+                copied(workoutExercise, sourceExercise, sourceWorkout)
+            }
+        }
+    }
 }
 
 extension ProgressionPlanner: WeekPlanner {}
