@@ -107,8 +107,7 @@ private struct ReviewRow: View {
     let workoutExercise: WorkoutExercise
 
     private var setsLabel: String {
-        let sets = workoutExercise.workingSets
-        let label = "\(workoutExercise.completedWorkingSets) of \(sets.count) sets"
+        let label = workoutExercise.workingSetsDoneText
         guard let duration = workoutExercise.duration else { return label }
         return "\(label) · \(duration.elapsedText)"
     }

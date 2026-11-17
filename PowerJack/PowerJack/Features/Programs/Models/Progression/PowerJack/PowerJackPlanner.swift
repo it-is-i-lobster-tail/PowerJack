@@ -132,7 +132,7 @@ enum PowerJackPlanner: WeekPlanner {
 
     /// The line under the aim on the exercise screen. The aim itself covers deloads and rep-outs.
     private static func note(for entry: PowerJackEntryPlan, in header: PowerJackWeekPlanHeader) -> String? {
-        if header.type == .deload { return "Deload week: don't add reps." }
+        if header.type == .deload { return "Lighter week: don't add reps." }
         let topSet = entry.topSets > 0 ? "Set 1 is your heavy top set." : nil
         if entry.calibrating, entry.sets.first?.load == nil {
             return [topSet, "Pick weights that leave about 3 reps."].compactMap { $0 }.joined(separator: " ")

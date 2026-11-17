@@ -249,7 +249,7 @@ enum StrengthPlanner: WeekPlanner {
             "Top set: work up to a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps). Back-off sets follow from it."
         case .calibration where plan.loadKg == nil:
             "Pick a weight you could lift \(plan.repsToFailure) times. Do \(plan.reps)."
-        case .deload: "Deload week: lighter, to shed fatigue."
+        case .deload: "Lighter week: easier on purpose so you can recover."
         case .microDeload: "One lighter week for this lift."
         case .returnWeek1, .returnWeek2: "Back from a break, a little lighter."
         case .painLighter: "Lighter while the pain settles."

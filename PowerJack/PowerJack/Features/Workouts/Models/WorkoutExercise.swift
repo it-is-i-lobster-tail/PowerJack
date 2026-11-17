@@ -46,7 +46,7 @@ final class WorkoutExercise {
     private var checkInSourcePainValue: LevelOfPain?
     // Turned on from the warmup menu. Only this exercise on this program day starts on its working sets.
     private var warmupsDisabledValue: Bool = false
-    // How many warmups Enable Warmup brings back. Set when the user starts removing them.
+    // How many warmups Turn On Warmups brings back. Set when the user starts removing them.
     private var warmupRestoreCountValue: Int?
     // Shared by the exercises stacked into one superset in the template. Nil when the exercise stands alone.
     private var supersetIDValue: UUID?
@@ -159,6 +159,11 @@ extension WorkoutExercise {
     // Completed working sets. The only sets that count toward progression and the summary.
     var completedWorkingSets: Int {
         workingSets.count(where: { $0.status == .complete })
+    }
+    /// e.g. "2 of 3 sets" or "0 of 1 set".
+    var workingSetsDoneText: String {
+        let count = workingSets.count
+        return "\(completedWorkingSets) of \(count) \(count == 1 ? "set" : "sets")"
     }
     /// 1-based position within the set's own type, e.g. the first working set is 1 after two warmups.
     func number(of workoutSet: WorkoutSet) -> Int {
@@ -665,7 +670,7 @@ extension WorkoutExercise {
         return type == .warmup || sets.count > Self.minSets
     }
     /// Removes the last set of `type`. Sets of the other type stay.
-    /// Removing the last warmup turns warmups off, and Enable Warmup brings them all back.
+    /// Removing the last warmup turns warmups off, and Turn On Warmups brings them all back.
     func removeLastSet(type: SetType = .working) {
         guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
             Logger.workoutExercise.warning("Cannot remove a logged set, a set from a locked WorkoutExercise, or its last working set.")

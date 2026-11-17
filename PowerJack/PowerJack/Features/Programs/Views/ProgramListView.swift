@@ -55,7 +55,7 @@ struct ProgramListView: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(program.templateName)
-                            Text("\(program.status.rawValue)  |  \(program.percentFinished)%")
+                            Text(statusText(for: program))
                                 .font(.caption)
                                 .foregroundStyle(program === activeProgram ? .green : .blue)
                         }
@@ -120,6 +120,16 @@ struct ProgramListView: View {
     private func addProgram() {
         ProgramsHint().invalidate(reason: .actionPerformed)
         router.showNewProgram()
+    }
+
+    /// e.g. "In progress · 40% done" or "Finished".
+    private func statusText(for program: Program) -> String {
+        switch program.status {
+        case .active: "In progress · \(program.percentFinished)% done"
+        case .stopped, .skipped: "Stopped · \(program.percentFinished)% done"
+        case .complete: "Finished"
+        case .planned: "Not started"
+        }
     }
 
     private func select(_ program: Program) {
