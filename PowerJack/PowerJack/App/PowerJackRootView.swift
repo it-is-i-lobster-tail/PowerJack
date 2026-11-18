@@ -134,11 +134,13 @@ private struct PowerJackScreens: View {
                         options: MainBrowserOption.allCases,
                         selection: $selection,
                         title: \.name,
-                        onTap: showList
+                        onTap: showList,
+                        fillsWidth: true
                     )
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)
+                // The gear sits right under the back button, and the switcher ends under the top bar's trailing buttons.
+                .padding(.leading, LayoutMetrics.barButtonCenterInset - SettingsButton.size / 2)
+                .padding(.trailing, LayoutMetrics.barButtonInset)
             }
             // Popovers can't present from inside the glass container, so they attach out here.
             .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
@@ -219,7 +221,7 @@ private struct BottomEdgeBlur: View {
 
 private struct SettingsButton: View {
     // Matches the switcher's height: a 44pt pill plus its 4pt padding.
-    private static let size: CGFloat = 52
+    static let size: CGFloat = 52
 
     let action: () -> Void
 
