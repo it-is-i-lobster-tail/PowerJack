@@ -95,6 +95,8 @@ private struct PowerJackScreens: View {
     @State private var templatesRootID = UUID()
     // Measured height of the floating bar, added to the safe area of every tab.
     @State private var bottomBarHeight: CGFloat = 0
+    // How far in the navigation bar puts its buttons, so the bottom bar can line up with them.
+    @State private var barButtonInset: CGFloat = 16
 
     var body: some View {
         // Standard tabs can't be swiped between, so only the picker below switches sections.
@@ -139,8 +141,8 @@ private struct PowerJackScreens: View {
                     )
                 }
                 // The gear sits right under the back button, and the switcher ends under the top bar's trailing buttons.
-                .padding(.leading, LayoutMetrics.barButtonCenterInset - SettingsButton.size / 2)
-                .padding(.trailing, LayoutMetrics.barButtonInset)
+                .padding(.leading, barButtonInset + (LayoutMetrics.barButtonSize - SettingsButton.size) / 2)
+                .padding(.trailing, barButtonInset)
             }
             // Popovers can't present from inside the glass container, so they attach out here.
             .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
@@ -154,6 +156,7 @@ private struct PowerJackScreens: View {
         .restTimer(onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
         .powerJackKeyboardBehavior()
+        .onBarButtonInsetChange { barButtonInset = $0 }
         .onAppear(perform: restoreActiveWorkout)
         .onChange(of: router.path) { _, path in
             TraceLog.record(.screen, "Programs: \(path.isEmpty ? "My Programs" : path.map(\.traceName).joined(separator: " > "))")

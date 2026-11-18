@@ -16,10 +16,7 @@ enum LayoutMetrics {
     static let panelCornerRadius: CGFloat = 14
     static let curvedCornerRaius: CGFloat = 28
 
-    /// Where the navigation bar puts its buttons: glass circles this far in from the screen's edges.
-    /// The floating bottom bar lines up with them, so the two bars share one left and one right edge.
-    static let barButtonInset: CGFloat = 16
+    /// The navigation bar's buttons are glass circles this wide, set in from the screen's edges
+    /// by the system margin (see `onBarButtonInsetChange`). The floating bottom bar lines up with them.
     static let barButtonSize: CGFloat = 44
-    /// The center line of the navigation bar's leading button (the back button).
-    static let barButtonCenterInset: CGFloat = barButtonInset + barButtonSize / 2
 }
