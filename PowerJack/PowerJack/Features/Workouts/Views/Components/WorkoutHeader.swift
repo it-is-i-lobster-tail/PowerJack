@@ -9,7 +9,7 @@ import SwiftUI
 
 struct WorkoutHeader: View {
     /// Light glass reads heavier than dark over a light page, so it's eased off a little.
-    private static let lightGlassOpacity = 0.75
+    private static let lightGlassOpacity = 0.5
 
     @Environment(\.colorScheme) private var colorScheme
 
