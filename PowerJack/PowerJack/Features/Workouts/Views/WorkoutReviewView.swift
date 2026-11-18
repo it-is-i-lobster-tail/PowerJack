@@ -25,38 +25,34 @@ struct WorkoutReviewView: View {
 
     @ViewBuilder
     private var content: some View {
-        VStack(spacing: 0) {
-            Text("Review")
-                .font(.title)
-
-            List {
-                if workout.startedAt != nil {
-                    WorkoutTimerSection(workout: workout)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-
-                ForEach(Array(workout.workoutExercises.enumerated()), id: \.element.id) { index, workoutExercise in
-                    Button {
-                        onSelectExercise(index)
-                    } label: {
-                        ReviewRow(workoutExercise: workoutExercise)
-                    }
-                    .buttonStyle(.plain)
+        // "Review" is in the header bubble above.
+        List {
+            if workout.startedAt != nil {
+                WorkoutTimerSection(workout: workout)
                     .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing) {
-                        if !workoutExercise.allSetsDone() {
-                            Button("Skip", systemImage: "forward") {
-                                onSkipRemainingSets(workoutExercise)
-                            }
-                            .tint(.orange)
+                    .listRowSeparator(.hidden)
+            }
+
+            ForEach(Array(workout.workoutExercises.enumerated()), id: \.element.id) { index, workoutExercise in
+                Button {
+                    onSelectExercise(index)
+                } label: {
+                    ReviewRow(workoutExercise: workoutExercise)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .swipeActions(edge: .trailing) {
+                    if !workoutExercise.allSetsDone() {
+                        Button("Skip", systemImage: "forward") {
+                            onSkipRemainingSets(workoutExercise)
                         }
+                        .tint(.orange)
                     }
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: finish) {
                 Text("Finish Workout")

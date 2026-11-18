@@ -18,6 +18,8 @@ struct WorkoutExercisePager: View {
     var review: WorkoutReviewView? = nil
     /// Goes up when the selected exercise is tapped again in the strip, to bring its page back.
     var pageRequests = 0
+    /// Room for the bars over the pages. Each page scrolls under them but comes to rest inside.
+    var pageInsets = EdgeInsets()
 
     @State private var scrollPhase: ScrollPhase = .idle
 
@@ -32,6 +34,7 @@ struct WorkoutExercisePager: View {
                             focusedSetField: focusedSetField,
                             workoutExercise: workoutExercises[index]
                         )
+                            .safeAreaPadding(pageInsets)
                             .containerRelativeFrame(.horizontal)
                             .id(index)
                     }
@@ -40,12 +43,12 @@ struct WorkoutExercisePager: View {
                         review
                             // The List keeps scrolling and its swipe actions while the pager is held still.
                             .environment(\.isScrollEnabled, true)
+                            .safeAreaPadding(pageInsets)
                             .containerRelativeFrame(.horizontal)
                             .id(workoutExercises.count)
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.top, LayoutMetrics.compactSpacing)
             }
             .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
             .scrollPosition(id: $selectedExerciseIndex)

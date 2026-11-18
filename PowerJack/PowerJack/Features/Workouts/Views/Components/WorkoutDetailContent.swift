@@ -9,6 +9,8 @@ import SwiftUI
 
 struct WorkoutDetailContent: View {
     let screenWidth: CGFloat
+    /// How far down the navigation bar reaches. The sets scroll up under it.
+    let topInset: CGFloat
     let workoutExercises: [WorkoutExercise]
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
@@ -16,21 +18,25 @@ struct WorkoutDetailContent: View {
     var review: WorkoutReviewView? = nil
 
     @State private var pageRequests = 0
+    @State private var stripHeight: CGFloat = 0
 
     var body: some View {
-        // The sets take every point the exercise strip doesn't need, less a gap above the strip.
-        VStack(spacing: LayoutMetrics.compactSpacing) {
-            WorkoutExercisePager(
-                screenWidth: screenWidth,
-                workoutExercises: workoutExercises,
-                onExerciseSetsDone: onExerciseSetsDone,
-                selectedExerciseIndex: $selectedExerciseIndex,
-                focusedSetField: focusedSetField,
-                review: review,
-                pageRequests: pageRequests
-            )
-            .frame(maxHeight: .infinity)
-
+        // The sets fill the screen and scroll under the bars, but come to rest between them.
+        WorkoutExercisePager(
+            screenWidth: screenWidth,
+            workoutExercises: workoutExercises,
+            onExerciseSetsDone: onExerciseSetsDone,
+            selectedExerciseIndex: $selectedExerciseIndex,
+            focusedSetField: focusedSetField,
+            review: review,
+            pageRequests: pageRequests,
+            pageInsets: EdgeInsets(top: topInset + LayoutMetrics.compactSpacing, leading: 0, bottom: stripHeight, trailing: 0)
+        )
+        .overlay(alignment: .top) {
+            EdgeBlur(edge: .top)
+                .frame(height: topInset)
+        }
+        .overlay(alignment: .bottom) {
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
@@ -38,6 +44,10 @@ struct WorkoutDetailContent: View {
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
+            // A gap above the strip where the sets fade out at rest.
+            .padding(.top, LayoutMetrics.compactSpacing)
+            .background { EdgeBlur(edge: .bottom) }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
         }
         .frame(width: screenWidth)
     }

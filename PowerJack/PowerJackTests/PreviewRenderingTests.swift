@@ -42,7 +42,7 @@ final class PreviewRenderingTests: XCTestCase {
                 WorkoutDetailView(workout: emptyWorkout.workout)
             })),
             ("Workout - Week 2", AnyView(NavigationPreviewHost(modelContainer: progression.container) {
-                WorkoutDetailView(workout: progression.weekTwoWorkouts[0], weekNumber: 2, weekCount: 4)
+                WorkoutDetailView(workout: progression.weekTwoWorkouts[0])
             })),
             ("Session - Week 1", navigation(ProgramSessionView(program: scenario.program))),
             ("Session - Week 2", AnyView(NavigationPreviewHost(modelContainer: progression.container) {
