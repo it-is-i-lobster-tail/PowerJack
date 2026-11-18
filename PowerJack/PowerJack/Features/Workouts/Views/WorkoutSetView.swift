@@ -102,7 +102,7 @@ struct WorkoutSetView: View {
         (!isReadOnly && workoutSet.status == .active && !workoutSet.locked) || isCorrecting
     }
 
-    /// A logged set in an unlocked, finished workout: its weight and reps can be fixed, and it stays logged.
+    /// A logged or skipped set in an unlocked, finished workout: its weight and reps can be fixed, and its status stays.
     private var isCorrecting: Bool {
         allowsCorrections && workoutSet.canCorrect
     }

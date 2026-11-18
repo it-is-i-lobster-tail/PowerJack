@@ -54,7 +54,7 @@ struct CompletedWorkoutUnlockTests {
         #expect(set.weightTenthsPounds == 1000)
     }
 
-    @Test("Only logged sets of a finished workout can be fixed")
+    @Test("Logged and skipped sets of a finished workout can be fixed, not those of a live one")
     func correctionNeedsFinishedWorkout() throws {
         let program = try makeStartedProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
@@ -67,12 +67,58 @@ struct CompletedWorkoutUnlockTests {
         #expect(!set.correctWeight(454))
         #expect(set.weightTenthsPounds == 1000)
 
-        workout.skipRemainingSets()
-        _ = program.finishWorkout(workout)
+        // Numbers typed into a set that's then skipped.
         let skipped = try #require(workout.workoutExercises.first?.workingSets.last)
+        skipped.reps = 8
+        skipped.weightTenthsPounds = 900
+        workout.skipRemainingSets()
         #expect(skipped.status == .skipped)
         #expect(!skipped.canCorrect)
+
+        _ = program.finishWorkout(workout)
         #expect(set.canCorrect)
+        #expect(skipped.canCorrect)
+        #expect(skipped.correctWeight(950))
+        #expect(skipped.correctReps(9))
+        #expect(skipped.weightTenthsPounds == 950)
+        #expect(skipped.reps == 9)
+        #expect(skipped.status == .skipped)
+    }
+
+    @Test("A skipped warmup's fixed weight is the warmup next week plans")
+    func skippedWarmupFixCarriesForward() throws {
+        let program = try makeStartedProgram(weeks: 2, days: 2)
+        let dayOne = try #require(program.nextWorkout)
+        dayOne.startAndCascade()
+        let exercise = try #require(dayOne.workoutExercises.first)
+        let warmup = try #require(exercise.warmupSets.first)
+        // Typed, then passed over: logging the first working set skips it.
+        warmup.weightTenthsPounds = 4410
+        warmup.reps = 10
+        log(try #require(exercise.workingSets.first))
+        #expect(warmup.status == .skipped)
+        try finish(dayOne, of: program)
+
+        #expect(warmup.correctWeight(441))
+        #expect(warmup.status == .skipped)
+
+        // Finishing the week plans the next one from what week 1 holds now.
+        try finish(try #require(program.nextWorkout), of: program)
+        let nextWeek = try #require(program.programWeeks.dropFirst().first)
+        let planned = try #require(nextWeek.workouts.first?.workoutExercises.first?.warmupSets.first)
+        #expect(planned.weightTenthsPlannedPounds == 441)
+        #expect(planned.repsPlanned == 10)
+    }
+
+    @Test("A skipped set with nothing typed has nothing to fix")
+    func emptySkippedSetRefusesFixes() throws {
+        let (_, workout) = try makeCompletedWorkout(weeks: 2)
+        let warmup = try #require(workout.workoutExercises.first?.warmupSets.first)
+        #expect(warmup.status == .skipped)
+        #expect(warmup.weightTenthsPounds == nil)
+
+        #expect(!warmup.correctWeight(441))
+        #expect(warmup.weightTenthsPounds == nil)
     }
 
     @Test("An unlock is kept in memory only, so a relaunch locks the workout again")
@@ -192,6 +238,38 @@ struct CompletedWorkoutUnlockTests {
         #expect(set.weightTenthsPounds == 450)
     }
 
+    @Test("Once unlocked, a skipped warmup's weight can be fixed and its check stays put")
+    func unlockedScreenFixesSkippedWarmup() async throws {
+        let program = try makeStartedProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        let warmup = try #require(exercise.warmupSets.first)
+        warmup.weightTenthsPounds = 4410
+        warmup.reps = 10
+        try finish(workout, of: program)
+        #expect(warmup.status == .skipped)
+
+        let unlocks = WorkoutUnlocks()
+        unlocks.unlock(workout)
+        let screen = try await HostedView(completedWorkout(workout, unlocks: unlocks))
+        defer { screen.close() }
+
+        // Done warmups are folded away; tapping their title shows them.
+        let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
+        await screen.tap(title, settleFor: .milliseconds(800))
+        #expect(await screen.type("44.1", into: "Warmup 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("8", into: "Warmup 1 reps"), "\(screen.labels)")
+        #expect(warmup.weightTenthsPounds == 441)
+        #expect(warmup.reps == 8)
+        #expect(warmup.status == .skipped)
+        #expect(!container.mainContext.hasChanges)
+
+        // The check still can't be tapped, so the warmup stays where it was.
+        await screen.tap("Warmup 1")
+        #expect(warmup.status == .skipped)
+    }
+
     // MARK: Helpers
 
     private func completedWorkout(_ workout: Workout, unlocks: WorkoutUnlocks) -> some View {
@@ -213,18 +291,24 @@ struct CompletedWorkoutUnlockTests {
         let program = try makeStartedProgram(weeks: weeks)
         let workout = try #require(program.nextWorkout)
         workout.startAndCascade()
+        try finish(workout, of: program)
+        return (program, workout)
+    }
+
+    /// Logs every working set still to do at 100 × 10, rates each exercise, then finishes the workout.
+    private func finish(_ workout: Workout, of program: Program) throws {
+        if workout.status == .planned { workout.startAndCascade() }
         for exercise in workout.workoutExercises {
-            exercise.workingSets.forEach(log)
+            exercise.workingSets.filter { !$0.isDone }.forEach(log)
             exercise.addFeedback(feedback: ExerciseFeedback(levelOfEffort: .challenge, levelOfPain: .none))
         }
         workout.skipRemainingSets()
         _ = program.finishWorkout(workout)
         try container.mainContext.save()
         #expect(workout.status == .complete)
-        return (program, workout)
     }
 
-    private func makeStartedProgram(weeks: Int) throws -> Program {
+    private func makeStartedProgram(weeks: Int, days: Int = 1) throws -> Program {
         let context = container.mainContext
         let exercise = Exercise(
             exerciseName: "Bench",
@@ -234,8 +318,10 @@ struct CompletedWorkoutUnlockTests {
             maxReps: 12
         )
         context.insert(exercise)
-        let template = TemplateProgram(templateName: "Test", workoutsPerWeek: 1, templateMuscleFocus: [.chest])
-        template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
+        let template = TemplateProgram(templateName: "Test", workoutsPerWeek: days, templateMuscleFocus: [.chest])
+        for _ in 0..<days {
+            template.addTemplateWorkout().addTemplateExercise(exercise: exercise)
+        }
         context.insert(template)
         let program = Program(programLengthWeeks: weeks, templateProgram: template)
         try context.insertAndSave(program)
