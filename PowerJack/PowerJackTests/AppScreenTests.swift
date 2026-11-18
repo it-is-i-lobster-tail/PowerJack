@@ -259,6 +259,23 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
+    @Test("Both swipes on an exercise row show Superset | Edit | Trash, and a full swipe right supersets")
+    func exerciseRowSwipeActions() {
+        let leading = ExerciseRowAction.actions(isLogged: false, from: .leading)
+        let trailing = ExerciseRowAction.actions(isLogged: false, from: .trailing)
+        #expect(leading == [.superset, .edit, .trash])
+        // The trailing edge lists from the right, so on screen it reads the same left to right.
+        #expect(Array(trailing.reversed()) == leading)
+        #expect(leading.first == .superset, "A full swipe right runs the first leading action")
+        #expect(trailing.first == .trash)
+    }
+
+    @Test("A logged exercise's swipes show Superset and Edit but never Trash")
+    func loggedExerciseRowSwipeActions() {
+        #expect(ExerciseRowAction.actions(isLogged: true, from: .leading) == [.superset, .edit])
+        #expect(ExerciseRowAction.actions(isLogged: true, from: .trailing) == [.edit, .superset])
+    }
+
     @Test("Browsing exercises opens the selected exercise's details")
     func browseExercises() async throws {
         let screen = try await HostedView(

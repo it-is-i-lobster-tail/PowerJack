@@ -290,34 +290,10 @@ struct TemplateWorkoutBuilder: View {
             let isLogged = loggedExercises.contains(templateExerciseDraft.id)
             TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise, isLogged: isLogged)
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        superset(block)
-                    } label: {
-                        Label("Superset", systemImage: "link")
-                    }
-                    .tint(.indigo)
+                    rowActions(block, isLogged: isLogged, edge: .leading)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    // Logged sets are never thrown away.
-                    if !isLogged {
-                        Button {
-                            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
-                                isExplainingLastExercise = true
-                            } else {
-                                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                            }
-                        } label: {
-                            Label("Trash", systemImage: "trash")
-                        }
-                        .tint(.red)
-                    }
-
-                    Button {
-                        handleEdit(templateExerciseDraft.exercise)
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
+                    rowActions(block, isLogged: isLogged, edge: .trailing)
                 }
                 // On the row, so the popup points at the exercise that was swiped.
                 .confirmationDialog(
@@ -331,6 +307,48 @@ struct TemplateWorkoutBuilder: View {
                     supersetChoices(for: block)
                 }
         }
+    }
+
+    private func rowActions(_ block: TemplateExerciseBlock, isLogged: Bool, edge: HorizontalEdge) -> some View {
+        let templateExerciseDraft = block.exercises[0]
+        return ForEach(ExerciseRowAction.actions(isLogged: isLogged, from: edge), id: \.self) { action in
+            switch action {
+            case .superset: supersetButton(block)
+            case .edit: editButton(templateExerciseDraft)
+            case .trash: trashButton(templateExerciseDraft)
+            }
+        }
+    }
+
+    private func supersetButton(_ block: TemplateExerciseBlock) -> some View {
+        Button {
+            superset(block)
+        } label: {
+            Label("Superset", systemImage: "link")
+        }
+        .tint(.indigo)
+    }
+
+    private func editButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button {
+            handleEdit(templateExerciseDraft.exercise)
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        .tint(.blue)
+    }
+
+    private func trashButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button {
+            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
+                isExplainingLastExercise = true
+            } else {
+                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+            }
+        } label: {
+            Label("Trash", systemImage: "trash")
+        }
+        .tint(.red)
     }
 
     /// The first superset starts straight away. After that, the lifter picks one to join or starts another.
@@ -366,6 +384,19 @@ extension TemplateWorkoutBuilder {
             Label("Unstack", systemImage: "square.split.1x2")
         }
         .tint(.gray)
+    }
+}
+
+/// What swiping an exercise row offers. Both swipes show the same actions in the same order,
+/// Superset | Edit | Trash, so neither side has to be learned.
+enum ExerciseRowAction: CaseIterable {
+    case superset, edit, trash
+
+    /// The actions a swipe from `edge` lists, from that edge inward, which is how SwiftUI lays
+    /// them out. A logged exercise has no Trash, since logged sets are never thrown away.
+    static func actions(isLogged: Bool, from edge: HorizontalEdge) -> [ExerciseRowAction] {
+        let leftToRight = allCases.filter { $0 != .trash || !isLogged }
+        return edge == .leading ? leftToRight : leftToRight.reversed()
     }
 }
 
