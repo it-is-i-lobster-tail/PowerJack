@@ -152,16 +152,13 @@ struct WorkoutExerciseView: View {
     }
 
     private func setRows(_ sets: [WorkoutSet]) -> some View {
-        // Worked out once for every row.
-        let currentSet = workoutExercise.workoutValue?.currentSet?.workoutSet
-        return VStack(spacing: LayoutMetrics.compactSpacing) {
+        VStack(spacing: LayoutMetrics.compactSpacing) {
             ForEach(sets) { workoutSet in
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.shownExercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
-                    isCurrent: workoutSet === currentSet,
                     onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }
