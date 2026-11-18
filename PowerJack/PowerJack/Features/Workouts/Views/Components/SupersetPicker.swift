@@ -63,7 +63,7 @@ struct SupersetPicker: View {
                 Label("Superset \(workout.supersetLetter(for: choice))", systemImage: "link")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.indigo)
-                    // Start the row's divider under the icon, in line with the exercise names, not under the label text.
+                    // Start the row's divider in line with the exercise names, not under the label text after the icon.
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     .padding(.horizontal, 15)
                     .padding(.top, 8)
