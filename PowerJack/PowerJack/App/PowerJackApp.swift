@@ -25,6 +25,7 @@ struct PowerJackApp: App {
     init() {
         Hints.configure()
         if !Self.runsInMemory {
+            WeightUnit.saveDeviceDefaultIfUnpicked()
             TraceLog.shared.start()
             TraceHooks.start()
             PhoneSync.shared.start(store: Self.store)

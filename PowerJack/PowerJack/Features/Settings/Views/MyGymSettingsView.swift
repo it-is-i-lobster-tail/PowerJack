@@ -19,7 +19,7 @@ struct MyGymSettingsView: View {
     private var content: some View {
         Form {
             Section {
-                // A trailing control, like the toggles: lb or kg.
+                // A trailing menu, so changing the unit takes a deliberate pick, never one stray tap.
                 HStack {
                     SettingsRowLabel(
                         systemImage: "scalemass",
@@ -28,10 +28,10 @@ struct MyGymSettingsView: View {
                     )
                     Picker("Weight Unit", selection: $weightUnit) {
                         ForEach(WeightUnit.allCases) { unit in
-                            Text(unit.symbol).tag(unit)
+                            Text(unit.name).tag(unit)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
                     .fixedSize()
                 }

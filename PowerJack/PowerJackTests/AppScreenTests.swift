@@ -162,6 +162,26 @@ struct AppScreenTests {
         }
     }
 
+    @Test("Weight Unit is a menu: one tap opens it and leaves the unit as it was")
+    func weightUnitMenu() async throws {
+        let defaults = UserDefaults.standard
+        let key = AppSettings.Key.weightUnit
+        let saved = defaults.object(forKey: key)
+        defer { defaults.set(saved, forKey: key) }
+        defaults.set(WeightUnit.pounds.rawValue, forKey: key)
+
+        let screen = try await HostedView(NavigationStack { MyGymSettingsView() })
+        defer { screen.close() }
+
+        // The menu reads its name, then the full unit name.
+        let menu = "Weight Unit, Pounds"
+        #expect(screen.contains(menu), "\(screen.labels)")
+
+        await screen.tap(menu, settleFor: .milliseconds(800))
+        #expect(screen.labelsInAllWindows.contains("Kilograms"), "\(screen.labelsInAllWindows)")
+        #expect(defaults.string(forKey: key) == WeightUnit.pounds.rawValue)
+    }
+
     @Test("Rest Between Sets opens a wheel that stays inside 0:30...5:00")
     func restBetweenSets() async throws {
         let defaults = UserDefaults.standard

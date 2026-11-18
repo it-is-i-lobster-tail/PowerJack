@@ -29,10 +29,21 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
     /// so tests that need a unit pin it here instead.
     @TaskLocal static var pinned: WeightUnit?
 
-    /// The unit picked in Settings, or the device's measurement system until one is picked.
+    /// The unit picked in Settings. The iPhone saves one at first launch (see `saveDeviceDefaultIfUnpicked`),
+    /// so the device's measurement system only fills in where nothing is saved yet, like a new watch.
     static var current: WeightUnit {
-        pinned ?? UserDefaults.standard.string(forKey: AppSettings.Key.weightUnit)
-            .flatMap(WeightUnit.init(rawValue:)) ?? deviceDefault
+        pinned ?? saved(in: .standard) ?? deviceDefault
+    }
+
+    /// Saves the device's unit as the pick, once, at the iPhone app's first launch. After that only
+    /// Settings changes it, so a later region or measurement system change never switches it.
+    static func saveDeviceDefaultIfUnpicked(in defaults: UserDefaults = .standard) {
+        guard saved(in: defaults) == nil else { return }
+        defaults.set(deviceDefault.rawValue, forKey: AppSettings.Key.weightUnit)
+    }
+
+    private static func saved(in defaults: UserDefaults) -> WeightUnit? {
+        defaults.string(forKey: AppSettings.Key.weightUnit).flatMap(WeightUnit.init(rawValue:))
     }
 
     static var deviceDefault: WeightUnit {
