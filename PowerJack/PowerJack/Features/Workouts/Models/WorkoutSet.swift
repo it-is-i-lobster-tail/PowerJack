@@ -152,6 +152,12 @@ extension WorkoutSet {
     var emptyWeightTenthsPounds: Int? { addsToBodyweight ? 0 : nil }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
+    /// A warmup skipped while its exercise is still underway, as when logging the first working set passes
+    /// it over. It reads as checked off, and can be opened again in case it was skipped by mistake.
+    var canReopenSkippedWarmup: Bool {
+        guard isWarmup, status == .skipped, let workoutExercise = workoutExerciseValue else { return false }
+        return workoutExercise.status == .active && !workoutExercise.locked
+    }
     /// How long the set took, rest before it included. `nil` until it's logged.
     var duration: TimeInterval? {
         guard status == .complete, let startedAtValue, let completedAtValue else { return nil }
@@ -263,6 +269,14 @@ extension WorkoutSet {
         lockedValue = false
         Logger.workoutSet.debug("WorkoutSet unskipped")
         TraceLog.record(.workout, "Reopened \(traceDescription)")
+    }
+    /// Opens a skipped warmup again so it can be adjusted and logged after all.
+    func reopenSkippedWarmup() {
+        guard canReopenSkippedWarmup else {
+            Logger.workoutSet.warning("Can only reopen a skipped warmup of an exercise still underway.")
+            return
+        }
+        unskip()
     }
     /// Back to planned, as if its workout never started. The next start fills in the target again.
     func resetToPlanned() {
