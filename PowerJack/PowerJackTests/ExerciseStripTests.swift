@@ -83,6 +83,27 @@ struct ExerciseStripTests {
         #expect(await screen.waitUntil { pagerPage(pager) == 2 }, "pager page \(pagerPage(pager))")
     }
 
+    @Test("Half a swipe moves the strip half a card, and the two cards meet at the same size")
+    func stripFollowsTheSwipe() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
+        // At rest the selected card is bigger than the next one.
+        let restingWidths = try cardWidths(["Lift 1", "Lift 2"], in: strip, screen: screen)
+        #expect(restingWidths[0] > restingWidths[1] + 4, "widths \(restingWidths)")
+
+        // Hold the pages halfway between the first and second exercise, as a finger would.
+        pager.setContentOffset(CGPoint(x: pager.bounds.width / 2, y: 0), animated: false)
+
+        #expect(await screen.waitUntil { isMidway(between: "Lift 1", and: "Lift 2", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+        let midwayWidths = try cardWidths(["Lift 1", "Lift 2"], in: strip, screen: screen)
+        #expect(abs(midwayWidths[0] - midwayWidths[1]) < 1, "widths \(midwayWidths)")
+    }
+
     // MARK: Helpers
 
     private func workoutScreen(_ workout: Workout) -> some View {
@@ -115,6 +136,25 @@ struct ExerciseStripTests {
             return false
         }
         return abs(card.midX - stripFrame.midX) < 2
+    }
+
+    /// The strip's middle falls halfway between the two cards.
+    private func isMidway(between first: String, and second: String, in strip: UIScrollView, screen: HostedView) -> Bool {
+        guard let frames = try? cardFrames([first, second], in: strip, screen: screen) else { return false }
+        let stripFrame = strip.convert(strip.bounds, to: nil)
+        return abs((frames[0].midX + frames[1].midX) / 2 - stripFrame.midX) < 2
+    }
+
+    private func cardWidths(_ names: [String], in strip: UIScrollView, screen: HostedView) throws -> [CGFloat] {
+        try cardFrames(names, in: strip, screen: screen).map(\.width)
+    }
+
+    /// The cards with these names inside the strip, not the page titles with the same names.
+    private func cardFrames(_ names: [String], in strip: UIScrollView, screen: HostedView) throws -> [CGRect] {
+        let stripFrame = strip.convert(strip.bounds, to: nil)
+        return try names.map { name in
+            try #require(screen.frames(of: name).first { stripFrame.contains(CGPoint(x: $0.midX, y: $0.midY)) })
+        }
     }
 
     private func pagerPage(_ pager: UIScrollView) -> Int {
