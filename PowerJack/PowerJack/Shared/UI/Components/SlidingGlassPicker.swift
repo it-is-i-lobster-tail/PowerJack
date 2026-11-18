@@ -51,7 +51,7 @@ struct SlidingGlassPicker<Option: Identifiable & Hashable>: View {
                         .background {
                             if selection == option {
                                 Color.clear
-                                    .glassEffect(.regular, in: Capsule())
+                                    .glassEffect(.regular.tint(.glassSurface.opacity(VisualOpacity.standard)), in: Capsule())
                                     .matchedGeometryEffect(
                                         id: "selection",
                                         in: animation

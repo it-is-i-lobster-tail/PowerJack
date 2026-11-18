@@ -148,7 +148,6 @@ private struct PowerJackScreens: View {
             .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
             // A little breathing room between screen content and the bar.
             .padding(.top, LayoutMetrics.compactSpacing)
-            .background { EdgeBlur(edge: .bottom) }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 bottomBarHeight = height
             }

@@ -89,6 +89,15 @@ private struct TabPageLayout: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(TabSafeArea(top: restIslandHeight, bottom: bottomBarHeight))
+            // A hairline bar at the top of that room marks where the bottom bar's glass starts, so content
+            // fades softly from there to the bottom edge, as it does under the title. A clear bar reserves
+            // no room and draws no scroll edge effect of its own.
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                Color.black.opacity(0.001)
+                    .frame(height: 1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
             .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
