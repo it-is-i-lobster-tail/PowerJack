@@ -289,17 +289,11 @@ struct TemplateWorkoutBuilder: View {
             let templateExerciseDraft = block.exercises[0]
             let isLogged = loggedExercises.contains(templateExerciseDraft.id)
             TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise, isLogged: isLogged)
-                // Both swipes show the same three actions, Superset | Edit | Trash, so neither side
-                // has to be learned. Each edge lists its actions from the edge inward.
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    supersetButton(block)
-                    editButton(templateExerciseDraft)
-                    trashButton(templateExerciseDraft, isLogged: isLogged)
+                    rowActions(block, isLogged: isLogged, edge: .leading)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    trashButton(templateExerciseDraft, isLogged: isLogged)
-                    editButton(templateExerciseDraft)
-                    supersetButton(block)
+                    rowActions(block, isLogged: isLogged, edge: .trailing)
                 }
                 // On the row, so the popup points at the exercise that was swiped.
                 .confirmationDialog(
@@ -312,6 +306,17 @@ struct TemplateWorkoutBuilder: View {
                 ) {
                     supersetChoices(for: block)
                 }
+        }
+    }
+
+    private func rowActions(_ block: TemplateExerciseBlock, isLogged: Bool, edge: HorizontalEdge) -> some View {
+        let templateExerciseDraft = block.exercises[0]
+        return ForEach(ExerciseRowAction.actions(isLogged: isLogged, from: edge), id: \.self) { action in
+            switch action {
+            case .superset: supersetButton(block)
+            case .edit: editButton(templateExerciseDraft)
+            case .trash: trashButton(templateExerciseDraft)
+            }
         }
     }
 
@@ -333,21 +338,17 @@ struct TemplateWorkoutBuilder: View {
         .tint(.blue)
     }
 
-    /// Logged sets are never thrown away, so a logged exercise has no Trash.
-    @ViewBuilder
-    private func trashButton(_ templateExerciseDraft: TemplateExerciseDraft, isLogged: Bool) -> some View {
-        if !isLogged {
-            Button {
-                if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
-                    isExplainingLastExercise = true
-                } else {
-                    templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                }
-            } label: {
-                Label("Trash", systemImage: "trash")
+    private func trashButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button {
+            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
+                isExplainingLastExercise = true
+            } else {
+                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
             }
-            .tint(.red)
+        } label: {
+            Label("Trash", systemImage: "trash")
         }
+        .tint(.red)
     }
 
     /// The first superset starts straight away. After that, the lifter picks one to join or starts another.
@@ -383,6 +384,19 @@ extension TemplateWorkoutBuilder {
             Label("Unstack", systemImage: "square.split.1x2")
         }
         .tint(.gray)
+    }
+}
+
+/// What swiping an exercise row offers. Both swipes show the same actions in the same order,
+/// Superset | Edit | Trash, so neither side has to be learned.
+enum ExerciseRowAction: CaseIterable {
+    case superset, edit, trash
+
+    /// The actions a swipe from `edge` lists, from that edge inward, which is how SwiftUI lays
+    /// them out. A logged exercise has no Trash, since logged sets are never thrown away.
+    static func actions(isLogged: Bool, from edge: HorizontalEdge) -> [ExerciseRowAction] {
+        let leftToRight = allCases.filter { $0 != .trash || !isLogged }
+        return edge == .leading ? leftToRight : leftToRight.reversed()
     }
 }
 

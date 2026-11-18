@@ -97,46 +97,6 @@ final class HostedView {
         elements().first { $0.accessibilityLabel == label }?.accessibilityValue
     }
 
-    /// The actions VoiceOver offers on the row whose label starts with `prefix`, such as a list
-    /// row's swipe actions. Some iOS versions put them on the label's own element and others on
-    /// the cell around it, so this reads the smallest object around the label that has any.
-    func actions(onLabelStartingWith prefix: String) -> [String] {
-        let holders = actionHolders()
-        for element in elements() where element.accessibilityLabel?.hasPrefix(prefix) == true {
-            let frame = screenFrame(of: element)
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-            let holder = holders
-                .filter { screenFrame(of: $0).contains(center) }
-                .min { screenFrame(of: $0).area < screenFrame(of: $1).area }
-            if let names = holder?.accessibilityCustomActions?.map(\.name) {
-                var seen = Set<String>()
-                return names.filter { seen.insert($0).inserted }
-            }
-        }
-        return []
-    }
-
-    /// Where custom actions sit on screen, for a failure message when `actions` finds none.
-    var actionsDescription: String {
-        actionHolders()
-            .map { "\(Swift.type(of: $0)) \($0.accessibilityLabel ?? "-") \(screenFrame(of: $0)): \($0.accessibilityCustomActions?.map(\.name) ?? [])" }
-            .joined(separator: "\n")
-    }
-
-    /// A view's own frame, since views that aren't accessibility elements may not report one.
-    private func screenFrame(of object: NSObject) -> CGRect {
-        guard let view = object as? UIView, !view.isAccessibilityElement else { return object.accessibilityFrame }
-        return view.convert(view.bounds, to: nil)
-    }
-
-    /// Every element or container in the window that offers custom actions.
-    private func actionHolders() -> [NSObject] {
-        var found: [NSObject] = []
-        var visited = Set<ObjectIdentifier>()
-        collect(window, into: &found, visited: &visited) { !($0.accessibilityCustomActions ?? []).isEmpty }
-        return found
-    }
-
     /// Where the element with this label sits on screen, for layout checks.
     func frame(of label: String) -> CGRect? {
         elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
@@ -331,41 +291,30 @@ final class HostedView {
         return found
     }
 
-    /// Walks the accessibility tree and views under `object`, keeping what `keep` accepts,
-    /// which is every accessibility element unless told otherwise.
-    private func collect(
-        _ object: NSObject,
-        into found: inout [NSObject],
-        visited: inout Set<ObjectIdentifier>,
-        keeping keep: (NSObject) -> Bool = { $0.isAccessibilityElement }
-    ) {
+    private func collect(_ object: NSObject, into found: inout [NSObject], visited: inout Set<ObjectIdentifier>) {
         guard visited.insert(ObjectIdentifier(object)).inserted else { return }
-        if keep(object) {
+        if object.isAccessibilityElement {
             found.append(object)
         }
         let count = object.accessibilityElementCount()
         if count != NSNotFound, count > 0 {
             for index in 0..<count {
                 if let child = object.accessibilityElement(at: index) as? NSObject {
-                    collect(child, into: &found, visited: &visited, keeping: keep)
+                    collect(child, into: &found, visited: &visited)
                 }
             }
         }
         if let children = object.accessibilityElements as? [NSObject] {
             for child in children {
-                collect(child, into: &found, visited: &visited, keeping: keep)
+                collect(child, into: &found, visited: &visited)
             }
         }
         if let view = object as? UIView {
             for subview in view.subviews {
-                collect(subview, into: &found, visited: &visited, keeping: keep)
+                collect(subview, into: &found, visited: &visited)
             }
         }
     }
-}
-
-private extension CGRect {
-    var area: CGFloat { width * height }
 }
 
 enum HostedViewError: Error {
