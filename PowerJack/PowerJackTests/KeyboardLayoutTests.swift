@@ -96,6 +96,12 @@ struct KeyboardLayoutTests {
         )
         defer { screen.close() }
         let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
+        if keepsFocus {
+            // The scroll to the focused row runs slower on CI, so give it up to 3 seconds.
+            for _ in 0..<30 where probe.rowBottom > keyboardTop {
+                try await Task.sleep(for: .milliseconds(100))
+            }
+        }
         #expect(probe.rowBottom > 0)
         return (probe.rowBottom, keyboardTop)
     }

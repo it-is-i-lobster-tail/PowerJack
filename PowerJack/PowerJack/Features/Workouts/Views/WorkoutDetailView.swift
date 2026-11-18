@@ -42,12 +42,16 @@ private enum SupersetSheet: Identifiable, Hashable {
 extension EnvironmentValues {
     /// Set by `WorkoutDetailView` when it shows a finished workout.
     @Entry var workoutIsReadOnly = false
+    /// Set by `WorkoutDetailView` when a finished workout is unlocked, so its logged sets can be fixed.
+    @Entry var workoutAllowsCorrections = false
+    @Entry var workoutUnlocks = WorkoutUnlocks.shared
 }
 
 struct WorkoutDetailView: View {
     @Environment(\.modelContext) private var modelContext
     // Optional so the view still works outside the Programs navigation stack.
     @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
+    @Environment(\.workoutUnlocks) private var unlocks
 
     @Bindable var workout: Workout
     let onWorkoutFinished: () -> Void
@@ -84,6 +88,11 @@ struct WorkoutDetailView: View {
     /// The first exercise still waiting, or the Review page once every exercise is done.
     private static func nextIndex(in workout: Workout) -> Int {
         workout.allExercisesFinished ? workout.workoutExercises.count : workout.currentExerciseIndex
+    }
+
+    /// A finished workout the lifter unlocked to fix the weight and reps they logged.
+    private var isUnlocked: Bool {
+        isReadOnly && unlocks.isUnlocked(workout)
     }
 
     private var isOnReview: Bool {
@@ -134,13 +143,18 @@ struct WorkoutDetailView: View {
                 // so the content can add room for it.
                 .ignoresSafeArea(.container, edges: .top)
                 .environment(\.workoutIsReadOnly, isReadOnly)
+                .environment(\.workoutAllowsCorrections, isUnlocked)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise)
                     }
 
-                    if !isReadOnly {
+                    if isReadOnly {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            completedWorkoutMenu
+                        }
+                    } else {
                         ToolbarItem(placement: .topBarTrailing) {
                             WorkoutActionsMenu(
                                 workout: workout,
@@ -226,6 +240,29 @@ struct WorkoutDetailView: View {
             .onChange(of: workout.workoutExercises.map(ObjectIdentifier.init)) { before, after in
                 keepSelection(from: before, to: after)
             }
+        }
+    }
+
+    /// A finished workout's one action: unlocking it to fix what was logged, then locking it again.
+    private var completedWorkoutMenu: some View {
+        Menu {
+            if isUnlocked {
+                Button {
+                    focusedSetField = nil
+                    unlocks.lock(workout)
+                } label: {
+                    Label("Lock workout", systemImage: "lock")
+                }
+            } else {
+                Button {
+                    unlocks.unlock(workout)
+                } label: {
+                    Label("Unlock completed workout", systemImage: "lock.open")
+                    Text("Allows edits until app closes.")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
         }
     }
 

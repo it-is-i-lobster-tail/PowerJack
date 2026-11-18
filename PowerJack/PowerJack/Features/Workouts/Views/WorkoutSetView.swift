@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import OSLog
 import SwiftData
 
 struct WorkoutSetView: View {
@@ -24,6 +25,7 @@ struct WorkoutSetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.workoutIsReadOnly) private var isReadOnly
+    @Environment(\.workoutAllowsCorrections) private var allowsCorrections
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
@@ -37,8 +39,8 @@ struct WorkoutSetView: View {
     @State private var weightText: String
     @State private var repsSelection: TextSelection?
     @State private var weightSelection: TextSelection?
-    /// What a reopened set held when it was done, while Undo can still put it back.
-    @State private var reopened: (completedAt: Date?, startedAt: Date?)?
+    /// How a reopened set was closed, while Undo can still put it back.
+    @State private var reopened: ReopenedSet?
     @State private var undoExpiry: Task<Void, Never>?
     /// Counts sets checked off here, so the success tap is felt for those and not for the watch's.
     @State private var checksHere = 0
@@ -97,7 +99,12 @@ struct WorkoutSetView: View {
     }
 
     private var isEditable: Bool {
-        !isReadOnly && workoutSet.status == .active && !workoutSet.locked
+        (!isReadOnly && workoutSet.status == .active && !workoutSet.locked) || isCorrecting
+    }
+
+    /// A logged set in an unlocked, finished workout: its weight and reps can be fixed, and it stays logged.
+    private var isCorrecting: Bool {
+        allowsCorrections && workoutSet.canCorrect
     }
 
     /// Zero reps are shown as invalid and never saved.
@@ -111,8 +118,15 @@ struct WorkoutSetView: View {
     }
 
     /// A set can only be checked off once its weight and reps are entered; a checked set can always be unchecked.
+    /// A skipped warmup shows a check like a logged one: it's out of the way, and a tap opens it again.
+    private var showsCheck: Bool {
+        workoutSet.status == .complete || (workoutSet.isWarmup && workoutSet.status == .skipped)
+    }
+
     private var canToggleCompletion: Bool {
-        guard !isReadOnly, !workoutSet.locked else { return false }
+        guard !isReadOnly else { return false }
+        if workoutSet.status == .skipped { return workoutSet.canReopenSkippedWarmup }
+        guard !workoutSet.locked else { return false }
         if workoutSet.status == .complete { return true }
         return isFullyLogged && !repsInvalid
     }
@@ -238,7 +252,7 @@ struct WorkoutSetView: View {
                             Image(systemName: "circle")
                                 .font(.system(size: 35, weight: .thin))
 
-                            if workoutSet.status == .complete {
+                            if showsCheck {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 17, weight: .bold))
                                     .transition(
@@ -267,7 +281,7 @@ struct WorkoutSetView: View {
                     .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
                     .accessibilityLabel(accessibilityName)
                     .accessibilityValue(statusDescription)
-                    .accessibilityHint(workoutSet.status == .complete ? "Reopens the set" : "Logs the set at the weight and reps entered")
+                    .accessibilityHint(showsCheck ? "Reopens the set" : "Logs the set at the weight and reps entered")
                     // Felt as well as seen, with the phone on the bench.
                     .sensoryFeedback(.success, trigger: checksHere)
                 }
@@ -286,6 +300,15 @@ struct WorkoutSetView: View {
                 weightSelection = Self.selectingAll(weightText)
             } else if field == .reps(workoutSet.id) {
                 repsSelection = Self.selectingAll(repsText)
+            }
+            // A fix that can't be saved, such as an emptied box, shows what's logged again.
+            if isCorrecting {
+                if field != .weight(workoutSet.id) {
+                    weightText = Self.text(forWeight: workoutSet.weightTenthsPounds, in: weightUnit)
+                }
+                if field != .reps(workoutSet.id) {
+                    repsText = Self.text(forReps: workoutSet.reps)
+                }
             }
         }
         .onChange(of: repsText) { oldValue, newValue in
@@ -340,6 +363,12 @@ struct WorkoutSetView: View {
         // Zero reps are stored as nil so they can never be saved.
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
+        if isCorrecting {
+            if let newValue, WorkoutSet.isValidReps(newValue), workoutSet.correctReps(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.reps = newValue
         saveEntry()
     }
@@ -357,6 +386,13 @@ struct WorkoutSetView: View {
         let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
+        // A fix changes this set alone; the sets after it keep what they logged.
+        if isCorrecting {
+            if let newValue, workoutSet.correctWeight(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
         saveEntry()
@@ -365,6 +401,16 @@ struct WorkoutSetView: View {
     /// Saved as it's typed, so it's never lost and the watch shows it straight away.
     private func saveEntry() {
         modelContext.saveTraced("set entry")
+    }
+
+    /// Saved as it's typed, like a live entry, and copied to the long history if the program has ended.
+    private func saveCorrection() {
+        do {
+            try HistoryArchive.correct(workoutSet, in: modelContext)
+        } catch {
+            Logger.persistence.error("Could not correct a set's saved history: \(error.localizedDescription)")
+        }
+        modelContext.saveTraced("set corrected")
     }
 
     /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
@@ -404,23 +450,28 @@ struct WorkoutSetView: View {
     }
 
     private func toggleCompletion() {
-        if workoutSet.status != .complete {
-            withAnimation {
-                completeSet()
-            }
-            if workoutSet.status == .complete { checksHere += 1 }
-        } else {
-            let wasDone = (completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
+        switch workoutSet.status {
+        case .complete:
+            let wasDone = ReopenedSet.done(completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
             workoutSet.start()
             // Saved now, so the watch shows the set open again and quitting doesn't lose it.
             modelContext.saveTraced("set reopened")
             offerUndo(restoring: wasDone)
+        case .skipped:
+            workoutSet.reopenSkippedWarmup()
+            modelContext.saveTraced("warmup reopened")
+            offerUndo(restoring: .skipped)
+        default:
+            withAnimation {
+                completeSet()
+            }
+            if workoutSet.status == .complete { checksHere += 1 }
         }
     }
 
-    private func offerUndo(restoring wasDone: (completedAt: Date?, startedAt: Date?)) {
+    private func offerUndo(restoring wasClosed: ReopenedSet) {
         undoExpiry?.cancel()
-        withAnimation { reopened = wasDone }
+        withAnimation { reopened = wasClosed }
         undoExpiry = Task {
             try? await Task.sleep(for: Self.undoWindow)
             guard !Task.isCancelled else { return }
@@ -430,9 +481,15 @@ struct WorkoutSetView: View {
 
     private func undoReopen() {
         undoExpiry?.cancel()
-        if let reopened {
-            workoutSet.undoReopen(completedAt: reopened.completedAt, startedAt: reopened.startedAt)
+        switch reopened {
+        case .done(let completedAt, let startedAt):
+            workoutSet.undoReopen(completedAt: completedAt, startedAt: startedAt)
             modelContext.saveTraced("set reopen undone")
+        case .skipped:
+            workoutSet.skip()
+            modelContext.saveTraced("set reopen undone")
+        case nil:
+            break
         }
         withAnimation { reopened = nil }
     }
@@ -444,6 +501,12 @@ struct WorkoutSetView: View {
             workoutSet.complete()
         }
         modelContext.saveTraced("set logged")
+    }
+
+    /// How a set was closed before a tap reopened it.
+    private enum ReopenedSet {
+        case done(completedAt: Date?, startedAt: Date?)
+        case skipped
     }
 
     private static func selectingAll(_ text: String) -> TextSelection {
