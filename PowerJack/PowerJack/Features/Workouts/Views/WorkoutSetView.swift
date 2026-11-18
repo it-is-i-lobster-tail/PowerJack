@@ -31,8 +31,6 @@ struct WorkoutSetView: View {
     let number: Int
     /// Called with the new weight and the one it replaced.
     let onWeightChange: (Int?, Int?) -> Void
-    /// The set to do next, which stands out from the others.
-    let isCurrent: Bool
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
@@ -50,10 +48,8 @@ struct WorkoutSetView: View {
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
-        isCurrent: Bool = false,
         onWeightChange: @escaping (Int?, Int?) -> Void = { _, _ in }
     ) {
-        self.isCurrent = isCurrent
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
@@ -82,11 +78,6 @@ struct WorkoutSetView: View {
     /// At accessibility text sizes the "Weight" and "Reps" captions give their room to the numbers.
     /// The fields still say what they hold to VoiceOver.
     private var showsFieldCaptions: Bool { !dynamicTypeSize.isAccessibilitySize }
-
-    /// The current set's numbers are bigger, so it reads at a glance from the bench.
-    private var fieldFont: Font {
-        isCurrent ? .title2.monospacedDigit() : .default
-    }
 
     private var statusDescription: String {
         switch workoutSet.status {
@@ -192,7 +183,6 @@ struct WorkoutSetView: View {
                         .focused(focusedSetField, equals: .weight(workoutSet.id))
                     }
                 }
-                .font(fieldFont)
                 .transition(
                     .scale(scale: 0.95, anchor: .center)
                     .combined(with: .opacity)
@@ -222,7 +212,6 @@ struct WorkoutSetView: View {
                 .frame(width: fieldWidth, height: fieldHeight)
                 .contentShape(.rect)
                 .onTapGesture { focus(.reps(workoutSet.id)) }
-                .font(fieldFont)
                 .foregroundStyle(repsInvalid ? .red : .primary)
                 .focused(focusedSetField, equals: .reps(workoutSet.id))
                 .transition(
@@ -289,14 +278,6 @@ struct WorkoutSetView: View {
             .minimumScaleFactor(0.7)
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
-        }
-        // Outside the glass, which would draw over it.
-        .overlay {
-            if isCurrent {
-                RoundedRectangle(cornerRadius: LayoutMetrics.cardCornerRadius)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .allowsHitTesting(false)
-            }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .onChange(of: focusedSetField.wrappedValue) { _, field in
