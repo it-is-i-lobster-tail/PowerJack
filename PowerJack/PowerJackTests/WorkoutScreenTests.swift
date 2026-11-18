@@ -213,6 +213,8 @@ struct WorkoutScreenTests {
         }
         #expect(await screen.tap("Warmup 1"), "\(screen.labels)")
         #expect(warmup.status == .active)
+        // This program has no warmup weight planned yet, and a set needs one to log.
+        #expect(await screen.type("45", into: "Warmup 1 weight"), "\(screen.labels)")
         #expect(await screen.type("6", into: "Warmup 1 reps"), "\(screen.labels)")
         #expect(await screen.waitUntil(timeout: .seconds(6)) { screen.contains("Warmup 1") }, "\(screen.labels)")
         await screen.tap("Warmup 1")
