@@ -58,10 +58,9 @@ struct WorkoutScreenTests {
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
         #expect(screen.contains("Bench"), "\(screen.labels)")
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(800))
+        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(800))
 
-        // Rating the last exercise opens Review once its Undo window passes; only Finish Workout
-        // ends the workout.
+        // Rating the last exercise opens Review straight away; only Finish Workout ends the workout.
         #expect(exercise.feedback != nil)
         #expect(workout.status == .active)
         #expect(!exercise.locked)
@@ -79,8 +78,8 @@ struct WorkoutScreenTests {
         #expect(program.weekNumber(containing: next) == 2)
     }
 
-    @Test("Feedback waits a moment with Undo before it's saved, and the current set says it's not done")
-    func feedbackUndo() async throws {
+    @Test("Feedback saves the moment both questions are answered, and the current set says it's not done")
+    func feedbackSavesRightAway() async throws {
         let program = try makeStartedProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
         workout.startAndCascade()
@@ -97,15 +96,18 @@ struct WorkoutScreenTests {
         #expect(screen.value(of: "Set 1") == "Done")
         await screen.tap("Set 2", settleFor: .milliseconds(800))
 
+        // One answer isn't enough, so the questions stay up.
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild))
-        #expect(screen.contains("Undo"), "\(screen.labels)")
         #expect(exercise.feedback == nil)
-
-        await screen.tap("Undo")
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(800))
-        #expect(exercise.feedback != nil)
+
+        // The second answer saves with no pause and no Undo, and the questions close.
+        await screen.tap(scaleLabel(LevelOfPain.mild))
+        #expect(exercise.feedback?.repsInReserve == .two)
+        #expect(exercise.feedback?.levelOfPain == .mild)
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
+        await screen.settle(.milliseconds(800))
+        #expect(!screen.contains("Level of Pain"), "\(screen.labels)")
     }
 
     @Test("Finishing with an exercise only partly logged asks its feedback first, then finishes")
@@ -128,9 +130,9 @@ struct WorkoutScreenTests {
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
         #expect(workout.status == .active)
 
-        // The answers are saved once the Undo window passes, and then the workout finishes.
+        // The answers save straight away, and then the workout finishes.
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(1200))
+        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(1200))
         #expect(exercise.feedback != nil)
         #expect(workout.status == .complete)
     }
