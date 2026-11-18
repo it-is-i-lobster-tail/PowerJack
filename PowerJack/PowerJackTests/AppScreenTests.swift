@@ -260,6 +260,24 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
+    @Test("An exercise row offers Superset, Edit and Trash when swiped")
+    func templateBuilderRowSwipeActions() async throws {
+        let screen = try await HostedView(
+            NavigationStack { BuilderHost() }.modelContainer(container)
+        )
+        defer { screen.close() }
+
+        await screen.tap("Add", settleFor: .milliseconds(800))
+        let bench = try #require(screen.label(startingWith: "Barbell Bench Press"), "\(screen.labels)")
+        await screen.tap(bench, settleFor: .milliseconds(800))
+        #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
+
+        // VoiceOver gets one list for both swipes. When each side shows Superset | Edit | Trash it
+        // reads in that order; when the sides differed it read Edit, Trash, Superset.
+        let actions = screen.actions(onLabelStartingWith: "Barbell Bench Press")
+        #expect(actions == ["Superset", "Edit", "Trash"])
+    }
+
     @Test("Browsing exercises opens the selected exercise's details")
     func browseExercises() async throws {
         let screen = try await HostedView(

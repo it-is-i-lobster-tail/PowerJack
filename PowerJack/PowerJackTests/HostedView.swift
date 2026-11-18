@@ -97,6 +97,13 @@ final class HostedView {
         elements().first { $0.accessibilityLabel == label }?.accessibilityValue
     }
 
+    /// The actions VoiceOver offers on the element whose label starts with `prefix`, such as a
+    /// list row's swipe actions.
+    func actions(onLabelStartingWith prefix: String) -> [String] {
+        let element = elements().first { $0.accessibilityLabel?.hasPrefix(prefix) == true }
+        return element?.accessibilityCustomActions?.map(\.name) ?? []
+    }
+
     /// Where the element with this label sits on screen, for layout checks.
     func frame(of label: String) -> CGRect? {
         elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
