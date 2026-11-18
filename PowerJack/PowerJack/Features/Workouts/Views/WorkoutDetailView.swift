@@ -52,6 +52,8 @@ struct WorkoutDetailView: View {
     // Optional so the view still works outside the Programs navigation stack.
     @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
     @Environment(\.workoutUnlocks) private var unlocks
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     @Bindable var workout: Workout
     let onWorkoutFinished: () -> Void
@@ -97,6 +99,15 @@ struct WorkoutDetailView: View {
 
     private var isOnReview: Bool {
         !isReadOnly && selectedExerciseIndex == workout.workoutExercises.count
+    }
+
+    /// The bars fade while a live workout sits idle. VoiceOver needs them in place.
+    private var fadesIdleControls: Bool {
+        !isReadOnly && !voiceOverEnabled
+    }
+
+    private var controlsHidden: Bool {
+        idleControls?.isHidden == true
     }
 
     private var selectedWorkoutExercise: WorkoutExercise? {
@@ -145,6 +156,7 @@ struct WorkoutDetailView: View {
                 .environment(\.workoutIsReadOnly, isReadOnly)
                 .environment(\.workoutAllowsCorrections, isUnlocked)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(controlsHidden)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise)
@@ -165,7 +177,10 @@ struct WorkoutDetailView: View {
                                 onAddToSuperset: { showSupersetSheet(.add($0)) },
                                 onEditSuperset: { showSupersetSheet(.edit($0)) }
                             )
+                            // Faded rather than removed, so an open menu isn't torn down with it.
+                            .fadesWhenIdle(idleControls)
                         }
+                        .sharedBackgroundVisibility(controlsHidden ? .hidden : .visible)
                     }
                 }
                 .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
@@ -227,7 +242,16 @@ struct WorkoutDetailView: View {
             .onAppear(perform: presentSheetIfNeeded)
             .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
+                idleControls?.show()
             }
+            // Typing a weight or reps holds the controls as they are.
+            .onChange(of: focusedSetField != nil) { _, isEditing in
+                idleControls?.pause(isEditing)
+            }
+            .onChange(of: fadesIdleControls, initial: true) { _, fades in
+                fades ? idleControls?.turnOn() : idleControls?.turnOff()
+            }
+            .onDisappear { idleControls?.turnOff() }
             .onChange(of: presentedSheet?.isAnswered == true) { _, isAnswered in
                 if isAnswered { closeAnsweredSheet() }
             }

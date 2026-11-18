@@ -97,6 +97,8 @@ private struct PowerJackScreens: View {
     @State private var bottomBarHeight: CGFloat = 0
     // How far in the navigation bar puts its buttons, so the bottom bar can line up with them.
     @State private var barButtonInset: CGFloat = 16
+    // A workout fades the bars away while it sits idle.
+    @State private var idleControls = IdleControls()
 
     var body: some View {
         // Standard tabs can't be swiped between, so only the picker below switches sections.
@@ -151,10 +153,13 @@ private struct PowerJackScreens: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 bottomBarHeight = height
             }
+            .fadesWhenIdle(idleControls)
         }
         .restTimer(onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
+        .environment(idleControls)
         .powerJackKeyboardBehavior()
+        .revealsIdleControlsOnTap(idleControls)
         .onBarButtonInsetChange { barButtonInset = $0 }
         .onAppear(perform: restoreActiveWorkout)
         .onChange(of: router.path) { _, path in
