@@ -20,6 +20,8 @@ struct WorkoutDetailContent: View {
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
 
+    private static let stripFade = LayoutMetrics.compactSpacing * 2
+
     var body: some View {
         // The sets fill the screen and scroll under the bars, but come to rest between them.
         WorkoutExercisePager(
@@ -44,9 +46,9 @@ struct WorkoutDetailContent: View {
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
-            // A gap above the strip where the sets fade out at rest.
-            .padding(.top, LayoutMetrics.compactSpacing)
-            .background { EdgeBlur(edge: .bottom) }
+            // The sets fade out in the gap above the strip, so none show between its cards.
+            .padding(.top, Self.stripFade)
+            .background { EdgeBlur(edge: .bottom, fadeLength: Self.stripFade) }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
         }
         .frame(width: screenWidth)

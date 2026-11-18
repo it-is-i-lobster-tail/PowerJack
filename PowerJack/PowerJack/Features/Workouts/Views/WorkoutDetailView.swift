@@ -130,6 +130,9 @@ struct WorkoutDetailView: View {
                         onFinish: finishWorkout
                     )
                 )
+                // The sets scroll up under the navigation bar. The reader still measures the bar,
+                // so the content can add room for it.
+                .ignoresSafeArea(.container, edges: .top)
                 .environment(\.workoutIsReadOnly, isReadOnly)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -185,8 +188,6 @@ struct WorkoutDetailView: View {
                     }
                 }
             }
-            // The sets scroll up under the navigation bar; the content adds the room for it.
-            .ignoresSafeArea(.container, edges: .top)
             // The number pad covers the exercise strip instead of pushing it up.
             .keyboardSlidesOver()
             .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in

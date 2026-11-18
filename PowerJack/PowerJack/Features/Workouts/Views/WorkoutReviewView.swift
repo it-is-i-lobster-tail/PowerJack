@@ -61,7 +61,9 @@ struct WorkoutReviewView: View {
             }
             .buttonStyle(.glassProminent)
             .padding(.horizontal, LayoutMetrics.sectionSpacing)
-            .padding(.bottom, LayoutMetrics.compactSpacing)
+            .padding(.vertical, LayoutMetrics.compactSpacing)
+            // Rows fade out above the button and stay hidden down through the exercise strip.
+            .background { EdgeBlur(edge: .bottom, fadeLength: LayoutMetrics.compactSpacing * 2) }
         }
         .confirmationDialog(
             "\(remainingSets) \(remainingSets == 1 ? "set isn't" : "sets aren't") logged",

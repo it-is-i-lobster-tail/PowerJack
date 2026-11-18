@@ -21,10 +21,11 @@ struct WorkoutHeader: View {
                     .foregroundStyle(.secondary)
             }
         }
-        // A long name shrinks a little before it's cut short, so it stays one line in the bar.
+        // A long name tightens and shrinks before it's cut short, so it stays one line in the bar.
         .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .padding(.horizontal, 24)
+        .allowsTightening(true)
+        .minimumScaleFactor(0.6)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .glassEffect(.regular, in: .capsule)
         .accessibilityElement(children: .combine)
