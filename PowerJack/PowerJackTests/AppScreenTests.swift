@@ -274,8 +274,9 @@ struct AppScreenTests {
 
         // VoiceOver gets one list for both swipes. When each side shows Superset | Edit | Trash it
         // reads in that order; when the sides differed it read Edit, Trash, Superset.
+        await screen.waitUntil { !screen.actions(onLabelStartingWith: "Barbell Bench Press").isEmpty }
         let actions = screen.actions(onLabelStartingWith: "Barbell Bench Press")
-        #expect(actions == ["Superset", "Edit", "Trash"])
+        #expect(actions == ["Superset", "Edit", "Trash"], "\(screen.actionsDescription)")
     }
 
     @Test("Browsing exercises opens the selected exercise's details")
