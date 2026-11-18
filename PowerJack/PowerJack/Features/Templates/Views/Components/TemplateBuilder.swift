@@ -289,35 +289,17 @@ struct TemplateWorkoutBuilder: View {
             let templateExerciseDraft = block.exercises[0]
             let isLogged = loggedExercises.contains(templateExerciseDraft.id)
             TemplateExerciseBuilder(exercise: templateExerciseDraft.exercise, isLogged: isLogged)
+                // Both swipes show the same three actions, Superset | Edit | Trash, so neither side
+                // has to be learned. Each edge lists its actions from the edge inward.
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        superset(block)
-                    } label: {
-                        Label("Superset", systemImage: "link")
-                    }
-                    .tint(.indigo)
+                    supersetButton(block)
+                    editButton(templateExerciseDraft)
+                    trashButton(templateExerciseDraft, isLogged: isLogged)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    // Logged sets are never thrown away.
-                    if !isLogged {
-                        Button {
-                            if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
-                                isExplainingLastExercise = true
-                            } else {
-                                templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
-                            }
-                        } label: {
-                            Label("Trash", systemImage: "trash")
-                        }
-                        .tint(.red)
-                    }
-
-                    Button {
-                        handleEdit(templateExerciseDraft.exercise)
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
+                    trashButton(templateExerciseDraft, isLogged: isLogged)
+                    editButton(templateExerciseDraft)
+                    supersetButton(block)
                 }
                 // On the row, so the popup points at the exercise that was swiped.
                 .confirmationDialog(
@@ -330,6 +312,41 @@ struct TemplateWorkoutBuilder: View {
                 ) {
                     supersetChoices(for: block)
                 }
+        }
+    }
+
+    private func supersetButton(_ block: TemplateExerciseBlock) -> some View {
+        Button {
+            superset(block)
+        } label: {
+            Label("Superset", systemImage: "link")
+        }
+        .tint(.indigo)
+    }
+
+    private func editButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button {
+            handleEdit(templateExerciseDraft.exercise)
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        .tint(.blue)
+    }
+
+    /// Logged sets are never thrown away, so a logged exercise has no Trash.
+    @ViewBuilder
+    private func trashButton(_ templateExerciseDraft: TemplateExerciseDraft, isLogged: Bool) -> some View {
+        if !isLogged {
+            Button {
+                if keepsOneExercise && templateWorkoutDraft.templateExerciseDrafts.count == 1 {
+                    isExplainingLastExercise = true
+                } else {
+                    templateWorkoutDraft.removeTemplateExercises(at: IndexSet(integer: templateExerciseDraft.order))
+                }
+            } label: {
+                Label("Trash", systemImage: "trash")
+            }
+            .tint(.red)
         }
     }
 
