@@ -16,8 +16,6 @@ struct WatchFeedbackView: View {
     let onFinished: () -> Void
 
     @State private var draft: FeedbackDraft
-    /// The answers wait a moment, with Undo, before they're saved and the workout moves on.
-    @State private var pendingSave: Task<Void, Never>?
 
     init(workoutExercise: WorkoutExercise, onFinished: @escaping () -> Void) {
         self.workoutExercise = workoutExercise
@@ -26,11 +24,9 @@ struct WatchFeedbackView: View {
     }
 
     var body: some View {
-        // Each answer brings up the next question; the last one saves after a moment.
+        // Each answer brings up the next question; the last one saves and moves on straight away.
         Group {
-            if pendingSave != nil {
-                saved
-            } else if draft.asksTopSet && draft.topSetRepsInReserve == nil {
+            if draft.asksTopSet && draft.topSetRepsInReserve == nil {
                 question("Top set: reps left?", selection: $draft.topSetRepsInReserve)
             } else if draft.ratesRepsInReserve && draft.repsInReserve == nil {
                 question("Last set: reps left?", selection: $draft.repsInReserve)
@@ -44,24 +40,7 @@ struct WatchFeedbackView: View {
         .interactiveDismissDisabled()
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: draft.canSave) { _, canSave in
-            if canSave { saveSoon() }
-        }
-        // Answered on the iPhone first, so this sheet closes without saving its own.
-        .onDisappear { pendingSave?.cancel() }
-    }
-
-    private var saved: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(.green)
-            Text("Saved")
-                .font(.headline)
-            Button("Undo") {
-                pendingSave?.cancel()
-                pendingSave = nil
-                draft.levelOfPain = nil
-            }
+            if canSave { save() }
         }
     }
 
@@ -114,15 +93,6 @@ struct WatchFeedbackView: View {
             }
         }
         .id(title)
-    }
-
-    private func saveSoon() {
-        pendingSave?.cancel()
-        pendingSave = Task {
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else { return }
-            save()
-        }
     }
 
     private func save() {
