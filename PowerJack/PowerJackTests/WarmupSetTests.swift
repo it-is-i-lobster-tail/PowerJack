@@ -276,6 +276,55 @@ struct WarmupSetTests {
         #expect(workout.currentRest != nil)
     }
 
+    @Test("A warmup passed over by the first working set can be reopened and logged, without touching the working sets")
+    func passedOverWarmupReopens() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        let working = exercise.workingSets
+        working[0].reps = 8
+        working[0].weightTenthsPounds = 1000
+        exercise.completeSet(working[0])
+        let warmup = exercise.warmupSets[0]
+        let plannedWeight = warmup.weightTenthsPounds
+        #expect(warmup.canReopenSkippedWarmup)
+
+        warmup.reopenSkippedWarmup()
+        #expect(warmup.status == .active && !warmup.locked)
+        #expect(warmup.weightTenthsPounds == plannedWeight)
+        #expect(exercise.warmupSets[1].status == .skipped)
+
+        warmup.reps = 5
+        exercise.completeSet(warmup)
+        #expect(warmup.status == .complete)
+        #expect(working.map(\.status) == [.complete, .active])
+        #expect(exercise.completedWorkingSets == 1)
+        #expect(workout.currentSet?.workoutSet === working[1])
+    }
+
+    @Test("Only a skipped warmup of an exercise still underway reopens")
+    func onlyOpenWarmupsReopen() throws {
+        let program = try makeProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+
+        // Skip Exercise: neither its warmups nor its working sets reopen one by one.
+        exercise.skipRemainingSets()
+        #expect(!exercise.warmupSets[0].canReopenSkippedWarmup)
+        #expect(!exercise.workingSets[0].canReopenSkippedWarmup)
+        exercise.workingSets[0].reopenSkippedWarmup()
+        #expect(exercise.workingSets[0].status == .skipped)
+
+        // A finished workout's warmups stay as they were.
+        exercise.restoreSkipped()
+        exercise.skipWarmups()
+        #expect(exercise.warmupSets[0].canReopenSkippedWarmup)
+        exercise.completeAndCascade()
+        #expect(!exercise.warmupSets[0].canReopenSkippedWarmup)
+    }
+
     @Test("A logged warmup keeps its log when the first working set skips the rest")
     func firstWorkingSetKeepsLoggedWarmups() throws {
         let program = try makeProgram(weeks: 1)

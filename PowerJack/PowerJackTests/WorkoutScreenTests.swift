@@ -178,6 +178,52 @@ struct WorkoutScreenTests {
         #expect(hasLabel(containing: "Working Sets done", in: screen), "\(screen.labels)")
     }
 
+    @Test("A warmup passed over by the first working set shows a check, and a tap opens it again to log")
+    func passedOverWarmupReopens() async throws {
+        let program = try makeStartedProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let screen = try await HostedView(session(program))
+        defer { screen.close() }
+        let exercise = try #require(workout.workoutExercises.first)
+        let warmup = exercise.warmupSets[0]
+
+        #expect(await screen.type("100", into: "Set 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("8", into: "Set 1 reps"))
+        await screen.tap("Set 1", settleFor: .milliseconds(1200))
+        #expect(exercise.warmupSets.allSatisfy { $0.status == .skipped })
+
+        // The finished warmups fold away; opening them shows each one checked off and ready to reopen.
+        let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
+        await screen.tap(title, settleFor: .milliseconds(800))
+        #expect(screen.contains("Warmup 1"), "\(screen.labels)")
+
+        // A tap opens it again, and Undo puts it back.
+        #expect(await screen.tap("Warmup 1"))
+        #expect(warmup.status == .active && !warmup.locked)
+        #expect(screen.contains("Undo"), "\(screen.labels)")
+        await screen.tap("Undo")
+        #expect(warmup.status == .skipped)
+
+        // Reopened, it takes new numbers and logs like any warmup. The working set stays as it was.
+        await screen.settle(.milliseconds(1200))
+        if !screen.contains("Warmup 1") {
+            let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
+            await screen.tap(title, settleFor: .milliseconds(800))
+        }
+        #expect(await screen.tap("Warmup 1"), "\(screen.labels)")
+        #expect(warmup.status == .active)
+        // This program has no warmup weight planned yet, and a set needs one to log.
+        #expect(await screen.type("45", into: "Warmup 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("6", into: "Warmup 1 reps"), "\(screen.labels)")
+        #expect(await screen.waitUntil(timeout: .seconds(6)) { screen.contains("Warmup 1") }, "\(screen.labels)")
+        await screen.tap("Warmup 1")
+        #expect(warmup.status == .complete)
+        #expect(warmup.reps == 6)
+        #expect(exercise.workingSets[0].status == .complete)
+        #expect(exercise.completedWorkingSets == 1)
+    }
+
     private func hasLabel(containing text: String, in screen: HostedView) -> Bool {
         screen.labels.contains { $0.contains(text) }
     }
