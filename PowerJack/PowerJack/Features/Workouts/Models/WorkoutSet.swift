@@ -340,10 +340,16 @@ extension WorkoutSet {
 // Corrections
 //
 extension WorkoutSet {
-    /// A logged set in a finished workout, whose numbers can still be fixed, e.g. pounds typed
-    /// while the app was in kilograms. The set stays logged at the time it was logged.
+    /// A set in a finished workout whose numbers can still be fixed, e.g. pounds typed while the
+    /// app was in kilograms. That's a logged set, or a skipped one that holds numbers, such as a
+    /// warmup typed and then passed over: next week's warmups copy it. The set keeps its status.
     var canCorrect: Bool {
-        status == .complete && workoutExerciseValue?.workoutValue?.status == .complete
+        guard workoutExerciseValue?.workoutValue?.status == .complete else { return false }
+        switch status {
+        case .complete: return true
+        case .skipped: return repsValue != nil || weightTenthsPoundsValue != nil
+        default: return false
+        }
     }
 
     /// Fixes the reps this set logged. Reps a set can't hold are refused.
@@ -351,7 +357,7 @@ extension WorkoutSet {
     @discardableResult
     func correctReps(_ reps: Int) -> Bool {
         guard canCorrect, Self.isValidReps(reps) else {
-            Logger.workoutSet.warning("Can only correct a logged WorkoutSet of a finished Workout.")
+            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
             return false
         }
         guard reps != repsValue else { return false }
@@ -365,7 +371,7 @@ extension WorkoutSet {
     func correctWeight(_ weightTenthsPounds: Int) -> Bool {
         let isValid = Self.isValidWeightTenthsPounds(weightTenthsPounds) || (weightTenthsPounds == 0 && addsToBodyweight)
         guard canCorrect, isValid else {
-            Logger.workoutSet.warning("Can only correct a logged WorkoutSet of a finished Workout.")
+            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
             return false
         }
         guard weightTenthsPounds != weightTenthsPoundsValue else { return false }
