@@ -159,7 +159,10 @@ struct WorkoutDetailView: View {
                 .navigationBarBackButtonHidden(controlsHidden)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        WorkoutHeader(exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise)
+                        WorkoutHeader(
+                            exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
+                            holdsWidth: controlsHidden
+                        )
                     }
 
                     if isReadOnly {
