@@ -27,21 +27,20 @@ struct ExerciseStripTests {
         #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
-    @Test("The last exercise can come to the middle of the strip too")
-    func lastExerciseCentersWhenSelected() async throws {
+    @Test("Review, the last card, comes to the middle of the strip too")
+    func reviewCentersWhenSelected() async throws {
         let (_, workout) = try makeStartedWorkout()
         let names = workout.workoutExercises.map { $0.exercise?.exerciseName ?? "" }
         let screen = try await HostedView(workoutScreen(workout))
         defer { screen.close() }
 
-        let last = Self.exerciseCount - 1
         let strip = try #require(await stripScrollView(in: screen))
         #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
-        // The last card shows once the strip scrolls, so step along to it.
-        for index in 1...last {
-            await screen.tap(names[index])
+        // Step along the strip the way a lifter would, ending on Review.
+        for name in names.dropFirst() + ["Review"] {
+            await screen.tap(name)
         }
-        #expect(await screen.waitUntil { isCardCentered(last, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+        #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
     @Test("Resuming a workout mid-way scrolls the strip to the current exercise")
@@ -106,7 +105,10 @@ struct ExerciseStripTests {
 
     /// The card sits in the middle of the strip, within a few points.
     private func isCardCentered(_ index: Int, in strip: UIScrollView, screen: HostedView) -> Bool {
-        let name = "Lift \(index + 1)"
+        isCardCentered("Lift \(index + 1)", in: strip, screen: screen)
+    }
+
+    private func isCardCentered(_ name: String, in strip: UIScrollView, screen: HostedView) -> Bool {
         let stripFrame = strip.convert(strip.bounds, to: nil)
         // The page title shows the same name, so take the one inside the strip.
         guard let card = screen.frames(of: name).first(where: { stripFrame.contains(CGPoint(x: $0.midX, y: $0.midY)) }) else {
