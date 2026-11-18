@@ -15,9 +15,6 @@ struct Feedback: View {
     @Bindable var workoutExercise: WorkoutExercise
     let onFinished: () -> Void
     @State private var draft: FeedbackDraft
-    /// The answers wait this long, with Undo, before they're saved and the workout moves on.
-    static let undoWindow: Duration = .seconds(4)
-    @State private var pendingSave: Task<Void, Never>?
 
     init(workoutExercise: WorkoutExercise, onFinished: @escaping () -> Void) {
         self.workoutExercise = workoutExercise
@@ -69,49 +66,10 @@ struct Feedback: View {
             .padding(.vertical, 28)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaBar(edge: .bottom) {
-            if pendingSave != nil {
-                savedBar
-                    .transition(.opacity)
-            }
-        }
-        .animation(.default, value: pendingSave != nil)
+        // The last answer saves and moves on straight away.
         .onChange(of: draft.canSave) { wasComplete, isComplete in
-            if isComplete, !wasComplete { saveSoon() }
+            if isComplete, !wasComplete { saveFeedback() }
         }
-        // Answered on the watch first, so this sheet closes without saving its own.
-        .onDisappear { pendingSave?.cancel() }
-    }
-
-    private var savedBar: some View {
-        HStack {
-            Label("Saved", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            Spacer()
-            Button("Undo", action: undo)
-                .fontWeight(.semibold)
-        }
-        .padding(.horizontal, LayoutMetrics.sectionSpacing)
-        .padding(.vertical, LayoutMetrics.compactSpacing)
-        .powerJackGlassCard(interactive: true)
-        .padding(.bottom, LayoutMetrics.compactSpacing)
-    }
-
-    /// The last answer moves on by itself after a moment, unless the lifter takes it back.
-    private func saveSoon() {
-        pendingSave?.cancel()
-        pendingSave = Task {
-            try? await Task.sleep(for: Self.undoWindow)
-            guard !Task.isCancelled else { return }
-            saveFeedback()
-        }
-    }
-
-    /// Takes back the last question's answer, so any answer can be changed before it's saved.
-    private func undo() {
-        pendingSave?.cancel()
-        pendingSave = nil
-        draft.levelOfPain = nil
     }
 
     private func saveFeedback() {
