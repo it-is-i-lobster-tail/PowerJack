@@ -196,7 +196,7 @@ struct CompletedWorkoutUnlockTests {
 
     private func completedWorkout(_ workout: Workout, unlocks: WorkoutUnlocks) -> some View {
         NavigationStack {
-            WorkoutDetailView(workout: workout, weekNumber: 1, weekCount: 2, isReadOnly: true)
+            WorkoutDetailView(workout: workout, isReadOnly: true)
         }
         .environment(\.workoutUnlocks, unlocks)
         .modelContainer(container)
