@@ -53,6 +53,13 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
         return (start, sets[start..<(start + size)], sets.count - start - size)
     }
 
+    /// The unit said once beside the chips: "lb" or "kg", or `nil` when no chip shows a weight
+    /// ("BW" and "–" chips need none).
+    func chipUnitText(for chips: ArraySlice<ActivitySet>) -> String? {
+        guard !repsOnly else { return nil }
+        return chips.first { ($0.weightTenthsPounds ?? 0) != 0 }?.unitText
+    }
+
     /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
     /// Numbered as in the app, so warmups don't count toward a working set's number.
     var shortSetText: String {
