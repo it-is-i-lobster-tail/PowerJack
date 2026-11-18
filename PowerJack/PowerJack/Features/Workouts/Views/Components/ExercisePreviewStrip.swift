@@ -25,6 +25,9 @@ struct ExercisePreviewStrip: View {
         // Three whole cards fit on screen, so nothing is left half cut off.
         let spacing = LayoutMetrics.compactSpacing
         let cardWidth = max(0, (screenWidth - Self.edgeMargin * 2 - spacing * (Self.visibleCards - 1)) / Self.visibleCards)
+        // One card's worth of room before the first card and after the last, so every card,
+        // the first and last too, can sit in the middle.
+        let sideMargin = Self.edgeMargin + cardWidth + spacing
 
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -49,10 +52,11 @@ struct ExercisePreviewStrip: View {
                 .padding(.vertical, Self.underlineGap + 2)
                 .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, Self.edgeMargin, for: .scrollContent)
+            .contentMargins(.horizontal, sideMargin, for: .scrollContent)
+            // Cards come to rest at the leading margin, which is the middle slot.
             .scrollTargetBehavior(.viewAligned)
-            // Center the restored exercise when a workout reopens mid-way. This waits for the layout
-            // to settle: the edge margins land after onAppear and reset the strip to its start.
+            // Center the selected exercise when a workout opens. This waits for the layout
+            // to settle: the side margins land after onAppear and reset the strip to its start.
             // The stack is not lazy, so every card exists to scroll to while the strip lays out.
             .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
                 guard let selectedExerciseIndex else { return }

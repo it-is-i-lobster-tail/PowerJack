@@ -102,6 +102,11 @@ final class HostedView {
         elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
     }
 
+    /// Where every element with this label sits on screen, for labels shown in more than one place.
+    func frames(of label: String) -> [CGRect] {
+        elements().filter { $0.accessibilityLabel == label }.map(\.accessibilityFrame)
+    }
+
     /// Steps the adjustable element at `index` (in screen order), like swiping up or down in VoiceOver.
     @discardableResult
     func adjust(at index: Int, increment: Bool) async -> Bool {
