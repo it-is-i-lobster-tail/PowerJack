@@ -17,6 +17,32 @@ struct ExerciseStripTests {
     private let router = ProgramsRouter()
     private static let exerciseCount = 6
 
+    @Test("A new workout opens with the first exercise in the middle of the strip")
+    func firstExerciseStartsCentered() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+
+        let strip = try #require(await stripScrollView(in: screen))
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+    }
+
+    @Test("Review, the last card, comes to the middle of the strip too")
+    func reviewCentersWhenSelected() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let names = workout.workoutExercises.map { $0.exercise?.exerciseName ?? "" }
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+
+        let strip = try #require(await stripScrollView(in: screen))
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
+        // Step along the strip the way a lifter would, ending on Review.
+        for name in names.dropFirst() + ["Review"] {
+            await screen.tap(name)
+        }
+        #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+    }
+
     @Test("Resuming a workout mid-way scrolls the strip to the current exercise")
     func resumeScrollsStripToCurrentExercise() async throws {
         let (program, workout) = try makeStartedWorkout()
@@ -36,7 +62,7 @@ struct ExerciseStripTests {
         router.showSession(program)
 
         let strip = try #require(await stripScrollView(in: screen))
-        #expect(await screen.waitUntil { isCardCentered(4, in: strip) }, "offset \(strip.contentOffset.x)")
+        #expect(await screen.waitUntil { isCardCentered(4, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
     @Test("Tapping strip cards quickly leaves the pager and the strip on the last tap")
@@ -53,7 +79,7 @@ struct ExerciseStripTests {
 
         let strip = try #require(await stripScrollView(in: screen))
         let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
-        #expect(await screen.waitUntil { isCardCentered(2, in: strip) }, "strip offset \(strip.contentOffset.x)")
+        #expect(await screen.waitUntil { isCardCentered(2, in: strip, screen: screen) }, "strip offset \(strip.contentOffset.x)")
         #expect(await screen.waitUntil { pagerPage(pager) == 2 }, "pager page \(pagerPage(pager))")
     }
 
@@ -77,13 +103,18 @@ struct ExerciseStripTests {
         return screen.horizontalScrollViews.min { $0.bounds.height < $1.bounds.height }
     }
 
-    /// Three equal cards fill the strip between 16-point margins, so a card's center is easy to place.
-    private func isCardCentered(_ index: Int, in strip: UIScrollView) -> Bool {
-        let spacing = LayoutMetrics.compactSpacing
-        let cardWidth = (strip.bounds.width - 32 - spacing * 2) / 3
-        let cardMid = 16 + CGFloat(index) * (cardWidth + spacing) + cardWidth / 2
-        let visibleMid = strip.contentOffset.x + strip.adjustedContentInset.left + strip.bounds.width / 2
-        return abs(cardMid - visibleMid) < (cardWidth + spacing) / 2
+    /// The card sits in the middle of the strip, within a few points.
+    private func isCardCentered(_ index: Int, in strip: UIScrollView, screen: HostedView) -> Bool {
+        isCardCentered("Lift \(index + 1)", in: strip, screen: screen)
+    }
+
+    private func isCardCentered(_ name: String, in strip: UIScrollView, screen: HostedView) -> Bool {
+        let stripFrame = strip.convert(strip.bounds, to: nil)
+        // The page title shows the same name, so take the one inside the strip.
+        guard let card = screen.frames(of: name).first(where: { stripFrame.contains(CGPoint(x: $0.midX, y: $0.midY)) }) else {
+            return false
+        }
+        return abs(card.midX - stripFrame.midX) < 2
     }
 
     private func pagerPage(_ pager: UIScrollView) -> Int {
