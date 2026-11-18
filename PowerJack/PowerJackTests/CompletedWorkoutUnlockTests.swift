@@ -139,8 +139,10 @@ struct CompletedWorkoutUnlockTests {
 
         #expect(await screen.tap("More", settleFor: .milliseconds(800)), "\(screen.labels)")
         let labels = screen.labelsInAllWindows
-        // The menu row reads its title and subtitle together.
-        #expect(labels.contains("Unlock completed workout, Allows edits until app closes."), "\(labels)")
+        // iOS 27 reads the menu row's title and subtitle together; iOS 26 reads them as two labels.
+        let readsTogether = labels.contains("Unlock completed workout, Allows edits until app closes.")
+        let readsApart = labels.contains("Unlock completed workout") && labels.contains("Allows edits until app closes.")
+        #expect(readsTogether || readsApart, "\(labels)")
         #expect(!labels.contains("Lock workout"), "\(labels)")
         // Nothing from a live workout's menu.
         #expect(!labels.contains("Skip Workout"), "\(labels)")
