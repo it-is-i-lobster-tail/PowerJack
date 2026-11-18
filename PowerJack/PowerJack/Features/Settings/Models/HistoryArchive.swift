@@ -81,6 +81,33 @@ enum HistoryArchive {
         return (record.batchID?.uuidString ?? "") < (kept.batchID?.uuidString ?? "")
     }
 
+    /// A set fixed after its program ended: the rows saved for it show the fix too.
+    static func correct(_ workoutSet: WorkoutSet, in context: ModelContext) throws {
+        guard
+            let workoutExercise = workoutSet.workoutExerciseValue,
+            let workout = workoutExercise.workoutValue,
+            let week = workout.programWeekValue,
+            let program = week.programValue,
+            let programID = program.syncID,
+            let weekIndex = program.programWeeks.firstIndex(where: { $0 === week }),
+            let dayIndex = week.workouts.firstIndex(where: { $0 === workout }),
+            let exerciseIndex = workout.workoutExercises.firstIndex(where: { $0 === workoutExercise })
+        else { return }
+
+        // Found the way the export numbered the row when the program ended.
+        let id: UUID? = programID
+        let (weekNumber, day, exerciseNumber) = (weekIndex + 1, dayIndex + 1, exerciseIndex + 1)
+        let setNumber = workoutExercise.number(of: workoutSet)
+        let setType = HistoryExport.setType(of: workoutSet, in: workoutExercise)
+        let descriptor = FetchDescriptor<HistoryRecord>(predicate: #Predicate {
+            $0.programIDValue == id && $0.weekValue == weekNumber && $0.dayValue == day
+                && $0.exerciseNumberValue == exerciseNumber && $0.setNumberValue == setNumber
+        })
+        for record in try context.fetch(descriptor) where record.setTypeValue == setType {
+            record.correct(reps: workoutSet.reps, weightTenthsPounds: workoutSet.weightTenthsPounds)
+        }
+    }
+
     private static func records(of programID: UUID, in context: ModelContext, limit: Int? = nil) throws -> [HistoryRecord] {
         let id: UUID? = programID
         var descriptor = FetchDescriptor<HistoryRecord>(predicate: #Predicate { $0.programIDValue == id })

@@ -174,7 +174,7 @@ enum HistoryExport {
         return lettered
     }
 
-    private static func setType(of workoutSet: WorkoutSet, in workoutExercise: WorkoutExercise) -> String {
+    static func setType(of workoutSet: WorkoutSet, in workoutExercise: WorkoutExercise) -> String {
         if workoutSet.isWarmup { return "Warmup" }
         return workoutExercise.isTopSet(workoutSet) ? "Top" : "Working"
     }

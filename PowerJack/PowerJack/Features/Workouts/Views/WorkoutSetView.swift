@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import OSLog
 import SwiftData
 
 struct WorkoutSetView: View {
@@ -24,6 +25,7 @@ struct WorkoutSetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.workoutIsReadOnly) private var isReadOnly
+    @Environment(\.workoutAllowsCorrections) private var allowsCorrections
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
@@ -97,7 +99,12 @@ struct WorkoutSetView: View {
     }
 
     private var isEditable: Bool {
-        !isReadOnly && workoutSet.status == .active && !workoutSet.locked
+        (!isReadOnly && workoutSet.status == .active && !workoutSet.locked) || isCorrecting
+    }
+
+    /// A logged set in an unlocked, finished workout: its weight and reps can be fixed, and it stays logged.
+    private var isCorrecting: Bool {
+        allowsCorrections && workoutSet.canCorrect
     }
 
     /// Zero reps are shown as invalid and never saved.
@@ -287,6 +294,15 @@ struct WorkoutSetView: View {
             } else if field == .reps(workoutSet.id) {
                 repsSelection = Self.selectingAll(repsText)
             }
+            // A fix that can't be saved, such as an emptied box, shows what's logged again.
+            if isCorrecting {
+                if field != .weight(workoutSet.id) {
+                    weightText = Self.text(forWeight: workoutSet.weightTenthsPounds, in: weightUnit)
+                }
+                if field != .reps(workoutSet.id) {
+                    repsText = Self.text(forReps: workoutSet.reps)
+                }
+            }
         }
         .onChange(of: repsText) { oldValue, newValue in
             updateReps(from: newValue, previous: oldValue)
@@ -340,6 +356,12 @@ struct WorkoutSetView: View {
         // Zero reps are stored as nil so they can never be saved.
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
+        if isCorrecting {
+            if let newValue, WorkoutSet.isValidReps(newValue), workoutSet.correctReps(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.reps = newValue
         saveEntry()
     }
@@ -357,6 +379,13 @@ struct WorkoutSetView: View {
         let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
+        // A fix changes this set alone; the sets after it keep what they logged.
+        if isCorrecting {
+            if let newValue, workoutSet.correctWeight(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
         saveEntry()
@@ -365,6 +394,16 @@ struct WorkoutSetView: View {
     /// Saved as it's typed, so it's never lost and the watch shows it straight away.
     private func saveEntry() {
         modelContext.saveTraced("set entry")
+    }
+
+    /// Saved as it's typed, like a live entry, and copied to the long history if the program has ended.
+    private func saveCorrection() {
+        do {
+            try HistoryArchive.correct(workoutSet, in: modelContext)
+        } catch {
+            Logger.persistence.error("Could not correct a set's saved history: \(error.localizedDescription)")
+        }
+        modelContext.saveTraced("set corrected")
     }
 
     /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,

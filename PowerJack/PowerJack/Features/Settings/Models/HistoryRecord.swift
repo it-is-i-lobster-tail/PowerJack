@@ -181,6 +181,12 @@ extension HistoryRecord {
         programStatusValue = HistoryProgramStatus.deleted.rawValue
     }
 
+    /// Shows a fix made to the set after its program ended.
+    func correct(reps: Int?, weightTenthsPounds: Int?) {
+        repsValue = reps
+        weightTenthsPoundsValue = weightTenthsPounds
+    }
+
     var row: HistoryRow {
         HistoryRow(
             programID: programIDValue,
