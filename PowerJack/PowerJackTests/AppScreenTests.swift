@@ -214,12 +214,11 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Volume", settleFor: .milliseconds(800))
-        #expect(screen.contains("No workouts yet"), "\(screen.labels)")
+        await screen.tap("Volume")
+        #expect(await screen.waitUntil { screen.contains("No workouts yet") }, "\(screen.labels)")
 
         container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
-        await screen.settle(.milliseconds(800))
-        #expect(screen.contains("Chest"), "\(screen.labels)")
+        #expect(await screen.waitUntil { screen.contains("Chest") }, "\(screen.labels)")
         #expect(screen.contains("Hamstrings"), "\(screen.labels)")
     }
 
