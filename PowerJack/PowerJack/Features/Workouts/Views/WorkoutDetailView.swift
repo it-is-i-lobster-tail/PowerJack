@@ -54,8 +54,6 @@ struct WorkoutDetailView: View {
     @Environment(\.workoutUnlocks) private var unlocks
 
     @Bindable var workout: Workout
-    let weekNumber: Int?
-    let weekCount: Int?
     let onWorkoutFinished: () -> Void
     let onSkipWorkout: (() -> Void)?
     /// A finished workout opens read-only: nothing can be logged, changed or skipped.
@@ -75,15 +73,11 @@ struct WorkoutDetailView: View {
 
     init(
         workout: Workout,
-        weekNumber: Int? = nil,
-        weekCount: Int? = nil,
         onWorkoutFinished: @escaping () -> Void = {},
         onSkipWorkout: (() -> Void)? = nil,
         isReadOnly: Bool = false
     ) {
         self.workout = workout
-        self.weekNumber = weekNumber
-        self.weekCount = weekCount
         self.onWorkoutFinished = onWorkoutFinished
         self.onSkipWorkout = onSkipWorkout
         self.isReadOnly = isReadOnly
@@ -114,12 +108,6 @@ struct WorkoutDetailView: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
-    private var weekLabel: String? {
-        guard let weekNumber else { return nil }
-        guard let weekCount else { return "Week \(weekNumber)" }
-        return "Week \(weekNumber)/\(weekCount)"
-    }
-
     var body: some View {
         if workout.workoutExercises.isEmpty {
             // Nothing to log, so skipping is the way on to the next workout.
@@ -139,6 +127,7 @@ struct WorkoutDetailView: View {
             GeometryReader { geometry in
                 WorkoutDetailContent(
                     screenWidth: geometry.size.width,
+                    topInset: geometry.safeAreaInsets.top,
                     workoutExercises: workout.workoutExercises,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
@@ -150,28 +139,15 @@ struct WorkoutDetailView: View {
                         onFinish: finishWorkout
                     )
                 )
+                // The sets scroll up under the navigation bar. The reader still measures the bar,
+                // so the content can add room for it.
+                .ignoresSafeArea(.container, edges: .top)
                 .environment(\.workoutIsReadOnly, isReadOnly)
                 .environment(\.workoutAllowsCorrections, isUnlocked)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        VStack(spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("Day \(workout.order + 1)")
-                                    .font(.headline)
-                                Text("\(workout.percentComplete)%")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                            }
-
-                            if let weekLabel {
-                                Text(weekLabel)
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 6)
-                        .glassEffect(.regular, in: .capsule)
+                        WorkoutHeader(exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise)
                     }
 
                     if isReadOnly {
@@ -465,11 +441,7 @@ struct WorkoutDetailView: View {
     let scenario = PowerJackSeed.weekOneProgress()
 
     NavigationPreviewHost(modelContainer: scenario.container) {
-        WorkoutDetailView(
-            workout: scenario.weekOneWorkouts[2],
-            weekNumber: 1,
-            weekCount: scenario.program.programLengthWeeks
-        )
+        WorkoutDetailView(workout: scenario.weekOneWorkouts[2])
     }
 }
 
@@ -477,11 +449,7 @@ struct WorkoutDetailView: View {
     let scenario = PowerJackSeed.weekTwoProgression()
 
     NavigationPreviewHost(modelContainer: scenario.container) {
-        WorkoutDetailView(
-            workout: scenario.weekTwoWorkouts[0],
-            weekNumber: 2,
-            weekCount: scenario.program.programLengthWeeks
-        )
+        WorkoutDetailView(workout: scenario.weekTwoWorkouts[0])
     }
 }
 
@@ -491,8 +459,6 @@ struct WorkoutDetailView: View {
     NavigationPreviewHost(modelContainer: scenario.container) {
         WorkoutDetailView(
             workout: scenario.weekOneWorkouts[0],
-            weekNumber: 1,
-            weekCount: scenario.program.programLengthWeeks,
             isReadOnly: true
         )
     }

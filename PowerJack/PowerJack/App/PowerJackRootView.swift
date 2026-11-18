@@ -148,7 +148,7 @@ private struct PowerJackScreens: View {
             .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
             // A little breathing room between screen content and the bar.
             .padding(.top, LayoutMetrics.compactSpacing)
-            .background { BottomEdgeBlur() }
+            .background { EdgeBlur(edge: .bottom) }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 bottomBarHeight = height
             }
@@ -198,27 +198,6 @@ private struct PowerJackScreens: View {
     private func handleOpenURL(_ url: URL) {
         guard url == RestActivityAttributes.currentExerciseURL else { return }
         openCurrentExercise()
-    }
-}
-
-/// Softens content that scrolls under the bar, like the scroll edge effect under a title:
-/// clear where content first meets the bar, blurring and fading into the page toward the screen's edge.
-/// At rest, content ends above it.
-private struct BottomEdgeBlur: View {
-    private static let fade = Gradient(stops: [
-        .init(color: .clear, location: 0),
-        .init(color: .black, location: 0.3),
-    ])
-
-    var body: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            // The material alone is lighter than a dark page, so fade it toward the page color.
-            .overlay(Color(uiColor: .systemBackground).opacity(0.7))
-            .mask(LinearGradient(gradient: Self.fade, startPoint: .top, endPoint: .bottom))
-            .ignoresSafeArea(edges: .bottom)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 }
 

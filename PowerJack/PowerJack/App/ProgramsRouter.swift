@@ -90,12 +90,7 @@ extension View {
             case .session(let program):
                 ProgramSessionView(program: program)
             case .completedWorkout(let program, let workout):
-                WorkoutDetailView(
-                    workout: workout,
-                    weekNumber: program.weekNumber(containing: workout),
-                    weekCount: program.programLengthWeeks,
-                    isReadOnly: true
-                )
+                WorkoutDetailView(workout: workout, isReadOnly: true)
             case .editDays(let program):
                 ProgramLayoutView(program: program)
             }
