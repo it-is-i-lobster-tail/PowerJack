@@ -8,11 +8,6 @@
 import SwiftUI
 
 struct WorkoutHeader: View {
-    /// Light glass reads heavier than dark over a light page, so it's eased off a little.
-    private static let lightGlassOpacity = 0.5
-
-    @Environment(\.colorScheme) private var colorScheme
-
     /// The exercise on screen. Nil on the Review page.
     let exercise: Exercise?
 
@@ -33,9 +28,9 @@ struct WorkoutHeader: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background {
+            // The same glass as the bottom bar, so the top and bottom match.
             Color.clear
-                .glassEffect(.regular, in: .capsule)
-                .opacity(colorScheme == .light ? Self.lightGlassOpacity : 1)
+                .glassEffect(.powerJackBar, in: .capsule)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
