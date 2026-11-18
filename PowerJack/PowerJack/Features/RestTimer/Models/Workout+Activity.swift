@@ -10,8 +10,10 @@ import Foundation
 extension Workout {
     /// The current set and the rest before it while that rest is still running.
     /// A rest that has already run out is left off: iOS drops an activity that starts out stale.
+    /// A paused workout has none, so pausing ends the Live Activity and resuming brings it back.
     func activityState(at now: Date = .now) -> WorkoutActivityState? {
         guard
+            !isPaused,
             let current = currentSet,
             let exercise = current.workoutExercise.shownExercise
         else {

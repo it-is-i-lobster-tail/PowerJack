@@ -16,6 +16,8 @@ struct PowerJackApp: App {
     static let store = PowerJackStore(inMemory: runsInMemory)
     static var modelContainer: ModelContainer { store.container }
 
+    @UIApplicationDelegateAdaptor(PowerJackAppDelegate.self) private var appDelegate
+
     // Previews and unit tests never touch the real store or iCloud.
     private static var runsInMemory: Bool {
         let environment = ProcessInfo.processInfo.environment

@@ -99,6 +99,7 @@ struct ProgramDetailView: View {
     }
 
     /// A paused workout's clock stands still until Resume Workout or the next logged set.
+    /// Pausing also ends the workout in Health and the Live Activity; resuming starts both again.
     private func togglePause(_ workout: Workout) {
         if workout.isPaused {
             workout.resume()
@@ -110,6 +111,13 @@ struct ProgramDetailView: View {
         } catch {
             modelContext.rollback()
             saveErrorMessage = "The workout couldn't be paused or resumed. Please try again."
+            return
+        }
+        // The Live Activity follows the workout on its own (see `activityState`).
+        if workout.isPaused {
+            WorkoutMirroring.shared.endWatchWorkout()
+        } else {
+            WorkoutMirroring.shared.openOnWatch()
         }
     }
 
