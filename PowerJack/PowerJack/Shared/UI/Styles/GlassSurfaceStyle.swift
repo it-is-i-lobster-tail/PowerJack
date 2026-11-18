@@ -29,12 +29,10 @@ extension View {
         )
     }
     
-    /// The floating section switcher's glass: a see-through gray, like Safari's tab bar, so the page bleeds through.
+    /// The floating section switcher's glass.
     func powerJackGlassSelection(interactive: Bool = false) -> some View {
         glassEffect(
-            .regular
-                .tint(Color(uiColor: .systemGray).opacity(0.3))
-                .interactive(interactive),
+            Glass.powerJackBar.interactive(interactive),
             in: .rect(cornerRadius: LayoutMetrics.curvedCornerRaius)
         )
     }
@@ -46,4 +44,9 @@ extension View {
             in: .circle
         )
     }
+}
+
+extension Glass {
+    /// The bars' see-through gray, like Safari's tab bar, so the page bleeds through.
+    static let powerJackBar = Glass.regular.tint(Color(uiColor: .systemGray).opacity(0.3))
 }
