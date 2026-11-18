@@ -241,6 +241,14 @@ struct WorkoutReviewTests {
         #expect(!labels.contains("Skip Exercise"), "\(labels)")
     }
 
+    @Test("Every workout menu hint is short enough to show in full")
+    func menuHintsFit() {
+        for hint in WorkoutActionsMenu.Hint.all {
+            #expect(!hint.isEmpty)
+            #expect(hint.count <= WorkoutActionsMenu.Hint.maxLength, "\(hint)")
+        }
+    }
+
     @Test("The workout menu names what each skip covers")
     func skipLabelsNameTheirScope() async throws {
         let program = try makeStartedProgram(exercises: 1)
