@@ -120,21 +120,17 @@ struct ExercisePreviewStrip: View {
         return Button {
             selectExercise(at: index)
         } label: {
-            ZStack {
-                cardLabel(title, isDone: isDone, isSelected: false)
-                    .opacity(1 - focus)
-                cardLabel(title, isDone: isDone, isSelected: true)
-                    .opacity(focus)
-            }
-            .frame(width: width, height: Self.cardHeight)
-            .background {
-                shape.fill(isDone ? Color.accentColor.opacity(VisualOpacity.light) : Color.gray.opacity(VisualOpacity.subtle))
-                shape.fill(Color.accentColor).opacity(focus)
-            }
-            .scaleEffect(Self.restingScale + (1 - Self.restingScale) * focus)
+            cardLabel(title, isDone: isDone, isSelected: focus >= 0.5)
+                // The name changes look halfway, where the two cards are the same size. Blending it
+                // along the way would show it twice, or fade it into the blue.
+                .animation(.easeInOut(duration: 0.2), value: focus >= 0.5)
+                .frame(width: width, height: Self.cardHeight)
+                .background {
+                    shape.fill(isDone ? Color.accentColor.opacity(VisualOpacity.light) : Color.gray.opacity(VisualOpacity.subtle))
+                    shape.fill(Color.accentColor).opacity(focus)
+                }
+                .scaleEffect(Self.restingScale + (1 - Self.restingScale) * focus)
         }
-        // Read the name once, whichever of the two looks is showing.
-        .accessibilityLabel(title)
         .accessibilityValue(isDone ? "Done" : "")
         .accessibilityHint(workoutExercises.indices.contains(index) && !workoutExercises[index].supersetPartners.isEmpty ? "Superset" : "")
         .id(index)
