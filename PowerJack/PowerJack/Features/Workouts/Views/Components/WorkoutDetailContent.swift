@@ -42,9 +42,10 @@ struct WorkoutDetailContent: View {
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
-                // DEBUG: marks where the top fade ends. Remove before merging.
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(.blue).frame(height: 1)
+                // DEBUG: outlines the top fade's rectangle. Remove before merging.
+                .overlay {
+                    Rectangle().stroke(.blue, lineWidth: 1)
+                        .ignoresSafeArea(edges: .top)
                 }
         }
         .overlay(alignment: .bottom) {
