@@ -105,6 +105,33 @@ struct WorkoutHeaderTests {
         #expect(abs(midWidth - (shortWidth + wideWidth) / 2) < 2)
     }
 
+    @Test("Rest, ready and equipment occupy equal-height lines even for a long title")
+    func subtitleHeight() async throws {
+        let long = Exercise(exerciseName: "Cable Overhead Extension", exerciseEquipment: .cable, primaryMuscleFocus: .chest)
+        let reference = try await HostedView(WorkoutHeader(exercise: exercise).frame(width: 170))
+        let height = try #require(reference.frame(of: "Bench, \(Equipment.barbell.displayName)")).height
+        reference.close()
+
+        for remaining in [nil, 30.0, -1.0] as [Double?] {
+            let now = Date.now
+            let timer = remaining.map {
+                WorkoutHeaderRest(period: RestPeriod(startedAt: now.addingTimeInterval(-60),
+                    endsAt: now.addingTimeInterval($0), exerciseName: long.exerciseName,
+                    setNumber: 2, setCount: 3), onTap: {})
+            }
+            let screen = try await HostedView(WorkoutHeader(exercise: long)
+                .environment(\.workoutHeaderRest, timer)
+                .frame(width: 170))
+            defer { screen.close() }
+            let label = try #require(screen.label(startingWith: long.exerciseName))
+            if let remaining {
+                #expect(label.contains(remaining > 0 ? "Rest" : "Start set"))
+            }
+            let frame = try #require(screen.frame(of: label))
+            #expect(abs(frame.height - height) < 1)
+        }
+    }
+
     @Test("The Review page stays one line either way")
     func reviewHeader() async throws {
         let screen = try await HostedView(WorkoutHeader(exercise: nil, isCompact: true))

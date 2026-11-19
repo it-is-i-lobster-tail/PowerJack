@@ -10,15 +10,20 @@ import SwiftData
 import SwiftUI
 import TipKit
 
+struct WorkoutHeaderRest {
+    let period: RestPeriod
+    let onTap: () -> Void
+}
+
 extension EnvironmentValues {
-    /// Space the collapsed rest island needs at the top of the screen, or 0 while it's hidden.
+    @Entry var workoutHeaderRest: WorkoutHeaderRest? = nil
     @Entry var restIslandHeight: CGFloat = 0
 }
 
 extension View {
     /// Adds the rest timer for the active program's current workout.
-    func restTimer(onOpenCurrentExercise: @escaping () -> Void) -> some View {
-        modifier(RestTimerHost(onOpenCurrentExercise: onOpenCurrentExercise))
+    func restTimer(inWorkoutHeader: Bool, onOpenCurrentExercise: @escaping () -> Void) -> some View {
+        modifier(RestTimerHost(inWorkoutHeader: inWorkoutHeader, onOpenCurrentExercise: onOpenCurrentExercise))
     }
 }
 
@@ -37,6 +42,7 @@ private struct RestTimerHost: ViewModifier {
     /// Refreshed when a rest starts and when its "Start set" window runs out.
     @State private var clock = Date.now
 
+    let inWorkoutHeader: Bool
     let onOpenCurrentExercise: () -> Void
 
     /// The workout's rest timer state, worked out once each time the screen updates.
@@ -75,9 +81,18 @@ private struct RestTimerHost: ViewModifier {
     func body(content: Content) -> some View {
         let now = now()
         let rest = now.rest
+        let floatingRest = inWorkoutHeader ? nil : now.islandRest
         content
-            // Tab pages keep the collapsed island clear of their navigation bars (see `powerJackTabPage`).
-            .environment(\.restIslandHeight, now.islandRest == nil ? 0 : RestIsland.reservedHeight)
+            .environment(\.workoutHeaderRest, inWorkoutHeader ? now.islandRest.map { period in
+                WorkoutHeaderRest(period: period) {
+                    if period.isResting(at: .now) {
+                        withAnimation(.smooth) { isExpanded = true }
+                    } else {
+                        onOpenCurrentExercise()
+                    }
+                }
+            } : nil)
+            .environment(\.restIslandHeight, floatingRest == nil ? 0 : RestIsland.reservedHeight)
             .overlay {
                 if isExpanded {
                     Color.black.opacity(VisualOpacity.subtle)
@@ -88,18 +103,24 @@ private struct RestTimerHost: ViewModifier {
             }
             // The expanded island draws over the content instead of pushing it down.
             .overlay(alignment: .top) {
-                if let islandRest = now.islandRest {
+                if let islandRest = now.islandRest, !inWorkoutHeader || isExpanded {
                     RestIsland(
                         rest: islandRest,
                         isExpanded: $isExpanded,
                         onOpenExercise: onOpenCurrentExercise
                     )
-                    .popoverHint(now.hint)
+                    .popoverHint(inWorkoutHeader ? nil : now.hint)
                     .padding(.top, 4)
                     .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
+                } else if inWorkoutHeader, now.islandRest != nil, let hint = now.hint {
+                    // Present from the screen; a toolbar item's hosting controller belongs to navigation.
+                    Color.clear
+                        .frame(width: 1, height: LayoutMetrics.barButtonSize)
+                        .popoverHint(hint)
+                        .allowsHitTesting(false)
                 }
             }
-            .animation(.spring(duration: 0.45, bounce: 0.2), value: now.islandRest != nil)
+            .animation(inWorkoutHeader ? nil : .spring(duration: 0.45, bounce: 0.2), value: now.islandRest != nil)
             .onChange(of: now.islandRest == nil) { _, isHidden in
                 if isHidden { isExpanded = false }
             }
