@@ -16,12 +16,13 @@ struct WorkoutDetailContent: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
     var review: WorkoutReviewView? = nil
+    /// Where the pages are, shared with the strip and the header.
+    let pageScroll: ExercisePageScroll
 
     @Environment(IdleControls.self) private var idleControls: IdleControls?
 
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
-    @State private var pageScroll = ExercisePageScroll()
 
     private static let stripFade = LayoutMetrics.compactSpacing * 2
 

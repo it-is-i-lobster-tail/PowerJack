@@ -83,6 +83,28 @@ struct WorkoutHeaderTests {
         #expect(compactFrame.width < reviewFrame.width)
     }
 
+    @Test("Mid-swipe the bubble's width sits between the two pages' widths")
+    func swipeWidthFollowsPages() async throws {
+        let dip = Exercise(exerciseName: "Dip", exerciseEquipment: .bodyweight, primaryMuscleFocus: .chest)
+        let long = Exercise(exerciseName: "Chest Supported Dumbbell Row", exerciseEquipment: .dumbbell, primaryMuscleFocus: .chest)
+        let pages: [Exercise?] = [dip, long]
+
+        let short = try await HostedView(WorkoutHeader(exercise: dip))
+        let shortWidth = try #require(short.frame(of: "Dip, \(Equipment.bodyweight.displayName)")).width
+        short.close()
+        let wide = try await HostedView(WorkoutHeader(exercise: long))
+        let wideWidth = try #require(wide.frame(of: "Chest Supported Dumbbell Row, \(Equipment.dumbbell.displayName)")).width
+        wide.close()
+
+        let scroll = ExercisePageScroll()
+        scroll.position = 0.5
+        let screen = try await HostedView(WorkoutHeader(exercise: dip, pages: pages, pageScroll: scroll))
+        defer { screen.close() }
+        let midWidth = try #require(screen.frame(of: "Dip, \(Equipment.bodyweight.displayName)")).width
+
+        #expect(abs(midWidth - (shortWidth + wideWidth) / 2) < 2)
+    }
+
     @Test("The Review page stays one line either way")
     func reviewHeader() async throws {
         let screen = try await HostedView(WorkoutHeader(exercise: nil, isCompact: true))
