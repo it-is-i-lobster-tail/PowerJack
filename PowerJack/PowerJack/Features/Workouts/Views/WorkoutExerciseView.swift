@@ -59,7 +59,7 @@ struct WorkoutExerciseView: View {
             }
             .frame(maxWidth: .infinity)
             // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
-            .padding(.top, LayoutMetrics.compactSpacing * 2)
+            .padding(.top, LayoutMetrics.sectionSpacing * 2)
         }
         // The page's own fade under the bar (EdgeBlur) is enough. The system's soft edge reaches past it onto the first line.
         .scrollEdgeEffectHidden(true, for: .top)
