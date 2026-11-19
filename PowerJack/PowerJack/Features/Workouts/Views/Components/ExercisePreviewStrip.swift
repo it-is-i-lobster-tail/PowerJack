@@ -34,6 +34,8 @@ struct ExercisePreviewStrip: View {
     /// Tapping the exercise already selected, so the pages can come back to it.
     var onReselect: () -> Void = {}
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var stripPosition = ScrollPosition()
     @State private var stripPhase: ScrollPhase = .idle
     /// The card the lifter tapped, while the pages glide over to it. The strip glides there from
@@ -89,6 +91,7 @@ struct ExercisePreviewStrip: View {
         .onChange(of: pageScroll.position) { followPages() }
         .frame(height: 75)
         // The cards keep their size, so their names stop growing where they still fit.
+        // `textScale` caps at the same size.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
@@ -120,9 +123,9 @@ struct ExercisePreviewStrip: View {
         return Button {
             selectExercise(at: index)
         } label: {
-            cardLabel(title, isDone: isDone, isSelected: focus >= 0.5)
-                // The name changes look halfway, where the two cards are the same size. Blending it
-                // along the way would show it twice, or fade it into the blue.
+            cardLabel(title, isDone: isDone, isSelected: focus >= 0.5, textScale: Self.textScale(focus: focus, dynamicTypeSize: dynamicTypeSize))
+                // The name changes color halfway, where the two cards are the same size. Blending it
+                // along the way would fade it into the blue.
                 .animation(.easeInOut(duration: 0.2), value: focus >= 0.5)
                 .frame(width: width, height: Self.cardHeight)
                 .background {
@@ -141,12 +144,25 @@ struct ExercisePreviewStrip: View {
         max(0, 1 - abs(pagePosition - CGFloat(index)))
     }
 
-    private func cardLabel(_ title: String, isDone: Bool, isSelected: Bool) -> some View {
+    /// How big a card's name is next to the selected card's: caption size a page away, body size on
+    /// its page, and smoothly between while the pages swipe.
+    static func textScale(focus: CGFloat, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        let sizes = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(dynamicTypeSize, .xxxLarge)))
+        let caption = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: sizes).pointSize
+        let body = UIFont.preferredFont(forTextStyle: .body, compatibleWith: sizes).pointSize
+        let resting = caption / body
+        return resting + (1 - resting) * focus
+    }
+
+    private func cardLabel(_ title: String, isDone: Bool, isSelected: Bool, textScale: CGFloat) -> some View {
+        // One font laid out at the full card size, then scaled, so the name grows with the card
+        // and wraps the same way all through a swipe.
         Text(title)
-            .font(isSelected ? .default : .caption)
+            .font(.body)
             .fontWeight(.medium)
             .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleEffect(textScale)
             // Done is marked with more than color.
             .overlay(alignment: .topTrailing) {
                 if isDone {
