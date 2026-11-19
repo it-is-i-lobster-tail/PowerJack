@@ -40,14 +40,12 @@ struct WorkoutScreenTests {
         await screen.tap("Set 1")
         #expect(sets[0].status == .complete)
 
-        // Unchecking reopens the set, and Undo puts it back as it was.
-        let completedAt = sets[0].completedAt
+        // Unchecking reopens the set with no Undo button, and the circle logs it again.
         await screen.tap("Set 1")
         #expect(sets[0].status == .active)
-        #expect(screen.contains("Undo"), "\(screen.labels)")
-        await screen.tap("Undo")
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
+        await screen.tap("Set 1")
         #expect(sets[0].status == .complete)
-        #expect(sets[0].completedAt == completedAt)
 
         await screen.type("abc12", into: "Set 2 reps")
         await screen.type("9", into: "Set 2 reps")
@@ -198,21 +196,12 @@ struct WorkoutScreenTests {
         await screen.tap(title, settleFor: .milliseconds(800))
         #expect(screen.contains("Warmup 1"), "\(screen.labels)")
 
-        // A tap opens it again, and Undo puts it back.
+        // A tap opens it again, with the plain circle and no Undo button.
         #expect(await screen.tap("Warmup 1"))
         #expect(warmup.status == .active && !warmup.locked)
-        #expect(screen.contains("Undo"), "\(screen.labels)")
-        await screen.tap("Undo")
-        #expect(warmup.status == .skipped)
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
 
         // Reopened, it takes new numbers and logs like any warmup. The working set stays as it was.
-        await screen.settle(.milliseconds(1200))
-        if !screen.contains("Warmup 1") {
-            let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
-            await screen.tap(title, settleFor: .milliseconds(800))
-        }
-        #expect(await screen.tap("Warmup 1"), "\(screen.labels)")
-        #expect(warmup.status == .active)
         // This program has no warmup weight planned yet, and a set needs one to log.
         #expect(await screen.type("45", into: "Warmup 1 weight"), "\(screen.labels)")
         #expect(await screen.type("6", into: "Warmup 1 reps"), "\(screen.labels)")

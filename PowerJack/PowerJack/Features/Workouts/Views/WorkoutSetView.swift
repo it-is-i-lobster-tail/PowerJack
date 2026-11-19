@@ -19,8 +19,6 @@ struct WorkoutSetView: View {
     @ScaledMetric private var weightLabelWidth = 43.0
     @ScaledMetric private var repsLabelWidth = 30.0
     private static let animationDuration = 0.050
-    /// How long Undo stays after a done set is reopened.
-    private static let undoWindow: Duration = .seconds(4)
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -40,9 +38,6 @@ struct WorkoutSetView: View {
     @State private var weightText: String
     @State private var repsSelection: TextSelection?
     @State private var weightSelection: TextSelection?
-    /// How a reopened set was closed, while Undo can still put it back.
-    @State private var reopened: ReopenedSet?
-    @State private var undoExpiry: Task<Void, Never>?
     /// Counts sets checked off here, so the success tap is felt for those and not for the watch's.
     @State private var checksHere = 0
 
@@ -239,53 +234,43 @@ struct WorkoutSetView: View {
                 )
                 .accessibilityLabel("\(accessibilityName) reps")
 
-                if reopened != nil {
-                    // A brushed tap reopens a done set. Undo puts it back as it was.
-                    Button("Undo", action: undoReopen)
-                        .font(.caption.weight(.semibold))
-                        .frame(width: 44, height: 44)
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHint("Marks \(accessibilityName) done again")
-                } else {
-                    Button(action: toggleCompletion) {
-                        ZStack {
-                            Image(systemName: "circle")
-                                .font(.system(size: 35, weight: .thin))
+                Button(action: toggleCompletion) {
+                    ZStack {
+                        Image(systemName: "circle")
+                            .font(.system(size: 35, weight: .thin))
 
-                            if showsCheck {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 17, weight: .bold))
-                                    .transition(
-                                        .symbolEffect(
-                                            .drawOn,
-                                            options: .speed(2.2)
-                                        )
+                        if showsCheck {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .transition(
+                                    .symbolEffect(
+                                        .drawOn,
+                                        options: .speed(2.2)
                                     )
-                                    .foregroundStyle(.green)
-                            } else if workoutSet.status == .skipped {
-                                Image(systemName: "forward")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                            } else if workoutSet.locked {
-                                Image(systemName: "lock")
-                                    .font(.system(size: 13, weight: .semibold))
-                            }
+                                )
+                                .foregroundStyle(.green)
+                        } else if workoutSet.status == .skipped {
+                            Image(systemName: "forward")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        } else if workoutSet.locked {
+                            Image(systemName: "lock")
+                                .font(.system(size: 13, weight: .semibold))
                         }
-                        // Only the circle is tappable, so taps near the reps field stay there.
-                        .frame(width: 44, height: 44)
-                        .contentShape(Circle())
                     }
-                    // A plain style stops the List from turning the whole row into this button.
-                    .buttonStyle(.plain)
-                    .disabled(!canToggleCompletion)
-                    .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
-                    .accessibilityLabel(accessibilityName)
-                    .accessibilityValue(statusDescription)
-                    .accessibilityHint(showsCheck ? "Reopens the set" : "Logs the set at the weight and reps entered")
-                    // Felt as well as seen, with the phone on the bench.
-                    .sensoryFeedback(.success, trigger: checksHere)
+                    // Only the circle is tappable, so taps near the reps field stay there.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                 }
+                // A plain style stops the List from turning the whole row into this button.
+                .buttonStyle(.plain)
+                .disabled(!canToggleCompletion)
+                .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
+                .accessibilityLabel(accessibilityName)
+                .accessibilityValue(statusDescription)
+                .accessibilityHint(showsCheck ? "Reopens the set" : "Logs the set at the weight and reps entered")
+                // Felt as well as seen, with the phone on the bench.
+                .sensoryFeedback(.success, trigger: checksHere)
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)
@@ -455,46 +440,18 @@ struct WorkoutSetView: View {
         idleControls?.noteSetTap()
         switch workoutSet.status {
         case .complete:
-            let wasDone = ReopenedSet.done(completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
             workoutSet.start()
             // Saved now, so the watch shows the set open again and quitting doesn't lose it.
             modelContext.saveTraced("set reopened")
-            offerUndo(restoring: wasDone)
         case .skipped:
             workoutSet.reopenSkippedWarmup()
             modelContext.saveTraced("warmup reopened")
-            offerUndo(restoring: .skipped)
         default:
             withAnimation {
                 completeSet()
             }
             if workoutSet.status == .complete { checksHere += 1 }
         }
-    }
-
-    private func offerUndo(restoring wasClosed: ReopenedSet) {
-        undoExpiry?.cancel()
-        withAnimation { reopened = wasClosed }
-        undoExpiry = Task {
-            try? await Task.sleep(for: Self.undoWindow)
-            guard !Task.isCancelled else { return }
-            withAnimation { reopened = nil }
-        }
-    }
-
-    private func undoReopen() {
-        undoExpiry?.cancel()
-        switch reopened {
-        case .done(let completedAt, let startedAt):
-            workoutSet.undoReopen(completedAt: completedAt, startedAt: startedAt)
-            modelContext.saveTraced("set reopen undone")
-        case .skipped:
-            workoutSet.skip()
-            modelContext.saveTraced("set reopen undone")
-        case nil:
-            break
-        }
-        withAnimation { reopened = nil }
     }
 
     private func completeSet() {
@@ -504,12 +461,6 @@ struct WorkoutSetView: View {
             workoutSet.complete()
         }
         modelContext.saveTraced("set logged")
-    }
-
-    /// How a set was closed before a tap reopened it.
-    private enum ReopenedSet {
-        case done(completedAt: Date?, startedAt: Date?)
-        case skipped
     }
 
     private static func selectingAll(_ text: String) -> TextSelection {
