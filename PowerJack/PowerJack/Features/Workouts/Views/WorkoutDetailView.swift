@@ -161,7 +161,7 @@ struct WorkoutDetailView: View {
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
                             exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
-                            holdsWidth: controlsHidden
+                            isCompact: controlsHidden
                         )
                     }
 
