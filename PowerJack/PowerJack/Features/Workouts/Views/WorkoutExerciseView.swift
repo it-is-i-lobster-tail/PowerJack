@@ -24,6 +24,8 @@ struct WorkoutExerciseView: View {
     /// Grows with the text size, so large text still fits a set row.
     @ScaledMetric private var setRowHeight = 55.0
     @State private var showsWarmupHint = false
+    /// How far the sets have scrolled up, so the notes drawn over them can follow.
+    @State private var scrolledDistance: CGFloat = 0
 
     // Finished warmups fold away, then the heading gets a check.
     @State private var warmupsCollapsed: Bool
@@ -47,7 +49,10 @@ struct WorkoutExerciseView: View {
         // The exercise's name and equipment are in the header bubble above.
         ScrollView {
             VStack(spacing: 0) {
+                // Holds the notes' place. The visible notes are drawn over the scroll view below.
                 notes
+                    .hidden()
+                    .accessibilityHidden(true)
 
                 if workoutExercise.showsWarmups {
                     warmupGroup
@@ -60,6 +65,19 @@ struct WorkoutExerciseView: View {
             .frame(maxWidth: .infinity)
             // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
             .padding(.top, LayoutMetrics.compactSpacing * 2)
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, distance in
+            scrolledDistance = distance
+        }
+        // The notes sit on top of the scroll view instead of inside it, so the system's soft edge
+        // under the bar can't fade them. They still move with the sets, and our EdgeBlur covers them
+        // once they scroll up under the bar.
+        .overlay(alignment: .top) {
+            notes
+                .padding(.top, LayoutMetrics.compactSpacing * 2)
+                .offset(y: -scrolledDistance)
         }
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)

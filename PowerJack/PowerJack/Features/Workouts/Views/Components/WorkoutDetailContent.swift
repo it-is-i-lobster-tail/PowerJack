@@ -39,6 +39,10 @@ struct WorkoutDetailContent: View {
             pageScroll: pageScroll,
             pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
         )
+        .overlay(alignment: .top) {
+            EdgeBlur(edge: .top)
+                .frame(height: topInset)
+        }
         .overlay(alignment: .bottom) {
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
