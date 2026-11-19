@@ -52,11 +52,46 @@ struct WorkoutHeaderTests {
         #expect(abs(compactFrame.midX - fullFrame.midX) < 1)
     }
 
+    @Test("Going compact shrinks the bubble in place, without moving it sideways")
+    func compactShrinksInPlace() async throws {
+        let state = CompactState()
+        let screen = try await HostedView(SwitchingHeader(exercise: exercise, state: state))
+        defer { screen.close() }
+        let fullFrame = try #require(screen.frame(of: "Bench, \(Equipment.barbell.displayName)"))
+
+        state.isCompact = true
+        await screen.settle(.milliseconds(600))
+        let compactFrame = try #require(screen.frame(of: "Bench"))
+
+        #expect(compactFrame.width < fullFrame.width)
+        #expect(abs(compactFrame.midX - fullFrame.midX) < 1)
+        #expect(abs(compactFrame.midY - fullFrame.midY) < 1)
+    }
+
     @Test("The Review page stays one line either way")
     func reviewHeader() async throws {
         let screen = try await HostedView(WorkoutHeader(exercise: nil, isCompact: true))
         defer { screen.close() }
 
         #expect(screen.contains("Review"))
+    }
+}
+
+@Observable
+private final class CompactState {
+    var isCompact = false
+}
+
+/// A header beside a spacer that flips to compact, like the workout's when the bars fade.
+private struct SwitchingHeader: View {
+    let exercise: Exercise
+    let state: CompactState
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 40, height: 1)
+            WorkoutHeader(exercise: exercise, isCompact: state.isCompact)
+            Spacer(minLength: 0)
+        }
     }
 }

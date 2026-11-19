@@ -11,11 +11,12 @@ import SwiftUI
 struct WorkoutHeader: View {
     /// The exercise on screen. Nil on the Review page.
     let exercise: Exercise?
-    /// True while the bars are faded: the name alone, smaller, and no wider than it was,
-    /// so it doesn't grow into the room the bar's buttons leave.
+    /// True while the bars are faded: the name alone, smaller, in a smaller bubble.
     var isCompact = false
 
-    @State private var width: CGFloat?
+    /// The full bubble's size. While compact, the header keeps taking up this much room and the
+    /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
+    @State private var fullSize: CGSize?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,13 +40,13 @@ struct WorkoutHeader: View {
             Color.clear
                 .glassEffect(.powerJackBar, in: .capsule)
         }
-        .frame(maxWidth: isCompact ? width : nil)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { newWidth in
-            if !isCompact { width = newWidth }
-        }
-        // Shrinks and grows in step with the bars' fade.
-        .animation(IdleControls.fade, value: isCompact)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            if !isCompact { fullSize = size }
+        }
+        .frame(width: isCompact ? fullSize?.width : nil, height: isCompact ? fullSize?.height : nil)
+        // Shrinks and grows in step with the bars' fade.
+        .animation(IdleControls.fade, value: isCompact)
     }
 }
