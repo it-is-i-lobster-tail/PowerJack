@@ -58,6 +58,8 @@ struct WorkoutExerciseView: View {
                     .padding(.top, LayoutMetrics.compactSpacing)
             }
             .frame(maxWidth: .infinity)
+            // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
+            .padding(.top, LayoutMetrics.compactSpacing * 2)
         }
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
