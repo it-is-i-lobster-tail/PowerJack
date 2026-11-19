@@ -32,8 +32,7 @@ struct GlassFormScaffold<Fields: View, Footer: View>: View {
     var body: some View {
         VStack(spacing: LayoutMetrics.sectionSpacing) {
             ScrollView {
-                // Inside the scroll view, so glass cards are clipped when they scroll
-                // under the title or the footer instead of drawing over them.
+                // Inside the scroll view, so glass cards fade under the title instead of drawing over it.
                 GlassEffectContainer(spacing: LayoutMetrics.sectionSpacing) {
                     VStack(spacing: LayoutMetrics.sectionSpacing) {
                         GlassFormHeader(
@@ -42,17 +41,18 @@ struct GlassFormScaffold<Fields: View, Footer: View>: View {
                         )
                         fields()
                     }
-                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                    .padding([.horizontal, .top], LayoutMetrics.sectionSpacing)
                 }
             }
 
             footer()
                 .padding(.horizontal, LayoutMetrics.sectionSpacing)
         }
+        // The fields stop above the footer instead of running under the bar: a scroll view that
+        // reaches the bottom edge scrolls a focused name field up under the title when the keyboard shows.
+        .padding(.bottom, LayoutMetrics.sectionSpacing)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .padding(.vertical, LayoutMetrics.sectionSpacing)
-        .background(Color(uiColor: .systemBackground))
         .keyboardSlidesOver()
     }
 }

@@ -173,10 +173,10 @@ struct ModelLifecycleTests {
         sets[1].skip()
 
         #expect(workoutExercise.totalSets == 4)
-        #expect(workoutExercise.getCountCompletedSets() == 1)
-        #expect(workoutExercise.getCountSkippedSets() == 1)
-        #expect(workoutExercise.getCountActiveSets() == 2)
-        #expect(workoutExercise.getCountPlannedSets() == 0)
+        #expect(workoutExercise.setCount(.complete) == 1)
+        #expect(workoutExercise.setCount(.skipped) == 1)
+        #expect(workoutExercise.setCount(.active) == 2)
+        #expect(workoutExercise.setCount(.planned) == 0)
         #expect(!workoutExercise.allSetsDone())
     }
 
@@ -374,14 +374,14 @@ struct ModelLifecycleTests {
         row.addPlannedSet(plannedReps: 8, plannedWeightTenthsPounds: nil)
 
         #expect(workout.totalSets == 3)
-        #expect(workout.getCountPlannedSets() == 3)
+        #expect(workout.setCount(.planned) == 3)
 
         workout.startAndCascade()
-        #expect(workout.getCountActiveSets() == 3)
+        #expect(workout.setCount(.active) == 3)
         row.workoutSets[0].complete()
         row.workoutSets[1].skip()
-        #expect(workout.getCountCompletedSets() == 1)
-        #expect(workout.getCountSkippedSets() == 1)
+        #expect(workout.setCount(.complete) == 1)
+        #expect(workout.setCount(.skipped) == 1)
     }
 
     @Test("Exercises can only be added to a planned workout")

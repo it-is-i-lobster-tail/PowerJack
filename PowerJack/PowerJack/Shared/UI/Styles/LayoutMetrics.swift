@@ -15,4 +15,8 @@ enum LayoutMetrics {
     static let cardCornerRadius: CGFloat = 12
     static let panelCornerRadius: CGFloat = 14
     static let curvedCornerRaius: CGFloat = 28
+
+    /// The navigation bar's buttons are glass circles this wide, set in from the screen's edges
+    /// by the system margin (see `onBarButtonInsetChange`). The floating bottom bar lines up with them.
+    static let barButtonSize: CGFloat = 44
 }

@@ -42,7 +42,7 @@ final class PreviewRenderingTests: XCTestCase {
                 WorkoutDetailView(workout: emptyWorkout.workout)
             })),
             ("Workout - Week 2", AnyView(NavigationPreviewHost(modelContainer: progression.container) {
-                WorkoutDetailView(workout: progression.weekTwoWorkouts[0], weekNumber: 2, weekCount: 4)
+                WorkoutDetailView(workout: progression.weekTwoWorkouts[0])
             })),
             ("Session - Week 1", navigation(ProgramSessionView(program: scenario.program))),
             ("Session - Week 2", AnyView(NavigationPreviewHost(modelContainer: progression.container) {
@@ -57,6 +57,13 @@ final class PreviewRenderingTests: XCTestCase {
                 onResolved: {}
             ).modelContainer(progression.container))),
             ("Settings", AnyView(SettingsView().environment(PowerJackStore(inMemory: true)))),
+            ("Personalization", AnyView(NavigationStack { PersonalizationSettingsView() })),
+            ("My Gym", AnyView(NavigationStack { MyGymSettingsView() })),
+            ("Appearance", AnyView(NavigationStack { AppearanceSettingsView() })),
+            ("Your Data", AnyView(NavigationStack { YourDataSettingsView() }
+                .modelContainer(scenario.container)
+                .environment(PowerJackStore(inMemory: true)))),
+            ("Legal", AnyView(NavigationStack { LegalSettingsView() })),
             ("Rest Between Sets", AnyView(NavigationStack { RestBetweenSetsView() })),
             ("FAQ", AnyView(NavigationStack { FAQView() })),
             ("Workout Summary", AnyView(ExerciseSummaryView(
@@ -103,8 +110,8 @@ final class PreviewRenderingTests: XCTestCase {
         XCTAssertEqual(scenario.program.workoutsFinished, 1)
         XCTAssertTrue(scenario.program.nextWorkout === scenario.weekOneWorkouts[1])
         XCTAssertEqual(scenario.weekOneWorkouts.map(\.totalSets), [6, 6, 6])
-        XCTAssertEqual(scenario.weekOneWorkouts[0].getCountCompletedSets(), 6)
-        XCTAssertEqual(scenario.weekOneWorkouts[1].getCountSkippedSets(), 2)
+        XCTAssertEqual(scenario.weekOneWorkouts[0].setCount(.complete), 6)
+        XCTAssertEqual(scenario.weekOneWorkouts[1].setCount(.skipped), 2)
         XCTAssertEqual(scenario.weekOneWorkouts[0].workoutExercises[0].workoutSets[0].reps, 8)
         XCTAssertTrue(scenario.weekOneWorkouts[0].workoutExercises.allSatisfy { $0.feedback != nil })
     }

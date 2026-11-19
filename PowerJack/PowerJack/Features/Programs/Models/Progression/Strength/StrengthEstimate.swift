@@ -61,7 +61,7 @@ enum StrengthEstimate {
             if let date = session.date { record.ratedDates.append(date) }
         }
         if let newest = record.ratedDates.max() {
-            let start = newest.addingTimeInterval(-Double(StrengthRules.confidenceWindowDays) * 86_400)
+            let start = newest.adding(days: -StrengthRules.confidenceWindowDays)
             record.ratedDates.removeAll { $0 <= start }
         }
 

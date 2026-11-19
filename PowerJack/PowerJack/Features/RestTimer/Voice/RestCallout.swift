@@ -59,9 +59,7 @@ nonisolated struct RestPhrase: Hashable {
 
     /// e.g. "225" or "102.5", as the screen shows it. Always written the English way, since the voice is English.
     private static func spokenNumber(tenthsPounds: Int, unit: WeightUnit) -> String {
-        let pounds = Double(tenthsPounds) / 10
-        let weight = unit == .kilograms ? pounds * WeightUnit.kilogramsPerPound : pounds
-        return weight.formatted(
+        unit.value(fromTenthsPounds: tenthsPounds).formatted(
             .number.precision(.fractionLength(0...1)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))
         )
     }

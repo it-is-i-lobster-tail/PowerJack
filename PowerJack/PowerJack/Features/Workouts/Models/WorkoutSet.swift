@@ -40,7 +40,7 @@ final class WorkoutSet {
     ) {
         self.orderValue = order
         self.setTypeValue = setType.rawValue
-        self.repsPlannedValue = plannedReps.flatMap { Self.isValidReps($0) ? $0 : nil }
+        self.repsPlannedValue = Self.validReps(plannedReps)
         self.weightTenthsPoundsPlannedValue = plannedWeightTenthsPounds
         self.statusValue = .planned
         self.lockedValue = false
@@ -65,12 +65,7 @@ extension WorkoutSet {
         get { repsValue }
         set {
             guard status == .active else { return }
-
-            if let newValue, Self.isValidReps(newValue) {
-                repsValue = newValue
-            } else {
-                repsValue = nil
-            }
+            repsValue = Self.validReps(newValue)
         }
     }
     // Reps Planned
@@ -78,12 +73,7 @@ extension WorkoutSet {
         get { repsPlannedValue }
         set {
             guard status == .active else { return }
-
-            if let newValue, Self.isValidReps(newValue) {
-                repsPlannedValue = newValue
-            } else {
-                repsPlannedValue = nil
-            }
+            repsPlannedValue = Self.validReps(newValue)
         }
     }
     // Weight
@@ -137,6 +127,11 @@ extension WorkoutSet {
         (1...maxReps).contains(reps)
     }
 
+    /// `reps` when a set can hold it, otherwise nil.
+    private static func validReps(_ reps: Int?) -> Int? {
+        reps.flatMap { isValidReps($0) ? $0 : nil }
+    }
+
     /// When the lifter logged their first set in any program, or nil before they've logged one.
     static func firstCompletedAt(in context: ModelContext) -> Date? {
         var descriptor = FetchDescriptor<WorkoutSet>(
@@ -153,8 +148,16 @@ extension WorkoutSet {
     }
     /// The set's exercise takes weight on top of bodyweight, so a weight of 0 is bodyweight alone.
     var addsToBodyweight: Bool { workoutExerciseValue?.shownExercise?.addsToBodyweight == true }
+    /// What an open set holds when it has no weight to show: bodyweight alone (0) on a loadable bodyweight exercise.
+    var emptyWeightTenthsPounds: Int? { addsToBodyweight ? 0 : nil }
     // Complete or skipped
     var isDone: Bool { status == .complete || status == .skipped }
+    /// A warmup skipped while its exercise is still underway, as when logging the first working set passes
+    /// it over. It reads as checked off, and can be opened again in case it was skipped by mistake.
+    var canReopenSkippedWarmup: Bool {
+        guard isWarmup, status == .skipped, let workoutExercise = workoutExerciseValue else { return false }
+        return workoutExercise.status == .active && !workoutExercise.locked
+    }
     /// How long the set took, rest before it included. `nil` until it's logged.
     var duration: TimeInterval? {
         guard status == .complete, let startedAtValue, let completedAtValue else { return nil }
@@ -232,7 +235,7 @@ extension WorkoutSet {
     func skip() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workoutSet.warning("Cannot skip a locked WorkoutSet.")
             return
@@ -245,17 +248,6 @@ extension WorkoutSet {
     func stop() {
         skip()
     }
-    /// Undo for a done set reopened by a brushed tap: it's done again, at the times it was done.
-    func undoReopen(completedAt: Date?, startedAt: Date?) {
-        guard status == .active, !lockedValue, let completedAt else {
-            Logger.workoutSet.warning("Can only undo reopening an open WorkoutSet that was done.")
-            return
-        }
-        statusValue = Status.complete
-        completedAtValue = completedAt
-        startedAtValue = startedAt
-        TraceLog.record(.workout, "Undid reopening \(traceDescription)")
-    }
     /// Opens a skipped set again, keeping the reps and weight it was holding.
     func unskip() {
         guard status == .skipped else {
@@ -266,6 +258,14 @@ extension WorkoutSet {
         lockedValue = false
         Logger.workoutSet.debug("WorkoutSet unskipped")
         TraceLog.record(.workout, "Reopened \(traceDescription)")
+    }
+    /// Opens a skipped warmup again so it can be adjusted and logged after all.
+    func reopenSkippedWarmup() {
+        guard canReopenSkippedWarmup else {
+            Logger.workoutSet.warning("Can only reopen a skipped warmup of an exercise still underway.")
+            return
+        }
+        unskip()
     }
     /// Back to planned, as if its workout never started. The next start fills in the target again.
     func resetToPlanned() {
@@ -286,7 +286,7 @@ extension WorkoutSet {
         }
         weightTenthsPoundsPlannedValue = weight
         if status == .active {
-            weightTenthsPoundsValue = weight ?? (addsToBodyweight ? 0 : nil)
+            weightTenthsPoundsValue = weight ?? emptyWeightTenthsPounds
         }
     }
     /// Puts back the planned weight a substitute held in its place.
@@ -294,7 +294,7 @@ extension WorkoutSet {
         if !isDone {
             weightTenthsPoundsPlannedValue = originalPlannedWeightTenthsPoundsValue
             if status == .active {
-                weightTenthsPoundsValue = originalPlannedWeightTenthsPoundsValue ?? (addsToBodyweight ? 0 : nil)
+                weightTenthsPoundsValue = originalPlannedWeightTenthsPoundsValue ?? emptyWeightTenthsPounds
             }
         }
         originalPlannedWeightTenthsPoundsValue = nil
@@ -319,9 +319,53 @@ extension WorkoutSet {
         // Loadable bodyweight with no target starts at bodyweight alone.
         if wasPlanned {
             reps = reps ?? repsPlanned
-            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds ?? (addsToBodyweight ? 0 : nil)
+            weightTenthsPounds = weightTenthsPounds ?? weightTenthsPlannedPounds ?? emptyWeightTenthsPounds
         }
         Logger.workoutSet.debug("Starting WorkoutSet")
+    }
+}
+
+//
+// Corrections
+//
+extension WorkoutSet {
+    /// A set in a finished workout whose numbers can still be fixed, e.g. pounds typed while the
+    /// app was in kilograms. That's a logged set, or a skipped one that holds numbers, such as a
+    /// warmup typed and then passed over: next week's warmups copy it. The set keeps its status.
+    var canCorrect: Bool {
+        guard workoutExerciseValue?.workoutValue?.status == .complete else { return false }
+        switch status {
+        case .complete: return true
+        case .skipped: return repsValue != nil || weightTenthsPoundsValue != nil
+        default: return false
+        }
+    }
+
+    /// Fixes the reps this set logged. Reps a set can't hold are refused.
+    /// - Returns: Whether the reps changed.
+    @discardableResult
+    func correctReps(_ reps: Int) -> Bool {
+        guard canCorrect, Self.isValidReps(reps) else {
+            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
+            return false
+        }
+        guard reps != repsValue else { return false }
+        repsValue = reps
+        return true
+    }
+
+    /// Fixes the weight this set logged. Weights a set can't hold are refused.
+    /// - Returns: Whether the weight changed.
+    @discardableResult
+    func correctWeight(_ weightTenthsPounds: Int) -> Bool {
+        let isValid = Self.isValidWeightTenthsPounds(weightTenthsPounds) || (weightTenthsPounds == 0 && addsToBodyweight)
+        guard canCorrect, isValid else {
+            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
+            return false
+        }
+        guard weightTenthsPounds != weightTenthsPoundsValue else { return false }
+        weightTenthsPoundsValue = weightTenthsPounds
+        return true
     }
 }
 

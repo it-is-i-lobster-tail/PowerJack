@@ -29,22 +29,24 @@ extension View {
         )
     }
     
+    /// The floating section switcher's glass.
     func powerJackGlassSelection(interactive: Bool = false) -> some View {
         glassEffect(
-            .regular
-                .tint(.glassSurface.opacity(VisualOpacity.heavy))
-                .interactive(interactive),
+            Glass.powerJackBar.interactive(interactive),
             in: .rect(cornerRadius: LayoutMetrics.curvedCornerRaius)
         )
     }
 
-    /// Matches `powerJackGlassSelection` for round buttons that sit beside it.
+    /// Clear glass for round buttons beside the switcher, like Safari's + button.
     func powerJackGlassCircle(interactive: Bool = false) -> some View {
         glassEffect(
-            .regular
-                .tint(.glassSurface.opacity(VisualOpacity.heavy))
-                .interactive(interactive),
+            .regular.interactive(interactive),
             in: .circle
         )
     }
+}
+
+extension Glass {
+    /// The bars' see-through gray, like Safari's tab bar, so the page bleeds through.
+    static let powerJackBar = Glass.regular.tint(Color(uiColor: .systemGray).opacity(0.3))
 }

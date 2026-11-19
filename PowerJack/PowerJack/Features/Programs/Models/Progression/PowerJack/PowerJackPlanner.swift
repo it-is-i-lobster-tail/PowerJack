@@ -31,29 +31,12 @@ enum PowerJackPlanner: WeekPlanner {
 
     /// Builds the empty `week` from every week before it.
     static func build(_ week: ProgramWeek, in program: Program) {
-        let weeks = program.programWeeks
-        guard week.workouts.isEmpty,
-              let index = weeks.firstIndex(where: { $0 === week }),
-              index > 0
-        else {
-            Logger.program.warning("Can only build an empty ProgramWeek that follows another week.")
-            return
-        }
-        let closed = Array(weeks[..<index])
+        guard let index = buildIndex(of: week, in: program) else { return }
+        let closed = Array(program.programWeeks[..<index])
         let source = closed[index - 1]
         guard let plan = nextPlan(after: closed, in: program) else { return }
 
-        for sourceWorkout in source.workouts {
-            guard let workout = week.addWorkout() else { continue }
-            // A row whose exercise is gone is left out, and each row copies its own settings.
-            for sourceExercise in sourceWorkout.workoutExercises {
-                guard let exercise = sourceExercise.exercise,
-                      let workoutExercise = workout.addWorkoutExercise(exercise: exercise)
-                else { continue }
-                workoutExercise.inheritWarmupsDisabled(from: sourceExercise)
-                workoutExercise.inheritSuperset(from: sourceExercise)
-            }
-        }
+        copyDays(of: source, into: week)
         apply(plan, to: week)
         Logger.program.info("Built PowerJack week \(index + 1): \(plan.header.type.rawValue), block \(plan.header.blockNumber)")
     }

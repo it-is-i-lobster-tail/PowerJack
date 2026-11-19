@@ -66,6 +66,22 @@ enum RestLiveActivityController {
         )
     }
 
+    /// Ends every activity as PowerJack closes. iOS ends the app as soon as it returns from
+    /// `applicationWillTerminate`, so this waits there, for a moment at most, for the ends to go through.
+    static func endBeforeClosing() {
+        let activities = Activity<RestActivityAttributes>.activities
+        guard !activities.isEmpty else { return }
+        TraceLog.record(.timer, "Live Activity ended as PowerJack closes (\(activities.count))")
+        let ended = DispatchSemaphore(value: 0)
+        Task.detached {
+            for activity in activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            ended.signal()
+        }
+        _ = ended.wait(timeout: .now() + 2)
+    }
+
     private static func end(_ activities: [Activity<RestActivityAttributes>]) async {
         for activity in activities {
             await activity.end(nil, dismissalPolicy: .immediate)

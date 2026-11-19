@@ -164,7 +164,7 @@ extension FAQ {
                 question: "Can I build my own template?",
                 answer: [
                     "Yes. In Templates, tap + and give it a name, how many days a week you'll train, and up to four focus muscles: the ones you most want to grow. Hypertrophy and PowerJack programs give focus muscles extra sets.",
-                    "Then build each day by adding exercises. Swipe right on an exercise to start superset A, then swipe right on others to add them to it or start the next one. You do one set of each in turn and then rest. Swipe left on an exercise to edit or remove it, or on a superset to unstack it. Tap a superset to change its order or take one exercise out. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
+                    "Then build each day by adding exercises. Swipe an exercise either way for Superset, Edit and Trash. The first Superset starts superset A, and later ones add to it or start the next one. You do one set of each in turn and then rest. Swipe a superset to unstack it. Tap a superset to change its order or take one exercise out. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
                     "Everything saves as you go.",
                 ]
             ),
@@ -189,7 +189,7 @@ extension FAQ {
             Entry(
                 question: "How do rest times work?",
                 answer: [
-                    "Each exercise has a fatigue level. More tiring exercises, like squats, get longer rests. Set how long each rest is in Settings > Rest Between Sets, or give one exercise its own rest time by editing it.",
+                    "Each exercise has a fatigue level. More tiring exercises, like squats, get longer rests. Set how long each rest is in Settings > Personalization > Rest Between Sets, or give one exercise its own rest time by editing it.",
                     "Strength and PowerJack programs give your heaviest lifts longer rests of their own.",
                 ]
             ),
@@ -209,7 +209,7 @@ extension FAQ {
             Entry(
                 question: "What can I change in Settings?",
                 answer: [
-                    "The rest timer, how long you rest, lb or kg, light or dark appearance, hints and iCloud Backup.",
+                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and Load Steps. Appearance picks light or dark. Your Data has iCloud Backup and exporting your history.",
                     "Load Steps sets the smallest weight jump for each kind of equipment. Strength programs round your weights to it, so set it to match the plates and dumbbells you have.",
                 ]
             ),
@@ -258,7 +258,7 @@ extension FAQ {
             Entry(
                 question: "How do Hypertrophy programs progress?",
                 answer: [
-                    "Reps first, then weight, one set at a time. Each set's next target comes from what you logged on it, so 7 and 5 reps become 8 and 6.",
+                    "Reps first, then weight, one set at a time. Each set's next target comes from what you logged on it, so 7 and 5 reps become 8 and 6. Weight keeps your reps inside the range, and finishing with reps to spare adds sets on top.",
                     .figure(.hypertrophy),
                     "Hypertrophy programs have no blocks or lighter weeks. Each week is built from the one before it.",
                 ]
@@ -269,7 +269,7 @@ extension FAQ {
                     "Heavier through each block. Your main lifts, up to four, like the squat, bench press, deadlift and the first big lift of each day, start with one heavy top set, then lighter back-off sets.",
                     .figure(.strength),
                     "The top set builds from triples to a heavy single close to your max. After a lighter week, the next block starts again from triples, a little heavier.",
-                    "Weights round to your Load Steps in Settings. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
+                    "Weights round to your Load Steps in Settings > My Gym. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
                     "If one lift keeps feeling harder than planned, it gets a short lighter week of its own. If a lift stalls for a couple of months, PowerJack changes things up to get it moving again.",
                 ]
             ),

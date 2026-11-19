@@ -18,6 +18,10 @@ struct WorkoutExercisePager: View {
     var review: WorkoutReviewView? = nil
     /// Goes up when the selected exercise is tapped again in the strip, to bring its page back.
     var pageRequests = 0
+    /// Reports how far the pages have scrolled, so the exercise strip can follow the swipe.
+    var pageScroll: ExercisePageScroll? = nil
+    /// Room for the bars over the pages. Each page scrolls under them but comes to rest inside.
+    var pageInsets = EdgeInsets()
 
     @State private var scrollPhase: ScrollPhase = .idle
 
@@ -32,6 +36,7 @@ struct WorkoutExercisePager: View {
                             focusedSetField: focusedSetField,
                             workoutExercise: workoutExercises[index]
                         )
+                            .safeAreaPadding(pageInsets)
                             .containerRelativeFrame(.horizontal)
                             .id(index)
                     }
@@ -40,12 +45,12 @@ struct WorkoutExercisePager: View {
                         review
                             // The List keeps scrolling and its swipe actions while the pager is held still.
                             .environment(\.isScrollEnabled, true)
+                            .safeAreaPadding(pageInsets)
                             .containerRelativeFrame(.horizontal)
                             .id(workoutExercises.count)
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.top, LayoutMetrics.compactSpacing)
             }
             .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
             .scrollPosition(id: $selectedExerciseIndex)
@@ -61,6 +66,9 @@ struct WorkoutExercisePager: View {
             // position alone can lose it. Land on it on appear and again once the layout settles,
             // as the exercise strip does, but never while the lifter is swiping.
             .onAppear { showSelectedPage(proxy) }
+            .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
+                pageScroll?.position = position
+            }
             .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
                 guard scrollPhase == .idle else { return }
                 showSelectedPage(proxy)
@@ -82,6 +90,12 @@ struct WorkoutExercisePager: View {
     /// Changes when the pages are laid out or resized, but not when they're scrolled.
     private static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
         [geometry.contentSize.width, geometry.containerSize.width]
+    }
+
+    /// How many pages in from the first page the pages have scrolled, part pages included.
+    private static func pagePosition(_ geometry: ScrollGeometry) -> CGFloat {
+        guard geometry.containerSize.width > 0 else { return 0 }
+        return (geometry.contentOffset.x + geometry.contentInsets.leading) / geometry.containerSize.width
     }
 
     private var isOnReview: Bool {

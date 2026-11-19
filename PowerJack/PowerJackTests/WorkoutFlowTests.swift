@@ -618,9 +618,10 @@ struct WorkoutFlowTests {
         let pullUp = week[1].workoutExercises[0].workingSets
         let pulldown = week[1].workoutExercises[1].workingSets
 
-        #expect(bench.map(\.weightTenthsPlannedPounds) == [1400, 1400])
+        // Focus muscles add a set after one clean week, at the last set's logged weight, 3 reps lower.
+        #expect(bench.map(\.weightTenthsPlannedPounds) == [1400, 1400, 1350])
         #expect(scenario.checkInExercise.checkInPending)
-        #expect(pullUp.map(\.repsPlanned) == [9, 8])
+        #expect(pullUp.map(\.repsPlanned) == [9, 8, 5])
         #expect(pulldown.map(\.repsPlanned) == [10, 5])
         #expect(pulldown.map(\.weightTenthsPlannedPounds) == [1200, 1200])
         #expect(scenario.program.nextWorkout === week[0])

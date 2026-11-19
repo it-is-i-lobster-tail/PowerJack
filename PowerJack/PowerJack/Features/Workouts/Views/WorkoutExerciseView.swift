@@ -44,47 +44,23 @@ struct WorkoutExerciseView: View {
     }
 
     var body: some View {
-        VStack {
-            VStack(alignment: .center) {
-                Text(workoutExercise.shownExercise?.exerciseName ?? "")
-                    .font(.title)
-                    .foregroundStyle(.primary)
-                Text(workoutExercise.shownExercise?.equipment.displayName ?? "")
-                    .font(.default)
-                    .foregroundStyle(.primary)
-                if let substituteText {
-                    Label(substituteText, systemImage: "arrow.triangle.swap")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let supersetText {
-                    Label(supersetText, systemImage: "link")
-                        .font(.caption)
-                        .foregroundStyle(.tint)
-                }
-                if workoutExercise.checkInPending {
-                    Label("Check-in required", systemImage: "cross.case")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                ProgressionCue(workoutExercise: workoutExercise)
-            }
+        // The exercise's name and equipment are in the header bubble above.
+        ScrollView {
+            VStack(spacing: 0) {
+                notes
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    if workoutExercise.showsWarmups {
-                        warmupGroup
-                    }
-
-                    groupHeader(.working, isDone: workoutExercise.allSetsDone())
-                    setRows(workoutExercise.workingSets)
-                        .padding(.top, LayoutMetrics.compactSpacing)
+                if workoutExercise.showsWarmups {
+                    warmupGroup
                 }
-                .frame(maxWidth: .infinity)
+
+                groupHeader(.working, isDone: workoutExercise.allSetsDone())
+                setRows(workoutExercise.workingSets)
+                    .padding(.top, LayoutMetrics.compactSpacing)
             }
-            // The number pad slides over the sets, so the one being typed in scrolls up above it.
-            .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
+            .frame(maxWidth: .infinity)
         }
+        // The number pad slides over the sets, so the one being typed in scrolls up above it.
+        .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
         .onChange(of: workoutExercise.allSetsDone()) { wasDone, isDone in
             guard !wasDone, isDone else { return }
             focusedSetField.wrappedValue = nil
@@ -95,6 +71,28 @@ struct WorkoutExerciseView: View {
         }
         .onAppear {
             showsWarmupHint = workoutExercise.showsWarmupHint
+        }
+    }
+
+    /// What's special about this exercise today, above its sets.
+    private var notes: some View {
+        VStack(spacing: 4) {
+            if let substituteText {
+                Label(substituteText, systemImage: "arrow.triangle.swap")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let supersetText {
+                Label(supersetText, systemImage: "link")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+            }
+            if workoutExercise.checkInPending {
+                Label("Check-in required", systemImage: "cross.case")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            ProgressionCue(workoutExercise: workoutExercise)
         }
     }
 
@@ -152,16 +150,13 @@ struct WorkoutExerciseView: View {
     }
 
     private func setRows(_ sets: [WorkoutSet]) -> some View {
-        // Worked out once for every row.
-        let currentSet = workoutExercise.workoutValue?.currentSet?.workoutSet
-        return VStack(spacing: LayoutMetrics.compactSpacing) {
+        VStack(spacing: LayoutMetrics.compactSpacing) {
             ForEach(sets) { workoutSet in
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
                     workoutSet: workoutSet,
                     repsOnly: workoutExercise.shownExercise?.repsOnly ?? false,
                     number: workoutExercise.number(of: workoutSet),
-                    isCurrent: workoutSet === currentSet,
                     onWeightChange: { weight, previousWeight in
                         // A top set's weight is heavier than the back sets that follow it.
                         guard !workoutExercise.isTopSet(workoutSet) else { return }

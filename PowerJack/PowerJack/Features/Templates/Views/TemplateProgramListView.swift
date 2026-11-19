@@ -87,12 +87,11 @@ struct TemplateProgramListView: View {
                 }
                 .listRowSpacing(10)
                 .scrollContentBackground(.hidden)
-                .background(Color(uiColor: .systemBackground))
             } createDestination: {
                 TemplateProgramNew(templateType: templateType)
             }
             // Outside the scaffold, so the switcher sits above its hint.
-            .safeAreaInset(edge: .top, spacing: 0) {
+            .safeAreaBar(edge: .top, spacing: 0) {
                 SlidingGlassPicker(
                     options: TemplateType.allCases,
                     selection: $templateType,
@@ -121,6 +120,7 @@ struct TemplateProgramListView: View {
             }
             .saveErrorAlert($saveErrorMessage)
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 
     /// The chosen section's templates. Picking one for a program hides drafts, since they can't start one.

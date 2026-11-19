@@ -53,6 +53,13 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
         return (start, sets[start..<(start + size)], sets.count - start - size)
     }
 
+    /// The unit said once beside the chips: "lb" or "kg", or `nil` when no chip shows a weight
+    /// ("BW" and "–" chips need none).
+    func chipUnitText(for chips: ArraySlice<ActivitySet>) -> String? {
+        guard !repsOnly else { return nil }
+        return chips.first { ($0.weightTenthsPounds ?? 0) != 0 }?.unitText
+    }
+
     /// The Dynamic Island's short name for the current set: "Set 2", or "W1" for a warmup.
     /// Numbered as in the app, so warmups don't count toward a working set's number.
     var shortSetText: String {
@@ -101,13 +108,14 @@ nonisolated struct ActivitySet: Codable, Hashable {
         return "\(weight) \(unitText)"
     }
 
-    /// e.g. "225" or "102.5". `WeightUnit` isn't compiled into the widget, so the conversion lives here too.
+    /// e.g. "225" or "102.5", as `WeightUnit.format` writes it. `WeightUnit` isn't compiled into the widget,
+    /// so the conversion lives here too (`SharedHelperTests` keeps the two in step).
     /// Only loadable bodyweight keeps a weight of 0, so 0 is "BW": bodyweight alone.
     static func weight(tenthsPounds: Int, inKilograms: Bool) -> String {
         if tenthsPounds == 0 { return "BW" }
         let pounds = Double(tenthsPounds) / 10
         let weight = inKilograms ? pounds * 0.45359237 : pounds
-        return weight.formatted(.number.precision(.fractionLength(0...1)))
+        return weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
     }
 }
 

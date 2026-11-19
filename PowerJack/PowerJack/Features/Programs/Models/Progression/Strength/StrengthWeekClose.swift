@@ -121,7 +121,7 @@ enum StrengthWeekClose {
         before: Double?,
         at now: Date
     ) {
-        let windowStart = now.addingTimeInterval(-Double(StrengthRules.flagWindowDays) * 86_400)
+        let windowStart = now.adding(days: -StrengthRules.flagWindowDays)
         let marks = sessions.map { session in
             SessionMark(
                 date: session.date ?? now,

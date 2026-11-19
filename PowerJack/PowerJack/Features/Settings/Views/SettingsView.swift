@@ -2,218 +2,54 @@
 //  SettingsView.swift
 //  PowerJack
 //
+//  The top of Settings: one row per group, each opening its own page.
+//
 
-import ActivityKit
-import SwiftData
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
-    @Environment(\.modelContext) private var modelContext
-    @Environment(PowerJackStore.self) private var store
-
-    @AppStorage(AppSettings.Key.inAppRestTimer)
-    private var showsInAppRestTimer = AppSettings.Default.inAppRestTimer
-    @AppStorage(AppSettings.Key.restLiveActivity)
-    private var showsRestLiveActivity = AppSettings.Default.restLiveActivity
-    @AppStorage(AppSettings.Key.restVoice)
-    private var speaksRestEnd = AppSettings.Default.restVoice
-    @AppStorage(AppSettings.Key.hints)
-    private var showsHints = AppSettings.Default.hints
-    @AppStorage(AppSettings.Key.weightUnit)
-    private var weightUnit = WeightUnit.deviceDefault
-    @AppStorage(AppSettings.Key.appearance)
-    private var appearance = AppSettings.Default.appearance
-
-    @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
-    @State private var iCloudAvailable = true
-    @State private var isConfirmingICloudOff = false
-    @State private var isDeletingICloudCopy = false
-    @State private var showsICloudOffError = false
-    @State private var isConfirmingExport = false
-    @State private var exportedHistory: URL?
-    @State private var isSharingHistory = false
-    @State private var showsExportError = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle(isOn: $showsInAppRestTimer) {
-                        SettingsRowLabel(
-                            systemImage: "timer",
-                            title: "In-App Timer",
-                            detail: "An island-style countdown at the top of the screen while PowerJack is open."
-                        )
-                    }
-
-                    Toggle(isOn: $showsRestLiveActivity) {
-                        SettingsRowLabel(
-                            systemImage: "iphone.gen3",
-                            title: "Dynamic Island & Lock Screen",
-                            detail: "Shows your current set and rest countdown when you leave PowerJack. Tap it to jump back to your exercise."
-                        )
-                    }
-
-                    if showsRestLiveActivity, !liveActivitiesAllowed {
-                        LiveActivitiesOffNote(openSettings: openSystemSettings)
+                    NavigationLink {
+                        PersonalizationSettingsView()
+                    } label: {
+                        SettingsGroupLabel(title: "Personalization", systemImage: "slider.horizontal.3")
                     }
 
                     NavigationLink {
-                        RestHapticsView()
+                        MyGymSettingsView()
                     } label: {
-                        SettingsRowLabel(
-                            systemImage: "iphone.radiowaves.left.and.right",
-                            title: "Haptics",
-                            detail: "A heads-up buzz before your rest ends, and another when it's time to lift."
-                        )
-                    }
-
-                    Toggle(isOn: $speaksRestEnd) {
-                        SettingsRowLabel(
-                            systemImage: "speaker.wave.2",
-                            title: "Voice",
-                            detail: "Says your next set when rest ends, like “\(RestPhrase.sample(in: weightUnit).text)”"
-                        )
-                    }
-                    // Turning it on plays the sample, so there's no separate button to hear it.
-                    .onChange(of: speaksRestEnd) { _, isOn in
-                        if isOn { RestVoice.shared.speak(RestPhrase.sample(in: weightUnit)) }
-                    }
-                } header: {
-                    Text("Rest Timer")
-                }
-
-                Section {
-                    NavigationLink {
-                        RestBetweenSetsView()
-                    } label: {
-                        SettingsRowLabel(
-                            systemImage: "hourglass",
-                            title: "Rest Between Sets",
-                            detail: "How long the timer counts down after each set, based on the exercise's fatigue level."
-                        )
-                    }
-                }
-
-                Section {
-                    // A trailing control, like the toggles: lb or kg.
-                    HStack {
-                        SettingsRowLabel(
-                            systemImage: "scalemass",
-                            title: "Weight Unit",
-                            detail: "Weights show and are typed in this unit. Logged weights convert."
-                        )
-                        Picker("Weight Unit", selection: $weightUnit) {
-                            ForEach(WeightUnit.allCases) { unit in
-                                Text(unit.symbol).tag(unit)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .fixedSize()
+                        SettingsGroupLabel(title: "My Gym", systemImage: "dumbbell")
                     }
 
                     NavigationLink {
-                        LoadStepsView()
+                        AppearanceSettingsView()
                     } label: {
-                        SettingsRowLabel(
-                            systemImage: "plusminus",
-                            title: "Load Steps",
-                            detail: "The smallest weight jump for each kind of equipment in Strength programs."
-                        )
-                    }
-                } header: {
-                    Text("Weights")
-                }
-
-                Section {
-                    // A trailing menu, like the weight unit's control.
-                    HStack {
-                        SettingsRowLabel(
-                            systemImage: "circle.lefthalf.filled",
-                            title: "Appearance",
-                            detail: "System switches between light and dark with your iPhone."
-                        )
-                        Picker("Appearance", selection: $appearance) {
-                            ForEach(Appearance.allCases) { appearance in
-                                Text(appearance.name).tag(appearance)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .fixedSize()
+                        SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
                     }
 
-                    Toggle(isOn: $showsHints) {
-                        SettingsRowLabel(
-                            systemImage: "lightbulb",
-                            title: "Hints",
-                            detail: "Short tips during your first workouts."
-                        )
-                    }
-                    .onChange(of: showsHints) { _, isOn in
-                        Hints.isEnabled = isOn
-                    }
-                }
-
-                Section {
-                    Toggle(isOn: iCloudBackup) {
-                        SettingsRowLabel(
-                            systemImage: "icloud",
-                            title: "iCloud Backup",
-                            detail: "Keeps your programs, templates and workout history in your private iCloud, so a new iPhone or a reinstall picks up where you left off. Only you can see it."
-                        )
-                    }
-                    .disabled(isDeletingICloudCopy)
-                } header: {
-                    Text("Your Data")
-                } footer: {
-                    if isDeletingICloudCopy {
-                        Text("Deleting your iCloud copy…")
-                    } else if store.syncsWithICloud, !iCloudAvailable {
-                        Text("Sign in to iCloud in iOS Settings to start backing up.")
-                    }
-                }
-
-                // Its own card, so the iCloud note above stays with iCloud Backup.
-                Section {
-                    Button {
-                        isConfirmingExport = true
+                    NavigationLink {
+                        YourDataSettingsView()
                     } label: {
-                        SettingsRowLabel(
-                            systemImage: "square.and.arrow.up",
-                            title: "Export Workout History",
-                            detail: "Every set you've logged, as a spreadsheet file (CSV)."
-                        )
+                        SettingsGroupLabel(title: "Your Data", systemImage: "externaldrive")
                     }
-                    .foregroundStyle(.primary)
                 }
 
-                Section("FAQ") {
+                Section {
                     NavigationLink {
                         FAQView()
                     } label: {
-                        SettingsRowLabel(
-                            systemImage: "questionmark.circle",
-                            title: "Questions and Answers",
-                            detail: "Where PowerJack came from, how to use it, and how your training progresses."
-                        )
-                    }
-                }
-
-                Section("Legal") {
-                    NavigationLink {
-                        LegalDocumentView(document: .privacyPolicy)
-                    } label: {
-                        Label("Privacy Policy", systemImage: "hand.raised")
+                        SettingsGroupLabel(title: "FAQ", systemImage: "questionmark.circle")
                     }
 
                     NavigationLink {
-                        LegalDocumentView(document: .termsAndConditions)
+                        LegalSettingsView()
                     } label: {
-                        Label("Terms and Conditions", systemImage: "doc.text")
+                        SettingsGroupLabel(title: "Legal", systemImage: "doc.text")
                     }
                 }
 
@@ -221,11 +57,7 @@ struct SettingsView: View {
                     NavigationLink {
                         DeveloperToolView()
                     } label: {
-                        SettingsRowLabel(
-                            systemImage: "ladybug",
-                            title: "Developer Tool",
-                            detail: "Traces what the app does, on this iPhone only, to help track down a problem."
-                        )
+                        SettingsGroupLabel(title: "Developer Tools", systemImage: "ladybug")
                     }
                 }
             }
@@ -237,94 +69,27 @@ struct SettingsView: View {
                 }
             }
         }
-        .alert("Turn Off iCloud Backup?", isPresented: $isConfirmingICloudOff) {
-            Button("Yes, Turn Off", role: .destructive, action: turnOffICloudBackup)
-            Button("No", role: .cancel) {}
-        } message: {
-            Text("Your workouts stay on this iPhone, but the copy in iCloud will be deleted. A new iPhone or a reinstall won't get them back.")
-        }
-        .alert("Couldn't Turn Off iCloud Backup", isPresented: $showsICloudOffError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("iCloud couldn't be reached, so nothing was deleted. Check your connection and try again.")
-        }
-        .alert("Export Workout History?", isPresented: $isConfirmingExport) {
-            Button("Export", action: exportHistory)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The file has every workout, set, weight and time you've logged. Names you gave your own templates and exercises are left out. Anyone you send it to can read it, so only share it with people you trust.")
-        }
-        .alert("Couldn't Export", isPresented: $showsExportError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Your workout history couldn't be read. Try again.")
-        }
-        .sheet(isPresented: $isSharingHistory, onDismiss: removeExportedHistory) {
-            if let exportedHistory {
-                ShareSheet(url: exportedHistory)
-                    .presentationDetents([.medium, .large])
-                    .ignoresSafeArea()
-            }
-        }
-        .task {
-            iCloudAvailable = await store.iCloudAccountAvailable()
-        }
-        .task {
-            for await enabled in ActivityAuthorizationInfo().activityEnablementUpdates {
-                liveActivitiesAllowed = enabled
-            }
-        }
-    }
-
-    // Turning backup off asks first, because it deletes the iCloud copy.
-    private var iCloudBackup: Binding<Bool> {
-        Binding(
-            get: { store.syncsWithICloud },
-            set: { isOn in
-                if isOn {
-                    store.turnOnICloudBackup()
-                } else {
-                    isConfirmingICloudOff = true
-                }
-            }
-        )
-    }
-
-    private func turnOffICloudBackup() {
-        isDeletingICloudCopy = true
-        Task {
-            do {
-                try await store.turnOffICloudBackup()
-            } catch {
-                showsICloudOffError = true
-            }
-            isDeletingICloudCopy = false
-        }
-    }
-
-    private func exportHistory() {
-        do {
-            exportedHistory = try HistoryExport.writeFile(from: modelContext)
-            isSharingHistory = true
-        } catch {
-            showsExportError = true
-        }
-    }
-
-    // The copy only lives as long as the share sheet, so the history isn't left lying around.
-    private func removeExportedHistory() {
-        guard let exportedHistory else { return }
-        try? FileManager.default.removeItem(at: exportedHistory)
-        self.exportedHistory = nil
-    }
-
-    private func openSystemSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        openURL(url)
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }
 
-private struct SettingsRowLabel: View {
+/// A row on the top Settings page: just the group's name, so the list reads at a glance.
+private struct SettingsGroupLabel: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.blue)
+        }
+    }
+}
+
+/// A setting with a short line underneath saying what it does.
+struct SettingsRowLabel: View {
     let systemImage: String
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
@@ -340,20 +105,6 @@ private struct SettingsRowLabel: View {
         } icon: {
             Image(systemName: systemImage)
                 .foregroundStyle(.blue)
-        }
-    }
-}
-
-private struct LiveActivitiesOffNote: View {
-    let openSettings: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: LayoutMetrics.compactSpacing) {
-            Label("Live Activities are turned off for PowerJack in iOS Settings.", systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(.orange)
-            Button("Open iOS Settings", action: openSettings)
-                .font(.caption)
         }
     }
 }

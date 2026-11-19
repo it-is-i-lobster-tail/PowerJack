@@ -144,6 +144,35 @@ struct RestTimerTests {
         #expect((last.before, last.sets.map(\.label), last.after) == (3, ["4", "5", "6", "7"], 0))
     }
 
+    @Test("The Live Activity says the chips' unit once, and not for bodyweight or empty chips")
+    func activityChipUnitSaidOnce() {
+        func state(_ sets: [ActivitySet], repsOnly: Bool = false) -> WorkoutActivityState {
+            WorkoutActivityState(
+                exerciseName: "Smith Machine Squat",
+                setText: "",
+                exerciseOrder: 0,
+                setOrder: 0,
+                sets: sets,
+                repsOnly: repsOnly,
+                canCompleteAtTarget: true
+            )
+        }
+        let pounds = state([
+            ActivitySet(label: "1", progress: .current, reps: 9, weightTenthsPounds: 1400),
+            ActivitySet(label: "2", progress: .upcoming, reps: 7, weightTenthsPounds: 1400)
+        ])
+        #expect(pounds.chipUnitText(for: pounds.chipWindow().sets) == "lb")
+
+        let kilograms = state([ActivitySet(label: "1", progress: .current, reps: 5, weightTenthsPounds: 2205, usesKilograms: true)])
+        #expect(kilograms.chipUnitText(for: kilograms.chipWindow().sets) == "kg")
+
+        let noWeights = state([ActivitySet(label: "1", progress: .current, reps: 8)])
+        #expect(noWeights.chipUnitText(for: noWeights.chipWindow().sets) == nil)
+
+        let bodyweight = state([ActivitySet(label: "1", progress: .current, reps: 12, weightTenthsPounds: 0)], repsOnly: true)
+        #expect(bodyweight.chipUnitText(for: bodyweight.chipWindow().sets) == nil)
+    }
+
     @Test("Warmups are labeled W1, W2 on the Live Activity and working sets count from 1")
     func activityWarmupLabels() throws {
         let workout = Workout(order: 0)

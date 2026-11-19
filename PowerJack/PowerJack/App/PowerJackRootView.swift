@@ -93,8 +93,12 @@ private struct PowerJackScreens: View {
     @State private var didRestore = false
     // A new ID rebuilds the Templates tab, which returns it to its list.
     @State private var templatesRootID = UUID()
-    // Measured height of the floating bar, reserved at the bottom of every tab.
+    // Measured height of the floating bar, added to the safe area of every tab.
     @State private var bottomBarHeight: CGFloat = 0
+    // How far in the navigation bar puts its buttons, so the bottom bar can line up with them.
+    @State private var barButtonInset: CGFloat = 16
+    // A workout fades the bars away while it sits idle.
+    @State private var idleControls = IdleControls()
 
     var body: some View {
         // Standard tabs can't be swiped between, so only the picker below switches sections.
@@ -122,8 +126,8 @@ private struct PowerJackScreens: View {
                     .powerJackTabPage(bottomBarHeight: bottomBarHeight)
             }
         }
-        // Tab pages don't inherit a safe-area inset set on the TabView,
-        // so the bar floats here and each tab page stops short of it.
+        // The bar floats over the tabs. Each tab page makes room for it in its safe area,
+        // so content scrolls under the glass but comes to rest above it.
         .overlay(alignment: .bottom) {
             GlassEffectContainer(spacing: LayoutMetrics.compactSpacing) {
                 // The gear sits beside the switcher, apart enough that their glass doesn't merge.
@@ -134,11 +138,13 @@ private struct PowerJackScreens: View {
                         options: MainBrowserOption.allCases,
                         selection: $selection,
                         title: \.name,
-                        onTap: showList
+                        onTap: showList,
+                        fillsWidth: true
                     )
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)
+                // The gear sits right under the back button, and the switcher ends under the top bar's trailing buttons.
+                .padding(.leading, barButtonInset + (LayoutMetrics.barButtonSize - SettingsButton.size) / 2)
+                .padding(.trailing, barButtonInset)
             }
             // Popovers can't present from inside the glass container, so they attach out here.
             .popoverHints(["templates": welcomeHint], arrowEdge: .bottom)
@@ -147,10 +153,14 @@ private struct PowerJackScreens: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                 bottomBarHeight = height
             }
+            .fadesWhenIdle(idleControls)
         }
         .restTimer(onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
+        .environment(idleControls)
         .powerJackKeyboardBehavior()
+        .revealsIdleControlsOnTap(idleControls)
+        .onBarButtonInsetChange { barButtonInset = $0 }
         .onAppear(perform: restoreActiveWorkout)
         .onChange(of: router.path) { _, path in
             TraceLog.record(.screen, "Programs: \(path.isEmpty ? "My Programs" : path.map(\.traceName).joined(separator: " > "))")
@@ -197,7 +207,7 @@ private struct PowerJackScreens: View {
 
 private struct SettingsButton: View {
     // Matches the switcher's height: a 44pt pill plus its 4pt padding.
-    private static let size: CGFloat = 52
+    static let size: CGFloat = 52
 
     let action: () -> Void
 

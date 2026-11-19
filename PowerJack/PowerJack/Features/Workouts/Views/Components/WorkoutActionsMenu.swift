@@ -49,7 +49,7 @@ struct WorkoutActionsMenu: View {
                     isShowingWorkoutExerciseSheet.toggle()
                 } label: {
                     Label("Change Exercise", systemImage: "slider.horizontal.3")
-                    Text("Replaces this exercise on this day from now on. Your template stays the same.")
+                    Text(Hint.changeExercise)
                 }
                 // Changing a finished exercise would throw away its logged sets.
                 .disabled(!canModifySelectedExercise || selectedWorkoutExercise.isDone)
@@ -60,10 +60,8 @@ struct WorkoutActionsMenu: View {
                     Button {
                         onEditExercise(exercise)
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "pencil")
-                            Text("Edit Exercise")
-                        }
+                        Label("Edit Exercise", systemImage: "pencil")
+                        Text(Hint.editExercise)
                     }
                 }
 
@@ -75,10 +73,8 @@ struct WorkoutActionsMenu: View {
                             modelContext.saveTraced("warmups turned on")
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "flame")
-                            Text("Turn On Warmups")
-                        }
+                        Label("Turn On Warmups", systemImage: "flame")
+                        Text(Hint.turnOnWarmups)
                     }
                     .disabled(!canModifySelectedExercise)
                 }
@@ -94,20 +90,16 @@ struct WorkoutActionsMenu: View {
                         selectedWorkoutExercise.restoreSkipped()
                         modelContext.saveTraced("exercise restored")
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.counterclockwise")
-                            Text("Restore Exercise")
-                        }
+                        Label("Restore Exercise", systemImage: "arrow.counterclockwise")
+                        Text(Hint.restoreExercise)
                     }
                 } else {
                     Button {
                         selectedWorkoutExercise.skipRemainingSets()
                         modelContext.saveTraced("exercise skipped")
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "forward")
-                            Text("Skip Exercise")
-                        }
+                        Label("Skip Exercise", systemImage: "forward")
+                        Text(Hint.skipExercise)
                     }
                     .disabled(!canModifySelectedExercise || selectedWorkoutExercise.allSetsDone())
                 }
@@ -118,10 +110,8 @@ struct WorkoutActionsMenu: View {
             Button {
                 isConfirmingSkipWorkout = true
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "forward.end")
-                    Text("Skip Workout")
-                }
+                Label("Skip Workout", systemImage: "forward.end")
+                Text(Hint.skipWorkout)
             }
             .disabled(!canSkipWorkout)
         } label: {
@@ -155,7 +145,7 @@ struct WorkoutActionsMenu: View {
                 isPickingSubstitute = true
             } label: {
                 Label("One-Time Substitute", systemImage: "arrow.triangle.swap")
-                Text("Just this workout")
+                Text(Hint.substitute)
             }
 
             if workoutExercise.substitute != nil {
@@ -163,10 +153,8 @@ struct WorkoutActionsMenu: View {
                     workoutExercise.undoSubstitute()
                     modelContext.saveTraced("substitute undone")
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.uturn.backward")
-                        Text("Undo Substitute")
-                    }
+                    Label("Undo Substitute", systemImage: "arrow.uturn.backward")
+                    Text(Hint.undoSubstitute)
                 }
             }
         }
@@ -183,22 +171,48 @@ struct WorkoutActionsMenu: View {
                 }
             } label: {
                 Label("Remove from Superset", systemImage: "square.split.1x2")
+                Text(Hint.removeFromSuperset)
             }
 
             Button {
                 onEditSuperset(supersetID)
             } label: {
                 Label("Edit Superset", systemImage: "arrow.up.arrow.down")
+                Text(Hint.editSuperset)
             }
         } else {
             Button {
                 onAddToSuperset(workoutExercise)
             } label: {
                 Label("Add to Superset", systemImage: "link.badge.plus")
+                Text(Hint.addToSuperset)
             }
             // A finished exercise has nothing left to do in turn, and there may be nothing to join.
             .disabled(workoutExercise.isDone || workout.supersetChoices(for: workoutExercise).isEmpty)
         }
+    }
+
+    /// The short line under each menu item. Each stays within `Hint.maxLength` characters so the
+    /// menu shows it in full, never cut off with "…".
+    enum Hint {
+        static let maxLength = 24
+
+        static let changeExercise = "Replaces it from now on"
+        static let substitute = "Only for this workout"
+        static let undoSubstitute = "Back to the original"
+        static let editExercise = "Rep range, rest and more"
+        static let turnOnWarmups = "Adds warmup sets back"
+        static let addToSuperset = "Start or join a superset"
+        static let removeFromSuperset = "Does it on its own"
+        static let editSuperset = "Reorder or remove"
+        static let skipExercise = "Skips its remaining sets"
+        static let restoreExercise = "Brings back its sets"
+        static let skipWorkout = "Ends this workout early"
+
+        static let all = [
+            changeExercise, substitute, undoSubstitute, editExercise, turnOnWarmups, addToSuperset,
+            removeFromSuperset, editSuperset, skipExercise, restoreExercise, skipWorkout,
+        ]
     }
 
     private func skipWorkout() {

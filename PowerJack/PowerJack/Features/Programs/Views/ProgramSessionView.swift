@@ -28,8 +28,6 @@ struct ProgramSessionView: View {
             } else if let workout = program.nextWorkout {
                 WorkoutDetailView(
                     workout: workout,
-                    weekNumber: program.weekNumber(containing: workout),
-                    weekCount: program.programLengthWeeks,
                     onWorkoutFinished: { finish(workout) },
                     onSkipWorkout: { skip(workout) }
                 )

@@ -42,16 +42,20 @@ private enum SupersetSheet: Identifiable, Hashable {
 extension EnvironmentValues {
     /// Set by `WorkoutDetailView` when it shows a finished workout.
     @Entry var workoutIsReadOnly = false
+    /// Set by `WorkoutDetailView` when a finished workout is unlocked, so its logged sets can be fixed.
+    @Entry var workoutAllowsCorrections = false
+    @Entry var workoutUnlocks = WorkoutUnlocks.shared
 }
 
 struct WorkoutDetailView: View {
     @Environment(\.modelContext) private var modelContext
     // Optional so the view still works outside the Programs navigation stack.
     @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
+    @Environment(\.workoutUnlocks) private var unlocks
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     @Bindable var workout: Workout
-    let weekNumber: Int?
-    let weekCount: Int?
     let onWorkoutFinished: () -> Void
     let onSkipWorkout: (() -> Void)?
     /// A finished workout opens read-only: nothing can be logged, changed or skipped.
@@ -71,15 +75,11 @@ struct WorkoutDetailView: View {
 
     init(
         workout: Workout,
-        weekNumber: Int? = nil,
-        weekCount: Int? = nil,
         onWorkoutFinished: @escaping () -> Void = {},
         onSkipWorkout: (() -> Void)? = nil,
         isReadOnly: Bool = false
     ) {
         self.workout = workout
-        self.weekNumber = weekNumber
-        self.weekCount = weekCount
         self.onWorkoutFinished = onWorkoutFinished
         self.onSkipWorkout = onSkipWorkout
         self.isReadOnly = isReadOnly
@@ -92,8 +92,22 @@ struct WorkoutDetailView: View {
         workout.allExercisesFinished ? workout.workoutExercises.count : workout.currentExerciseIndex
     }
 
+    /// A finished workout the lifter unlocked to fix the weight and reps they logged.
+    private var isUnlocked: Bool {
+        isReadOnly && unlocks.isUnlocked(workout)
+    }
+
     private var isOnReview: Bool {
         !isReadOnly && selectedExerciseIndex == workout.workoutExercises.count
+    }
+
+    /// The bars fade while a live workout sits idle. VoiceOver needs them in place.
+    private var fadesIdleControls: Bool {
+        !isReadOnly && !voiceOverEnabled
+    }
+
+    private var controlsHidden: Bool {
+        idleControls?.isHidden == true
     }
 
     private var selectedWorkoutExercise: WorkoutExercise? {
@@ -103,12 +117,6 @@ struct WorkoutDetailView: View {
             return nil
         }
         return workout.workoutExercises[selectedExerciseIndex]
-    }
-
-    private var weekLabel: String? {
-        guard let weekNumber else { return nil }
-        guard let weekCount else { return "Week \(weekNumber)" }
-        return "Week \(weekNumber)/\(weekCount)"
     }
 
     var body: some View {
@@ -130,6 +138,7 @@ struct WorkoutDetailView: View {
             GeometryReader { geometry in
                 WorkoutDetailContent(
                     screenWidth: geometry.size.width,
+                    topInset: geometry.safeAreaInsets.top,
                     workoutExercises: workout.workoutExercises,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
@@ -141,30 +150,26 @@ struct WorkoutDetailView: View {
                         onFinish: finishWorkout
                     )
                 )
+                // The sets scroll up under the navigation bar. The reader still measures the bar,
+                // so the content can add room for it.
+                .ignoresSafeArea(.container, edges: .top)
                 .environment(\.workoutIsReadOnly, isReadOnly)
+                .environment(\.workoutAllowsCorrections, isUnlocked)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(controlsHidden)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        VStack(spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("Day \(workout.order + 1)")
-                                    .font(.headline)
-                                Text("\(workout.percentComplete)%")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                            }
-
-                            if let weekLabel {
-                                Text(weekLabel)
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 6)
-                        .glassEffect(.regular, in: .capsule)
+                        WorkoutHeader(
+                            exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
+                            holdsWidth: controlsHidden
+                        )
                     }
 
-                    if !isReadOnly {
+                    if isReadOnly {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            completedWorkoutMenu
+                        }
+                    } else {
                         ToolbarItem(placement: .topBarTrailing) {
                             WorkoutActionsMenu(
                                 workout: workout,
@@ -175,7 +180,10 @@ struct WorkoutDetailView: View {
                                 onAddToSuperset: { showSupersetSheet(.add($0)) },
                                 onEditSuperset: { showSupersetSheet(.edit($0)) }
                             )
+                            // Faded rather than removed, so an open menu isn't torn down with it.
+                            .fadesWhenIdle(idleControls)
                         }
+                        .sharedBackgroundVisibility(controlsHidden ? .hidden : .visible)
                     }
                 }
                 .sheet(isPresented: $isShowingWorkoutExerciseSheet) {
@@ -237,7 +245,16 @@ struct WorkoutDetailView: View {
             .onAppear(perform: presentSheetIfNeeded)
             .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
+                idleControls?.show()
             }
+            // Typing a weight or reps holds the controls as they are.
+            .onChange(of: focusedSetField != nil) { _, isEditing in
+                idleControls?.pause(isEditing)
+            }
+            .onChange(of: fadesIdleControls, initial: true) { _, fades in
+                fades ? idleControls?.turnOn() : idleControls?.turnOff()
+            }
+            .onDisappear { idleControls?.turnOff() }
             .onChange(of: presentedSheet?.isAnswered == true) { _, isAnswered in
                 if isAnswered { closeAnsweredSheet() }
             }
@@ -250,6 +267,29 @@ struct WorkoutDetailView: View {
             .onChange(of: workout.workoutExercises.map(ObjectIdentifier.init)) { before, after in
                 keepSelection(from: before, to: after)
             }
+        }
+    }
+
+    /// A finished workout's one action: unlocking it to fix what was logged, then locking it again.
+    private var completedWorkoutMenu: some View {
+        Menu {
+            if isUnlocked {
+                Button {
+                    focusedSetField = nil
+                    unlocks.lock(workout)
+                } label: {
+                    Label("Lock workout", systemImage: "lock")
+                }
+            } else {
+                Button {
+                    unlocks.unlock(workout)
+                } label: {
+                    Label("Unlock completed workout", systemImage: "lock.open")
+                    Text("Allows edits until app closes.")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
         }
     }
 
@@ -428,11 +468,7 @@ struct WorkoutDetailView: View {
     let scenario = PowerJackSeed.weekOneProgress()
 
     NavigationPreviewHost(modelContainer: scenario.container) {
-        WorkoutDetailView(
-            workout: scenario.weekOneWorkouts[2],
-            weekNumber: 1,
-            weekCount: scenario.program.programLengthWeeks
-        )
+        WorkoutDetailView(workout: scenario.weekOneWorkouts[2])
     }
 }
 
@@ -440,11 +476,7 @@ struct WorkoutDetailView: View {
     let scenario = PowerJackSeed.weekTwoProgression()
 
     NavigationPreviewHost(modelContainer: scenario.container) {
-        WorkoutDetailView(
-            workout: scenario.weekTwoWorkouts[0],
-            weekNumber: 2,
-            weekCount: scenario.program.programLengthWeeks
-        )
+        WorkoutDetailView(workout: scenario.weekTwoWorkouts[0])
     }
 }
 
@@ -454,8 +486,6 @@ struct WorkoutDetailView: View {
     NavigationPreviewHost(modelContainer: scenario.container) {
         WorkoutDetailView(
             workout: scenario.weekOneWorkouts[0],
-            weekNumber: 1,
-            weekCount: scenario.program.programLengthWeeks,
             isReadOnly: true
         )
     }

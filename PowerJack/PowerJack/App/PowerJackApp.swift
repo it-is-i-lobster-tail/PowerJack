@@ -16,6 +16,8 @@ struct PowerJackApp: App {
     static let store = PowerJackStore(inMemory: runsInMemory)
     static var modelContainer: ModelContainer { store.container }
 
+    @UIApplicationDelegateAdaptor(PowerJackAppDelegate.self) private var appDelegate
+
     // Previews and unit tests never touch the real store or iCloud.
     private static var runsInMemory: Bool {
         let environment = ProcessInfo.processInfo.environment
@@ -25,6 +27,7 @@ struct PowerJackApp: App {
     init() {
         Hints.configure()
         if !Self.runsInMemory {
+            WeightUnit.saveDeviceDefaultIfUnpicked()
             TraceLog.shared.start()
             TraceHooks.start()
             PhoneSync.shared.start(store: Self.store)
@@ -50,5 +53,8 @@ struct PowerJackAppContent: View {
         PowerJackRootView()
             .modelContainer(store.container)
             .windowAppearance(appearance)
+            // Content fades softly under the bars instead of stopping at a hard line.
+            // Sheets don't inherit this, so each one with a navigation bar sets it too.
+            .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }

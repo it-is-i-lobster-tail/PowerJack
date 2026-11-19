@@ -66,7 +66,7 @@ struct PowerJackPainState: Equatable {
                 cleanStreak = 0
                 sinceCleared = nil
             } else if mode == .episode {
-                let days = episodeStart.map { exposure.date.timeIntervalSince($0) / 86_400 } ?? 0
+                let days = episodeStart.map { exposure.date.days(since: $0) } ?? 0
                 let clearMax = days > 28 ? LevelOfPain.noticeable.rawValue : max(1, baseline)
                 let clean = pain <= clearMax && !rising && exposure.weekType != .deload
                 cleanStreak = clean ? cleanStreak + 1 : 0

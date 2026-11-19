@@ -40,14 +40,12 @@ struct WorkoutScreenTests {
         await screen.tap("Set 1")
         #expect(sets[0].status == .complete)
 
-        // Unchecking reopens the set, and Undo puts it back as it was.
-        let completedAt = sets[0].completedAt
+        // Unchecking reopens the set with no Undo button, and the circle logs it again.
         await screen.tap("Set 1")
         #expect(sets[0].status == .active)
-        #expect(screen.contains("Undo"), "\(screen.labels)")
-        await screen.tap("Undo")
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
+        await screen.tap("Set 1")
         #expect(sets[0].status == .complete)
-        #expect(sets[0].completedAt == completedAt)
 
         await screen.type("abc12", into: "Set 2 reps")
         await screen.type("9", into: "Set 2 reps")
@@ -58,10 +56,9 @@ struct WorkoutScreenTests {
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
         #expect(screen.contains("Bench"), "\(screen.labels)")
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(800))
+        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(800))
 
-        // Rating the last exercise opens Review once its Undo window passes; only Finish Workout
-        // ends the workout.
+        // Rating the last exercise opens Review straight away; only Finish Workout ends the workout.
         #expect(exercise.feedback != nil)
         #expect(workout.status == .active)
         #expect(!exercise.locked)
@@ -79,8 +76,8 @@ struct WorkoutScreenTests {
         #expect(program.weekNumber(containing: next) == 2)
     }
 
-    @Test("Feedback waits a moment with Undo before it's saved, and the current set says it's not done")
-    func feedbackUndo() async throws {
+    @Test("Feedback saves the moment both questions are answered, and the current set says it's not done")
+    func feedbackSavesRightAway() async throws {
         let program = try makeStartedProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
         workout.startAndCascade()
@@ -97,15 +94,18 @@ struct WorkoutScreenTests {
         #expect(screen.value(of: "Set 1") == "Done")
         await screen.tap("Set 2", settleFor: .milliseconds(800))
 
+        // One answer isn't enough, so the questions stay up.
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild))
-        #expect(screen.contains("Undo"), "\(screen.labels)")
         #expect(exercise.feedback == nil)
-
-        await screen.tap("Undo")
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(800))
-        #expect(exercise.feedback != nil)
+
+        // The second answer saves with no pause and no Undo, and the questions close.
+        await screen.tap(scaleLabel(LevelOfPain.mild))
+        #expect(exercise.feedback?.repsInReserve == .two)
+        #expect(exercise.feedback?.levelOfPain == .mild)
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
+        await screen.settle(.milliseconds(800))
+        #expect(!screen.contains("Level of Pain"), "\(screen.labels)")
     }
 
     @Test("Finishing with an exercise only partly logged asks its feedback first, then finishes")
@@ -128,9 +128,9 @@ struct WorkoutScreenTests {
         #expect(screen.contains("Level of Pain"), "\(screen.labels)")
         #expect(workout.status == .active)
 
-        // The answers are saved once the Undo window passes, and then the workout finishes.
+        // The answers save straight away, and then the workout finishes.
         await screen.tap(scaleLabel(RepsInReserve.two))
-        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: Feedback.undoWindow + .milliseconds(1200))
+        await screen.tap(scaleLabel(LevelOfPain.mild), settleFor: .milliseconds(1200))
         #expect(exercise.feedback != nil)
         #expect(workout.status == .complete)
     }
@@ -174,6 +174,43 @@ struct WorkoutScreenTests {
         }
         await screen.settle(.milliseconds(800))
         #expect(hasLabel(containing: "Working Sets done", in: screen), "\(screen.labels)")
+    }
+
+    @Test("A warmup passed over by the first working set shows a check, and a tap opens it again to log")
+    func passedOverWarmupReopens() async throws {
+        let program = try makeStartedProgram(weeks: 1)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let screen = try await HostedView(session(program))
+        defer { screen.close() }
+        let exercise = try #require(workout.workoutExercises.first)
+        let warmup = exercise.warmupSets[0]
+
+        #expect(await screen.type("100", into: "Set 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("8", into: "Set 1 reps"))
+        await screen.tap("Set 1", settleFor: .milliseconds(1200))
+        #expect(exercise.warmupSets.allSatisfy { $0.status == .skipped })
+
+        // The finished warmups fold away; opening them shows each one checked off and ready to reopen.
+        let title = try #require(screen.labels.first { $0.hasPrefix("Warmup") && $0.contains("done") }, "\(screen.labels)")
+        await screen.tap(title, settleFor: .milliseconds(800))
+        #expect(screen.contains("Warmup 1"), "\(screen.labels)")
+
+        // A tap opens it again, with the plain circle and no Undo button.
+        #expect(await screen.tap("Warmup 1"))
+        #expect(warmup.status == .active && !warmup.locked)
+        #expect(!screen.contains("Undo"), "\(screen.labels)")
+
+        // Reopened, it takes new numbers and logs like any warmup. The working set stays as it was.
+        // This program has no warmup weight planned yet, and a set needs one to log.
+        #expect(await screen.type("45", into: "Warmup 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("6", into: "Warmup 1 reps"), "\(screen.labels)")
+        #expect(await screen.waitUntil(timeout: .seconds(6)) { screen.contains("Warmup 1") }, "\(screen.labels)")
+        await screen.tap("Warmup 1")
+        #expect(warmup.status == .complete)
+        #expect(warmup.reps == 6)
+        #expect(exercise.workingSets[0].status == .complete)
+        #expect(exercise.completedWorkingSets == 1)
     }
 
     private func hasLabel(containing text: String, in screen: HostedView) -> Bool {

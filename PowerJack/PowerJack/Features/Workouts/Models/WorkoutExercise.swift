@@ -139,22 +139,15 @@ extension WorkoutExercise: OrderedModel {}
 // Derived Values
 //
 extension WorkoutExercise {
-
-    func countSetStatus(status: Status) -> Int {
-        var c: Int = 0
-        for workoutSet in self.workoutSets {
-            if workoutSet.status == status {
-                c = c + 1
-            }
-        }
-        return c
+    /// How many of the exercise's sets, warmups included, have `status`.
+    func setCount(_ status: Status) -> Int {
+        workoutSets.count { $0.status == status }
     }
-
     // Total Sets
     var totalSets: Int { workoutSetsValue?.count ?? 0 }
-    // Completed Sets
-    func getCountCompletedSets() -> Int {
-        return countSetStatus(status: Status.complete)
+    /// The warmups or the working sets, in order.
+    func sets(ofType type: SetType) -> [WorkoutSet] {
+        type == .warmup ? warmupSets : workingSets
     }
     // Completed working sets. The only sets that count toward progression and the summary.
     var completedWorkingSets: Int {
@@ -167,12 +160,11 @@ extension WorkoutExercise {
     }
     /// 1-based position within the set's own type, e.g. the first working set is 1 after two warmups.
     func number(of workoutSet: WorkoutSet) -> Int {
-        let sameType = workoutSet.isWarmup ? warmupSets : workingSets
-        return (sameType.firstIndex { $0 === workoutSet } ?? 0) + 1
+        (sets(ofType: workoutSet.setType).firstIndex { $0 === workoutSet } ?? 0) + 1
     }
     /// How many warmups the exercise has for a warmup, or working sets for a working set.
     func count(sameTypeAs workoutSet: WorkoutSet) -> Int {
-        workoutSet.isWarmup ? warmupSets.count : workingSets.count
+        sets(ofType: workoutSet.setType).count
     }
     /// "Warmup 1 of 2" or "Set 1 of 2", counting warmups and working sets apart.
     func setText(for workoutSet: WorkoutSet) -> String {
@@ -182,26 +174,12 @@ extension WorkoutExercise {
             isWarmup: workoutSet.isWarmup
         )
     }
-    // Planned Sets
-    func getCountPlannedSets() -> Int {
-        return countSetStatus(status: Status.planned)
-    }
-    // Skipped Sets
-    func getCountSkippedSets() -> Int {
-        return countSetStatus(status: Status.skipped)
-    }
-    // Active Sets
-    func getCountActiveSets() -> Int {
-        return countSetStatus(status: Status.active)
-    }
     var checkInPending: Bool { checkInValue == .pending }
     /// The type of the program this exercise belongs to, which picks its feedback and progression.
     var templateType: TemplateType? { workoutValue?.programWeekValue?.programValue?.templateType }
     var programWeek: ProgramWeek? { workoutValue?.programWeekValue }
     // Complete, skipped, or stopped.
-    var isFinished: Bool {
-        status == .complete || status == .skipped || status == .stopped
-    }
+    var isFinished: Bool { status.isFinished }
     /// Every working set is done and rated, or the exercise was skipped. It stays open until the workout finishes,
     /// so the lifter can still go back and add a set.
     var isDone: Bool {
@@ -217,8 +195,10 @@ extension WorkoutExercise {
     }
     /// A set was logged, or the exercise was finished or skipped. Edit Days never takes it out of a workout in progress.
     var hasLoggedWork: Bool {
-        status == .complete || status == .skipped || workoutSets.contains { $0.status == .complete }
+        status == .complete || status == .skipped || hasLoggedSets
     }
+    /// At least one set, warmup or working, is logged.
+    var hasLoggedSets: Bool { workoutSets.contains { $0.status == .complete } }
     // Every working set is complete or skipped. Warmups are optional and don't count.
     func allSetsDone() -> Bool {
         let sets = workingSets
@@ -254,7 +234,7 @@ extension WorkoutExercise {
     func stop() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workoutExercise.warning("Cannot stop a locked WorkoutExercise.")
             return
@@ -266,7 +246,7 @@ extension WorkoutExercise {
     func skip() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.workoutExercise.warning("Cannot skip a locked WorkoutExercise.")
             return
@@ -384,7 +364,7 @@ extension WorkoutExercise {
         if statusValue == .skipped {
             statusValue = .active
         }
-        let lastSet = (type == .warmup ? warmupSets : workingSets).last
+        let lastSet = sets(ofType: type).last
         let newSet = WorkoutSet(
             order: nextSetOrder,
             setType: type,
@@ -512,8 +492,7 @@ extension WorkoutExercise {
         rememberWarmupCount()
         warmupsDisabledValue = true
         for warmup in warmupSets where !warmup.isDone {
-            workoutSetsValue?.removeAll { $0 === warmup }
-            modelContext?.delete(warmup)
+            deleteSet(warmup)
         }
     }
     /// Turns warmups back on for this exercise on this day and brings back as many as there were
@@ -585,6 +564,15 @@ extension WorkoutExercise {
             Logger.workoutExercise.warning("Can only clear the progression of a planned WorkoutExercise.")
             return
         }
+        clearPlan()
+        if checkInValue == .pending {
+            checkInValue = .none
+            checkInSourcePainValue = nil
+            lockedValue = false
+        }
+    }
+    /// Forgets what a planner wrote for this slot: its effort target, reason line, and Strengthen and PowerJack targets.
+    private func clearPlan() {
         rirTargetValue = nil
         progressionCodeValue = nil
         progressionNoteValue = nil
@@ -593,11 +581,6 @@ extension WorkoutExercise {
         repOffsetValue = nil
         intendedLoadKgValue = nil
         clearPowerJackPlan()
-        if checkInValue == .pending {
-            checkInValue = .none
-            checkInSourcePainValue = nil
-            lockedValue = false
-        }
     }
     /// Replaces a planned exercise's warmups. Working sets stay.
     func replacePlannedWarmups(_ sets: [(reps: Int?, weightTenthsPounds: Int?)]) {
@@ -606,8 +589,7 @@ extension WorkoutExercise {
             return
         }
         for warmup in warmupSets {
-            workoutSetsValue?.removeAll { $0 === warmup }
-            modelContext?.delete(warmup)
+            deleteSet(warmup)
         }
         // Disabled warmups stay off (see `canAddSet`).
         for set in sets {
@@ -625,8 +607,7 @@ extension WorkoutExercise {
         let after = sets.map { TraceLog.load(tenthsPounds: $0.weightTenthsPounds, reps: $0.reps) }
         TraceLog.record(.workout, "Replanned \(traceDescription): \(before.joined(separator: ", ")) → \(after.joined(separator: ", "))")
         for workingSet in workingSets {
-            workoutSetsValue?.removeAll { $0 === workingSet }
-            modelContext?.delete(workingSet)
+            deleteSet(workingSet)
         }
         for set in sets {
             addPlannedSet(plannedReps: set.reps, plannedWeightTenthsPounds: set.weightTenthsPounds)
@@ -665,26 +646,29 @@ extension WorkoutExercise {
     /// At least one working set always stays. Every warmup can go.
     /// Only a last set with nothing logged can go, so Remove Last Set never throws away a logged set.
     func canRemoveSet(type: SetType) -> Bool {
-        let sets = type == .warmup ? warmupSets : workingSets
-        guard !lockedValue, let last = sets.last, last.status != .complete else { return false }
-        return type == .warmup || sets.count > Self.minSets
+        let sameType = sets(ofType: type)
+        guard !lockedValue, let last = sameType.last, last.status != .complete else { return false }
+        return type == .warmup || sameType.count > Self.minSets
     }
     /// Removes the last set of `type`. Sets of the other type stay.
     /// Removing the last warmup turns warmups off, and Turn On Warmups brings them all back.
     func removeLastSet(type: SetType = .working) {
-        guard canRemoveSet(type: type), let lastSet = (type == .warmup ? warmupSets : workingSets).last else {
+        guard canRemoveSet(type: type), let lastSet = sets(ofType: type).last else {
             Logger.workoutExercise.warning("Cannot remove a logged set, a set from a locked WorkoutExercise, or its last working set.")
             return
         }
         Logger.workoutExercise.info("Removing set from WorkoutExercise \(self.exercise?.exerciseName ?? "an exercise")")
         TraceLog.record(.workout, "Removing \(lastSet.traceDescription) from \(traceDescription)")
         if type == .warmup { rememberWarmupCount() }
-        workoutSetsValue?.removeAll { $0 === lastSet }
-        // Delete the row too, so it doesn't linger (or sync) as an orphan.
-        modelContext?.delete(lastSet)
+        deleteSet(lastSet)
         if type == .warmup, warmupSets.isEmpty {
             warmupsDisabledValue = true
         }
+    }
+    /// Takes `workoutSet` out of the exercise and deletes its row too, so it doesn't linger (or sync) as an orphan.
+    private func deleteSet(_ workoutSet: WorkoutSet) {
+        workoutSetsValue?.removeAll { $0 === workoutSet }
+        modelContext?.delete(workoutSet)
     }
     private func deleteAllSets() {
         let sets = workoutSets
@@ -709,18 +693,12 @@ extension WorkoutExercise {
         checkInValue = .none
         checkInSourcePainValue = nil
         // So was the old exercise's plan.
-        rirTargetValue = nil
-        progressionCodeValue = nil
-        progressionNoteValue = nil
-        strengthRoleValue = nil
-        targetRepsValue = nil
-        repOffsetValue = nil
-        intendedLoadKgValue = nil
-        clearPowerJackPlan()
+        clearPlan()
         deleteAllSets()
         addInitialSets()
     }
-    private func addInitialSets() {
+    /// Adds the warmups and working sets every exercise starts with.
+    func addInitialSets() {
         addWarmupSets()
         for _ in 0..<Self.initialSets {
             _ = addSet()
@@ -907,8 +885,6 @@ extension WorkoutExercise {
             move: { other.detach($0); self.attach($0) }
         )
     }
-
-    var hasLoggedSets: Bool { workoutSets.contains { $0.status == .complete } }
 
     static func fromSnapshot(in context: ModelContext) throws -> [WorkoutExercise] {
         try context.fetch(FetchDescriptor<WorkoutExercise>(predicate: #Predicate { $0.fromSnapshotValue }))

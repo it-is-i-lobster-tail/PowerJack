@@ -43,6 +43,7 @@ struct AppScreenTests {
         defer { screen.close() }
 
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.tap("Personalization", settleFor: .milliseconds(600)), "\(screen.labels)")
         let inApp = try #require(screen.label(startingWith: "In-App Timer"), "\(screen.labels)")
         await screen.tap(inApp)
         #expect(defaults.bool(forKey: AppSettings.Key.inAppRestTimer) == false)
@@ -51,7 +52,8 @@ struct AppScreenTests {
         #expect(defaults.bool(forKey: AppSettings.Key.restLiveActivity) == false)
 
         // In memory, turning backup on swaps the container without touching iCloud.
-        await screen.scrollToBottom()
+        #expect(await screen.goBack())
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup)
@@ -59,11 +61,12 @@ struct AppScreenTests {
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
         // The sheet can take longer than a fixed wait to slide away on CI.
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
-        #expect(await screen.waitUntil { screen.label(startingWith: "In-App Timer") == nil }, "\(screen.labels)")
+        #expect(await screen.waitUntil { !screen.contains("Personalization") }, "\(screen.labels)")
     }
 
-    @Test("Switching iCloud Backup keeps Settings open and the chosen section")
+    @Test("Switching iCloud Backup keeps Settings open on Your Data and the chosen section")
     func iCloudSwitchKeepsPlace() async throws {
         let defaults = UserDefaults.standard
         let saved = defaults.object(forKey: AppSettings.Key.iCloudBackup)
@@ -76,12 +79,13 @@ struct AppScreenTests {
 
         await screen.tap("Templates", settleFor: .milliseconds(800))
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
-        await screen.scrollToBottom()
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
         #expect(store.syncsWithICloud)
         #expect(screen.label(startingWith: "iCloud Backup") != nil, "Settings closed: \(screen.labels)")
 
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
     }
@@ -113,7 +117,7 @@ struct AppScreenTests {
 
         // Before the fix, the old page re-rendered on the new container and crashed here.
         #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
-        await screen.scrollToBottom()
+        #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
         await screen.tap(backup, settleFor: .milliseconds(800))
@@ -122,9 +126,60 @@ struct AppScreenTests {
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
         // The new in-memory store is empty, so the screens rebuilt from it show no program.
+        #expect(await screen.goBack())
         await screen.tap("Done", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
         #expect(!screen.contains("Start Workout"), "\(screen.labels)")
+    }
+
+    @Test("Settings lists its groups, and each opens a page holding its settings")
+    func settingsGroups() async throws {
+        let screen = try await HostedView(
+            SettingsView()
+                .modelContainer(container)
+                .environment(PowerJackStore(inMemory: true))
+        )
+        defer { screen.close() }
+
+        // Each group, and a setting that must be on its page and nowhere else.
+        let groups: [(group: String, setting: String)] = [
+            ("Personalization", "In-App Timer"),
+            ("My Gym", "Weight Unit"),
+            ("Appearance", "Dark"),
+            ("Your Data", "iCloud Backup"),
+            ("FAQ", "What is PowerJack?"),
+            ("Legal", "Privacy Policy"),
+            ("Developer Tools", "Trace Logging"),
+        ]
+        for (_, setting) in groups {
+            #expect(screen.label(startingWith: setting) == nil, "\(setting) is loose on the top page: \(screen.labels)")
+        }
+        for (group, setting) in groups {
+            #expect(await screen.tap(group, settleFor: .milliseconds(600)), "\(group): \(screen.labels)")
+            #expect(screen.label(startingWith: setting) != nil, "\(group) is missing \(setting): \(screen.labels)")
+            #expect(await screen.goBack(), "\(group)")
+            #expect(screen.contains("Personalization"), "\(group) didn't go back: \(screen.labels)")
+        }
+    }
+
+    @Test("Weight Unit is a menu: one tap opens it and leaves the unit as it was")
+    func weightUnitMenu() async throws {
+        let defaults = UserDefaults.standard
+        let key = AppSettings.Key.weightUnit
+        let saved = defaults.object(forKey: key)
+        defer { defaults.set(saved, forKey: key) }
+        defaults.set(WeightUnit.pounds.rawValue, forKey: key)
+
+        let screen = try await HostedView(NavigationStack { MyGymSettingsView() })
+        defer { screen.close() }
+
+        // The menu reads its name, then the full unit name.
+        let menu = "Weight Unit, Pounds"
+        #expect(screen.contains(menu), "\(screen.labels)")
+
+        await screen.tap(menu, settleFor: .milliseconds(800))
+        #expect(screen.labelsInAllWindows.contains("Kilograms"), "\(screen.labelsInAllWindows)")
+        #expect(defaults.string(forKey: key) == WeightUnit.pounds.rawValue)
     }
 
     @Test("Rest Between Sets opens a wheel that stays inside 0:30...5:00")
@@ -179,12 +234,11 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Volume", settleFor: .milliseconds(800))
-        #expect(screen.contains("No workouts yet"), "\(screen.labels)")
+        await screen.tap("Volume")
+        #expect(await screen.waitUntil { screen.contains("No workouts yet") }, "\(screen.labels)")
 
         container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
-        await screen.settle(.milliseconds(800))
-        #expect(screen.contains("Chest"), "\(screen.labels)")
+        #expect(await screen.waitUntil { screen.contains("Chest") }, "\(screen.labels)")
         #expect(screen.contains("Hamstrings"), "\(screen.labels)")
     }
 
@@ -223,6 +277,23 @@ struct AppScreenTests {
 
         await screen.tap("Day 1", settleFor: .milliseconds(600))
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
+    }
+
+    @Test("Both swipes on an exercise row show Superset | Edit | Trash, and a full swipe right supersets")
+    func exerciseRowSwipeActions() {
+        let leading = ExerciseRowAction.actions(isLogged: false, from: .leading)
+        let trailing = ExerciseRowAction.actions(isLogged: false, from: .trailing)
+        #expect(leading == [.superset, .edit, .trash])
+        // The trailing edge lists from the right, so on screen it reads the same left to right.
+        #expect(Array(trailing.reversed()) == leading)
+        #expect(leading.first == .superset, "A full swipe right runs the first leading action")
+        #expect(trailing.first == .trash)
+    }
+
+    @Test("A logged exercise's swipes show Superset and Edit but never Trash")
+    func loggedExerciseRowSwipeActions() {
+        #expect(ExerciseRowAction.actions(isLogged: true, from: .leading) == [.superset, .edit])
+        #expect(ExerciseRowAction.actions(isLogged: true, from: .trailing) == [.edit, .superset])
     }
 
     @Test("Browsing exercises opens the selected exercise's details")

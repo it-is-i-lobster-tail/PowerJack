@@ -21,6 +21,8 @@ struct SlidingGlassPicker<Option: Identifiable & Hashable>: View {
     var onTap: (Option) -> Void = { _ in }
     /// Pads the outer options to the same width, so the middle one sits on the picker's center.
     var centersMiddleOption = false
+    /// Stretches to the width it's given, like a tab bar, sharing the room the titles don't need evenly between the options.
+    var fillsWidth = false
 
     @Namespace private var animation
 
@@ -38,16 +40,18 @@ struct SlidingGlassPicker<Option: Identifiable & Hashable>: View {
                     Text(title(option))
                         .font(.default)
                         .fontWeight(.regular)
+                        // A stretched row keeps each title on one line and shares out only the space left over.
+                        .fixedSize(horizontal: fillsWidth, vertical: false)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        // Fills the width a mirrored row gives it, so the selection pill does too.
-                        .frame(maxWidth: centersMiddleOption ? .infinity : nil, minHeight: 44)
+                        // Fills the width the row gives it, so the selection pill does too.
+                        .frame(maxWidth: centersMiddleOption || fillsWidth ? .infinity : nil, minHeight: 44)
                         // The whole pill is tappable, not just the letters.
                         .contentShape(Capsule())
                         .background {
                             if selection == option {
                                 Color.clear
-                                    .glassEffect(.regular, in: Capsule())
+                                    .glassEffect(.regular.tint(.glassSurface.opacity(VisualOpacity.standard)), in: Capsule())
                                     .matchedGeometryEffect(
                                         id: "selection",
                                         in: animation

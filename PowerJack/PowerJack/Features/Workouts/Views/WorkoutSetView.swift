@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import OSLog
 import SwiftData
 
 struct WorkoutSetView: View {
@@ -18,12 +19,12 @@ struct WorkoutSetView: View {
     @ScaledMetric private var weightLabelWidth = 43.0
     @ScaledMetric private var repsLabelWidth = 30.0
     private static let animationDuration = 0.050
-    /// How long Undo stays after a done set is reopened.
-    private static let undoWindow: Duration = .seconds(4)
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.workoutIsReadOnly) private var isReadOnly
+    @Environment(\.workoutAllowsCorrections) private var allowsCorrections
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
@@ -31,17 +32,12 @@ struct WorkoutSetView: View {
     let number: Int
     /// Called with the new weight and the one it replaced.
     let onWeightChange: (Int?, Int?) -> Void
-    /// The set to do next, which stands out from the others.
-    let isCurrent: Bool
 
     // Text-backed so the model updates on every keystroke.
     @State private var repsText: String
     @State private var weightText: String
     @State private var repsSelection: TextSelection?
     @State private var weightSelection: TextSelection?
-    /// What a reopened set held when it was done, while Undo can still put it back.
-    @State private var reopened: (completedAt: Date?, startedAt: Date?)?
-    @State private var undoExpiry: Task<Void, Never>?
     /// Counts sets checked off here, so the success tap is felt for those and not for the watch's.
     @State private var checksHere = 0
 
@@ -50,10 +46,8 @@ struct WorkoutSetView: View {
         workoutSet: WorkoutSet,
         repsOnly: Bool = false,
         number: Int? = nil,
-        isCurrent: Bool = false,
         onWeightChange: @escaping (Int?, Int?) -> Void = { _, _ in }
     ) {
-        self.isCurrent = isCurrent
         self.focusedSetField = focusedSetField
         self.workoutSet = workoutSet
         self.repsOnly = repsOnly
@@ -83,11 +77,6 @@ struct WorkoutSetView: View {
     /// The fields still say what they hold to VoiceOver.
     private var showsFieldCaptions: Bool { !dynamicTypeSize.isAccessibilitySize }
 
-    /// The current set's numbers are bigger, so it reads at a glance from the bench.
-    private var fieldFont: Font {
-        isCurrent ? .title2.monospacedDigit() : .default
-    }
-
     private var statusDescription: String {
         switch workoutSet.status {
         case .complete: "Done"
@@ -106,7 +95,12 @@ struct WorkoutSetView: View {
     }
 
     private var isEditable: Bool {
-        !isReadOnly && workoutSet.status == .active && !workoutSet.locked
+        (!isReadOnly && workoutSet.status == .active && !workoutSet.locked) || isCorrecting
+    }
+
+    /// A logged or skipped set in an unlocked, finished workout: its weight and reps can be fixed, and its status stays.
+    private var isCorrecting: Bool {
+        allowsCorrections && workoutSet.canCorrect
     }
 
     /// Zero reps are shown as invalid and never saved.
@@ -120,8 +114,15 @@ struct WorkoutSetView: View {
     }
 
     /// A set can only be checked off once its weight and reps are entered; a checked set can always be unchecked.
+    /// A skipped warmup shows a check like a logged one: it's out of the way, and a tap opens it again.
+    private var showsCheck: Bool {
+        workoutSet.status == .complete || (workoutSet.isWarmup && workoutSet.status == .skipped)
+    }
+
     private var canToggleCompletion: Bool {
-        guard !isReadOnly, !workoutSet.locked else { return false }
+        guard !isReadOnly else { return false }
+        if workoutSet.status == .skipped { return workoutSet.canReopenSkippedWarmup }
+        guard !workoutSet.locked else { return false }
         if workoutSet.status == .complete { return true }
         return isFullyLogged && !repsInvalid
     }
@@ -192,7 +193,6 @@ struct WorkoutSetView: View {
                         .focused(focusedSetField, equals: .weight(workoutSet.id))
                     }
                 }
-                .font(fieldFont)
                 .transition(
                     .scale(scale: 0.95, anchor: .center)
                     .combined(with: .opacity)
@@ -222,7 +222,6 @@ struct WorkoutSetView: View {
                 .frame(width: fieldWidth, height: fieldHeight)
                 .contentShape(.rect)
                 .onTapGesture { focus(.reps(workoutSet.id)) }
-                .font(fieldFont)
                 .foregroundStyle(repsInvalid ? .red : .primary)
                 .focused(focusedSetField, equals: .reps(workoutSet.id))
                 .transition(
@@ -235,53 +234,43 @@ struct WorkoutSetView: View {
                 )
                 .accessibilityLabel("\(accessibilityName) reps")
 
-                if reopened != nil {
-                    // A brushed tap reopens a done set. Undo puts it back as it was.
-                    Button("Undo", action: undoReopen)
-                        .font(.caption.weight(.semibold))
-                        .frame(width: 44, height: 44)
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHint("Marks \(accessibilityName) done again")
-                } else {
-                    Button(action: toggleCompletion) {
-                        ZStack {
-                            Image(systemName: "circle")
-                                .font(.system(size: 35, weight: .thin))
+                Button(action: toggleCompletion) {
+                    ZStack {
+                        Image(systemName: "circle")
+                            .font(.system(size: 35, weight: .thin))
 
-                            if workoutSet.status == .complete {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 17, weight: .bold))
-                                    .transition(
-                                        .symbolEffect(
-                                            .drawOn,
-                                            options: .speed(2.2)
-                                        )
+                        if showsCheck {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .transition(
+                                    .symbolEffect(
+                                        .drawOn,
+                                        options: .speed(2.2)
                                     )
-                                    .foregroundStyle(.green)
-                            } else if workoutSet.status == .skipped {
-                                Image(systemName: "forward")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                            } else if workoutSet.locked {
-                                Image(systemName: "lock")
-                                    .font(.system(size: 13, weight: .semibold))
-                            }
+                                )
+                                .foregroundStyle(.green)
+                        } else if workoutSet.status == .skipped {
+                            Image(systemName: "forward")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        } else if workoutSet.locked {
+                            Image(systemName: "lock")
+                                .font(.system(size: 13, weight: .semibold))
                         }
-                        // Only the circle is tappable, so taps near the reps field stay there.
-                        .frame(width: 44, height: 44)
-                        .contentShape(Circle())
                     }
-                    // A plain style stops the List from turning the whole row into this button.
-                    .buttonStyle(.plain)
-                    .disabled(!canToggleCompletion)
-                    .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
-                    .accessibilityLabel(accessibilityName)
-                    .accessibilityValue(statusDescription)
-                    .accessibilityHint(workoutSet.status == .complete ? "Reopens the set" : "Logs the set at the weight and reps entered")
-                    // Felt as well as seen, with the phone on the bench.
-                    .sensoryFeedback(.success, trigger: checksHere)
+                    // Only the circle is tappable, so taps near the reps field stay there.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                 }
+                // A plain style stops the List from turning the whole row into this button.
+                .buttonStyle(.plain)
+                .disabled(!canToggleCompletion)
+                .opacity(canToggleCompletion || workoutSet.locked ? 1 : VisualOpacity.light)
+                .accessibilityLabel(accessibilityName)
+                .accessibilityValue(statusDescription)
+                .accessibilityHint(showsCheck ? "Reopens the set" : "Logs the set at the weight and reps entered")
+                // Felt as well as seen, with the phone on the bench.
+                .sensoryFeedback(.success, trigger: checksHere)
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 5)
@@ -290,14 +279,6 @@ struct WorkoutSetView: View {
             .animation(.easeInOut(duration: Self.animationDuration), value: focusedSetField.wrappedValue)
             .powerJackGlassCard()
         }
-        // Outside the glass, which would draw over it.
-        .overlay {
-            if isCurrent {
-                RoundedRectangle(cornerRadius: LayoutMetrics.cardCornerRadius)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
-                    .allowsHitTesting(false)
-            }
-        }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .onChange(of: focusedSetField.wrappedValue) { _, field in
             // The whole value is selected on focus, so typing replaces it instead of adding to it.
@@ -305,6 +286,15 @@ struct WorkoutSetView: View {
                 weightSelection = Self.selectingAll(weightText)
             } else if field == .reps(workoutSet.id) {
                 repsSelection = Self.selectingAll(repsText)
+            }
+            // A fix that can't be saved, such as an emptied box, shows what's logged again.
+            if isCorrecting {
+                if field != .weight(workoutSet.id) {
+                    weightText = Self.text(forWeight: workoutSet.weightTenthsPounds, in: weightUnit)
+                }
+                if field != .reps(workoutSet.id) {
+                    repsText = Self.text(forReps: workoutSet.reps)
+                }
             }
         }
         .onChange(of: repsText) { oldValue, newValue in
@@ -338,6 +328,7 @@ struct WorkoutSetView: View {
     /// Lets a tap anywhere on a field's box focus it, not just on the text itself.
     private func focus(_ field: FocusedSetField) {
         guard isEditable else { return }
+        idleControls?.noteSetTap()
         // Runs after the app-wide tap-outside handler so the new focus sticks.
         Task { focusedSetField.wrappedValue = field }
     }
@@ -359,6 +350,12 @@ struct WorkoutSetView: View {
         // Zero reps are stored as nil so they can never be saved.
         let newValue = Int(allowed)
         guard newValue != workoutSet.reps else { return }
+        if isCorrecting {
+            if let newValue, WorkoutSet.isValidReps(newValue), workoutSet.correctReps(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.reps = newValue
         saveEntry()
     }
@@ -376,6 +373,13 @@ struct WorkoutSetView: View {
         let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
+        // A fix changes this set alone; the sets after it keep what they logged.
+        if isCorrecting {
+            if let newValue, workoutSet.correctWeight(newValue) {
+                saveCorrection()
+            }
+            return
+        }
         workoutSet.weightTenthsPounds = newValue
         onWeightChange(newValue, previousValue)
         saveEntry()
@@ -384,6 +388,16 @@ struct WorkoutSetView: View {
     /// Saved as it's typed, so it's never lost and the watch shows it straight away.
     private func saveEntry() {
         modelContext.saveTraced("set entry")
+    }
+
+    /// Saved as it's typed, like a live entry, and copied to the long history if the program has ended.
+    private func saveCorrection() {
+        do {
+            try HistoryArchive.correct(workoutSet, in: modelContext)
+        } catch {
+            Logger.persistence.error("Could not correct a set's saved history: \(error.localizedDescription)")
+        }
+        modelContext.saveTraced("set corrected")
     }
 
     /// In tenths of a pound. 0 is only a weight for loadable bodyweight, where it is bodyweight alone,
@@ -423,37 +437,21 @@ struct WorkoutSetView: View {
     }
 
     private func toggleCompletion() {
-        if workoutSet.status != .complete {
+        idleControls?.noteSetTap()
+        switch workoutSet.status {
+        case .complete:
+            workoutSet.start()
+            // Saved now, so the watch shows the set open again and quitting doesn't lose it.
+            modelContext.saveTraced("set reopened")
+        case .skipped:
+            workoutSet.reopenSkippedWarmup()
+            modelContext.saveTraced("warmup reopened")
+        default:
             withAnimation {
                 completeSet()
             }
             if workoutSet.status == .complete { checksHere += 1 }
-        } else {
-            let wasDone = (completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
-            workoutSet.start()
-            // Saved now, so the watch shows the set open again and quitting doesn't lose it.
-            modelContext.saveTraced("set reopened")
-            offerUndo(restoring: wasDone)
         }
-    }
-
-    private func offerUndo(restoring wasDone: (completedAt: Date?, startedAt: Date?)) {
-        undoExpiry?.cancel()
-        withAnimation { reopened = wasDone }
-        undoExpiry = Task {
-            try? await Task.sleep(for: Self.undoWindow)
-            guard !Task.isCancelled else { return }
-            withAnimation { reopened = nil }
-        }
-    }
-
-    private func undoReopen() {
-        undoExpiry?.cancel()
-        if let reopened {
-            workoutSet.undoReopen(completedAt: reopened.completedAt, startedAt: reopened.startedAt)
-            modelContext.saveTraced("set reopen undone")
-        }
-        withAnimation { reopened = nil }
     }
 
     private func completeSet() {

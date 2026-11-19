@@ -102,6 +102,11 @@ final class HostedView {
         elements().first { $0.accessibilityLabel == label }?.accessibilityFrame
     }
 
+    /// Where every element with this label sits on screen, for labels shown in more than one place.
+    func frames(of label: String) -> [CGRect] {
+        elements().filter { $0.accessibilityLabel == label }.map(\.accessibilityFrame)
+    }
+
     /// Steps the adjustable element at `index` (in screen order), like swiping up or down in VoiceOver.
     @discardableResult
     func adjust(at index: Int, increment: Bool) async -> Bool {
@@ -219,6 +224,23 @@ final class HostedView {
             scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: bottom), animated: false)
         }
         await settle()
+    }
+
+    /// Goes back one page in the front-most navigation stack, like the back button.
+    @discardableResult
+    func goBack(settleFor duration: Duration = .milliseconds(600)) async -> Bool {
+        func stack(in controller: UIViewController) -> UINavigationController? {
+            if let navigation = controller as? UINavigationController, navigation.viewControllers.count > 1 {
+                return navigation
+            }
+            return controller.children.lazy.compactMap(stack).first
+        }
+        var front = window.rootViewController
+        while let presented = front?.presentedViewController { front = presented }
+        guard let front, let navigation = stack(in: front) else { return false }
+        navigation.popViewController(animated: false)
+        await settle(duration)
+        return true
     }
 
     /// Ends editing, like tapping outside the keyboard.

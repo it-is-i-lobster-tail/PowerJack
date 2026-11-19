@@ -101,6 +101,7 @@ struct ExerciseSelectionView: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 
     private func selectOrEdit(_ exercise: Exercise) {

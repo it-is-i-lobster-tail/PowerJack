@@ -42,6 +42,7 @@ struct SubstitutePicker: View {
                 }
             }
         }
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .traceScreen("Substitute Picker")
     }
 

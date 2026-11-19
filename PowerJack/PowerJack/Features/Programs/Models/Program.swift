@@ -32,8 +32,7 @@ final class Program {
     // True when the watch made this row from the iPhone's snapshot.
     var fromSnapshotValue: Bool = false
 
-    private static var programWeekValueMax = 12
-    private static var initialWeekSets = 2
+    private static let programWeekValueMax = 12
 
     init(programLengthWeeks: Int, templateProgram: TemplateProgram) {
         self.programLengthWeeksValue = min(
@@ -92,10 +91,7 @@ final class Program {
                 }
 
                 newWorkoutExercise.setSuperset(templateExercise.supersetID)
-                newWorkoutExercise.addWarmupSets()
-                for _ in 0..<Self.initialWeekSets {
-                    _ = newWorkoutExercise.addSet()
-                }
+                newWorkoutExercise.addInitialSets()
             }
         }
     }
@@ -121,15 +117,7 @@ extension Program: StatusProviding {}
 // Derived Values
 //
 extension Program {
-    private var allWorkouts: [Workout] {
-        var workouts: [Workout] = []
-        for programWeek in self.programWeeks {
-            for workout in programWeek.workouts {
-                workouts.append(workout)
-            }
-        }
-        return workouts
-    }
+    private var allWorkouts: [Workout] { programWeeks.flatMap(\.workouts) }
 
     var totalWorkouts: Int { programLengthWeeks * workoutsPerWeek }
 
@@ -154,20 +142,14 @@ extension Program {
 
     var nextWorkout: Workout? {
         guard status == .active else { return nil }
-        let workouts = programWeeks.flatMap(\.workouts)
+        let workouts = allWorkouts
         return workouts.first { $0.status == .active }
             ?? workouts.first { $0.status == .planned }
     }
 
-    // NOTE: Finished != Complete. Only count skipped or complete.
+    /// Workouts completed or skipped. Unlike `Workout.isFinished`, a stopped workout doesn't count.
     var workoutsFinished: Int {
-        var c: Int = 0
-        for workout in allWorkouts {
-            if workout.status == Status.complete || workout.status == Status.skipped {
-                c = c + 1
-            }
-        }
-        return c
+        allWorkouts.count { $0.status == .complete || $0.status == .skipped }
     }
 
     /// 1-based week number of the week holding `workout`.
@@ -205,7 +187,7 @@ extension Program {
     func stop() {
         guard
             !lockedValue,
-            status == .planned || status == .active
+            status.isOpen
         else {
             Logger.program.warning("Cannot stop a locked Program.")
             return
@@ -213,7 +195,7 @@ extension Program {
         // What was trained in the week left partway through still counts toward its planner's records.
         if status == .active,
            let week = nextWorkout.flatMap(programWeek(containing:)),
-           week.workouts.contains(where: { $0.workoutExercises.contains { $0.completedWorkingSets > 0 } }) {
+           week.workouts.contains(where: { $0.completedWorkingSets > 0 }) {
             templateType.weekPlanner.close(week, in: self)
         }
         statusValue = Status.stopped
@@ -284,7 +266,7 @@ extension Program {
         status == .active
             && workout.status == .skipped
             && programWeek(containing: workout)?.status == .active
-            && !programWeeks.contains { $0.workouts.contains { $0.status == .active } }
+            && !allWorkouts.contains { $0.status == .active }
     }
     /// Undoes Skip Workout, taking back the history the skip wrote for its finished sets.
     func restoreWorkout(_ workout: Workout) {
@@ -335,10 +317,7 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.completeAndCascade()
         }
-        #if os(iOS)
-        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
-        saveHistory()
-        #endif
+        keepInHistory()
     }
     func stopAndCascade() {
         guard status == .stopped else {
@@ -348,8 +327,11 @@ extension Program {
         for programWeek in programWeeks {
             programWeek.stopAndCascade()
         }
+        keepInHistory()
+    }
+    /// The iPhone keeps the ended program in the long history (see `HistoryArchive`).
+    private func keepInHistory() {
         #if os(iOS)
-        // The iPhone keeps the ended program in the long history (see `HistoryArchive`).
         saveHistory()
         #endif
     }
@@ -457,14 +439,14 @@ extension Program {
     /// Stops this program because the iPhone, which referees, says another one is running.
     /// The iPhone already closed its week, so only the status changes here.
     func stopForReferee() {
-        guard status == .planned || status == .active else { return }
+        guard status.isOpen else { return }
         statusValue = .stopped
         lockedValue = true
     }
 
-    var hasLoggedSets: Bool { programWeeks.contains { $0.workouts.contains(where: \.hasLoggedSets) } }
+    var hasLoggedSets: Bool { allWorkouts.contains(where: \.hasLoggedSets) }
 
-    var lastLoggedAt: Date? { programWeeks.flatMap(\.workouts).compactMap(\.lastLoggedAt).max() }
+    var lastLoggedAt: Date? { allWorkouts.compactMap(\.lastLoggedAt).max() }
 
     static func fromSnapshot(in context: ModelContext) throws -> [Program] {
         try context.fetch(FetchDescriptor<Program>(predicate: #Predicate { $0.fromSnapshotValue }))
