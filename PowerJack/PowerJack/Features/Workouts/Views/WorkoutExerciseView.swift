@@ -47,8 +47,6 @@ struct WorkoutExerciseView: View {
         // The exercise's name and equipment are in the header bubble above.
         ScrollView {
             VStack(spacing: 0) {
-                notes
-
                 if workoutExercise.showsWarmups {
                     warmupGroup
                 }
@@ -60,6 +58,12 @@ struct WorkoutExerciseView: View {
             .frame(maxWidth: .infinity)
             // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
             .padding(.top, LayoutMetrics.compactSpacing * 2)
+        }
+        // The notes sit in a bar above the sets, outside the scroll view, so the system fade can't reach them.
+        .safeAreaBar(edge: .top) {
+            notes
+                .frame(maxWidth: .infinity)
+                .padding(.top, LayoutMetrics.compactSpacing * 2)
         }
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
