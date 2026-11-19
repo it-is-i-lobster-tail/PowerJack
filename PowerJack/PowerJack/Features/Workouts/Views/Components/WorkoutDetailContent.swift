@@ -39,6 +39,8 @@ struct WorkoutDetailContent: View {
             pageScroll: pageScroll,
             pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
         )
+        // The hard edge has a fixed reach, so it stops above the first line.
+        .scrollEdgeEffectStyle(.hard, for: .top)
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
