@@ -69,6 +69,8 @@ struct WorkoutDetailView: View {
     @State private var supersetSheet: SupersetSheet?
     /// Finish Workout is asking partly logged exercises for feedback, one at a time, before it finishes.
     @State private var finishesAfterFeedback = false
+    /// Where the pages are scrolled to. The strip and the header follow it.
+    @State private var pageScroll = ExercisePageScroll()
 
     /// Lets a set's check draw in before a superset slides to the next exercise.
     private static let supersetSlideDelay = 0.35
@@ -119,6 +121,11 @@ struct WorkoutDetailView: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
+    /// The exercise on each page for the header, with Review's nil after them in a live workout.
+    private var headerPages: [Exercise?] {
+        workout.workoutExercises.map(\.shownExercise) + (isReadOnly ? [] : [nil])
+    }
+
     var body: some View {
         if workout.workoutExercises.isEmpty {
             // Nothing to log, so skipping is the way on to the next workout.
@@ -148,7 +155,8 @@ struct WorkoutDetailView: View {
                         onSelectExercise: selectExercise,
                         onSkipRemainingSets: skipRemainingSets,
                         onFinish: finishWorkout
-                    )
+                    ),
+                    pageScroll: pageScroll
                 )
                 // The sets scroll up under the navigation bar. The reader still measures the bar,
                 // so the content can add room for it.
@@ -161,7 +169,9 @@ struct WorkoutDetailView: View {
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
                             exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
-                            holdsWidth: controlsHidden
+                            isCompact: controlsHidden,
+                            pages: headerPages,
+                            pageScroll: pageScroll
                         )
                     }
 
