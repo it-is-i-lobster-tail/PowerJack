@@ -14,7 +14,7 @@ import UIKit
 @Observable
 final class IdleControls {
     static let idleDelay = Duration.seconds(3)
-    static let fade = Animation.easeInOut(duration: 0.4)
+    static let fade = Animation.easeInOut(duration: 0.3)
     /// A set tap and the window's tap land together, in either order.
     private static let tapWindow = Duration.milliseconds(300)
 
