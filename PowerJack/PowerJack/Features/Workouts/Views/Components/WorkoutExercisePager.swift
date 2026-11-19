@@ -46,7 +46,7 @@ struct WorkoutExercisePager: View {
                             // The List keeps scrolling and its swipe actions while the pager is held still.
                             .environment(\.isScrollEnabled, true)
                             .safeAreaPadding(pageInsets)
-                            .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
+                            .safeAreaPadding(.top, LayoutMetrics.compactSpacing + WorkoutDetailContent.topFadeLift)
                             .containerRelativeFrame(.horizontal)
                             .id(workoutExercises.count)
                     }
