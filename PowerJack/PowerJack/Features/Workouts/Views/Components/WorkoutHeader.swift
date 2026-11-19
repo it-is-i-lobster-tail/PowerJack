@@ -10,6 +10,10 @@ import SwiftUI
 struct WorkoutHeader: View {
     /// The exercise on screen. Nil on the Review page.
     let exercise: Exercise?
+    /// Keeps the width it has now, so it doesn't grow while the bar's buttons fade away beside it.
+    var holdsWidth = false
+
+    @State private var width: CGFloat?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +35,10 @@ struct WorkoutHeader: View {
             // The same glass as the bottom bar, so the top and bottom match.
             Color.clear
                 .glassEffect(.powerJackBar, in: .capsule)
+        }
+        .frame(maxWidth: holdsWidth ? width : nil)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { newWidth in
+            if !holdsWidth { width = newWidth }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)

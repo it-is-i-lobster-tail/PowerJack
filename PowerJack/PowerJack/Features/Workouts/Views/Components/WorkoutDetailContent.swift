@@ -17,6 +17,8 @@ struct WorkoutDetailContent: View {
     let onExerciseSetsDone: (WorkoutExercise) -> Void
     var review: WorkoutReviewView? = nil
 
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
+
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
 
@@ -50,6 +52,7 @@ struct WorkoutDetailContent: View {
             .padding(.top, Self.stripFade)
             .background { EdgeBlur(edge: .bottom, fadeLength: Self.stripFade) }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
+            .fadesWhenIdle(idleControls)
         }
         .frame(width: screenWidth)
     }

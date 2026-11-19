@@ -26,6 +26,7 @@ struct WorkoutSetView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.workoutIsReadOnly) private var isReadOnly
     @Environment(\.workoutAllowsCorrections) private var allowsCorrections
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
     @AppStorage(AppSettings.Key.weightUnit) private var weightUnit = WeightUnit.deviceDefault
     @Bindable var workoutSet: WorkoutSet
     let repsOnly: Bool
@@ -342,6 +343,7 @@ struct WorkoutSetView: View {
     /// Lets a tap anywhere on a field's box focus it, not just on the text itself.
     private func focus(_ field: FocusedSetField) {
         guard isEditable else { return }
+        idleControls?.noteSetTap()
         // Runs after the app-wide tap-outside handler so the new focus sticks.
         Task { focusedSetField.wrappedValue = field }
     }
@@ -450,6 +452,7 @@ struct WorkoutSetView: View {
     }
 
     private func toggleCompletion() {
+        idleControls?.noteSetTap()
         switch workoutSet.status {
         case .complete:
             let wasDone = ReopenedSet.done(completedAt: workoutSet.completedAt, startedAt: workoutSet.startedAt)
