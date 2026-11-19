@@ -159,7 +159,7 @@ struct ExercisePreviewStrip: View {
             }
     }
 
-    /// One line under all of a superset's cards, drawn from its first card.
+    /// One line in the superset's color under all of its cards, drawn from its first card.
     @ViewBuilder
     private func supersetUnderline(from index: Int, cardWidth: CGFloat, spacing: CGFloat) -> some View {
         let workoutExercise = workoutExercises[index]
@@ -167,7 +167,7 @@ struct ExercisePreviewStrip: View {
         if !partners.isEmpty, index == 0 || !partners.contains(where: { $0 === workoutExercises[index - 1] }) {
             let count = CGFloat(partners.count + 1)
             Capsule()
-                .fill(Color.accentColor)
+                .fill(workoutExercise.supersetColor ?? .accentColor)
                 .frame(width: cardWidth * count + spacing * (count - 1), height: 3)
                 .offset(y: Self.underlineGap)
                 .accessibilityHidden(true)
