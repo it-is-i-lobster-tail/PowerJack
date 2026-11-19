@@ -39,15 +39,6 @@ struct WorkoutDetailContent: View {
             pageScroll: pageScroll,
             pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
         )
-        .overlay(alignment: .top) {
-            EdgeBlur(edge: .top)
-                .frame(height: topInset)
-                // DEBUG: outlines the top fade's rectangle. Remove before merging.
-                .overlay {
-                    Rectangle().stroke(.blue, lineWidth: 1)
-                        .ignoresSafeArea(edges: .top)
-                }
-        }
         .overlay(alignment: .bottom) {
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
