@@ -43,6 +43,10 @@ struct SupersetPicker: View {
                         Text("\(name.localizedCapitalized) stays first. What you pick moves to follow it.")
                             .textCase(nil)
                     }
+                } footer: {
+                    if !workout.canStartSuperset {
+                        Text(SupersetStyle.limitNote)
+                    }
                 }
             }
             .navigationTitle("Add to Superset")
@@ -62,7 +66,7 @@ struct SupersetPicker: View {
             VStack(alignment: .leading, spacing: 0) {
                 Label("Superset \(workout.supersetLetter(for: choice))", systemImage: "link")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.indigo)
+                    .foregroundStyle(choice[0].supersetColor ?? .indigo)
                     // Start the row's divider in line with the exercise names, not under the label text after the icon.
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     .padding(.horizontal, 15)

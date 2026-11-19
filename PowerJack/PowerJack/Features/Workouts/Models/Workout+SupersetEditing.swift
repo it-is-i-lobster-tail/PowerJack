@@ -25,16 +25,25 @@ extension Workout {
 
     /// "A" for the workout's first superset, "B" for the second, and so on.
     func supersetLetter(for superset: [WorkoutExercise]) -> String {
+        Self.supersetLetter(at: supersets.firstIndex { $0.first === superset.first } ?? 0)
+    }
+
+    static func supersetLetter(at index: Int) -> String {
         let letters = TemplateWorkoutDraft.supersetLetters
-        let index = supersets.firstIndex { $0.first === superset.first } ?? 0
         return letters[min(index, letters.count - 1)]
     }
 
+    /// A new superset can start until the workout has five.
+    var canStartSuperset: Bool { supersets.count < SupersetStyle.maxPerWorkout }
+
     /// What `workoutExercise` can be stacked with: each other exercise on its own and each superset, in order.
-    /// Finished ones are left out, since there's nothing left to do in turn with them.
+    /// Finished ones are left out, since there's nothing left to do in turn with them. Once the workout
+    /// has five supersets, only those can be joined.
     func supersetChoices(for workoutExercise: WorkoutExercise) -> [[WorkoutExercise]] {
         exerciseGroups.filter { group in
-            !group.contains { $0 === workoutExercise } && !group.allSatisfy(\.isDone)
+            !group.contains { $0 === workoutExercise }
+                && !group.allSatisfy(\.isDone)
+                && (group.count > 1 || canStartSuperset)
         }
     }
 
@@ -43,6 +52,7 @@ extension Workout {
     func addToSuperset(_ workoutExercise: WorkoutExercise, with group: [WorkoutExercise]) {
         guard
             canEditSupersets,
+            group.count > 1 || canStartSuperset,
             workoutExercise.supersetPartners.isEmpty,
             let first = group.first,
             !group.contains(where: { $0 === workoutExercise })
@@ -107,5 +117,18 @@ extension Workout {
             workoutExercise.order = order
         }
         TraceLog.record(.workout, "Changed the supersets of \(traceDescription)")
+    }
+}
+
+extension WorkoutExercise {
+    /// Where this exercise's superset sits in the workout: 0 for A, 1 for B. Nil when it stands alone.
+    var supersetIndex: Int? {
+        guard supersetID != nil, let workout = workoutValue else { return nil }
+        return workout.supersets.firstIndex { $0.contains { $0 === self } }
+    }
+
+    /// The color of this exercise's superset, or nil when it stands alone.
+    var supersetColor: Color? {
+        supersetIndex.map(SupersetStyle.color(at:))
     }
 }

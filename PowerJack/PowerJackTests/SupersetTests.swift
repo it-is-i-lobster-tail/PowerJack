@@ -183,7 +183,7 @@ struct SupersetTests {
         #expect(day.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["B", "A"], ["D", "C"]])
     }
 
-    @Test("Letters follow the supersets' order, and stop at Z")
+    @Test("Letters follow the supersets' order, and new ones stop at E")
     func supersetLetters() throws {
         var day = makeDay(["A", "B", "C"])
         day.startSuperset(with: day.blocks[0])
@@ -193,14 +193,19 @@ struct SupersetTests {
         #expect(day.supersetLetter(for: day.blocks[0]) == "A")
         #expect(day.supersetLetter(for: day.blocks[1]) == "B")
 
-        var full = makeDay((0..<27).map(String.init))
-        for _ in 0..<27 {
+        var full = makeDay((0..<7).map(String.init))
+        for _ in 0..<7 {
             if let lone = full.blocks.first(where: { !$0.isSuperset }) {
                 full.startSuperset(with: lone)
             }
         }
-        #expect(full.supersets.count == 26)
+        #expect(full.supersets.count == 5)
+        #expect(full.supersets.map { full.supersetLetter(for: $0) } == ["A", "B", "C", "D", "E"])
         #expect(!full.canStartSuperset)
+        // Joining one of the five still works.
+        let lone = try #require(full.blocks.first { !$0.isSuperset })
+        full.add(lone, to: full.supersets[0])
+        #expect(full.supersets[0].exercises.count == 2)
     }
 
     @Test("Moving a superset moves its exercises together, and removing a neighbor keeps it intact")
