@@ -25,7 +25,7 @@ struct WorkoutDetailContent: View {
 
     private static let stripFade = LayoutMetrics.compactSpacing * 2
     /// The fades under the top bar end this far above the bar's bottom edge, so they stay off the first line.
-    static let topFadeLift = LayoutMetrics.compactSpacing
+    static let topFadeLift = LayoutMetrics.compactSpacing * 2
 
     var body: some View {
         // The sets fill the screen and scroll under the bars, but come to rest between them.
