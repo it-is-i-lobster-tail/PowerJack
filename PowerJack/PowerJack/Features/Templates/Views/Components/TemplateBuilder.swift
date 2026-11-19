@@ -273,6 +273,7 @@ struct TemplateWorkoutBuilder: View {
             } label: {
                 SupersetBuilder(
                     letter: templateWorkoutDraft.supersetLetter(for: block),
+                    color: SupersetStyle.color(at: templateWorkoutDraft.supersetIndex(for: block)),
                     exercises: block.exercises.map(\.exercise),
                     logged: block.exercises.map { loggedExercises.contains($0.id) }
                 )
@@ -305,6 +306,10 @@ struct TemplateWorkoutBuilder: View {
                     titleVisibility: .visible
                 ) {
                     supersetChoices(for: block)
+                } message: {
+                    if !templateWorkoutDraft.canStartSuperset {
+                        Text(SupersetStyle.limitNote)
+                    }
                 }
         }
     }
@@ -413,6 +418,7 @@ struct TemplateExerciseBuilder: View {
 /// Exercises stacked into a superset share one card, done one set of each in turn.
 struct SupersetBuilder: View {
     let letter: String
+    var color: Color = SupersetStyle.color(at: 0)
     let exercises: [Exercise]
     /// Whether each exercise has sets logged in a workout in progress.
     var logged: [Bool] = []
@@ -427,7 +433,7 @@ struct SupersetBuilder: View {
                     .foregroundStyle(.tertiary)
             }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.indigo)
+                .foregroundStyle(color)
                 .padding(.horizontal, 15)
                 .padding(.top, 8)
 

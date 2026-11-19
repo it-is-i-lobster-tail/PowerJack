@@ -58,6 +58,8 @@ struct WorkoutExerciseView: View {
                     .padding(.top, LayoutMetrics.compactSpacing)
             }
             .frame(maxWidth: .infinity)
+            // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
+            .padding(.top, LayoutMetrics.compactSpacing * 2)
         }
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
@@ -82,10 +84,11 @@ struct WorkoutExerciseView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let supersetText {
+            if let supersetText, let index = workoutExercise.supersetIndex {
                 Label(supersetText, systemImage: "link")
                     .font(.caption)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(SupersetStyle.color(at: index))
+                    .accessibilityLabel(SupersetStyle.fullLabel(partners: supersetPartnerNames))
             }
             if workoutExercise.checkInPending {
                 Label("Check-in required", systemImage: "cross.case")
@@ -102,11 +105,15 @@ struct WorkoutExerciseView: View {
         return "Sub for \(planned.exerciseName) · this week"
     }
 
-    /// e.g. "Superset with Skull Crusher".
+    /// e.g. "Superset with Skull Crusher", or "Superset B" when the names are too long.
     private var supersetText: String? {
-        let partners = workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
-        guard !partners.isEmpty else { return nil }
-        return "Superset with \(partners.formatted(.list(type: .and)))"
+        let partners = supersetPartnerNames
+        guard !partners.isEmpty, let index = workoutExercise.supersetIndex else { return nil }
+        return SupersetStyle.label(letter: Workout.supersetLetter(at: index), partners: partners)
+    }
+
+    private var supersetPartnerNames: [String] {
+        workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
     }
 
     private var warmupGroup: some View {

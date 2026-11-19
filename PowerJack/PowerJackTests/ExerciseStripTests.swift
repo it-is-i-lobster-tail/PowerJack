@@ -108,6 +108,24 @@ struct ExerciseStripTests {
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 3) == 0)
     }
 
+    @Test("A card's name grows smoothly from caption size a page away to body size on its page")
+    func nameSizeFollowsThePages() {
+        let resting = ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .large)
+        #expect(abs(resting - 12.0 / 17.0) < 0.001)
+        #expect(ExercisePreviewStrip.textScale(focus: 1, dynamicTypeSize: .large) == 1)
+
+        // Every small step of a swipe changes the size a little, never a jump.
+        let steps = stride(from: 0.0, through: 1.0, by: 0.05).map { ExercisePreviewStrip.textScale(focus: $0, dynamicTypeSize: .large) }
+        for (smaller, bigger) in zip(steps, steps.dropFirst()) {
+            #expect(bigger > smaller)
+            #expect(bigger - smaller < 0.02)
+        }
+
+        // Past the strip's Dynamic Type cap, the name stops changing.
+        #expect(ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .accessibility5)
+            == ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .xxxLarge))
+    }
+
     // MARK: Helpers
 
     private func workoutScreen(_ workout: Workout) -> some View {

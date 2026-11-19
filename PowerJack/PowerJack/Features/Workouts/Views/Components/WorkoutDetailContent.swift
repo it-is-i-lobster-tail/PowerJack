@@ -27,6 +27,7 @@ struct WorkoutDetailContent: View {
 
     var body: some View {
         // The sets fill the screen and scroll under the bars, but come to rest between them.
+        // The top inset ends where the bar does, so the fade under it stays clear of the first line.
         WorkoutExercisePager(
             screenWidth: screenWidth,
             workoutExercises: workoutExercises,
@@ -36,7 +37,7 @@ struct WorkoutDetailContent: View {
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            pageInsets: EdgeInsets(top: topInset + LayoutMetrics.compactSpacing, leading: 0, bottom: stripHeight, trailing: 0)
+            pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
