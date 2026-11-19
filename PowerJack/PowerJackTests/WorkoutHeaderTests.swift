@@ -64,8 +64,23 @@ struct WorkoutHeaderTests {
         let compactFrame = try #require(screen.frame(of: "Bench"))
 
         #expect(compactFrame.width < fullFrame.width)
+        // The accessibility frame takes in the folded equipment line, so only the sideways
+        // position is checked here. The navigation bar re-centering it is what made it jiggle.
         #expect(abs(compactFrame.midX - fullFrame.midX) < 1)
-        #expect(abs(compactFrame.midY - fullFrame.midY) < 1)
+    }
+
+    @Test("A short name's compact bubble isn't held wide by its equipment")
+    func shortNameCompactWidth() async throws {
+        let dip = Exercise(exerciseName: "Dip", exerciseEquipment: .bodyweight, primaryMuscleFocus: .chest)
+        let compact = try await HostedView(WorkoutHeader(exercise: dip, isCompact: true))
+        defer { compact.close() }
+        let compactFrame = try #require(compact.frame(of: "Dip"))
+        let review = try await HostedView(WorkoutHeader(exercise: nil, isCompact: true))
+        defer { review.close() }
+        let reviewFrame = try #require(review.frame(of: "Review"))
+
+        // "Dip" is shorter than "Review", so its bubble must be too, whatever its equipment.
+        #expect(compactFrame.width < reviewFrame.width)
     }
 
     @Test("The Review page stays one line either way")

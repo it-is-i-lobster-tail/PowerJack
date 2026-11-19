@@ -18,15 +18,26 @@ struct WorkoutHeader: View {
     /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
     @State private var fullSize: CGSize?
 
+    private var title: String { exercise?.exerciseName ?? "Review" }
+
+    private var accessibilityText: String {
+        guard let exercise, !isCompact else { return title }
+        return "\(title), \(exercise.equipment.displayName)"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            Text(exercise?.exerciseName ?? "Review")
+            Text(title)
                 .font(isCompact ? .headline : .title3.weight(.semibold))
-            if let exercise, !isCompact {
+            if let exercise {
+                // Stays in place and folds away, so it never sits outside the bubble mid-animation.
                 Text(exercise.equipment.displayName)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .transition(.opacity)
+                    .fixedSize()
+                    .opacity(isCompact ? 0 : 1)
+                    .frame(width: isCompact ? 0 : nil, height: isCompact ? 0 : nil, alignment: .top)
+                    .clipped()
             }
         }
         // A long name tightens and shrinks before it's cut short, so it stays one line in the bar.
@@ -40,7 +51,8 @@ struct WorkoutHeader: View {
             Color.clear
                 .glassEffect(.powerJackBar, in: .capsule)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isHeader)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             if !isCompact { fullSize = size }
