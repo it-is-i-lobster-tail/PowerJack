@@ -61,6 +61,8 @@ struct WorkoutExerciseView: View {
             // Room below the bar, inside the scroll content so the fade under the bar doesn't reach it.
             .padding(.top, LayoutMetrics.sectionSpacing + LayoutMetrics.compactSpacing)
         }
+        // The page's own fade under the bar (EdgeBlur) is enough. The system's soft edge reaches past it onto the first line.
+        .scrollEdgeEffectHidden(true, for: .top)
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
         .onChange(of: workoutExercise.allSetsDone()) { wasDone, isDone in
