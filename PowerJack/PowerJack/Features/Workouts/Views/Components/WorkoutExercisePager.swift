@@ -54,8 +54,6 @@ struct WorkoutExercisePager: View {
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-            // The pager is a scroll view too, so it draws Apple's soft fade under the bar. EdgeBlur already does that.
-            .scrollEdgeEffectHidden(true, for: .top)
             .scrollPosition(id: $selectedExerciseIndex)
             // Paging would swallow the Review rows' swipe actions; the exercise strip still leaves Review.
             .scrollDisabled(isOnReview)
