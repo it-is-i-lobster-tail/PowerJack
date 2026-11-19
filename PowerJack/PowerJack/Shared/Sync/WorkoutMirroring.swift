@@ -38,6 +38,8 @@ final class WorkoutMirroring: NSObject {
 
     /// Starts the session for the workout on screen, or picks up the one running before the app relaunched.
     func begin() async {
+        // A session the iPhone just ended, by Pause Workout or closing PowerJack, may not have said so yet.
+        if session?.state == .ended { session = nil }
         guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
         do {
             if let recovered = try await healthStore.recoverActiveWorkoutSession() {
@@ -90,6 +92,16 @@ final class WorkoutMirroring: NSObject {
     private func adopt(_ session: HKWorkoutSession) {
         session.delegate = self
         self.session = session
+    }
+
+    /// Ends the watch's workout session, as when the workout finishes there: Health stops showing
+    /// a workout running, and the watch lets go of its screen. Pause Workout and closing PowerJack
+    /// do this. The link carries on over `DeviceLink`, and `openOnWatch` starts a new session.
+    func endWatchWorkout() {
+        guard let session else { return }
+        TraceLog.record(.watch, "Ended the watch's workout session")
+        session.end()
+        self.session = nil
     }
 
     /// Opens PowerJack on the watch, like starting a workout in Apple's Workout app. The watch

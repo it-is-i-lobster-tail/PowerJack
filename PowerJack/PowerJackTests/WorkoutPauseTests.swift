@@ -109,6 +109,25 @@ struct WorkoutPauseTests {
         #expect(workout.duration(at: .now + 600) == duration)
     }
 
+    @Test("A paused workout has no Live Activity, and resuming brings it back")
+    func pauseEndsLiveActivity() throws {
+        let workout = try makeWorkout()
+        workout.startAndCascade(at: start)
+        #expect(workout.activityState(at: start) != nil)
+
+        workout.pause(at: start + 60)
+        #expect(workout.activityState(at: start + 60) == nil)
+
+        workout.resume(at: start + 120)
+        #expect(workout.activityState(at: start + 120) != nil)
+
+        // A set logged while paused, such as on the watch, resumes it and the Live Activity with it.
+        workout.pause(at: start + 180)
+        let bench = workout.workoutExercises[0]
+        bench.completeSet(bench.workingSets[0], at: start + 240)
+        #expect(workout.activityState(at: start + 240) != nil)
+    }
+
     @Test("Only a workout in progress pauses")
     func pauseNeedsWorkoutInProgress() throws {
         let workout = try makeWorkout()

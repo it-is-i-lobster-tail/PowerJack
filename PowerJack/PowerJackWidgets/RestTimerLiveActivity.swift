@@ -219,15 +219,8 @@ private struct SetTargets: View {
             }
             MoreSets(count: window.after)
 
-            // The chips' weights in one unit, said once to save room. "BW" and "–" chips need none.
-            if !state.repsOnly, let unit = window.sets.first(where: { ($0.weightTenthsPounds ?? 0) != 0 })?.unitText {
-                Text(unit)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            // The chips' weights in one unit, said once to save room. "BW" and "–" chips need none.
-            if !state.repsOnly, let unit = state.sets.first(where: { ($0.weightTenthsPounds ?? 0) != 0 })?.unitText {
+            // The chips' weights in one unit, said once to save room.
+            if let unit = state.chipUnitText(for: window.sets) {
                 Text(unit)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
