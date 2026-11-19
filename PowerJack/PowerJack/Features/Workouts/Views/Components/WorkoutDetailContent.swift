@@ -21,6 +21,7 @@ struct WorkoutDetailContent: View {
 
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
+    @State private var pageScroll = ExercisePageScroll()
 
     private static let stripFade = LayoutMetrics.compactSpacing * 2
 
@@ -34,6 +35,7 @@ struct WorkoutDetailContent: View {
             focusedSetField: focusedSetField,
             review: review,
             pageRequests: pageRequests,
+            pageScroll: pageScroll,
             pageInsets: EdgeInsets(top: topInset + LayoutMetrics.compactSpacing, leading: 0, bottom: stripHeight, trailing: 0)
         )
         .overlay(alignment: .top) {
@@ -45,6 +47,7 @@ struct WorkoutDetailContent: View {
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
                 showsReview: review != nil,
+                pageScroll: pageScroll,
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
