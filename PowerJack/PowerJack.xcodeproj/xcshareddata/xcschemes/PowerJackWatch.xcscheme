@@ -47,7 +47,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1F14988543D70A99CD0B3851"
             BuildableName = "PowerJackWatch.app"
-            BlueprintName = "PowerJackWatch"
             ReferencedContainer = "container:PowerJack.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -70,7 +69,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1F14988543D70A99CD0B3851"
             BuildableName = "PowerJackWatch.app"
-            BlueprintName = "PowerJackWatch"
             ReferencedContainer = "container:PowerJack.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
