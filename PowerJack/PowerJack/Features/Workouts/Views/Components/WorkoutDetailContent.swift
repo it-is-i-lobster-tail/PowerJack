@@ -11,7 +11,7 @@ struct WorkoutDetailContent: View {
     let screenWidth: CGFloat
     /// How far down the navigation bar reaches. The sets scroll up under it.
     let topInset: CGFloat
-    let workoutExercises: [WorkoutExercise]
+    let pages: [WorkoutPage]
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
@@ -24,40 +24,66 @@ struct WorkoutDetailContent: View {
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
 
-    private static let stripFade = LayoutMetrics.compactSpacing * 2
+    /// The filmstrip and pager count groups. Review links and set actions count individual exercises.
+    private var selectedPage: Binding<Int?> {
+        Binding {
+            guard let selectedExerciseIndex else { return nil }
+            return pages.firstIndex { $0.indices.contains(selectedExerciseIndex) } ?? pages.count
+        } set: { index in
+            guard let index else { return }
+            if index == pages.count, review != nil {
+                selectedExerciseIndex = pages.last?.indices.upperBound ?? 0
+            } else if pages.indices.contains(index), !pages[index].indices.contains(selectedExerciseIndex ?? -1) {
+                selectedExerciseIndex = pages[index].entryIndex
+            }
+        }
+    }
 
     var body: some View {
-        // The sets fill the screen and scroll under the bars, but come to rest between them.
-        // The top inset ends where the bar does, so the fade under it stays clear of the first line.
+        let hidden = idleControls?.isHidden == true
+        let revealing = hidden && pageScroll.swipeStartPage != nil
+        let offset = pageScroll.swipeOffset(lastPage: review == nil ? pages.count - 1 : pages.count)
+        // The first set rests below the pinned strip. Later sets can scroll under it.
         WorkoutExercisePager(
             screenWidth: screenWidth,
-            workoutExercises: workoutExercises,
+            pages: pages,
             onExerciseSetsDone: onExerciseSetsDone,
-            selectedExerciseIndex: $selectedExerciseIndex,
+            selectedPageIndex: selectedPage,
+            selectedExerciseIndex: selectedExerciseIndex,
             focusedSetField: focusedSetField,
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
+            topInset: topInset,
+            stripInset: stripHeight,
+            controlsHidden: hidden
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: .top) {
             ExercisePreviewStrip(
-                workoutExercises: workoutExercises,
+                pages: pages,
                 screenWidth: screenWidth,
                 showsReview: review != nil,
                 pageScroll: pageScroll,
-                selectedExerciseIndex: $selectedExerciseIndex,
+                selectedPageIndex: selectedPage,
                 onReselect: { pageRequests += 1 }
             )
-            // The sets fade out in the gap above the strip, so none show between its cards.
-            .padding(.top, Self.stripFade)
-            .background { EdgeBlur(edge: .bottom, fadeLength: Self.stripFade) }
+            .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-            .fadesWhenIdle(idleControls)
+            // Slide the cards down from behind the navigation bar inside the incoming page's mask.
+            .offset(y: revealing ? -8 * (1 - abs(offset)) : 0)
+            // Reveal only the portion over the incoming page, following its edge in either direction.
+            .mask {
+                Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
+                                        anchor: offset < 0 ? .leading : .trailing)
+            }
+            .opacity(hidden && !revealing ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
+            .padding(.top, topInset)
         }
         .frame(width: screenWidth)
     }

@@ -73,11 +73,12 @@ struct WorkoutDetailView: View {
     /// Where the pages are scrolled to. The strip and the header follow it.
     @State private var pageScroll = ExercisePageScroll()
 
-    /// Lets a set's check draw in before a superset slides to the next exercise.
+    /// Lets a set's check draw in before scrolling to the next superset member.
     private static let supersetSlideDelay = 0.35
 
     init(
         workout: Workout,
+        initialExerciseIndex: Int? = nil,
         onWorkoutFinished: @escaping () -> Void = {},
         onSkipWorkout: (() -> Void)? = nil,
         isReadOnly: Bool = false
@@ -87,7 +88,7 @@ struct WorkoutDetailView: View {
         self.onSkipWorkout = onSkipWorkout
         self.isReadOnly = isReadOnly
         // A finished workout opens on its first exercise; a live one on where the user left off.
-        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : Self.nextIndex(in: workout))
+        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : initialExerciseIndex ?? Self.nextIndex(in: workout))
     }
 
     /// The first exercise still waiting, or the Review page once every exercise is done.
@@ -122,13 +123,9 @@ struct WorkoutDetailView: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
-    /// The exercise on each page for the header, with Review's nil after them in a live workout.
-    private var headerPages: [Exercise?] {
-        workout.workoutExercises.map(\.shownExercise) + (isReadOnly ? [] : [nil])
-    }
-
     var body: some View {
-        if workout.workoutExercises.isEmpty {
+        let pages = WorkoutPage.pages(for: workout)
+        if pages.isEmpty {
             // Nothing to log, so skipping is the way on to the next workout.
             ContentUnavailableView {
                 Label("No exercises", systemImage: "dumbbell")
@@ -147,7 +144,7 @@ struct WorkoutDetailView: View {
                 WorkoutDetailContent(
                     screenWidth: geometry.size.width,
                     topInset: geometry.safeAreaInsets.top,
-                    workoutExercises: workout.workoutExercises,
+                    pages: pages,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
                     onExerciseSetsDone: handleSetsDone,
@@ -177,10 +174,10 @@ struct WorkoutDetailView: View {
 
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
-                            exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
-                            isCompact: controlsHidden,
-                            pages: headerPages,
-                            pageScroll: pageScroll
+                            pages: pages.map(\.header) + (isReadOnly ? [] : [.review]),
+                            controlsHidden: controlsHidden,
+                            pageScroll: pageScroll,
+                            idleWidth: max(0, geometry.size.width - 2 * LayoutMetrics.sectionSpacing)
                         )
                     }
 
@@ -192,7 +189,7 @@ struct WorkoutDetailView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             WorkoutActionsMenu(
                                 workout: workout,
-                                selectedExerciseIndex: selectedExerciseIndex,
+                                selectedExerciseIndex: $selectedExerciseIndex,
                                 isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
                                 onEditExercise: editExercise,
                                 onSkipWorkout: onSkipWorkout,
@@ -239,7 +236,7 @@ struct WorkoutDetailView: View {
                     }
                 }
             }
-            // The number pad covers the exercise strip instead of pushing it up.
+            // Keep the workout layout steady as the number pad slides over the bottom tabs.
             .keyboardSlidesOver()
             .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in
                 switch sheet {
@@ -261,13 +258,19 @@ struct WorkoutDetailView: View {
                     .presentationDragIndicator(.hidden)
                 }
             }
-            .onAppear(perform: presentSheetIfNeeded)
-            .onChange(of: selectedExerciseIndex) {
+            .onAppear {
+                showRequestedExercise()
                 presentSheetIfNeeded()
-                idleControls?.show()
+            }
+            .onChange(of: selectedExerciseIndex) { previous, selected in
+                presentSheetIfNeeded()
+                // Logging a set within the same page keeps the bars in their current idle state.
+                if !pages.contains(where: { $0.indices.contains(previous ?? -1) && $0.indices.contains(selected ?? -1) }) {
+                    idleControls?.show()
+                }
             }
             // Keep the strip available through a long scrub and while the number pad is open.
-            .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling) { _, interacting in
+            .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling || pageScroll.swipeStartPage != nil) { _, interacting in
                 idleControls?.pause(interacting)
             }
             .onChange(of: fadesIdleControls, initial: true) { _, fades in
@@ -278,7 +281,7 @@ struct WorkoutDetailView: View {
                 if isAnswered { closeAnsweredSheet() }
             }
             .onChange(of: router?.currentExerciseRequest) {
-                showCurrentExercise()
+                showRequestedExercise()
             }
             .onChange(of: workout.currentSet?.workoutSet.id) { previousSetID, _ in
                 followSuperset(after: previousSetID)
@@ -317,11 +320,11 @@ struct WorkoutDetailView: View {
         exerciseToEdit = exercise
     }
 
-    /// Scrolls back to the exercise the user should be doing, e.g. after tapping the rest timer.
-    private func showCurrentExercise() {
-        withAnimation(.easeInOut(duration: 0.325)) {
-            selectedExerciseIndex = Self.nextIndex(in: workout)
-        }
+    /// A timer tap follows the same set as the countdown, even when earlier exercises are unfinished.
+    private func showRequestedExercise() {
+        guard !isReadOnly, let router, let index = router.requestedExerciseIndex(in: workout) else { return }
+        router.didShowRequestedExercise()
+        selectExercise(index)
     }
 
     /// Shows the exercise opened from the ••• menu. A Bool binding rather than `item:`, because the compiler can

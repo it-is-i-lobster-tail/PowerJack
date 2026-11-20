@@ -88,6 +88,12 @@ struct ProgramListView: View {
             .listRowSpacing(10)
             .scrollContentBackground(.hidden)
         }
+        .safeAreaInset(edge: .bottom) {
+            if programs.isEmpty {
+                HintView(WelcomeHint())
+                    .padding(.horizontal)
+            }
+        }
         .alert(
             "Delete “\(programPendingDelete?.templateName ?? "")”?",
             isPresented: Binding(

@@ -2,8 +2,7 @@
 //  WorkoutHeader.swift
 //  PowerJack
 //
-//  The glass bubble at the top of a workout: the exercise on screen with its equipment under it.
-//  While the bars fade, the title steps down and only an active rest keeps its subtitle.
+//  The workout header picks up the page title as the preview cards fade.
 //  Between pages its width follows the swipe, from one exercise's bubble to the next.
 //
 
@@ -12,36 +11,27 @@ import SwiftUI
 struct WorkoutHeader: View {
     @Environment(\.workoutHeaderRest) private var rest
 
-    /// The exercise on screen. Nil on the Review page.
-    let exercise: Exercise?
-    /// True while the controls are faded.
-    var isCompact = false
-    /// The exercise on each page, nil for Review, and where the pages are scrolled to.
-    var pages: [Exercise?] = []
-    var pageScroll: ExercisePageScroll? = nil
+    let pages: [WorkoutPageHeader]
+    let controlsHidden: Bool
+    let pageScroll: ExercisePageScroll
+    var idleWidth: CGFloat?
 
-    /// The expanded toolbar item's size. While compact, the header keeps taking up this much room and the
-    /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
-    @State private var fullSize: CGSize?
-
-    /// During a scrub the focused card can cross several exercises before the selection settles.
-    private var visibleExercise: Exercise? {
-        guard let pageScroll, !pages.isEmpty else { return exercise }
-        let position = min(max(0, pageScroll.position), CGFloat(pages.count - 1))
-        return pages[Int(position.rounded(.toNearestOrEven))]
+    private var position: CGFloat {
+        min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
     }
 
-    private var title: String { visibleExercise?.exerciseName ?? "Review" }
+    private var visiblePage: WorkoutPageHeader {
+        pages.isEmpty ? .review : pages[Int(position.rounded(.toNearestOrEven))]
+    }
 
-    private var accessibilityText: String {
-        guard let exercise = visibleExercise, !isCompact else { return title }
-        return "\(title), \(exercise.equipment.displayName)"
+    private var idleLabel: String {
+        guard let equipment = visiblePage.equipment else { return visiblePage.title }
+        return controlsHidden ? "\(visiblePage.title), \(equipment)" : equipment
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
-    private var swipe: (from: Exercise?, to: Exercise?, progress: CGFloat)? {
-        guard let pageScroll, pages.count > 1 else { return nil }
-        let position = min(max(pageScroll.position, 0), CGFloat(pages.count - 1))
+    private var swipe: (from: WorkoutPageHeader, to: WorkoutPageHeader, progress: CGFloat)? {
+        guard pages.count > 1 else { return nil }
         let from = Int(position.rounded(.down))
         let progress = position - CGFloat(from)
         guard progress > 0.001, from + 1 < pages.count else { return nil }
@@ -53,30 +43,33 @@ struct WorkoutHeader: View {
             // Reserve the widest page title before the swipe starts. The toolbar can still
             // constrain long titles to the space between its leading and trailing buttons.
             ForEach(pages.indices, id: \.self) { index in
-                HeaderLabel(exercise: pages[index], isCompact: false, rest: rest?.period)
-                    .hidden()
-                    .frame(height: 0)
-                    .accessibilityHidden(true)
+                // Reserve room for both idle states, so the toolbar stays centered as its contents change.
+                ForEach([false, true], id: \.self) { hidden in
+                    HeaderLabel(page: pages[index], controlsHidden: hidden, rest: rest?.period)
+                        .hidden()
+                        .accessibilityHidden(true)
+                }
             }
+        }
+        .overlay {
+            // Keep the toolbar's center anchor while letting the idle title use the faded buttons' space.
             pill
+                .frame(width: controlsHidden ? idleWidth : nil)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            if !isCompact { fullSize = size }
-        }
-        .frame(width: isCompact ? fullSize?.width : nil, height: isCompact ? fullSize?.height : nil)
         .animation(.easeInOut(duration: 0.18), value: rest != nil)
-        .animation(IdleControls.fade, value: isCompact)
+        .animation(IdleControls.fade, value: controlsHidden)
     }
 
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(exercise: visibleExercise, isCompact: isCompact, rest: rest?.period,
-                        showsCountdown: true, showsTitle: swipe == nil)
+            HeaderLabel(page: visiblePage, controlsHidden: controlsHidden, rest: rest?.period,
+                        showsCountdown: true, showsPageText: swipe == nil)
             if let swipe {
-                HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                HeaderLabel(page: swipe.from, controlsHidden: controlsHidden, rest: rest?.period)
                     .accessibilityHidden(true)
-                HeaderLabel(exercise: swipe.to, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                HeaderLabel(page: swipe.to, controlsHidden: controlsHidden, rest: rest?.period)
                     .accessibilityHidden(true)
             }
         }
@@ -85,64 +78,56 @@ struct WorkoutHeader: View {
         .contentShape(.capsule)
         .gesture(TapGesture().onEnded { rest?.onTap() }, isEnabled: rest != nil)
         .accessibilityElement(children: rest == nil ? .ignore : .combine)
-        .accessibilityLabel(accessibilityText, isEnabled: rest == nil)
+        .accessibilityLabel(idleLabel, isEnabled: rest == nil)
         .accessibilityAddTraits(rest == nil ? [] : .isButton)
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// Equipment and rest share one subtitle line. Only equipment folds away when idle.
+/// When the cards fade the pill takes over their title. A running timer always owns its own line.
 private struct HeaderLabel: View {
-    let exercise: Exercise?
-    let isCompact: Bool
+    let page: WorkoutPageHeader
+    let controlsHidden: Bool
     let rest: RestPeriod?
     var showsCountdown = false
-    var showsTitle = true
-    var showsSubtitle = true
+    var showsPageText = true
 
-    private var foldsSubtitle: Bool { isCompact && rest == nil }
+    private var showsTitle: Bool {
+        if case .review = page { return true }
+        return controlsHidden || (rest == nil && page.equipment == nil)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(exercise?.exerciseName ?? "Review")
-                .font(isCompact ? .callout.weight(.semibold) : .headline)
-                .foregroundStyle(showsTitle ? Color.primary : .clear)
-            if exercise != nil || rest != nil {
-                let equipment = exercise?.equipment.displayName ?? ""
-                // The equipment's font metrics own this line, even when the ring is showing.
+            if showsTitle {
+                Text(page.title)
+                    .font(.headline)
+                    .minimumScaleFactor(0.01)
+                    .opacity(showsPageText ? 1 : 0)
+            }
+            if let rest {
+                // Measure the widest countdown state without creating a live timer per swipe endpoint.
                 ZStack {
-                    Text(equipment.isEmpty ? " " : equipment)
-                        .foregroundStyle(.secondary)
-                        .opacity(rest == nil ? 1 : 0)
-                        .accessibilityHidden(rest != nil || foldsSubtitle)
-                    if let rest {
-                        // Reserve the widest timer state once, including for swipe endpoint measurements.
-                        ZStack {
-                            Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
-                            Text("Start set")
-                        }
-                        .monospacedDigit()
-                        .padding(.leading, 16)
-                        .hidden()
-                    }
+                    Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
+                    Text("Start set")
                 }
+                .monospacedDigit()
+                .padding(.leading, 16)
+                .hidden()
                 .overlay {
-                    if let rest, showsCountdown {
-                        HeaderRestSubtitle(rest: rest)
-                            .fixedSize()
-                            .transition(.opacity)
-                    }
+                    if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
                 }
-                .font(.subheadline)
-                .fixedSize()
-                .opacity(foldsSubtitle || !showsSubtitle ? 0 : 1)
-                .frame(width: foldsSubtitle ? 0 : nil, height: foldsSubtitle ? 0 : nil, alignment: .top)
-                .clipped()
+                .font(controlsHidden ? .subheadline : .headline)
+            } else if let equipment = page.equipment {
+                Text(equipment)
+                    .font(controlsHidden ? .subheadline : .headline)
+                    .foregroundStyle(controlsHidden ? Color.secondary : .primary)
+                    .opacity(showsPageText ? 1 : 0)
             }
         }
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .padding(.vertical, isCompact ? 6 : 8)
+        .padding(.vertical, controlsHidden ? 6 : 8)
     }
 }
 
@@ -192,10 +177,10 @@ private struct SwipeWidthLayout: Layout {
         // interpolated width must never become a line-breaking constraint for either name.
         let from = subviews[1]
         let to = subviews[2]
-        let distance = (from.sizeThatFits(.unspecified).width + to.sizeThatFits(.unspecified).width) / 2
+        let distance = (from.sizeThatFits(proposal).width + to.sizeThatFits(proposal).width) / 2
         from.place(at: CGPoint(x: center.x - progress * distance, y: center.y),
-                   anchor: .center, proposal: .unspecified)
+                   anchor: .center, proposal: proposal)
         to.place(at: CGPoint(x: center.x + (1 - progress) * distance, y: center.y),
-                 anchor: .center, proposal: .unspecified)
+                 anchor: .center, proposal: proposal)
     }
 }

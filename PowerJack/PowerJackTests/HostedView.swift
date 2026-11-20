@@ -6,6 +6,7 @@
 //  the same way VoiceOver activates a button, so tests can exercise view actions.
 //
 
+import os
 import SwiftData
 import SwiftUI
 import UIKit
@@ -149,6 +150,44 @@ final class HostedView {
         let activated = matches.contains { $0.accessibilityActivate() } || runAlertAction(titled: label)
         await settle(duration)
         return activated
+    }
+
+    /// In-process accessibility activation doesn't select native tab bar items.
+    /// Drive the tab controller and deliver the same selection SwiftUI receives on a tap.
+    @discardableResult
+    func selectTab(_ title: String, settleFor duration: Duration = .milliseconds(600)) async -> Bool {
+        func findTabs(in controller: UIViewController) -> UITabBarController? {
+            if let tabs = controller as? UITabBarController { return tabs }
+            return controller.children.lazy.compactMap(findTabs).first
+        }
+        if let controller = findTabs(in: host) {
+            if let tab = controller.tabs.first(where: { $0.title == title }) {
+                let previous = controller.selectedTab
+                controller.selectedTab = tab
+                controller.delegate?.tabBarController?(controller, didSelectTab: tab, previousTab: previous)
+                await settle(duration)
+                return controller.selectedTab == tab
+            }
+            // Earlier SwiftUI versions configure the controller through viewControllers and tabBarItem.
+            if let child = controller.viewControllers?.first(where: { $0.tabBarItem.title == title }) {
+                controller.selectedViewController = child
+                controller.delegate?.tabBarController?(controller, didSelect: child)
+                await settle(duration)
+                return controller.selectedViewController === child
+            }
+        }
+        // SwiftUI can also host the native tab bar directly.
+        func findBar(in view: UIView) -> UITabBar? {
+            if let bar = view as? UITabBar { return bar }
+            return view.subviews.lazy.compactMap(findBar).first
+        }
+        if let bar = findBar(in: window), let item = bar.items?.first(where: { $0.title == title }),
+           let select = bar.delegate?.tabBar(_:didSelect:) {
+            select(bar, item)
+            await settle(duration)
+            return bar.selectedItem === item
+        }
+        return await tap(title, settleFor: duration)
     }
 
     /// On some iOS versions a SwiftUI confirmation dialog is a UIKit alert, whose buttons don't respond
@@ -343,4 +382,17 @@ final class HostedView {
 
 enum HostedViewError: Error {
     case noScene
+}
+
+/// Observe text as SwiftUI draws it. A separate Text.LayoutKey query can deadlock
+/// with the display link while the hosted strip is scrolling.
+nonisolated struct TextTruncationProbe: TextRenderer {
+    private let observations = OSAllocatedUnfairLock(initialState: [Bool]())
+
+    var truncated: [Bool] { observations.withLock { $0 } }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        observations.withLock { $0.append(layout.isTruncated) }
+        for line in layout { context.draw(line) }
+    }
 }

@@ -22,8 +22,8 @@ extension View {
     /// bottom bar but comes to rest above it, and the keyboard slides over the page
     /// instead of squeezing it. While the rest island shows, the page's navigation bar
     /// moves down below it.
-    func powerJackTabPage(bottomBarHeight: CGFloat) -> some View {
-        modifier(TabPageLayout(bottomBarHeight: bottomBarHeight))
+    func powerJackTabPage() -> some View {
+        modifier(TabPageLayout())
     }
 
     /// The keyboard slides over this screen instead of squeezing it, so bottom content
@@ -84,35 +84,23 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
 private struct TabPageLayout: ViewModifier {
     @Environment(\.restIslandHeight) private var restIslandHeight
 
-    let bottomBarHeight: CGFloat
-
     func body(content: Content) -> some View {
         content
-            .background(TabSafeArea(top: restIslandHeight, bottom: bottomBarHeight))
-            // A hairline bar at the top of that room marks where the bottom bar's glass starts, so content
-            // fades softly from there to the bottom edge, as it does under the title. A clear bar reserves
-            // no room and draws no scroll edge effect of its own.
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                Color.black.opacity(0.001)
-                    .frame(height: 1)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
+            .background(TabSafeArea(top: restIslandHeight))
             .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
-/// Adds the floating bars to the TabView's safe area. UIKit hands that safe area down to
+/// Adds room for the rest island to the TabView's safe area. UIKit hands that safe area down to
 /// every tab and every screen pushed inside one, which SwiftUI's safe-area modifiers
 /// on a tab page don't reach.
 private struct TabSafeArea: UIViewControllerRepresentable {
     let top: CGFloat
-    let bottom: CGFloat
 
     func makeUIViewController(context: Context) -> Controller { Controller() }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.insets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        controller.insets = UIEdgeInsets(top: top, left: 0, bottom: 0, right: 0)
     }
 
     final class Controller: UIViewController {
