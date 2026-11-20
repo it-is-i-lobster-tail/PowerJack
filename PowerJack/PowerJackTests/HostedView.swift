@@ -121,6 +121,25 @@ final class HostedView {
         return true
     }
 
+    /// Drives the native segmented picker's value-change action in the hosted screen.
+    func selectSegment(_ title: String) async -> Bool {
+        func select(in view: UIView) -> Bool {
+            guard !view.isHidden else { return false }
+            if let control = view as? UISegmentedControl,
+               control.isEnabled,
+               let index = (0..<control.numberOfSegments).first(where: { control.titleForSegment(at: $0) == title }),
+               control.isEnabledForSegment(at: index) {
+                control.selectedSegmentIndex = index
+                control.sendActions(for: .valueChanged)
+                return true
+            }
+            return view.subviews.contains(where: select)
+        }
+        guard select(in: window) else { return false }
+        await settle()
+        return true
+    }
+
     /// Activates the element with this label, like a VoiceOver double tap.
     /// Menus list an item twice (title and button), so each match is tried until one responds.
     @discardableResult
