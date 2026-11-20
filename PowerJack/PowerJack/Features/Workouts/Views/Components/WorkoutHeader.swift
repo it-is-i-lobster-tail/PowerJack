@@ -20,14 +20,21 @@ struct WorkoutHeader: View {
     var pages: [Exercise?] = []
     var pageScroll: ExercisePageScroll? = nil
 
-    /// The full bubble's size. While compact, the header keeps taking up this much room and the
+    /// The expanded toolbar item's size. While compact, the header keeps taking up this much room and the
     /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
     @State private var fullSize: CGSize?
 
-    private var title: String { exercise?.exerciseName ?? "Review" }
+    /// During a scrub the focused card can cross several exercises before the selection settles.
+    private var visibleExercise: Exercise? {
+        guard let pageScroll, !pages.isEmpty else { return exercise }
+        let position = min(max(0, pageScroll.position), CGFloat(pages.count - 1))
+        return pages[Int(position.rounded(.toNearestOrEven))]
+    }
+
+    private var title: String { visibleExercise?.exerciseName ?? "Review" }
 
     private var accessibilityText: String {
-        guard let exercise, !isCompact else { return title }
+        guard let exercise = visibleExercise, !isCompact else { return title }
         return "\(title), \(exercise.equipment.displayName)"
     }
 
@@ -42,9 +49,29 @@ struct WorkoutHeader: View {
     }
 
     var body: some View {
+        ZStack {
+            // Reserve the widest page title before the swipe starts. The toolbar can still
+            // constrain long titles to the space between its leading and trailing buttons.
+            ForEach(pages.indices, id: \.self) { index in
+                HeaderLabel(exercise: pages[index], isCompact: false, rest: rest?.period)
+                    .hidden()
+                    .frame(height: 0)
+                    .accessibilityHidden(true)
+            }
+            pill
+        }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            if !isCompact { fullSize = size }
+        }
+        .frame(width: isCompact ? fullSize?.width : nil, height: isCompact ? fullSize?.height : nil)
+        .animation(.easeInOut(duration: 0.18), value: rest != nil)
+        .animation(IdleControls.fade, value: isCompact)
+    }
+
+    private var pill: some View {
         let swipe = swipe
-        SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(exercise: exercise, isCompact: isCompact, rest: rest?.period,
+        return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
+            HeaderLabel(exercise: visibleExercise, isCompact: isCompact, rest: rest?.period,
                         showsCountdown: true, showsTitle: swipe == nil)
             if let swipe {
                 HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
@@ -61,12 +88,6 @@ struct WorkoutHeader: View {
         .accessibilityLabel(accessibilityText, isEnabled: rest == nil)
         .accessibilityAddTraits(rest == nil ? [] : .isButton)
         .accessibilityAddTraits(.isHeader)
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            if !isCompact { fullSize = size }
-        }
-        .frame(width: isCompact ? fullSize?.width : nil, height: isCompact ? fullSize?.height : nil)
-        .animation(.easeInOut(duration: 0.18), value: rest != nil)
-        .animation(IdleControls.fade, value: isCompact)
     }
 }
 

@@ -266,9 +266,9 @@ struct WorkoutDetailView: View {
                 presentSheetIfNeeded()
                 idleControls?.show()
             }
-            // Typing a weight or reps holds the controls as they are.
-            .onChange(of: focusedSetField != nil) { _, isEditing in
-                idleControls?.pause(isEditing)
+            // Keep the strip available through a long scrub and while the number pad is open.
+            .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling) { _, interacting in
+                idleControls?.pause(interacting)
             }
             .onChange(of: fadesIdleControls, initial: true) { _, fades in
                 fades ? idleControls?.turnOn() : idleControls?.turnOff()

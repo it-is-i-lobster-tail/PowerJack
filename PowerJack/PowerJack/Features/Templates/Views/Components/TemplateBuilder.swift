@@ -156,7 +156,7 @@ struct TemplateBuilder: View {
 
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
 
-            ToolbarItem(placement: .topBarTrailing) {
+            let addExercise = ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     TemplateBuilderHint().invalidate(reason: .actionPerformed)
                     isShowingWorkoutExerciseSheet = true
@@ -169,6 +169,15 @@ struct TemplateBuilder: View {
                 .accessibilityLabel("Add")
                 .disabled(lockedDays[selection.index] != nil)
             }
+            #if compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                addExercise.visibilityPriority(.high)
+            } else {
+                addExercise
+            }
+            #else
+            addExercise
+            #endif
         }
     }
 }
