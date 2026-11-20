@@ -239,7 +239,7 @@ struct WorkoutDetailView: View {
                     }
                 }
             }
-            // The number pad covers the exercise strip instead of pushing it up.
+            // Keep the workout layout steady as the number pad slides over the bottom tabs.
             .keyboardSlidesOver()
             .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in
                 switch sheet {

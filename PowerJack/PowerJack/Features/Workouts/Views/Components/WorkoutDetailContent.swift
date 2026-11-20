@@ -25,8 +25,7 @@ struct WorkoutDetailContent: View {
     @State private var stripHeight: CGFloat = 0
 
     var body: some View {
-        // The sets fill the screen and scroll under the bars, but come to rest between them.
-        // The top inset ends where the bar does, so the fade under it stays clear of the first line.
+        // The first set rests below the pinned strip. Later sets can scroll under it.
         WorkoutExercisePager(
             screenWidth: screenWidth,
             workoutExercises: workoutExercises,
@@ -36,13 +35,13 @@ struct WorkoutDetailContent: View {
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            pageInsets: EdgeInsets(top: topInset, leading: 0, bottom: stripHeight, trailing: 0)
+            pageInsets: EdgeInsets(top: topInset + stripHeight, leading: 0, bottom: 0, trailing: 0)
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: .top) {
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
@@ -51,9 +50,10 @@ struct WorkoutDetailContent: View {
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
-            .padding(.top, LayoutMetrics.compactSpacing * 2)
+            .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
             .fadesWhenIdle(idleControls)
+            .padding(.top, topInset)
         }
         .frame(width: screenWidth)
     }
