@@ -43,8 +43,6 @@ struct WorkoutExercisePager: View {
 
                     if let review {
                         review
-                            // The List keeps scrolling and its swipe actions while the pager is held still.
-                            .environment(\.isScrollEnabled, true)
                             .safeAreaPadding(pageInsets)
                             .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
                             .containerRelativeFrame(.horizontal)
@@ -54,9 +52,7 @@ struct WorkoutExercisePager: View {
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-            .scrollPosition(id: $selectedExerciseIndex)
-            // Paging would swallow the Review rows' swipe actions; the exercise strip still leaves Review.
-            .scrollDisabled(isOnReview)
+            .scrollPosition(id: $selectedExerciseIndex, anchor: .center)
             // Quick strip taps can cut a page scroll short. Once it stops, land on the selected page.
             .onScrollPhaseChange { oldPhase, newPhase in
                 scrollPhase = newPhase
@@ -97,9 +93,5 @@ struct WorkoutExercisePager: View {
     private static func pagePosition(_ geometry: ScrollGeometry) -> CGFloat {
         guard geometry.containerSize.width > 0 else { return 0 }
         return (geometry.contentOffset.x + geometry.contentInsets.leading) / geometry.containerSize.width
-    }
-
-    private var isOnReview: Bool {
-        review != nil && selectedExerciseIndex == workoutExercises.count
     }
 }

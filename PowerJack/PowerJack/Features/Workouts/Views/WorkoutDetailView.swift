@@ -48,6 +48,7 @@ extension EnvironmentValues {
 }
 
 struct WorkoutDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     // Optional so the view still works outside the Programs navigation stack.
     @Environment(ProgramsRouter.self) private var router: ProgramsRouter?
@@ -164,8 +165,16 @@ struct WorkoutDetailView: View {
                 .environment(\.workoutIsReadOnly, isReadOnly)
                 .environment(\.workoutAllowsCorrections, isUnlocked)
                 .navigationBarTitleDisplayMode(.inline)
-                .navigationBarBackButtonHidden(controlsHidden)
+                // The system Back button also enables swipe-to-pop. On Review the pager owns that swipe.
+                .navigationBarBackButtonHidden(controlsHidden || isOnReview)
                 .toolbar {
+                    if isOnReview && !controlsHidden {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Back", systemImage: "chevron.backward") { dismiss() }
+                                .labelStyle(.iconOnly)
+                        }
+                    }
+
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
                             exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
