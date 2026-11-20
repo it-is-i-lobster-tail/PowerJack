@@ -18,79 +18,85 @@ struct WorkoutExercisePager: View {
     var review: WorkoutReviewView? = nil
     /// Goes up when the selected exercise is tapped again in the strip, to bring its page back.
     var pageRequests = 0
-    /// Reports how far the pages have scrolled, so the exercise strip can follow the swipe.
-    var pageScroll: ExercisePageScroll? = nil
+    let pageScroll: ExercisePageScroll
     /// Room for the bars over the pages. Each page scrolls under them but comes to rest inside.
     var pageInsets = EdgeInsets()
 
     @State private var scrollPhase: ScrollPhase = .idle
+    @State private var pagerPosition = ScrollPosition()
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 0) {
-                    ForEach(workoutExercises.indices, id: \.self) { index in
-                        WorkoutExerciseView(
-                            onSetsDone: onExerciseSetsDone,
-                            screenWidth: screenWidth,
-                            focusedSetField: focusedSetField,
-                            workoutExercise: workoutExercises[index]
-                        )
-                            .safeAreaPadding(pageInsets)
-                            .containerRelativeFrame(.horizontal)
-                            .id(index)
-                    }
-
-                    if let review {
-                        review
-                            .safeAreaPadding(pageInsets)
-                            .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
-                            .containerRelativeFrame(.horizontal)
-                            .id(workoutExercises.count)
-                    }
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 0) {
+                ForEach(workoutExercises.indices, id: \.self) { index in
+                    WorkoutExerciseView(
+                        onSetsDone: onExerciseSetsDone,
+                        screenWidth: screenWidth,
+                        focusedSetField: focusedSetField,
+                        workoutExercise: workoutExercises[index]
+                    )
+                        .safeAreaPadding(pageInsets)
+                        .containerRelativeFrame(.horizontal)
+                        .id(index)
                 }
-                .scrollTargetLayout()
+
+                if let review {
+                    review
+                        .safeAreaPadding(pageInsets)
+                        .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
+                        .containerRelativeFrame(.horizontal)
+                        .id(workoutExercises.count)
+                }
             }
-            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
-            .scrollPosition(id: $selectedExerciseIndex, anchor: .center)
-            // Quick strip taps can cut a page scroll short. Once it stops, land on the selected page.
-            .onScrollPhaseChange { oldPhase, newPhase in
-                scrollPhase = newPhase
-                guard oldPhase == .animating, newPhase == .idle else { return }
-                showSelectedPage(proxy)
+            .scrollTargetLayout(isEnabled: !pageScroll.isDrivenByStrip)
+        }
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .scrollPosition($pagerPosition)
+        .onScrollPhaseChange { oldPhase, newPhase, context in
+            scrollPhase = newPhase
+            if newPhase == .tracking || newPhase == .interacting {
+                pageScroll.isDrivenByStrip = false
             }
-            // A workout resumed mid-way sets its page before the pages are laid out, and the scroll
-            // position alone can lose it. Land on it on appear and again once the layout settles,
-            // as the exercise strip does, but never while the lifter is swiping.
-            .onAppear { showSelectedPage(proxy) }
-            .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
-                pageScroll?.position = position
+            guard !pageScroll.isDrivenByStrip, newPhase == .idle,
+                  oldPhase == .interacting || oldPhase == .decelerating else { return }
+            selectedExerciseIndex = Int(Self.pagePosition(context.geometry).rounded())
+        }
+        .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
+            if !pageScroll.isDrivenByStrip { pageScroll.position = position }
+        }
+        .onChange(of: pageScroll.position) {
+            if pageScroll.isDrivenByStrip {
+                pagerPosition.scrollTo(x: pageScroll.position * screenWidth)
             }
-            .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
-                guard scrollPhase == .idle else { return }
-                showSelectedPage(proxy)
-            }
-            .onChange(of: pageRequests) {
-                withAnimation(.easeInOut(duration: 0.325)) { showSelectedPage(proxy) }
-            }
+        }
+        .onChange(of: selectedExerciseIndex) { scrollToSelection(animated: true) }
+        .onChange(of: pageRequests) { scrollToSelection(animated: true) }
+        .onAppear { scrollToSelection(animated: false) }
+        .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
+            if scrollPhase == .idle && !pageScroll.stripPhase.isScrolling { scrollToSelection(animated: false) }
         }
         // A superset change moves exercises between pages. The pages are keyed by position, so the pager
         // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
         .id(workoutExercises.map(\.persistentModelID))
     }
 
-    private func showSelectedPage(_ proxy: ScrollViewProxy) {
+    private func scrollToSelection(animated: Bool) {
         guard let selectedExerciseIndex else { return }
-        proxy.scrollTo(selectedExerciseIndex)
+        let target = CGFloat(selectedExerciseIndex)
+        if animated && scrollPhase != .animating && abs(pageScroll.position - target) < 0.001 { return }
+        pageScroll.isDrivenByStrip = false
+        withAnimation(animated ? .easeInOut(duration: 0.325) : nil) {
+            pagerPosition.scrollTo(x: target * screenWidth)
+        }
     }
 
     /// Changes when the pages are laid out or resized, but not when they're scrolled.
-    private static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
+    private nonisolated static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
         [geometry.contentSize.width, geometry.containerSize.width]
     }
 
     /// How many pages in from the first page the pages have scrolled, part pages included.
-    private static func pagePosition(_ geometry: ScrollGeometry) -> CGFloat {
+    private nonisolated static func pagePosition(_ geometry: ScrollGeometry) -> CGFloat {
         guard geometry.containerSize.width > 0 else { return 0 }
         return (geometry.contentOffset.x + geometry.contentInsets.leading) / geometry.containerSize.width
     }
