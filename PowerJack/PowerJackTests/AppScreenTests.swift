@@ -256,8 +256,8 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
     }
 
-    @Test("Template builder days change by tap only, so row swipes never flip the day")
-    func templateBuilderDaysAreTapOnly() async throws {
+    @Test("The day picker changes workouts and leaves horizontal swipes to the rows")
+    func templateBuilderDayPicker() async throws {
         let screen = try await HostedView(
             NavigationStack { BuilderHost() }.modelContainer(container)
         )
@@ -271,11 +271,11 @@ struct AppScreenTests {
         #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
         #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
 
-        await screen.tap("Day 2", settleFor: .milliseconds(600))
+        try #require(await screen.selectSegment("Day 2"))
         #expect(await screen.waitUntil { !screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
         #expect(screen.horizontalScrollViews.isEmpty)
 
-        await screen.tap("Day 1", settleFor: .milliseconds(600))
+        try #require(await screen.selectSegment("Day 1"))
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
@@ -339,10 +339,10 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: build) != nil, "\(screen.labels)")
         #expect(screen.label(startingWith: strength) == nil, "\(screen.labels)")
 
-        #expect(await screen.tap("Strength", settleFor: .milliseconds(600)))
+        try #require(await screen.selectSegment("Strength"))
         #expect(screen.label(startingWith: strength) != nil, "\(screen.labels)")
 
-        #expect(await screen.tap("PowerJack", settleFor: .milliseconds(600)))
+        try #require(await screen.selectSegment("PowerJack"))
         #expect(screen.label(startingWith: powerJack) != nil, "\(screen.labels)")
     }
 

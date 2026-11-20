@@ -89,13 +89,17 @@ struct KeyboardLayoutTests {
                             FocusProbeScreen(probe: probe, keepsFocus: keepsFocus)
                         }
                     }
+                    // Match the workout tab: only PowerJack's floating bar reserves space here.
+                    .toolbar(.hidden, for: .tabBar)
                     .powerJackTabPage(bottomBarHeight: Self.barHeight)
                 }
             }
             .powerJackKeyboardBehavior()
         )
         defer { screen.close() }
+        let initialRowBottom = probe.rowBottom
         let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
+        try #require(initialRowBottom > keyboardTop, "The last row must start below the keyboard's eventual top edge.")
         if keepsFocus {
             // The scroll to the focused row runs slower on CI, so give it up to 3 seconds.
             for _ in 0..<30 where probe.rowBottom > keyboardTop {
