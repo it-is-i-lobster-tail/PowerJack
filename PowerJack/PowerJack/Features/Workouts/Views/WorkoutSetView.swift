@@ -98,9 +98,10 @@ struct WorkoutSetView: View {
         (!isReadOnly && workoutSet.status == .active && !workoutSet.locked) || isCorrecting
     }
 
-    /// A logged or skipped set in an unlocked, finished workout: its weight and reps can be fixed, and its status stays.
+    /// A logged set in the workout underway, or a logged or skipped set in an unlocked, finished workout:
+    /// its weight and reps can be fixed in place, and it stays logged.
     private var isCorrecting: Bool {
-        allowsCorrections && workoutSet.canCorrect
+        (allowsCorrections || !isReadOnly) && workoutSet.canCorrect
     }
 
     /// Zero reps are shown as invalid and never saved.
@@ -373,9 +374,10 @@ struct WorkoutSetView: View {
         let newValue = enteredWeight(text)
         let previousValue = workoutSet.weightTenthsPounds
         guard newValue != previousValue else { return }
-        // A fix changes this set alone; the sets after it keep what they logged.
+        // Logged sets after it keep what they logged. Sets still to do that held the old weight take the fix.
         if isCorrecting {
             if let newValue, workoutSet.correctWeight(newValue) {
+                onWeightChange(newValue, previousValue)
                 saveCorrection()
             }
             return

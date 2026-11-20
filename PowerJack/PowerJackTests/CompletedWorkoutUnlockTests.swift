@@ -4,6 +4,7 @@
 //
 //  A completed workout opens read-only. Unlocking it from its ••• menu lets the lifter fix the
 //  weight and reps they logged, until the app closes, and the workout stays complete.
+//  In the workout underway a logged set is fixed the same way, without reopening it.
 //
 
 import SwiftData
@@ -54,18 +55,20 @@ struct CompletedWorkoutUnlockTests {
         #expect(set.weightTenthsPounds == 1000)
     }
 
-    @Test("Logged and skipped sets of a finished workout can be fixed, not those of a live one")
+    @Test("A live workout's logged sets can be fixed; its skipped ones wait until it's finished")
     func correctionNeedsFinishedWorkout() throws {
         let program = try makeStartedProgram(weeks: 2)
         let workout = try #require(program.nextWorkout)
+        // Nothing is logged before the workout starts.
+        let planned = try #require(workout.workoutExercises.first?.workingSets.first)
+        #expect(!planned.canCorrect)
+
         workout.startAndCascade()
         let set = try #require(workout.workoutExercises.first?.workingSets.first)
-        log(set)
-
-        // A live workout reopens a set to change it.
+        // A set still to do takes typed numbers the usual way.
         #expect(!set.canCorrect)
-        #expect(!set.correctWeight(454))
-        #expect(set.weightTenthsPounds == 1000)
+        log(set)
+        #expect(set.canCorrect)
 
         // Numbers typed into a set that's then skipped.
         let skipped = try #require(workout.workoutExercises.first?.workingSets.last)
@@ -83,6 +86,41 @@ struct CompletedWorkoutUnlockTests {
         #expect(skipped.weightTenthsPounds == 950)
         #expect(skipped.reps == 9)
         #expect(skipped.status == .skipped)
+    }
+
+    @Test("A logged set of the live workout takes fixed numbers, stays logged and keeps its rest")
+    func liveCorrectionKeepsSetLogged() throws {
+        let program = try makeStartedProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        let set = try #require(exercise.workingSets.first)
+        log(set)
+        let completedAt = set.completedAt
+        let rest = workout.rest(shownOn: exercise)
+        let receipts = try container.mainContext.fetchCount(FetchDescriptor<SetReceipt>())
+
+        #expect(set.correctWeight(1050))
+        #expect(set.correctReps(8))
+
+        #expect(set.weightTenthsPounds == 1050)
+        #expect(set.reps == 8)
+        #expect(set.status == .complete)
+        #expect(!set.locked)
+        #expect(set.completedAt == completedAt)
+        // The rest that started when it was logged runs on, and nothing is logged again.
+        // Only the next set it calls out may change, since that set takes the fixed weight.
+        let restAfter = workout.rest(shownOn: exercise)
+        #expect(rest != nil)
+        #expect(restAfter?.startedAt == rest?.startedAt)
+        #expect(restAfter?.endsAt == rest?.endsAt)
+        #expect(try container.mainContext.fetchCount(FetchDescriptor<SetReceipt>()) == receipts)
+        #expect(workout.status == .active)
+
+        // Finishing the workout keeps the fix, and next week plans from it.
+        try finish(workout, of: program)
+        #expect(set.weightTenthsPounds == 1050)
+        #expect(set.reps == 8)
     }
 
     @Test("A skipped warmup's fixed weight is the warmup next week plans")
@@ -236,6 +274,46 @@ struct CompletedWorkoutUnlockTests {
         await screen.settle()
         await screen.type("70", into: "Set 1 weight")
         #expect(set.weightTenthsPounds == 450)
+    }
+
+    @Test("In the live workout, a logged set's numbers are fixed in place without reopening it")
+    func liveScreenFixesLoggedSet() async throws {
+        let program = try makeStartedProgram(weeks: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        let exercise = try #require(workout.workoutExercises.first)
+        let set = try #require(exercise.workingSets.first)
+        let next = try #require(exercise.workingSets.dropFirst().first)
+        log(set)
+        // The set still to do carries the weight it was logged at, as it would after typing it.
+        next.weightTenthsPounds = 1000
+        try container.mainContext.save()
+        let completedAt = set.completedAt
+
+        let screen = try await HostedView(
+            NavigationStack { WorkoutDetailView(workout: workout) }
+                .modelContainer(container)
+        )
+        defer { screen.close() }
+
+        #expect(await screen.type("105", into: "Set 1 weight"), "\(screen.labels)")
+        #expect(await screen.type("8", into: "Set 1 reps"), "\(screen.labels)")
+        #expect(set.weightTenthsPounds == 1050)
+        #expect(set.reps == 8)
+        #expect(set.status == .complete)
+        #expect(set.completedAt == completedAt)
+        // The fixed weight carries to the set still to do, as typing a weight always does.
+        #expect(next.weightTenthsPounds == 1050)
+        #expect(next.status == .active)
+        // Saved as typed, like any set entry.
+        #expect(!container.mainContext.hasChanges)
+
+        // An emptied box can't be saved, and shows what's logged once it loses focus.
+        await screen.type("", into: "Set 1 reps")
+        #expect(set.reps == 8)
+        await screen.dismissKeyboard()
+        #expect(screen.value(of: "Set 1 reps") == "8")
+        #expect(set.status == .complete)
     }
 
     @Test("Once unlocked, a skipped warmup's weight can be fixed and its check stays put")
