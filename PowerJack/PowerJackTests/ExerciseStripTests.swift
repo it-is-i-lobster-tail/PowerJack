@@ -141,6 +141,26 @@ struct ExerciseStripTests {
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 3) == 0)
     }
 
+    @Test("An idle page swipe reveals the incoming edge and unwinds when reversed")
+    func swipeRevealFollowsFinger() {
+        let scroll = ExercisePageScroll()
+        scroll.swipeStartPage = 1
+        for offset in [0.25, 0.6, 0.25, 0, -0.4, -1, 0, 1] {
+            scroll.position = 1 + offset
+            #expect(abs(scroll.swipeOffset(lastPage: 2) - offset) < 0.001)
+        }
+        // Rubber-banding at either end has no incoming page.
+        scroll.swipeStartPage = 0
+        scroll.position = -0.2
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+        scroll.swipeStartPage = 2
+        scroll.position = 2.2
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+        scroll.swipeStartPage = nil
+        scroll.position = 1.5
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+    }
+
     @Test("Scrubbing halfway moves the workout before the strip settles")
     func stripScrubsThePager() async throws {
         let (_, workout) = try makeStartedWorkout()

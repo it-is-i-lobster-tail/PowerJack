@@ -270,7 +270,7 @@ struct WorkoutDetailView: View {
                 }
             }
             // Keep the strip available through a long scrub and while the number pad is open.
-            .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling) { _, interacting in
+            .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling || pageScroll.swipeStartPage != nil) { _, interacting in
                 idleControls?.pause(interacting)
             }
             .onChange(of: fadesIdleControls, initial: true) { _, fades in

@@ -40,6 +40,9 @@ struct WorkoutDetailContent: View {
     }
 
     var body: some View {
+        let hidden = idleControls?.isHidden == true
+        let revealing = hidden && pageScroll.swipeStartPage != nil
+        let offset = pageScroll.swipeOffset(lastPage: review == nil ? pages.count - 1 : pages.count)
         // The first set rests below the pinned strip. Later sets can scroll under it.
         WorkoutExercisePager(
             screenWidth: screenWidth,
@@ -51,7 +54,9 @@ struct WorkoutDetailContent: View {
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            pageInsets: EdgeInsets(top: topInset + (idleControls?.isHidden == true ? 0 : stripHeight), leading: 0, bottom: 0, trailing: 0)
+            topInset: topInset,
+            stripInset: stripHeight,
+            controlsHidden: hidden
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
@@ -68,7 +73,14 @@ struct WorkoutDetailContent: View {
             )
             .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-            .fadesWhenIdle(idleControls)
+            // Reveal only the portion over the incoming page, following its edge in either direction.
+            .mask {
+                Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
+                                        anchor: offset < 0 ? .leading : .trailing)
+            }
+            .opacity(hidden && !revealing ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
             .padding(.top, topInset)
         }
         .frame(width: screenWidth)
