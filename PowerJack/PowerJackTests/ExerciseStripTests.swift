@@ -210,22 +210,20 @@ struct ExerciseStripTests {
         exercises[1].exercise?.exerciseName = String(repeating: "W", count: 30)
         exercises[1].skipRemainingSets()
         let scroll = ExercisePageScroll()
-        var truncated: [Bool] = []
+        let textProbe = TextTruncationProbe()
         let screen = try await HostedView(
             ExercisePreviewStrip(pages: Array(WorkoutPage.pages(for: workout).prefix(3)),
                                  screenWidth: 320, pageScroll: scroll, selectedPageIndex: .constant(0))
                 .frame(width: 320)
                 .environment(\.dynamicTypeSize, size)
-                .onPreferenceChange(Text.LayoutKey.self) { layouts in
-                    truncated = layouts.map { $0.layout.isTruncated }
-                }
+                .textRenderer(textProbe)
         )
         defer { screen.close() }
         for position in [0.0, 0.5, 1, 2] {
             scroll.position = position
             await screen.settle()
-            #expect(truncated.count >= 2)
-            #expect(!truncated.contains(true))
+            #expect(textProbe.truncated.count >= 2)
+            #expect(!textProbe.truncated.contains(true))
         }
     }
 

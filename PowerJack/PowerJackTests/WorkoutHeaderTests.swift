@@ -65,21 +65,19 @@ struct WorkoutHeaderTests {
     ])
     func longExerciseTitle(name: String) async throws {
         let exercise = Exercise(exerciseName: name, exerciseEquipment: .dumbbell, primaryMuscleFocus: .back)
-        var textTruncation: [Bool] = []
+        let textProbe = TextTruncationProbe()
         let screen = try await HostedView(
             WorkoutHeader(pages: [.exercise(exercise)], controlsHidden: true,
                           pageScroll: ExercisePageScroll(), idleWidth: 280)
                 .frame(width: 200)
-                .onPreferenceChange(Text.LayoutKey.self) { layouts in
-                    textTruncation = layouts.map { $0.layout.isTruncated }
-                }
+                .textRenderer(textProbe)
         )
         defer { screen.close() }
         let pill = try #require(screen.frame(of: "\(name), Dumbbell"))
         #expect(pill.width > 200 && pill.width <= 281)
         #expect(abs(pill.midX - screen.window.bounds.midX) < 1)
-        #expect(!textTruncation.isEmpty)
-        #expect(!textTruncation.contains(true))
+        #expect(!textProbe.truncated.isEmpty)
+        #expect(!textProbe.truncated.contains(true))
     }
 
     @Test("Review keeps its own title")
