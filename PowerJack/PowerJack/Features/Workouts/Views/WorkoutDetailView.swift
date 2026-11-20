@@ -73,7 +73,7 @@ struct WorkoutDetailView: View {
     /// Where the pages are scrolled to. The strip and the header follow it.
     @State private var pageScroll = ExercisePageScroll()
 
-    /// Lets a set's check draw in before a superset slides to the next exercise.
+    /// Lets a set's check draw in before scrolling to the next superset member.
     private static let supersetSlideDelay = 0.35
 
     init(
@@ -122,13 +122,9 @@ struct WorkoutDetailView: View {
         return workout.workoutExercises[selectedExerciseIndex]
     }
 
-    /// The exercise on each page for the header, with Review's nil after them in a live workout.
-    private var headerPages: [Exercise?] {
-        workout.workoutExercises.map(\.shownExercise) + (isReadOnly ? [] : [nil])
-    }
-
     var body: some View {
-        if workout.workoutExercises.isEmpty {
+        let pages = WorkoutPage.pages(for: workout)
+        if pages.isEmpty {
             // Nothing to log, so skipping is the way on to the next workout.
             ContentUnavailableView {
                 Label("No exercises", systemImage: "dumbbell")
@@ -147,7 +143,7 @@ struct WorkoutDetailView: View {
                 WorkoutDetailContent(
                     screenWidth: geometry.size.width,
                     topInset: geometry.safeAreaInsets.top,
-                    workoutExercises: workout.workoutExercises,
+                    pages: pages,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
                     onExerciseSetsDone: handleSetsDone,
@@ -177,9 +173,8 @@ struct WorkoutDetailView: View {
 
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
-                            exercise: isOnReview ? nil : selectedWorkoutExercise?.shownExercise,
-                            isCompact: controlsHidden,
-                            pages: headerPages,
+                            pages: pages.map(\.header) + (isReadOnly ? [] : [.review]),
+                            controlsHidden: controlsHidden,
                             pageScroll: pageScroll
                         )
                     }
@@ -192,7 +187,7 @@ struct WorkoutDetailView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             WorkoutActionsMenu(
                                 workout: workout,
-                                selectedExerciseIndex: selectedExerciseIndex,
+                                selectedExerciseIndex: $selectedExerciseIndex,
                                 isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
                                 onEditExercise: editExercise,
                                 onSkipWorkout: onSkipWorkout,
@@ -262,9 +257,12 @@ struct WorkoutDetailView: View {
                 }
             }
             .onAppear(perform: presentSheetIfNeeded)
-            .onChange(of: selectedExerciseIndex) {
+            .onChange(of: selectedExerciseIndex) { previous, selected in
                 presentSheetIfNeeded()
-                idleControls?.show()
+                // Logging a set within the same page keeps the bars in their current idle state.
+                if !pages.contains(where: { $0.indices.contains(previous ?? -1) && $0.indices.contains(selected ?? -1) }) {
+                    idleControls?.show()
+                }
             }
             // Keep the strip available through a long scrub and while the number pad is open.
             .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling) { _, interacting in

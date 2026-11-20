@@ -148,6 +148,55 @@ struct ExerciseStripTests {
             == ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .xxxLarge))
     }
 
+    @Test("Three- and two-exercise supersets each share a single page and preview card")
+    func groupedPages() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        let a = UUID(), b = UUID()
+        for member in exercises[1...3] { member.setSuperset(a) }
+        for member in exercises[4...5] { member.setSuperset(b) }
+        let pages = WorkoutPage.pages(for: workout)
+        #expect(pages.map(\.indices) == [0..<1, 1..<4, 4..<6])
+        #expect(pages.map { $0.header.title } == ["Lift 1", "Superset A", "Superset B"])
+
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        for (index, count, letter) in [(1, 3, "A"), (2, 2, "B")] {
+            let label = "Superset \(letter), \(count) exercises"
+            #expect(await screen.tap(label))
+            #expect(await screen.waitUntil { isCardCentered(label, in: strip, screen: screen) && pagerPage(pager) == index })
+            for member in 1...count {
+                #expect(screen.label(startingWith: "\(letter)\(member), Lift") != nil)
+            }
+        }
+        #expect(await screen.tap("Review"))
+        #expect(await screen.waitUntil { pagerPage(pager) == 3 })
+    }
+
+    @Test("Checking a set follows the next superset member vertically on the same page")
+    func followsNextMember() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let pair = Array(workout.workoutExercises.prefix(2))
+        let groupID = UUID()
+        for exercise in pair { exercise.setSuperset(groupID) }
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        let heading = try #require(screen.label(startingWith: "A2, Lift 2"))
+        let before = try #require(screen.frame(of: heading)).minY
+        let current = try #require(workout.currentSet)
+        current.workoutExercise.completeSet(current.workoutSet)
+        #expect(workout.currentSet?.workoutExercise === pair[1])
+        #expect(WorkoutPage.pages(for: workout)[0].entryIndex == 1)
+        #expect(await screen.waitUntil {
+            guard let frame = screen.frame(of: heading) else { return false }
+            return frame.minY < before - 30 && pagerPage(pager) == 0
+        })
+    }
+
     // MARK: Helpers
 
     private func workoutScreen(_ workout: Workout) -> some View {
@@ -247,7 +296,7 @@ private struct ScrubScreen: View {
     var body: some View {
         GeometryReader { geometry in
             WorkoutDetailContent(screenWidth: geometry.size.width, topInset: 0,
-                                 workoutExercises: workout.workoutExercises, selectedExerciseIndex: .constant(0),
+                                 pages: WorkoutPage.pages(for: workout), selectedExerciseIndex: .constant(0),
                                  focusedSetField: $field, onExerciseSetsDone: { _ in }, pageScroll: scroll)
         }
     }

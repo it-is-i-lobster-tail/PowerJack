@@ -10,7 +10,7 @@ import SwiftUI
 
 struct WorkoutActionsMenu: View {
     let workout: Workout
-    let selectedExerciseIndex: Int?
+    @Binding var selectedExerciseIndex: Int?
     @Binding var isShowingWorkoutExerciseSheet: Bool
     let onEditExercise: (Exercise) -> Void
     var onSkipWorkout: (() -> Void)? = nil
@@ -45,6 +45,17 @@ struct WorkoutActionsMenu: View {
     var body: some View {
         Menu {
             if let selectedWorkoutExercise {
+                let members = workout.group(of: selectedWorkoutExercise)
+                if members.count > 1 {
+                    Picker("Exercise", selection: $selectedExerciseIndex) {
+                        ForEach(members) { member in
+                            Text(member.shownExercise?.exerciseName ?? "Exercise")
+                                .tag(workout.workoutExercises.firstIndex(of: member))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Divider()
+                }
                 Button {
                     isShowingWorkoutExerciseSheet.toggle()
                 } label: {

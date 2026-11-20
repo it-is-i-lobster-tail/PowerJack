@@ -17,6 +17,8 @@ struct WorkoutExerciseView: View {
     let screenWidth: CGFloat
     let focusedSetField: FocusState<FocusedSetField?>.Binding
 
+    let memberLabel: String?
+    let currentSet: WorkoutSet?
     @Bindable var workoutExercise: WorkoutExercise
 
     @AppStorage(AppSettings.Key.hints) private var hintsEnabled = AppSettings.Default.hints
@@ -33,37 +35,46 @@ struct WorkoutExerciseView: View {
         onSetsDone: @escaping (WorkoutExercise) -> Void,
         screenWidth: CGFloat,
         focusedSetField: FocusState<FocusedSetField?>.Binding,
-        workoutExercise: WorkoutExercise
+        workoutExercise: WorkoutExercise,
+        memberLabel: String?,
+        currentSet: WorkoutSet?
     ) {
         self.onSetsDone = onSetsDone
         self.screenWidth = screenWidth
         self.focusedSetField = focusedSetField
+        self.memberLabel = memberLabel
+        self.currentSet = currentSet
         self.workoutExercise = workoutExercise
         _warmupsCollapsed = State(initialValue: workoutExercise.warmupsDone)
         _warmupsChecked = State(initialValue: workoutExercise.warmupsDone)
     }
 
     var body: some View {
-        // The exercise's name and equipment are in the header bubble above.
-        ScrollView {
-            VStack(spacing: 0) {
-                notes
-
-                if workoutExercise.showsWarmups {
-                    warmupGroup
+        VStack(spacing: 0) {
+            if let memberLabel {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(memberLabel)
+                        .foregroundStyle(workoutExercise.supersetColor ?? .accentColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(workoutExercise.shownExercise?.exerciseName ?? "Exercise")
+                        if let equipment = workoutExercise.shownExercise?.equipment.displayName {
+                            Text(equipment).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
                 }
-
-                groupHeader(.working, isDone: workoutExercise.allSetsDone())
-                setRows(workoutExercise.workingSets)
-                    .padding(.top, LayoutMetrics.compactSpacing)
+                .font(.headline)
+                .frame(width: screenWidth * 0.88, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
             }
-            .frame(maxWidth: .infinity)
-            // Room below the bar, inside the scroll content so the system's soft fade under the bar
-            // doesn't reach the first line.
-            .padding(.top, 26)
+            notes
+            if workoutExercise.showsWarmups { warmupGroup }
+            groupHeader(.working, isDone: workoutExercise.allSetsDone())
+            setRows(workoutExercise.workingSets)
+                .padding(.top, LayoutMetrics.compactSpacing)
         }
-        // The number pad slides over the sets, so the one being typed in scrolls up above it.
-        .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 26)
         .onChange(of: workoutExercise.allSetsDone()) { wasDone, isDone in
             guard !wasDone, isDone else { return }
             focusedSetField.wrappedValue = nil
@@ -85,12 +96,6 @@ struct WorkoutExerciseView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let supersetText, let index = workoutExercise.supersetIndex {
-                Label(supersetText, systemImage: "link")
-                    .font(.caption)
-                    .foregroundStyle(SupersetStyle.color(at: index))
-                    .accessibilityLabel(SupersetStyle.fullLabel(partners: supersetPartnerNames))
-            }
             if workoutExercise.checkInPending {
                 Label("Check-in required", systemImage: "cross.case")
                     .font(.caption)
@@ -104,17 +109,6 @@ struct WorkoutExerciseView: View {
     private var substituteText: String? {
         guard workoutExercise.substitute != nil, let planned = workoutExercise.exercise else { return nil }
         return "Sub for \(planned.exerciseName) · this week"
-    }
-
-    /// e.g. "Superset with Skull Crusher", or "Superset B" when the names are too long.
-    private var supersetText: String? {
-        let partners = supersetPartnerNames
-        guard !partners.isEmpty, let index = workoutExercise.supersetIndex else { return nil }
-        return SupersetStyle.label(letter: Workout.supersetLetter(at: index), partners: partners)
-    }
-
-    private var supersetPartnerNames: [String] {
-        workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
     }
 
     private var warmupGroup: some View {
@@ -173,6 +167,15 @@ struct WorkoutExerciseView: View {
                 )
                 .frame(width: screenWidth * 0.88)
                 .frame(minHeight: setRowHeight)
+                .overlay(alignment: .leading) {
+                    if workoutSet === currentSet {
+                        Capsule()
+                            .fill(workoutExercise.supersetColor ?? .accentColor)
+                            .frame(width: 3)
+                            .padding(.vertical, 8)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .id(workoutSet.id)
 
                 if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {
