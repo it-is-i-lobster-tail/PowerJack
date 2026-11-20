@@ -24,10 +24,17 @@ struct WorkoutHeader: View {
     /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
     @State private var fullSize: CGSize?
 
-    private var title: String { exercise?.exerciseName ?? "Review" }
+    /// During a scrub the focused card can cross several exercises before the selection settles.
+    private var visibleExercise: Exercise? {
+        guard let pageScroll, !pages.isEmpty else { return exercise }
+        let position = min(max(0, pageScroll.position), CGFloat(pages.count - 1))
+        return pages[Int(position.rounded(.toNearestOrEven))]
+    }
+
+    private var title: String { visibleExercise?.exerciseName ?? "Review" }
 
     private var accessibilityText: String {
-        guard let exercise, !isCompact else { return title }
+        guard let exercise = visibleExercise, !isCompact else { return title }
         return "\(title), \(exercise.equipment.displayName)"
     }
 
@@ -64,7 +71,7 @@ struct WorkoutHeader: View {
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(exercise: exercise, isCompact: isCompact, rest: rest?.period,
+            HeaderLabel(exercise: visibleExercise, isCompact: isCompact, rest: rest?.period,
                         showsCountdown: true, showsTitle: swipe == nil)
             if let swipe {
                 HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)

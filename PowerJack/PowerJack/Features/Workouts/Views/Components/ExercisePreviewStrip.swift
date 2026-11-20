@@ -7,12 +7,12 @@
 
 import SwiftUI
 
-/// How far the exercise pages have scrolled, counted in pages: 1.5 is halfway from the second page
-/// to the third. The strip follows it so it slides with the lifter's finger. It lives in its own
-/// object so only the strip redraws while the pages move.
+/// The active scroller publishes a fractional exercise index for both scrollers and the header.
 @Observable
 final class ExercisePageScroll {
     var position: CGFloat = 0
+    var isDrivenByStrip = false
+    var stripPhase: ScrollPhase = .idle
 }
 
 struct ExercisePreviewStrip: View {
@@ -37,12 +37,15 @@ struct ExercisePreviewStrip: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var stripPosition = ScrollPosition()
-    @State private var stripPhase: ScrollPhase = .idle
-    /// The card the lifter tapped, while the pages glide over to it. The strip glides there from
-    /// where it is, instead of following the pages, which would first pull it back to the page on screen.
-    @State private var glideTarget: Int?
-
     private let spacing = LayoutMetrics.compactSpacing
+
+    /// A drag on the strip settles on a card. A drag on the pager can stop between cards.
+    private var isBrowsingStrip: Bool {
+        switch pageScroll.stripPhase {
+        case .tracking, .interacting, .decelerating: true
+        default: false
+        }
+    }
 
     /// Three whole cards fit on screen, so nothing is left half cut off.
     private var cardWidth: CGFloat {
@@ -75,20 +78,39 @@ struct ExercisePreviewStrip: View {
                     card("Review", index: workoutExercises.count, isDone: false, width: cardWidth)
                 }
             }
+            .scrollTargetLayout(isEnabled: isBrowsingStrip)
             // Room for the superset line, which the scroll view would clip.
             .padding(.vertical, Self.underlineGap + 2)
         }
         .contentMargins(.horizontal, sideMargin, for: .scrollContent)
         // Cards the lifter flicks to come to rest in the middle slot.
-        .scrollTargetBehavior(CardSnap(step: step))
+        .scrollTargetBehavior(.viewAligned(anchor: .center))
         .scrollPosition($stripPosition)
-        .onScrollPhaseChange { _, newPhase in stripPhase = newPhase }
+        .onScrollPhaseChange { oldPhase, newPhase, context in
+            pageScroll.stripPhase = newPhase
+            if newPhase == .interacting {
+                pageScroll.isDrivenByStrip = true
+            }
+            guard pageScroll.isDrivenByStrip else { return }
+            if newPhase == .idle, oldPhase == .interacting || oldPhase == .decelerating {
+                let index = Int(cardPosition(context.geometry).rounded())
+                pageScroll.position = CGFloat(index)
+                selectedExerciseIndex = index
+            }
+        }
+        .onScrollGeometryChange(for: CGFloat.self, of: cardPosition) { _, position in
+            if pageScroll.isDrivenByStrip && isBrowsingStrip {
+                pageScroll.position = position
+            }
+        }
         // The side margins land after the first layout, so follow again whenever it changes.
         .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
-            followPages()
+            if !isBrowsingStrip { followPages() }
         }
         // Frame by frame with the pages, so the strip moves with the lifter's finger.
-        .onChange(of: pageScroll.position) { followPages() }
+        .onChange(of: pageScroll.position) {
+            if !pageScroll.isDrivenByStrip { followPages() }
+        }
         .frame(height: 75)
         // The cards keep their size, so their names stop growing where they still fit.
         // `textScale` caps at the same size.
@@ -96,22 +118,21 @@ struct ExercisePreviewStrip: View {
     }
 
     /// Changes when the strip is laid out or resized, but not when it is scrolled.
-    private static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
+    private nonisolated static func layoutKey(_ geometry: ScrollGeometry) -> [CGFloat] {
         [geometry.contentSize.width, geometry.containerSize.width, geometry.contentInsets.leading]
     }
 
     /// Puts the card of the page on screen in the middle slot, and part way between two cards
     /// while a swipe is part way between two pages. A strip the lifter is scrolling is left alone.
     private func followPages() {
-        guard stripPhase != .interacting, stripPhase != .decelerating else { return }
-        if let glideTarget {
-            let pagesArrived = abs(pageScroll.position - CGFloat(glideTarget)) < 0.01
-            // Swiping to another page mid-glide hands the strip back to the pages.
-            guard pagesArrived || selectedExerciseIndex != glideTarget else { return }
-            self.glideTarget = nil
-        }
         // Offsets count from the first card resting in the middle slot, inside the leading margin.
         stripPosition.scrollTo(x: pageScroll.position * step)
+    }
+
+    private func cardPosition(_ geometry: ScrollGeometry) -> CGFloat {
+        let last = max(0, workoutExercises.count - (showsReview ? 0 : 1))
+        let offset = geometry.contentOffset.x + geometry.contentInsets.leading
+        return min(max(0, offset / step), CGFloat(last))
     }
 
     /// Selected is solid blue and full size, done exercises are tinted blue with a check, the rest
@@ -192,25 +213,12 @@ struct ExercisePreviewStrip: View {
 
     private func selectExercise(at index: Int) {
         withAnimation(.easeInOut(duration: 0.325)) {
-            glideTarget = index
-            stripPosition.scrollTo(x: CGFloat(index) * step)
+            pageScroll.isDrivenByStrip = false
             if index == selectedExerciseIndex {
                 onReselect()
             } else {
                 selectedExerciseIndex = index
             }
         }
-    }
-}
-
-/// Ends a flick of the strip with a card in the middle slot. Unlike `.viewAligned`, it leaves scrolls
-/// with no speed alone: those are the strip following the pages, which can rest between two cards
-/// while a swipe is between two pages.
-private struct CardSnap: ScrollTargetBehavior {
-    let step: CGFloat
-
-    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-        guard context.velocity.dx != 0, step > 0 else { return }
-        target.rect.origin.x = (target.rect.minX / step).rounded() * step
     }
 }

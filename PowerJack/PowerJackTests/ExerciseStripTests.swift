@@ -108,6 +108,28 @@ struct ExerciseStripTests {
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 3) == 0)
     }
 
+    @Test("Scrubbing halfway moves the workout before the strip settles")
+    func stripScrubsThePager() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let scroll = ExercisePageScroll()
+        let screen = try await HostedView(ScrubScreen(workout: workout, scroll: scroll).modelContainer(container))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
+        let cards = try cardFrames(["Lift 1", "Lift 2"], in: strip, screen: screen)
+        let halfCard = (cards[1].midX - cards[0].midX) / 2
+
+        // Hold the strip between snap targets, before any change to the selected index.
+        scroll.isDrivenByStrip = true
+        scroll.stripPhase = .interacting
+        await screen.settle()
+        strip.setContentOffset(CGPoint(x: strip.contentOffset.x + halfCard, y: 0), animated: false)
+        #expect(await screen.waitUntil {
+            abs(pager.contentOffset.x - pager.bounds.width / 2) < 2 && abs(scroll.position - 0.5) < 0.01
+        })
+    }
+
     @Test("A card's name grows smoothly from caption size a page away to body size on its page")
     func nameSizeFollowsThePages() {
         let resting = ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .large)
@@ -214,5 +236,19 @@ private struct ProgramStack: View {
                 .programRouteDestinations()
         }
         .environment(router)
+    }
+}
+
+private struct ScrubScreen: View {
+    let workout: Workout
+    let scroll: ExercisePageScroll
+    @FocusState private var field: FocusedSetField?
+
+    var body: some View {
+        GeometryReader { geometry in
+            WorkoutDetailContent(screenWidth: geometry.size.width, topInset: 0,
+                                 workoutExercises: workout.workoutExercises, selectedExerciseIndex: .constant(0),
+                                 focusedSetField: $field, onExerciseSetsDone: { _ in }, pageScroll: scroll)
+        }
     }
 }
