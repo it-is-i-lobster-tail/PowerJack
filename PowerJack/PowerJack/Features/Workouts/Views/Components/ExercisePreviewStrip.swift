@@ -24,9 +24,9 @@ struct ExercisePreviewStrip: View {
     let pageScroll: ExercisePageScroll
     private static let visibleCards: CGFloat = 3
     private static let edgeMargin: CGFloat = 16
-    private static let cardHeight: CGFloat = 54
+    private static let cardHeight: CGFloat = 58
     /// How big the other cards are next to the selected one.
-    private static let restingScale: CGFloat = 0.88
+    private static let restingScale: CGFloat = 0.78
     @Binding var selectedPageIndex: Int?
     /// Tapping the exercise already selected, so the pages can come back to it.
     var onReselect: () -> Void = {}
@@ -138,13 +138,15 @@ struct ExercisePreviewStrip: View {
                 // The name changes color halfway, where the two cards are the same size. Blending it
                 // along the way would fade it into the blue.
                 .animation(.easeInOut(duration: 0.2), value: focus >= 0.5)
-                .frame(width: width, height: Self.cardHeight)
+                .frame(width: width + spacing, height: Self.cardHeight)
                 .background {
                     shape.fill(isDone ? Color.accentColor.opacity(VisualOpacity.light) : Color.gray.opacity(VisualOpacity.subtle))
                     shape.fill(Color.accentColor).opacity(focus)
                 }
                 .scaleEffect(Self.restingScale + (1 - Self.restingScale) * focus)
         }
+        // Keep the snap targets equally spaced as the visible cards grow and shrink.
+        .frame(width: width)
         .accessibilityValue(isDone ? "Done" : "")
         .id(index)
     }
@@ -154,13 +156,13 @@ struct ExercisePreviewStrip: View {
         max(0, 1 - abs(pagePosition - CGFloat(index)))
     }
 
-    /// How big a card's name is next to the selected card's: caption size a page away, body size on
+    /// How big a card's name is next to the selected card's: caption size a page away, callout size on
     /// its page, and smoothly between while the pages swipe.
     static func textScale(focus: CGFloat, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
         let sizes = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(dynamicTypeSize, .xxxLarge)))
         let caption = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: sizes).pointSize
-        let body = UIFont.preferredFont(forTextStyle: .body, compatibleWith: sizes).pointSize
-        let resting = caption / body
+        let callout = UIFont.preferredFont(forTextStyle: .callout, compatibleWith: sizes).pointSize
+        let resting = caption / callout
         return resting + (1 - resting) * focus
     }
 
@@ -168,12 +170,18 @@ struct ExercisePreviewStrip: View {
         // One font laid out at the full card size, then scaled, so the name grows with the card
         // and wraps the same way all through a swipe.
         VStack(spacing: 1) {
-            Text(title).font(.body.weight(.medium))
+            Text(title)
+                .font(.callout.weight(.medium))
+                .lineLimit(3)
+                .minimumScaleFactor(0.01)
+                .multilineTextAlignment(.center)
             if let count {
                 Text("\(count) exercises").font(.caption).lineLimit(1)
             }
         }
             .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
+            .padding(.horizontal, isDone ? 15 : 4)
+            .padding(.vertical, 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scaleEffect(textScale)
             // Done is marked with more than color.

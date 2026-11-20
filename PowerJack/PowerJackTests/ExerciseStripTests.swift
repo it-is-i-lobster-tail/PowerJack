@@ -163,10 +163,10 @@ struct ExerciseStripTests {
         })
     }
 
-    @Test("A card's name grows smoothly from caption size a page away to body size on its page")
+    @Test("A card's name grows smoothly from caption size a page away to callout size on its page")
     func nameSizeFollowsThePages() {
         let resting = ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .large)
-        #expect(abs(resting - 12.0 / 17.0) < 0.001)
+        #expect(abs(resting - 12.0 / 16.0) < 0.001)
         #expect(ExercisePreviewStrip.textScale(focus: 1, dynamicTypeSize: .large) == 1)
 
         // Every small step of a swipe changes the size a little, never a jump.
@@ -179,6 +179,34 @@ struct ExerciseStripTests {
         // Past the strip's Dynamic Type cap, the name stops changing.
         #expect(ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .accessibility5)
             == ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .xxxLarge))
+    }
+
+    @Test("Long names fit in focused and neighboring cards", arguments: [DynamicTypeSize.large, .xxxLarge])
+    func fullPreviewNames(size: DynamicTypeSize) async throws {
+        HostedView.keep(container)
+        let (_, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        exercises[0].exercise?.exerciseName = "Chest Supported Dumbbell Row"
+        exercises[1].exercise?.exerciseName = String(repeating: "W", count: 30)
+        exercises[1].skipRemainingSets()
+        let scroll = ExercisePageScroll()
+        var truncated: [Bool] = []
+        let screen = try await HostedView(
+            ExercisePreviewStrip(pages: Array(WorkoutPage.pages(for: workout).prefix(3)),
+                                 screenWidth: 320, pageScroll: scroll, selectedPageIndex: .constant(0))
+                .frame(width: 320)
+                .environment(\.dynamicTypeSize, size)
+                .onPreferenceChange(Text.LayoutKey.self) { layouts in
+                    truncated = layouts.map { $0.layout.isTruncated }
+                }
+        )
+        defer { screen.close() }
+        for position in [0.0, 0.5, 1, 2] {
+            scroll.position = position
+            await screen.settle()
+            #expect(truncated.count >= 2)
+            #expect(!truncated.contains(true))
+        }
     }
 
     @Test("Three- and two-exercise supersets each share a single page and preview card")
