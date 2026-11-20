@@ -28,6 +28,7 @@ struct ProgramSessionView: View {
             } else if let workout = program.nextWorkout {
                 WorkoutDetailView(
                     workout: workout,
+                    initialExerciseIndex: router.requestedExerciseIndex(in: workout),
                     onWorkoutFinished: { finish(workout) },
                     onSkipWorkout: { skip(workout) }
                 )

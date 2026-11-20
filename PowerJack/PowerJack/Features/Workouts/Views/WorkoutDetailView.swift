@@ -78,6 +78,7 @@ struct WorkoutDetailView: View {
 
     init(
         workout: Workout,
+        initialExerciseIndex: Int? = nil,
         onWorkoutFinished: @escaping () -> Void = {},
         onSkipWorkout: (() -> Void)? = nil,
         isReadOnly: Bool = false
@@ -87,7 +88,7 @@ struct WorkoutDetailView: View {
         self.onSkipWorkout = onSkipWorkout
         self.isReadOnly = isReadOnly
         // A finished workout opens on its first exercise; a live one on where the user left off.
-        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : Self.nextIndex(in: workout))
+        _selectedExerciseIndex = State(initialValue: isReadOnly ? 0 : initialExerciseIndex ?? Self.nextIndex(in: workout))
     }
 
     /// The first exercise still waiting, or the Review page once every exercise is done.
@@ -256,7 +257,10 @@ struct WorkoutDetailView: View {
                     .presentationDragIndicator(.hidden)
                 }
             }
-            .onAppear(perform: presentSheetIfNeeded)
+            .onAppear {
+                showRequestedExercise()
+                presentSheetIfNeeded()
+            }
             .onChange(of: selectedExerciseIndex) { previous, selected in
                 presentSheetIfNeeded()
                 // Logging a set within the same page keeps the bars in their current idle state.
@@ -276,7 +280,7 @@ struct WorkoutDetailView: View {
                 if isAnswered { closeAnsweredSheet() }
             }
             .onChange(of: router?.currentExerciseRequest) {
-                showCurrentExercise()
+                showRequestedExercise()
             }
             .onChange(of: workout.currentSet?.workoutSet.id) { previousSetID, _ in
                 followSuperset(after: previousSetID)
@@ -315,11 +319,11 @@ struct WorkoutDetailView: View {
         exerciseToEdit = exercise
     }
 
-    /// Scrolls back to the exercise the user should be doing, e.g. after tapping the rest timer.
-    private func showCurrentExercise() {
-        withAnimation(.easeInOut(duration: 0.325)) {
-            selectedExerciseIndex = Self.nextIndex(in: workout)
-        }
+    /// A timer tap follows the same set as the countdown, even when earlier exercises are unfinished.
+    private func showRequestedExercise() {
+        guard !isReadOnly, let router, let index = router.requestedExerciseIndex(in: workout) else { return }
+        router.didShowRequestedExercise()
+        selectExercise(index)
     }
 
     /// Shows the exercise opened from the ••• menu. A Bool binding rather than `item:`, because the compiler can

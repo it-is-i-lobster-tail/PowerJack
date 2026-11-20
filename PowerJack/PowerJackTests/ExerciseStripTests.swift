@@ -65,6 +65,39 @@ struct ExerciseStripTests {
         #expect(await screen.waitUntil { isCardCentered(4, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
+    @Test("Start set returns to the group that owns the timer even with earlier exercises unfinished",
+          arguments: [false, true])
+    func timerReturnsToLoggedGroup(superset: Bool) async throws {
+        let (program, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        let a = UUID()
+        for member in exercises.prefix(2) { member.setSuperset(a) }
+        let members = superset ? Array(exercises[3...4]) : [exercises[3]]
+        if superset {
+            let b = UUID()
+            for member in members { member.setSuperset(b) }
+        }
+        for member in members {
+            member.completeSet(try #require(member.warmupSets.first))
+        }
+        #expect(workout.currentRest != nil)
+        #expect(workout.currentSet?.workoutExercise === members[0])
+        #expect(workout.currentExerciseIndex == 0)
+        let card = superset ? "Superset B, 2 exercises" : "Lift 4"
+
+        // Opening the workout via the timer and tapping again from another page use the same destination.
+        router.showDetailOnly(program)
+        let screen = try await HostedView(programScreen())
+        defer { router.popToRoot(); screen.close() }
+        router.showCurrentExercise(of: program)
+        let strip = try #require(await stripScrollView(in: screen))
+        #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
+        #expect(await screen.tap("Superset A, 2 exercises"))
+        #expect(await screen.waitUntil { isCardCentered("Superset A, 2 exercises", in: strip, screen: screen) })
+        router.showCurrentExercise(of: program)
+        #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
+    }
+
     @Test("Tapping strip cards quickly leaves the pager and the strip on the last tap")
     func fastChipTapsStayInSync() async throws {
         let (_, workout) = try makeStartedWorkout()
