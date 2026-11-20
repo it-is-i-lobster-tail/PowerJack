@@ -109,7 +109,11 @@ struct CompletedWorkoutUnlockTests {
         #expect(!set.locked)
         #expect(set.completedAt == completedAt)
         // The rest that started when it was logged runs on, and nothing is logged again.
-        #expect(workout.rest(shownOn: exercise) == rest)
+        // Only the next set it calls out may change, since that set takes the fixed weight.
+        let restAfter = workout.rest(shownOn: exercise)
+        #expect(rest != nil)
+        #expect(restAfter?.startedAt == rest?.startedAt)
+        #expect(restAfter?.endsAt == rest?.endsAt)
         #expect(try container.mainContext.fetchCount(FetchDescriptor<SetReceipt>()) == receipts)
         #expect(workout.status == .active)
 
