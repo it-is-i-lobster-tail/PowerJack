@@ -92,12 +92,13 @@ struct TemplateProgramListView: View {
             }
             // Outside the scaffold, so the switcher sits above its hint.
             .safeAreaBar(edge: .top, spacing: 0) {
-                SlidingGlassPicker(
-                    options: TemplateType.allCases,
-                    selection: $templateType,
-                    title: \.name,
-                    centersMiddleOption: true
-                )
+                Picker("Template type", selection: $templateType) {
+                    ForEach(TemplateType.allCases) { type in
+                        Text(type.name).tag(type)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
                 .padding(.bottom, LayoutMetrics.compactSpacing)
             }
             .navigationDestination(item: $selectedTemplate) { template in
