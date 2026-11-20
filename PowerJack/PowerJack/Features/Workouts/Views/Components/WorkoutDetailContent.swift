@@ -24,8 +24,6 @@ struct WorkoutDetailContent: View {
     @State private var pageRequests = 0
     @State private var stripHeight: CGFloat = 0
 
-    private static let stripFade = LayoutMetrics.compactSpacing * 2
-
     var body: some View {
         // The sets fill the screen and scroll under the bars, but come to rest between them.
         // The top inset ends where the bar does, so the fade under it stays clear of the first line.
@@ -53,9 +51,7 @@ struct WorkoutDetailContent: View {
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
-            // The sets fade out in the gap above the strip, so none show between its cards.
-            .padding(.top, Self.stripFade)
-            .background { EdgeBlur(edge: .bottom, fadeLength: Self.stripFade) }
+            .padding(.top, LayoutMetrics.compactSpacing * 2)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
             .fadesWhenIdle(idleControls)
         }
