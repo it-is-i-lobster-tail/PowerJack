@@ -16,10 +16,11 @@ final class ExercisePageScroll {
     /// The page the finger left, retained through deceleration so a reversed drag can unwind the reveal.
     var swipeStartPage: Int?
 
-    func swipeOffset(lastPage: Int) -> CGFloat {
+    func previewVisibility(controlsHidden: Bool, lastPage: Int) -> CGFloat {
+        guard controlsHidden else { return 1 }
         guard let swipeStartPage else { return 0 }
-        let page = min(max(position, 0), CGFloat(lastPage))
-        return min(1, max(-1, page - CGFloat(swipeStartPage)))
+        let page = max(0, min(position, CGFloat(lastPage)))
+        return min(1, abs(page - CGFloat(swipeStartPage)))
     }
 }
 

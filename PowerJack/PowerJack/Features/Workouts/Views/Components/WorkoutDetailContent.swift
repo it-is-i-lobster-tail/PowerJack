@@ -41,8 +41,7 @@ struct WorkoutDetailContent: View {
 
     var body: some View {
         let hidden = idleControls?.isHidden == true
-        let revealing = hidden && pageScroll.swipeStartPage != nil
-        let offset = pageScroll.swipeOffset(lastPage: review == nil ? pages.count - 1 : pages.count)
+        let visibility = pageScroll.previewVisibility(controlsHidden: hidden, lastPage: review == nil ? pages.count - 1 : pages.count)
         // The first set rests below the pinned strip. Later sets can scroll under it.
         WorkoutExercisePager(
             screenWidth: screenWidth,
@@ -54,9 +53,7 @@ struct WorkoutDetailContent: View {
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            topInset: topInset,
-            stripInset: stripHeight,
-            controlsHidden: hidden
+            topInset: topInset + stripHeight * visibility
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
@@ -73,12 +70,8 @@ struct WorkoutDetailContent: View {
             )
             .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-            // Reveal only the portion over the incoming page, following its edge in either direction.
-            .mask {
-                Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
-                                        anchor: offset < 0 ? .leading : .trailing)
-            }
-            .opacity(hidden && !revealing ? 0 : 1)
+            // As with a navigation reveal, the cards fade in as the sets move down to make room.
+            .opacity(visibility)
             .allowsHitTesting(!hidden)
             .accessibilityHidden(hidden)
             .padding(.top, topInset)
