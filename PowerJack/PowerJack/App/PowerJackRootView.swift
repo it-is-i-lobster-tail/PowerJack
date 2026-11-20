@@ -100,6 +100,11 @@ private struct PowerJackScreens: View {
     // A workout fades the bars away while it sits idle.
     @State private var idleControls = IdleControls()
 
+    private var showsWorkoutHeader: Bool {
+        guard selection == .programs, case .session(let program) = router.path.last else { return false }
+        return program == activeProgram && program.nextWorkout?.workoutExercises.isEmpty == false
+    }
+
     var body: some View {
         // Standard tabs can't be swiped between, so only the picker below switches sections.
         TabView(selection: $selection) {
@@ -155,7 +160,7 @@ private struct PowerJackScreens: View {
             }
             .fadesWhenIdle(idleControls)
         }
-        .restTimer(onOpenCurrentExercise: openCurrentExercise)
+        .restTimer(inWorkoutHeader: showsWorkoutHeader, onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
         .environment(idleControls)
         .powerJackKeyboardBehavior()

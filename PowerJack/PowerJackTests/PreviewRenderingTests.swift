@@ -9,9 +9,16 @@ import XCTest
 final class PreviewRenderingTests: XCTestCase {
     func testPreviewScreensRender() async throws {
         let scenario = PowerJackSeed.weekOneProgress()
-        let empty = PowerJackSeed.makeInMemoryContainer()
+        let empty = HostedView.makeStore()
         let emptyWorkout = PowerJackSeed.emptyWorkout()
         let progression = PowerJackSeed.weekTwoProgression()
+        let settingsStore = PowerJackStore(inMemory: true)
+
+        // A query from a dismissed preview can still receive the next fixture's save.
+        HostedView.keep(scenario.container)
+        HostedView.keep(emptyWorkout.container)
+        HostedView.keep(progression.container)
+        HostedView.keep(settingsStore.container)
 
         func navigation<V: View>(_ view: V, emptyData: Bool = false) -> AnyView {
             AnyView(NavigationPreviewHost(modelContainer: emptyData ? empty : scenario.container) { view })
@@ -56,13 +63,13 @@ final class PreviewRenderingTests: XCTestCase {
                 workoutExercise: progression.checkInExercise,
                 onResolved: {}
             ).modelContainer(progression.container))),
-            ("Settings", AnyView(SettingsView().environment(PowerJackStore(inMemory: true)))),
+            ("Settings", AnyView(SettingsView().environment(settingsStore))),
             ("Personalization", AnyView(NavigationStack { PersonalizationSettingsView() })),
             ("My Gym", AnyView(NavigationStack { MyGymSettingsView() })),
             ("Appearance", AnyView(NavigationStack { AppearanceSettingsView() })),
             ("Your Data", AnyView(NavigationStack { YourDataSettingsView() }
                 .modelContainer(scenario.container)
-                .environment(PowerJackStore(inMemory: true)))),
+                .environment(settingsStore))),
             ("Legal", AnyView(NavigationStack { LegalSettingsView() })),
             ("Rest Between Sets", AnyView(NavigationStack { RestBetweenSetsView() })),
             ("FAQ", AnyView(NavigationStack { FAQView() })),
@@ -76,21 +83,11 @@ final class PreviewRenderingTests: XCTestCase {
             ))),
         ]
 
-        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: scene)
-        window.frame = scene.effectiveGeometry.coordinateSpace.bounds
-        window.makeKeyAndVisible()
-        defer {
-            window.isHidden = true
-            window.rootViewController = nil
-        }
-
         for (name, screen) in screens {
-            let host = UIHostingController(rootView: screen)
-            window.rootViewController = host
-            host.view.setNeedsLayout()
-            host.view.layoutIfNeeded()
-            try await Task.sleep(for: .milliseconds(250))
+            let preview = try await HostedView(screen)
+            defer { preview.close() }
+            let window = preview.window
+            let host = try XCTUnwrap(window.rootViewController)
             XCTAssertGreaterThan(host.view.bounds.width, 0, name)
             let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
             let image = renderer.image { _ in

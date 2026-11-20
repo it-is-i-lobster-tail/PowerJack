@@ -165,7 +165,7 @@ private struct RestIslandContent: View {
     }
 }
 
-private struct RestIslandRing: View {
+struct RestIslandRing: View {
     let fractionRemaining: Double
     let isReady: Bool
     let lineWidth: CGFloat
@@ -175,14 +175,18 @@ private struct RestIslandRing: View {
             Circle()
                 .stroke(tint.opacity(VisualOpacity.light), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: isReady ? 1 : fractionRemaining)
+                .trim(from: 0, to: fractionRemaining)
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 // Each tick moves the ring one second; animating it keeps the motion smooth.
                 .animation(.linear(duration: 1), value: fractionRemaining)
             if isReady {
+                Circle().stroke(.green, lineWidth: lineWidth)
                 Image(systemName: "checkmark")
-                    .font(.system(size: lineWidth * 3, weight: .bold))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .bold()
+                    .scaleEffect(0.55)
                     .foregroundStyle(tint)
             }
         }
