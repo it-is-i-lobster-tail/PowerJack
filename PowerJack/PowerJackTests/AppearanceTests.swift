@@ -3,7 +3,7 @@
 //  PowerJackTests
 //
 //  The Appearance setting: System follows the iPhone, Light and Dark force a style,
-//  and a change reaches every screen, including an open Settings sheet.
+//  and a change reaches every screen, including the Settings tab.
 //
 
 import SwiftUI
@@ -39,8 +39,8 @@ struct AppearanceTests {
         #expect(screen.window.traitCollection.userInterfaceStyle == .light)
     }
 
-    @Test("Switching reaches an open Settings sheet, and System hands the style back to the iPhone")
-    func switchesOpenSheet() async throws {
+    @Test("Switching reaches the Settings tab, and System hands the style back to the iPhone")
+    func switchesOpenSettingsTab() async throws {
         let saved = defaults.object(forKey: key)
         defer { defaults.set(saved, forKey: key) }
         defaults.removeObject(forKey: key)
@@ -51,16 +51,18 @@ struct AppearanceTests {
         let forced: Appearance = iPhoneStyle == .dark ? .light : .dark
 
         #expect(screen.window.overrideUserInterfaceStyle == .unspecified)
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
-        let sheet = try #require(screen.window.rootViewController?.presentedViewController)
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(screen.contains("Appearance"))
+        let root = try #require(screen.window.rootViewController)
+        #expect(root.presentedViewController == nil)
 
         defaults.set(forced.rawValue, forKey: key)
         await screen.settle()
-        #expect(sheet.traitCollection.userInterfaceStyle == forced.userInterfaceStyle)
+        #expect(root.traitCollection.userInterfaceStyle == forced.userInterfaceStyle)
 
         defaults.set(Appearance.system.rawValue, forKey: key)
         await screen.settle()
         #expect(screen.window.overrideUserInterfaceStyle == .unspecified)
-        #expect(sheet.traitCollection.userInterfaceStyle == iPhoneStyle)
+        #expect(root.traitCollection.userInterfaceStyle == iPhoneStyle)
     }
 }

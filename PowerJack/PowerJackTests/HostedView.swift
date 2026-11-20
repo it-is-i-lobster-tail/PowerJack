@@ -132,6 +132,24 @@ final class HostedView {
         return activated
     }
 
+    /// In-process accessibility activation doesn't select native tab bar items.
+    /// Drive the tab controller and deliver the same selection SwiftUI receives on a tap.
+    @discardableResult
+    func selectTab(_ title: String, settleFor duration: Duration = .milliseconds(600)) async -> Bool {
+        func findTabs(in controller: UIViewController) -> UITabBarController? {
+            if let tabs = controller as? UITabBarController { return tabs }
+            return controller.children.lazy.compactMap(findTabs).first
+        }
+        guard let controller = findTabs(in: host),
+              let tab = controller.tabs.first(where: { $0.title == title })
+        else { return false }
+        let previous = controller.selectedTab
+        controller.selectedTab = tab
+        controller.delegate?.tabBarController?(controller, didSelectTab: tab, previousTab: previous)
+        await settle(duration)
+        return controller.selectedTab == tab
+    }
+
     /// On some iOS versions a SwiftUI confirmation dialog is a UIKit alert, whose buttons don't respond
     /// to `accessibilityActivate` in-process. Runs the alert button's own action instead, after
     /// dismissing the alert, the order UIKit uses when it's tapped.
