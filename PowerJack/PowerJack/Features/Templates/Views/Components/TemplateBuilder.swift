@@ -82,11 +82,13 @@ struct TemplateBuilder: View {
     var body: some View {
         ZStack {
             VStack {
-                SlidingGlassPicker(
-                    options: options,
-                    selection: $selection,
-                    title: \.name
-                )
+                Picker("Workout day", selection: $selection) {
+                    ForEach(options) { day in
+                        Text(day.name).tag(day)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
                 
                 Divider()
                     .padding(.horizontal, LayoutMetrics.sectionSpacing)
@@ -114,8 +116,7 @@ struct TemplateBuilder: View {
                     }
                     .powerJackGlassCard()
                 } else {
-                    // Days change only by tapping the picker. Horizontal swipes belong to
-                    // the exercise rows, so swipe to edit or delete never flips the day.
+                    // The picker changes days, leaving horizontal swipes on exercise rows for editing.
                     TemplateWorkoutBuilder(
                         templateWorkoutDraft: $draft.templateWorkoutDraftsValue[selection.index],
                         loggedExercises: loggedExercises,
