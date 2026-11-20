@@ -74,7 +74,7 @@ struct WorkoutDetailContent: View {
             .padding(.top, LayoutMetrics.compactSpacing)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
             // Slide the cards down from behind the navigation bar inside the incoming page's mask.
-            .offset(y: revealing ? -stripHeight * (1 - abs(offset)) : 0)
+            .offset(y: revealing ? -8 * (1 - abs(offset)) : 0)
             // Reveal only the portion over the incoming page, following its edge in either direction.
             .mask {
                 Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
