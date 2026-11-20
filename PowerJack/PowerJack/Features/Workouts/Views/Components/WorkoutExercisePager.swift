@@ -21,6 +21,8 @@ struct WorkoutExercisePager: View {
     var pageRequests = 0
     let pageScroll: ExercisePageScroll
     let topInset: CGFloat
+    let stripInset: CGFloat
+    let controlsHidden: Bool
     @Environment(IdleControls.self) private var idleControls: IdleControls?
 
     @State private var scrollPhase: ScrollPhase = .idle
@@ -31,14 +33,14 @@ struct WorkoutExercisePager: View {
             LazyHStack(spacing: 0) {
                 ForEach(pages.indices, id: \.self) { index in
                     exercisePage(pages[index])
-                        .safeAreaPadding(.top, topInset)
+                        .safeAreaPadding(.top, inset(for: index))
                         .containerRelativeFrame(.horizontal)
                         .id(index)
                 }
 
                 if let review {
                     review
-                        .safeAreaPadding(.top, topInset)
+                        .safeAreaPadding(.top, inset(for: pages.count))
                         .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
                         .containerRelativeFrame(.horizontal)
                         .id(pages.count)
@@ -62,7 +64,7 @@ struct WorkoutExercisePager: View {
             guard !pageScroll.isDrivenByStrip, newPhase == .idle,
                   oldPhase == .interacting || oldPhase == .decelerating else { return }
             let destination = Int(Self.pagePosition(context.geometry).rounded())
-            if destination != selectedPageIndex, idleControls?.isHidden == true { idleControls?.show() }
+            if destination != selectedPageIndex, controlsHidden { idleControls?.show() }
             selectedPageIndex = destination
         }
         .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
@@ -82,6 +84,12 @@ struct WorkoutExercisePager: View {
         // A superset change moves exercises between pages. The pages are keyed by position, so the pager
         // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
         .id(pages.map { $0.exercises.map(\.persistentModelID) })
+    }
+
+    private func inset(for index: Int) -> CGFloat {
+        // The departing page holds its vertical position. The incoming page already has room for its cards.
+        let incoming = pageScroll.swipeStartPage.map { $0 != index } ?? false
+        return topInset + (controlsHidden && !incoming ? 0 : stripInset)
     }
 
     private func exercisePage(_ page: WorkoutPage) -> some View {
