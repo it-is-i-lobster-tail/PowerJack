@@ -42,14 +42,18 @@ struct WorkoutHeader: View {
     }
 
     var body: some View {
+        let swipe = swipe
         SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(exercise: exercise, isCompact: isCompact, rest: rest?.period, showsCountdown: true)
-            // Laid out unseen, so the bubble can size itself between the two.
+            HeaderLabel(exercise: exercise, isCompact: isCompact, rest: rest?.period,
+                        showsCountdown: true, showsTitle: swipe == nil)
             if let swipe {
-                HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period).hidden()
-                HeaderLabel(exercise: swipe.to, isCompact: isCompact, rest: rest?.period).hidden()
+                HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                    .accessibilityHidden(true)
+                HeaderLabel(exercise: swipe.to, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                    .accessibilityHidden(true)
             }
         }
+        .clipShape(.capsule)
         .background { Color.clear.glassEffect(.powerJackBar, in: .capsule) }
         .contentShape(.capsule)
         .gesture(TapGesture().onEnded { rest?.onTap() }, isEnabled: rest != nil)
@@ -72,6 +76,8 @@ private struct HeaderLabel: View {
     let isCompact: Bool
     let rest: RestPeriod?
     var showsCountdown = false
+    var showsTitle = true
+    var showsSubtitle = true
 
     private var foldsSubtitle: Bool { isCompact && rest == nil }
 
@@ -79,7 +85,7 @@ private struct HeaderLabel: View {
         VStack(spacing: 0) {
             Text(exercise?.exerciseName ?? "Review")
                 .font(isCompact ? .callout.weight(.semibold) : .headline)
-                .truncationMode(.tail)
+                .foregroundStyle(showsTitle ? Color.primary : .clear)
             if exercise != nil || rest != nil {
                 let equipment = exercise?.equipment.displayName ?? ""
                 // The equipment's font metrics own this line, even when the ring is showing.
@@ -108,7 +114,7 @@ private struct HeaderLabel: View {
                 }
                 .font(.subheadline)
                 .fixedSize()
-                .opacity(foldsSubtitle ? 0 : 1)
+                .opacity(foldsSubtitle || !showsSubtitle ? 0 : 1)
                 .frame(width: foldsSubtitle ? 0 : nil, height: foldsSubtitle ? 0 : nil, alignment: .top)
                 .clipped()
             }
@@ -157,10 +163,18 @@ private struct SwipeWidthLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        // Each at its own size, centered. Mid-swipe the name can run into the bubble's padding
-        // for a moment rather than squeeze to fit.
-        for subview in subviews {
-            subview.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: proposal)
-        }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        subviews.first?.place(at: center, anchor: .center, proposal: proposal)
+        guard subviews.count == 3 else { return }
+
+        // Move complete labels through the capsule like the pages beneath them. Its
+        // interpolated width must never become a line-breaking constraint for either name.
+        let from = subviews[1]
+        let to = subviews[2]
+        let distance = (from.sizeThatFits(.unspecified).width + to.sizeThatFits(.unspecified).width) / 2
+        from.place(at: CGPoint(x: center.x - progress * distance, y: center.y),
+                   anchor: .center, proposal: .unspecified)
+        to.place(at: CGPoint(x: center.x + (1 - progress) * distance, y: center.y),
+                 anchor: .center, proposal: .unspecified)
     }
 }
