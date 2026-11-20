@@ -60,6 +60,28 @@ struct WorkoutHeaderTests {
         #expect(abs(middle - (start + end) / 2) < 2)
     }
 
+    @Test("The idle pill shows the whole name beyond the toolbar slot", arguments: [
+        "Chest Supported Dumbbell Row", String(repeating: "W", count: 30)
+    ])
+    func longExerciseTitle(name: String) async throws {
+        let exercise = Exercise(exerciseName: name, exerciseEquipment: .dumbbell, primaryMuscleFocus: .back)
+        var textTruncation: [Bool] = []
+        let screen = try await HostedView(
+            WorkoutHeader(pages: [.exercise(exercise)], controlsHidden: true,
+                          pageScroll: ExercisePageScroll(), idleWidth: 280)
+                .frame(width: 200)
+                .onPreferenceChange(Text.LayoutKey.self) { layouts in
+                    textTruncation = layouts.map { $0.layout.isTruncated }
+                }
+        )
+        defer { screen.close() }
+        let pill = try #require(screen.frame(of: "\(name), Dumbbell"))
+        #expect(pill.width > 200 && pill.width <= 281)
+        #expect(abs(pill.midX - screen.window.bounds.midX) < 1)
+        #expect(!textTruncation.isEmpty)
+        #expect(!textTruncation.contains(true))
+    }
+
     @Test("Review keeps its own title")
     func reviewHeader() async throws {
         let screen = try await HostedView(WorkoutHeader(pages: [.review], controlsHidden: true, pageScroll: ExercisePageScroll()))

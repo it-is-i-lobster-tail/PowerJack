@@ -14,6 +14,7 @@ struct WorkoutHeader: View {
     let pages: [WorkoutPageHeader]
     let controlsHidden: Bool
     let pageScroll: ExercisePageScroll
+    var idleWidth: CGFloat?
 
     private var position: CGFloat {
         min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
@@ -46,11 +47,15 @@ struct WorkoutHeader: View {
                 ForEach([false, true], id: \.self) { hidden in
                     HeaderLabel(page: pages[index], controlsHidden: hidden, rest: rest?.period)
                         .hidden()
-                        .frame(height: 0)
                         .accessibilityHidden(true)
                 }
             }
+        }
+        .overlay {
+            // Keep the toolbar's center anchor while letting the idle title use the faded buttons' space.
             pill
+                .frame(width: controlsHidden ? idleWidth : nil)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .animation(.easeInOut(duration: 0.18), value: rest != nil)
         .animation(IdleControls.fade, value: controlsHidden)
@@ -97,6 +102,7 @@ private struct HeaderLabel: View {
             if showsTitle {
                 Text(page.title)
                     .font(.headline)
+                    .minimumScaleFactor(0.01)
                     .opacity(showsPageText ? 1 : 0)
             }
             if let rest {
@@ -171,10 +177,10 @@ private struct SwipeWidthLayout: Layout {
         // interpolated width must never become a line-breaking constraint for either name.
         let from = subviews[1]
         let to = subviews[2]
-        let distance = (from.sizeThatFits(.unspecified).width + to.sizeThatFits(.unspecified).width) / 2
+        let distance = (from.sizeThatFits(proposal).width + to.sizeThatFits(proposal).width) / 2
         from.place(at: CGPoint(x: center.x - progress * distance, y: center.y),
-                   anchor: .center, proposal: .unspecified)
+                   anchor: .center, proposal: proposal)
         to.place(at: CGPoint(x: center.x + (1 - progress) * distance, y: center.y),
-                 anchor: .center, proposal: .unspecified)
+                 anchor: .center, proposal: proposal)
     }
 }

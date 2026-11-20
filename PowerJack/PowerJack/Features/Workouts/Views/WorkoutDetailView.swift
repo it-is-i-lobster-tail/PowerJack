@@ -176,7 +176,8 @@ struct WorkoutDetailView: View {
                         WorkoutHeader(
                             pages: pages.map(\.header) + (isReadOnly ? [] : [.review]),
                             controlsHidden: controlsHidden,
-                            pageScroll: pageScroll
+                            pageScroll: pageScroll,
+                            idleWidth: max(0, geometry.size.width - 2 * LayoutMetrics.sectionSpacing)
                         )
                     }
 
