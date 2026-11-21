@@ -60,17 +60,22 @@ extension TemplateWorkoutDraft {
         return blocks
     }
 
-    /// Each superset gets a letter by its place in the day: A for the first, then B, and so on to Z.
+    /// Each superset gets a letter by its place in the day: A for the first, then B, and so on. New ones stop at E,
+    /// but older days with more keep their letters.
     static let supersetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init)
 
     var supersets: [TemplateExerciseBlock] { blocks.filter(\.isSuperset) }
 
-    func supersetLetter(for block: TemplateExerciseBlock) -> String {
-        let index = supersets.firstIndex { $0.id == block.id } ?? 0
-        return Self.supersetLetters[min(index, Self.supersetLetters.count - 1)]
+    func supersetIndex(for block: TemplateExerciseBlock) -> Int {
+        supersets.firstIndex { $0.id == block.id } ?? 0
     }
 
-    var canStartSuperset: Bool { supersets.count < Self.supersetLetters.count }
+    func supersetLetter(for block: TemplateExerciseBlock) -> String {
+        Self.supersetLetters[min(supersetIndex(for: block), Self.supersetLetters.count - 1)]
+    }
+
+    /// A day has at most five supersets, A to E.
+    var canStartSuperset: Bool { supersets.count < SupersetStyle.maxPerWorkout }
 }
 
 //
@@ -229,6 +234,23 @@ extension TemplateWorkoutDraft {
                 drafts[members[0]].supersetID = nil
             }
         }
+    }
+
+    /// Swaps one exercise for another in the same spot, in its superset if it's in one.
+    /// The swap gets a new ID, so a running day treats it as a new exercise with its own sets.
+    mutating func changeExercise(_ exerciseID: UUID, to exercise: Exercise) {
+        guard
+            let index = templateExerciseDraftsValue.firstIndex(where: { $0.id == exerciseID }),
+            templateExerciseDraftsValue[index].exercise !== exercise
+        else {
+            return
+        }
+        let current = templateExerciseDraftsValue[index]
+        templateExerciseDraftsValue[index] = TemplateExerciseDraft(
+            order: current.order,
+            exercise: exercise,
+            supersetID: current.supersetID
+        )
     }
 
     /// Splits a superset back into exercises on their own.

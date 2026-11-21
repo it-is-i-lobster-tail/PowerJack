@@ -51,7 +51,7 @@ struct TemplateAutosaveTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Templates", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
         let row = try #require(screen.label(startingWith: "(Draft) Pull Days"), "\(screen.labels)")
         await screen.tap(row, settleFor: .milliseconds(800))
         let build = try #require(screen.label(startingWith: "Build Workouts"), "\(screen.labels)")
@@ -61,7 +61,7 @@ struct TemplateAutosaveTests {
         await screen.tap(bench, settleFor: .milliseconds(800))
         #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
 
-        await screen.tap("Programs", settleFor: .milliseconds(800))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
 
         let day1 = template.templateWorkouts.first?.templateExercises.compactMap(\.exercise?.exerciseName)

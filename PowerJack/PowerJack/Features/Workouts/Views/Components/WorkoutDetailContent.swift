@@ -16,17 +16,17 @@ struct WorkoutDetailContent: View {
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
     var review: WorkoutReviewView? = nil
+    /// Where the pages are, shared with the strip and the header.
+    let pageScroll: ExercisePageScroll
 
     @Environment(IdleControls.self) private var idleControls: IdleControls?
 
     @State private var pageRequests = 0
-    @State private var stripHeight: CGFloat = 0
-    @State private var pageScroll = ExercisePageScroll()
-
-    private static let stripFade = LayoutMetrics.compactSpacing * 2
 
     var body: some View {
-        // The sets fill the screen and scroll under the bars, but come to rest between them.
+        let hidden = idleControls?.isHidden == true
+        let revealing = hidden && pageScroll.swipeStartPage != nil
+        let offset = pageScroll.swipeOffset(lastPage: review == nil ? workoutExercises.count - 1 : workoutExercises.count)
         WorkoutExercisePager(
             screenWidth: screenWidth,
             workoutExercises: workoutExercises,
@@ -36,13 +36,14 @@ struct WorkoutDetailContent: View {
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
-            pageInsets: EdgeInsets(top: topInset + LayoutMetrics.compactSpacing, leading: 0, bottom: stripHeight, trailing: 0)
+            topInset: topInset,
+            controlsHidden: hidden
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
         }
-        .overlay(alignment: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             ExercisePreviewStrip(
                 workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
@@ -51,11 +52,18 @@ struct WorkoutDetailContent: View {
                 selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
-            // The sets fade out in the gap above the strip, so none show between its cards.
-            .padding(.top, Self.stripFade)
-            .background { EdgeBlur(edge: .bottom, fadeLength: Self.stripFade) }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-            .fadesWhenIdle(idleControls)
+            .padding(.top, LayoutMetrics.compactSpacing)
+            // Bring the cards up from the bottom along the incoming page’s edge.
+            .offset(y: revealing ? 8 * (1 - abs(offset)) : 0)
+            // Reveal only the portion over the incoming page, following its edge in either direction.
+            .mask {
+                Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
+                                        anchor: offset < 0 ? .leading : .trailing)
+            }
+            .opacity(hidden && !revealing ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
+            .frame(height: idleControls?.previewStripCollapsed == true && !revealing ? 0 : nil)
         }
         .frame(width: screenWidth)
     }

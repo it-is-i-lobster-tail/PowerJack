@@ -17,13 +17,14 @@ struct ExerciseStripTests {
     private let router = ProgramsRouter()
     private static let exerciseCount = 6
 
-    @Test("A new workout opens with the first exercise in the middle of the strip")
+    @Test("A new workout opens with the first exercise centered in the bottom strip")
     func firstExerciseStartsCentered() async throws {
         let (_, workout) = try makeStartedWorkout()
         let screen = try await HostedView(workoutScreen(workout))
         defer { screen.close() }
 
         let strip = try #require(await stripScrollView(in: screen))
+        #expect(strip.convert(strip.bounds, to: screen.window).minY > screen.window.bounds.midY)
         #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
@@ -41,6 +42,8 @@ struct ExerciseStripTests {
             await screen.tap(name)
         }
         #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+        let finish = try #require(screen.frame(of: "Finish Workout"))
+        #expect(finish.maxY < strip.convert(strip.bounds, to: nil).minY)
     }
 
     @Test("Resuming a workout mid-way scrolls the strip to the current exercise")
@@ -63,6 +66,41 @@ struct ExerciseStripTests {
 
         let strip = try #require(await stripScrollView(in: screen))
         #expect(await screen.waitUntil { isCardCentered(4, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+    }
+
+    @Test("Start set returns to the exact exercise due next even with earlier exercises unfinished",
+          arguments: [false, true])
+    func timerReturnsToCurrentMember(superset: Bool) async throws {
+        let (program, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        let a = UUID()
+        for member in exercises.prefix(2) { member.setSuperset(a) }
+        let members = superset ? Array(exercises[3...4]) : [exercises[3]]
+        if superset {
+            let b = UUID()
+            for member in members { member.setSuperset(b) }
+            // Only the second partner has another warmup after their first round.
+            members[0].removeLastSet(type: .warmup)
+        }
+        for member in members {
+            member.completeSet(try #require(member.warmupSets.first))
+        }
+        #expect(workout.currentRest != nil)
+        #expect(workout.currentSet?.workoutExercise === members.last)
+        #expect(workout.currentExerciseIndex == 0)
+        let card = superset ? "Lift 5" : "Lift 4"
+
+        // Opening the workout via the timer and tapping again from another page use the same destination.
+        router.showDetailOnly(program)
+        let screen = try await HostedView(programScreen())
+        defer { router.popToRoot(); screen.close() }
+        router.showCurrentExercise(of: program)
+        let strip = try #require(await stripScrollView(in: screen))
+        #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
+        #expect(await screen.tap("Lift 1"))
+        #expect(await screen.waitUntil { isCardCentered("Lift 1", in: strip, screen: screen) })
+        router.showCurrentExercise(of: program)
+        #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
     }
 
     @Test("Tapping strip cards quickly leaves the pager and the strip on the last tap")
@@ -106,6 +144,135 @@ struct ExerciseStripTests {
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 1.5) == 0.5)
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 0) == 0)
         #expect(ExercisePreviewStrip.focus(ofCard: 1, pagePosition: 3) == 0)
+    }
+
+    @Test("An idle page swipe reveals the incoming edge and unwinds when reversed")
+    func swipeRevealFollowsFinger() {
+        let scroll = ExercisePageScroll()
+        scroll.swipeStartPage = 1
+        for offset in [0.25, 0.6, 0.25, 0, -0.4, -1, 0, 1] {
+            scroll.position = 1 + offset
+            #expect(abs(scroll.swipeOffset(lastPage: 2) - offset) < 0.001)
+        }
+        // Rubber-banding at either end has no incoming page.
+        scroll.swipeStartPage = 0
+        scroll.position = -0.2
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+        scroll.swipeStartPage = 2
+        scroll.position = 2.2
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+        scroll.swipeStartPage = nil
+        scroll.position = 1.5
+        #expect(scroll.swipeOffset(lastPage: 2) == 0)
+    }
+
+    @Test("Scrubbing halfway moves the workout before the strip settles")
+    func stripScrubsThePager() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let scroll = ExercisePageScroll()
+        let screen = try await HostedView(ScrubScreen(workout: workout, scroll: scroll).modelContainer(container))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
+        let cards = try cardFrames(["Lift 1", "Lift 2"], in: strip, screen: screen)
+        let halfCard = (cards[1].midX - cards[0].midX) / 2
+
+        // Hold the strip between snap targets, before any change to the selected index.
+        scroll.isDrivenByStrip = true
+        scroll.stripPhase = .interacting
+        await screen.settle()
+        strip.setContentOffset(CGPoint(x: strip.contentOffset.x + halfCard, y: 0), animated: false)
+        #expect(await screen.waitUntil {
+            abs(pager.contentOffset.x - pager.bounds.width / 2) < 2 && abs(scroll.position - 0.5) < 0.01
+        })
+    }
+
+    @Test("A card's name grows smoothly from caption size a page away to callout size on its page")
+    func nameSizeFollowsThePages() {
+        let resting = ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .large)
+        #expect(abs(resting - 12.0 / 16.0) < 0.001)
+        #expect(ExercisePreviewStrip.textScale(focus: 1, dynamicTypeSize: .large) == 1)
+
+        // Every small step of a swipe changes the size a little, never a jump.
+        let steps = stride(from: 0.0, through: 1.0, by: 0.05).map { ExercisePreviewStrip.textScale(focus: $0, dynamicTypeSize: .large) }
+        for (smaller, bigger) in zip(steps, steps.dropFirst()) {
+            #expect(bigger > smaller)
+            #expect(bigger - smaller < 0.02)
+        }
+
+        // Past the strip's Dynamic Type cap, the name stops changing.
+        #expect(ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .accessibility5)
+            == ExercisePreviewStrip.textScale(focus: 0, dynamicTypeSize: .xxxLarge))
+    }
+
+    @Test("Long names fit in focused and neighboring cards", arguments: [DynamicTypeSize.large, .xxxLarge])
+    func fullPreviewNames(size: DynamicTypeSize) async throws {
+        HostedView.keep(container)
+        let (_, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        exercises[0].exercise?.exerciseName = "Chest Supported Dumbbell Row"
+        exercises[1].exercise?.exerciseName = String(repeating: "W", count: 30)
+        exercises[1].skipRemainingSets()
+        let scroll = ExercisePageScroll()
+        let textProbe = TextTruncationProbe()
+        let screen = try await HostedView(
+            ExercisePreviewStrip(workoutExercises: Array(exercises.prefix(3)),
+                                 screenWidth: 320, pageScroll: scroll, selectedExerciseIndex: .constant(0))
+                .frame(width: 320)
+                .environment(\.dynamicTypeSize, size)
+                .textRenderer(textProbe)
+        )
+        defer { screen.close() }
+        for position in [0.0, 0.5, 1, 2] {
+            scroll.position = position
+            await screen.settle()
+            #expect(textProbe.truncated.count >= 2)
+            #expect(!textProbe.truncated.contains(true))
+        }
+    }
+
+    @Test("Members of two- and three-exercise supersets have individual cards, pages and Review links")
+    func supersetMemberPages() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let exercises = workout.workoutExercises
+        let a = UUID(), b = UUID()
+        for member in exercises[1...3] { member.setSuperset(a) }
+        for member in exercises[4...5] { member.setSuperset(b) }
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        for index in 1..<exercises.count {
+            let member = exercises[index]
+            let name = try #require(member.shownExercise?.exerciseName)
+            #expect(await screen.tap(name))
+            #expect(await screen.waitUntil { isCardCentered(name, in: strip, screen: screen) && pagerPage(pager) == index })
+            let partners = member.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
+            #expect(screen.contains(SupersetStyle.fullLabel(partners: partners)))
+        }
+        #expect(await screen.tap("Review"))
+        #expect(await screen.waitUntil { pagerPage(pager) == exercises.count })
+        let row = try #require(screen.label(startingWith: "Lift 3,"))
+        #expect(await screen.tap(row))
+        #expect(await screen.waitUntil { isCardCentered("Lift 3", in: strip, screen: screen) && pagerPage(pager) == 2 })
+    }
+
+    @Test("Checking a set pages horizontally to the next superset member")
+    func followsNextMember() async throws {
+        let (_, workout) = try makeStartedWorkout()
+        let pair = Array(workout.workoutExercises.prefix(2))
+        let groupID = UUID()
+        for exercise in pair { exercise.setSuperset(groupID) }
+        let screen = try await HostedView(workoutScreen(workout))
+        defer { screen.close() }
+        let strip = try #require(await stripScrollView(in: screen))
+        let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
+        let current = try #require(workout.currentSet)
+        current.workoutExercise.completeSet(current.workoutSet)
+        #expect(workout.currentSet?.workoutExercise === pair[1])
+        #expect(await screen.waitUntil { isCardCentered(1, in: strip, screen: screen) && pagerPage(pager) == 1 })
     }
 
     // MARK: Helpers
@@ -196,5 +363,19 @@ private struct ProgramStack: View {
                 .programRouteDestinations()
         }
         .environment(router)
+    }
+}
+
+private struct ScrubScreen: View {
+    let workout: Workout
+    let scroll: ExercisePageScroll
+    @FocusState private var field: FocusedSetField?
+
+    var body: some View {
+        GeometryReader { geometry in
+            WorkoutDetailContent(screenWidth: geometry.size.width, topInset: 0,
+                                 workoutExercises: workout.workoutExercises, selectedExerciseIndex: .constant(0),
+                                 focusedSetField: $field, onExerciseSetsDone: { _ in }, pageScroll: scroll)
+        }
     }
 }

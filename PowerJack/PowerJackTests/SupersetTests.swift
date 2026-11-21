@@ -183,7 +183,7 @@ struct SupersetTests {
         #expect(day.blocks.map { $0.exercises.map(\.exercise.exerciseName) } == [["B", "A"], ["D", "C"]])
     }
 
-    @Test("Letters follow the supersets' order, and stop at Z")
+    @Test("Letters follow the supersets' order, and new ones stop at E")
     func supersetLetters() throws {
         var day = makeDay(["A", "B", "C"])
         day.startSuperset(with: day.blocks[0])
@@ -193,14 +193,19 @@ struct SupersetTests {
         #expect(day.supersetLetter(for: day.blocks[0]) == "A")
         #expect(day.supersetLetter(for: day.blocks[1]) == "B")
 
-        var full = makeDay((0..<27).map(String.init))
-        for _ in 0..<27 {
+        var full = makeDay((0..<7).map(String.init))
+        for _ in 0..<7 {
             if let lone = full.blocks.first(where: { !$0.isSuperset }) {
                 full.startSuperset(with: lone)
             }
         }
-        #expect(full.supersets.count == 26)
+        #expect(full.supersets.count == 5)
+        #expect(full.supersets.map { full.supersetLetter(for: $0) } == ["A", "B", "C", "D", "E"])
         #expect(!full.canStartSuperset)
+        // Joining one of the five still works.
+        let lone = try #require(full.blocks.first { !$0.isSuperset })
+        full.add(lone, to: full.supersets[0])
+        #expect(full.supersets[0].exercises.count == 2)
     }
 
     @Test("Moving a superset moves its exercises together, and removing a neighbor keeps it intact")
@@ -258,6 +263,36 @@ struct SupersetTests {
         #expect(day.superset(supersetID) == nil)
         #expect(day.supersets.isEmpty)
         #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+    }
+
+    @Test("Changing an exercise keeps its spot, and its superset when it's in one")
+    func changingKeepsSpot() throws {
+        var day = makeDay(["A", "B", "C", "D"])
+        day.startSuperset(with: day.blocks[1])
+        day.add(day.blocks[2], to: day.supersets[0])
+        let supersetID = try #require(day.supersets[0].exercises[0].supersetID)
+        let e = makeDay(["E"]).templateExerciseDrafts[0].exercise
+        let f = makeDay(["F"]).templateExerciseDrafts[0].exercise
+
+        // In a superset, the new one takes the old one's place in it.
+        let b = day.supersets[0].exercises[0]
+        day.changeExercise(b.id, to: e)
+        #expect(names(day) == [["A"], ["E", "C"], ["D"]])
+        #expect(day.superset(supersetID)?.exercises.map(\.exercise.exerciseName) == ["E", "C"])
+        #expect(!day.templateExerciseDrafts.contains { $0.id == b.id }, "A new ID, so a running day gives it its own sets")
+
+        // On its own, it stays on its own in the same spot.
+        let a = day.templateExerciseDrafts[0]
+        day.changeExercise(a.id, to: f)
+        #expect(names(day) == [["F"], ["E", "C"], ["D"]])
+        #expect(day.templateExerciseDrafts[0].supersetID == nil)
+        #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+
+        // Picking the same exercise, or one no longer on the day, changes nothing.
+        let unchanged = day.templateExerciseDrafts
+        day.changeExercise(unchanged[3].id, to: unchanged[3].exercise)
+        day.changeExercise(UUID(), to: e)
+        #expect(day.templateExerciseDrafts == unchanged)
     }
 
     @Test("Removing a superset's partner ends it, but one just started waits for others")
