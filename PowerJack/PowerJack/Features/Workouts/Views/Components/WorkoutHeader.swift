@@ -133,10 +133,12 @@ private struct HeaderLabel: View {
                 .font(.headline)
                 .minimumScaleFactor(0.01)
                 .opacity(showsPageText ? 1 : 0)
-            HStack(spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let superset = page.superset {
                     Label(superset.title, systemImage: "link")
                         .labelStyle(.titleAndIcon)
+                        // A touch smaller than the equipment, so it reads as a tag.
+                        .font(.footnote)
                         .foregroundStyle(superset.color)
                         .opacity(showsPageText ? 1 : 0)
                         .accessibilityLabel(SupersetStyle.fullLabel(partners: superset.partners))
