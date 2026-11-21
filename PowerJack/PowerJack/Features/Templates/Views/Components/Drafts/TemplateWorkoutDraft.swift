@@ -236,6 +236,23 @@ extension TemplateWorkoutDraft {
         }
     }
 
+    /// Swaps one exercise for another in the same spot, in its superset if it's in one.
+    /// The swap gets a new ID, so a running day treats it as a new exercise with its own sets.
+    mutating func changeExercise(_ exerciseID: UUID, to exercise: Exercise) {
+        guard
+            let index = templateExerciseDraftsValue.firstIndex(where: { $0.id == exerciseID }),
+            templateExerciseDraftsValue[index].exercise !== exercise
+        else {
+            return
+        }
+        let current = templateExerciseDraftsValue[index]
+        templateExerciseDraftsValue[index] = TemplateExerciseDraft(
+            order: current.order,
+            exercise: exercise,
+            supersetID: current.supersetID
+        )
+    }
+
     /// Splits a superset back into exercises on their own.
     mutating func unstack(_ block: TemplateExerciseBlock) {
         let ids = Set(block.exercises.map(\.id))
