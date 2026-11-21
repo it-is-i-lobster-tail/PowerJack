@@ -176,9 +176,7 @@ struct WorkoutDetailView: View {
                         WorkoutHeader(
                             pages: exercises.map { .exercise($0.shownExercise, superset: WorkoutPageSuperset($0)) }
                                 + (isReadOnly ? [] : [.review]),
-                            controlsHidden: controlsHidden,
-                            pageScroll: pageScroll,
-                            idleWidth: max(0, geometry.size.width - 2 * LayoutMetrics.sectionSpacing)
+                            pageScroll: pageScroll
                         )
                     }
 

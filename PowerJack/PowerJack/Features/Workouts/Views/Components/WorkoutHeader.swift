@@ -2,7 +2,7 @@
 //  WorkoutHeader.swift
 //  PowerJack
 //
-//  The workout header picks up the page title as the preview cards fade.
+//  The workout header always shows the page's exercise name and equipment.
 //  Between pages its width follows the swipe, from one exercise's bubble to the next.
 //
 
@@ -56,9 +56,7 @@ struct WorkoutHeader: View {
     @Environment(\.workoutHeaderRest) private var rest
 
     let pages: [WorkoutPageHeader]
-    let controlsHidden: Bool
     let pageScroll: ExercisePageScroll
-    var idleWidth: CGFloat?
 
     private var position: CGFloat {
         min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
@@ -68,12 +66,10 @@ struct WorkoutHeader: View {
         pages.isEmpty ? .review : pages[Int(position.rounded(.toNearestOrEven))]
     }
 
-    private var idleLabel: String {
-        guard let equipment = visiblePage.equipment else { return visiblePage.title }
-        let detail = [visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, equipment]
+    private var pageLabel: String {
+        [visiblePage.title, visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, visiblePage.equipment]
             .compactMap(\.self)
             .joined(separator: ", ")
-        return controlsHidden ? "\(visiblePage.title), \(detail)" : detail
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
@@ -90,33 +86,25 @@ struct WorkoutHeader: View {
             // Reserve the widest page title before the swipe starts. The toolbar can still
             // constrain long titles to the space between its leading and trailing buttons.
             ForEach(pages.indices, id: \.self) { index in
-                // Reserve room for both idle states, so the toolbar stays centered as its contents change.
-                ForEach([false, true], id: \.self) { hidden in
-                    HeaderLabel(page: pages[index], controlsHidden: hidden, rest: rest?.period)
-                        .hidden()
-                        .accessibilityHidden(true)
-                }
+                HeaderLabel(page: pages[index], rest: rest?.period)
+                    .hidden()
+                    .accessibilityHidden(true)
             }
         }
         .overlay {
-            // Keep the toolbar's center anchor while letting the idle title use the faded buttons' space.
-            pill
-                .frame(width: controlsHidden ? idleWidth : nil)
-                .fixedSize(horizontal: false, vertical: true)
+            pill.fixedSize(horizontal: false, vertical: true)
         }
         .animation(.easeInOut(duration: 0.18), value: rest != nil)
-        .animation(IdleControls.fade, value: controlsHidden)
     }
 
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(page: visiblePage, controlsHidden: controlsHidden, rest: rest?.period,
-                        showsCountdown: true, showsPageText: swipe == nil)
+            HeaderLabel(page: visiblePage, rest: rest?.period, showsCountdown: true, showsPageText: swipe == nil)
             if let swipe {
-                HeaderLabel(page: swipe.from, controlsHidden: controlsHidden, rest: rest?.period)
+                HeaderLabel(page: swipe.from, rest: rest?.period)
                     .accessibilityHidden(true)
-                HeaderLabel(page: swipe.to, controlsHidden: controlsHidden, rest: rest?.period)
+                HeaderLabel(page: swipe.to, rest: rest?.period)
                     .accessibilityHidden(true)
             }
         }
@@ -125,34 +113,26 @@ struct WorkoutHeader: View {
         .contentShape(.capsule)
         .gesture(TapGesture().onEnded { rest?.onTap() }, isEnabled: rest != nil)
         .accessibilityElement(children: rest == nil ? .ignore : .combine)
-        .accessibilityLabel(idleLabel, isEnabled: rest == nil)
+        .accessibilityLabel(pageLabel, isEnabled: rest == nil)
         .accessibilityAddTraits(rest == nil ? [] : .isButton)
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// When the cards fade the pill takes over their title. Its second line reads superset, equipment,
-/// then any running rest timer. The superset is in the color of its bar.
+/// The exercise name, then a line with its superset, equipment and any running rest timer.
+/// The superset is in the color of its bar.
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
-    let controlsHidden: Bool
     let rest: RestPeriod?
     var showsCountdown = false
     var showsPageText = true
 
-    private var showsTitle: Bool {
-        if case .review = page { return true }
-        return controlsHidden || (rest == nil && page.equipment == nil)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            if showsTitle {
-                Text(page.title)
-                    .font(.headline)
-                    .minimumScaleFactor(0.01)
-                    .opacity(showsPageText ? 1 : 0)
-            }
+            Text(page.title)
+                .font(.headline)
+                .minimumScaleFactor(0.01)
+                .opacity(showsPageText ? 1 : 0)
             HStack(spacing: 8) {
                 if let superset = page.superset {
                     // While resting the line also holds the timer, so the superset shortens to its letter.
@@ -164,19 +144,19 @@ private struct HeaderLabel: View {
                 }
                 detail
             }
-            .font(controlsHidden ? .subheadline : .headline)
+            .font(.subheadline)
         }
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .padding(.vertical, controlsHidden ? 6 : 8)
+        .padding(.vertical, 6)
     }
 
-    @ViewBuilder
     /// The equipment, then a running rest timer to its right.
+    @ViewBuilder
     private var detail: some View {
         if let equipment = page.equipment {
             Text(equipment)
-                .foregroundStyle(controlsHidden ? Color.secondary : .primary)
+                .foregroundStyle(.secondary)
                 .opacity(showsPageText ? 1 : 0)
         }
         if let rest {
