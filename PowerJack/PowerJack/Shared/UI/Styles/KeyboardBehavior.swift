@@ -22,8 +22,8 @@ extension View {
     /// bottom bar but comes to rest above it, and the keyboard slides over the page
     /// instead of squeezing it. While the rest island shows, the page's navigation bar
     /// moves down below it.
-    func powerJackTabPage() -> some View {
-        modifier(TabPageLayout())
+    func powerJackTabPage(bottomInset: CGFloat = 0) -> some View {
+        modifier(TabPageLayout(bottomInset: bottomInset))
     }
 
     /// The keyboard slides over this screen instead of squeezing it, so bottom content
@@ -82,25 +82,27 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
 }
 
 private struct TabPageLayout: ViewModifier {
+    let bottomInset: CGFloat
     @Environment(\.restIslandHeight) private var restIslandHeight
 
     func body(content: Content) -> some View {
         content
-            .background(TabSafeArea(top: restIslandHeight))
+            .background(TabSafeArea(top: restIslandHeight, bottom: bottomInset))
             .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
-/// Adds room for the rest island to the TabView's safe area. UIKit hands that safe area down to
+/// Adds room for the rest island and workout tabs to the TabView's safe area. UIKit hands that safe area down to
 /// every tab and every screen pushed inside one, which SwiftUI's safe-area modifiers
 /// on a tab page don't reach.
 private struct TabSafeArea: UIViewControllerRepresentable {
     let top: CGFloat
+    let bottom: CGFloat
 
     func makeUIViewController(context: Context) -> Controller { Controller() }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.insets = UIEdgeInsets(top: top, left: 0, bottom: 0, right: 0)
+        controller.insets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
     }
 
     final class Controller: UIViewController {

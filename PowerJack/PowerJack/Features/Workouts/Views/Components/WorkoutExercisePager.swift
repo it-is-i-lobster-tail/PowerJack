@@ -106,6 +106,7 @@ struct WorkoutExercisePager: View {
                     }
                 }
             }
+            .collapsesWorkoutTabsOnScroll()
             .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
             .onChange(of: selectedExerciseIndex, initial: true) { previous, selected in
                 guard page.letter != nil, let selected, page.indices.contains(selected),

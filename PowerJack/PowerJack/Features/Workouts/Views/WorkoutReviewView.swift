@@ -52,6 +52,7 @@ struct WorkoutReviewView: View {
             }
         }
         .listStyle(.plain)
+        .collapsesWorkoutTabsOnScroll()
         .scrollContentBackground(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button(action: finish) {

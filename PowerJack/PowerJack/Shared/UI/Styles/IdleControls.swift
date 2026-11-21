@@ -8,7 +8,7 @@
 import SwiftUI
 import UIKit
 
-/// Fades the bottom bar, the exercise strip and the top buttons while a workout sits idle.
+/// Collapses the tab bar and fades the workout controls while a workout sits idle.
 /// The workout turns it on while it shows. A tap anywhere or a new exercise brings the
 /// controls back, except a tap that edits or checks off a set.
 @Observable
@@ -20,9 +20,11 @@ final class IdleControls {
 
     /// True while the controls are faded out.
     private(set) var isHidden = false
+    private(set) var isTabBarCollapsed = false
 
-    @ObservationIgnored private var isOn = false
+    private(set) var isOn = false
     @ObservationIgnored private var isPaused = false
+    @ObservationIgnored private var isScrollingSets = false
     @ObservationIgnored private var hideTask: Task<Void, Never>?
     @ObservationIgnored private var revealTask: Task<Void, Never>?
     @ObservationIgnored private var lastSetTap = ContinuousClock.now - .seconds(1)
@@ -36,6 +38,8 @@ final class IdleControls {
     /// Shows the controls for good, e.g. when the workout closes.
     func turnOff() {
         isOn = false
+        isPaused = false
+        isScrollingSets = false
         revealTask?.cancel()
         hideTask?.cancel()
         setHidden(false)
@@ -51,6 +55,17 @@ final class IdleControls {
     func pause(_ paused: Bool) {
         isPaused = paused
         restartIdleWait()
+    }
+
+    func setScrollingSets(_ scrolling: Bool) {
+        guard isOn else { return }
+        isScrollingSets = scrolling
+        restartIdleWait()
+    }
+
+    func scrolledDown(_ down: Bool) {
+        guard isOn, !isPaused, isTabBarCollapsed != down else { return }
+        withAnimation(Self.fade) { isTabBarCollapsed = down }
     }
 
     /// A tap on a set's field or check circle, which leaves the controls as they are.
@@ -72,7 +87,7 @@ final class IdleControls {
 
     private func restartIdleWait() {
         hideTask?.cancel()
-        guard isOn, !isPaused else { return }
+        guard isOn, !isPaused, !isScrollingSets else { return }
         hideTask = Task { [weak self] in
             try? await Task.sleep(for: Self.idleDelay)
             guard !Task.isCancelled else { return }
@@ -81,12 +96,19 @@ final class IdleControls {
     }
 
     private func setHidden(_ hidden: Bool) {
-        guard isHidden != hidden else { return }
-        withAnimation(Self.fade) { isHidden = hidden }
+        withAnimation(Self.fade) {
+            isHidden = hidden
+            isTabBarCollapsed = hidden
+        }
     }
 }
 
 extension View {
+    /// Observe the vertical set list or review list directly, inside the horizontal pager.
+    func collapsesWorkoutTabsOnScroll() -> some View {
+        modifier(WorkoutTabScroll())
+    }
+
     /// Fades this control out while `controls` are idle, and lets taps pass through it.
     func fadesWhenIdle(_ controls: IdleControls?) -> some View {
         let isHidden = controls?.isHidden == true
@@ -99,6 +121,39 @@ extension View {
     /// Apply once at the root.
     func revealsIdleControlsOnTap(_ controls: IdleControls) -> some View {
         background(WindowTapObserver(controls: controls))
+    }
+}
+
+private struct WorkoutTabScroll: ViewModifier {
+    @Environment(IdleControls.self) private var controls: IdleControls?
+    @State private var dragOrigin: CGFloat?
+    @State private var isScrolling = false
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollPhaseChange { _, phase, context in
+                switch phase {
+                case .tracking, .interacting:
+                    if dragOrigin == nil { dragOrigin = context.geometry.contentOffset.y }
+                default:
+                    dragOrigin = nil
+                }
+                let scrolling = phase == .interacting || phase == .decelerating
+                if isScrolling != scrolling {
+                    isScrolling = scrolling
+                    controls?.setScrollingSets(scrolling)
+                }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, offset in
+                guard isScrolling, let origin = dragOrigin, abs(offset - origin) >= 12 else { return }
+                controls?.scrolledDown(offset > origin)
+                dragOrigin = offset
+            }
+            .onDisappear {
+                if isScrolling { controls?.setScrollingSets(false) }
+                isScrolling = false
+                dragOrigin = nil
+            }
     }
 }
 

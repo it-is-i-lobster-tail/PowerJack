@@ -9,11 +9,20 @@ import SwiftData
 import SwiftUI
 import TipKit
 
-private enum MainBrowserOption: String {
+enum MainBrowserOption: String {
     case programs = "Programs"
     case templates = "Templates"
     case volume = "Volume"
     case settings = "Settings"
+
+    var symbol: String {
+        switch self {
+        case .programs: "dumbbell"
+        case .templates: "square.stack.3d.up"
+        case .volume: "chart.bar"
+        case .settings: "gearshape"
+        }
+    }
 }
 
 struct PowerJackRootView: View {
@@ -55,9 +64,15 @@ private struct PowerJackScreens: View {
 
     private var activeProgram: Program? { programs.active }
 
+    private var showsWorkoutTabs: Bool {
+        selection == .programs && idleControls.isOn
+    }
+
+    private var workoutTabInset: CGFloat { showsWorkoutTabs ? WorkoutTabBar.reservedHeight : 0 }
+
     @State private var router = ProgramsRouter()
     @State private var didRestore = false
-    // A workout fades the bars away while it sits idle.
+    // Shared by the live workout and its tab bar.
     @State private var idleControls = IdleControls()
 
     private var showsWorkoutHeader: Bool {
@@ -75,31 +90,46 @@ private struct PowerJackScreens: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            Tab("Programs", systemImage: "dumbbell", value: MainBrowserOption.programs) {
+            Tab("Programs", systemImage: MainBrowserOption.programs.symbol, value: MainBrowserOption.programs) {
                 NavigationStack(path: $router.path) {
                     ProgramListView()
                         .programRouteDestinations()
                 }
-                .powerJackTabPage()
-                .toolbarVisibility(idleControls.isHidden ? .hidden : .visible, for: .tabBar)
+                .powerJackTabPage(bottomInset: workoutTabInset)
+                .toolbarVisibility(showsWorkoutTabs ? .hidden : .visible, for: .tabBar)
             }
 
-            Tab("Templates", systemImage: "square.stack.3d.up", value: MainBrowserOption.templates) {
+            Tab("Templates", systemImage: MainBrowserOption.templates.symbol, value: MainBrowserOption.templates) {
                 TemplateProgramListView()
-                    .powerJackTabPage()
+                    .powerJackTabPage(bottomInset: workoutTabInset)
             }
 
-            Tab("Volume", systemImage: "chart.bar", value: MainBrowserOption.volume) {
+            Tab("Volume", systemImage: MainBrowserOption.volume.symbol, value: MainBrowserOption.volume) {
                 VolumeView()
-                    .powerJackTabPage()
+                    .powerJackTabPage(bottomInset: workoutTabInset)
             }
 
-            Tab("Settings", systemImage: "gearshape", value: MainBrowserOption.settings, role: settingsRole) {
+            Tab("Settings", systemImage: MainBrowserOption.settings.symbol, value: MainBrowserOption.settings, role: settingsRole) {
                 NavigationStack(path: $settingsPath) {
                     SettingsView()
                         .traceScreen("Settings")
                 }
-                .powerJackTabPage()
+                .powerJackTabPage(bottomInset: workoutTabInset)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if showsWorkoutTabs {
+                WorkoutTabBar(isCollapsed: idleControls.isTabBarCollapsed) { tab in
+                    if tab == .programs {
+                        if idleControls.isTabBarCollapsed {
+                            idleControls.show()
+                        } else {
+                            router.popToRoot()
+                        }
+                    } else {
+                        selection = tab
+                    }
+                }
             }
         }
         .restTimer(inWorkoutHeader: showsWorkoutHeader, onOpenCurrentExercise: openCurrentExercise)
