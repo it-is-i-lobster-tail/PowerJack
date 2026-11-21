@@ -17,13 +17,14 @@ struct ExerciseStripTests {
     private let router = ProgramsRouter()
     private static let exerciseCount = 6
 
-    @Test("A new workout opens with the first exercise in the middle of the strip")
+    @Test("A new workout opens with the first exercise centered in the bottom strip")
     func firstExerciseStartsCentered() async throws {
         let (_, workout) = try makeStartedWorkout()
         let screen = try await HostedView(workoutScreen(workout))
         defer { screen.close() }
 
         let strip = try #require(await stripScrollView(in: screen))
+        #expect(strip.convert(strip.bounds, to: screen.window).minY > screen.window.bounds.midY)
         #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
@@ -41,6 +42,8 @@ struct ExerciseStripTests {
             await screen.tap(name)
         }
         #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+        let finish = try #require(screen.frame(of: "Finish Workout"))
+        #expect(finish.maxY < strip.convert(strip.bounds, to: nil).minY)
     }
 
     @Test("Resuming a workout mid-way scrolls the strip to the current exercise")
@@ -65,9 +68,9 @@ struct ExerciseStripTests {
         #expect(await screen.waitUntil { isCardCentered(4, in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
     }
 
-    @Test("Start set returns to the group that owns the timer even with earlier exercises unfinished",
+    @Test("Start set returns to the exact exercise due next even with earlier exercises unfinished",
           arguments: [false, true])
-    func timerReturnsToLoggedGroup(superset: Bool) async throws {
+    func timerReturnsToCurrentMember(superset: Bool) async throws {
         let (program, workout) = try makeStartedWorkout()
         let exercises = workout.workoutExercises
         let a = UUID()
@@ -76,14 +79,16 @@ struct ExerciseStripTests {
         if superset {
             let b = UUID()
             for member in members { member.setSuperset(b) }
+            // Only the second partner has another warmup after their first round.
+            members[0].removeLastSet(type: .warmup)
         }
         for member in members {
             member.completeSet(try #require(member.warmupSets.first))
         }
         #expect(workout.currentRest != nil)
-        #expect(workout.currentSet?.workoutExercise === members[0])
+        #expect(workout.currentSet?.workoutExercise === members.last)
         #expect(workout.currentExerciseIndex == 0)
-        let card = superset ? "Superset B, 2 exercises" : "Lift 4"
+        let card = superset ? "Lift 5" : "Lift 4"
 
         // Opening the workout via the timer and tapping again from another page use the same destination.
         router.showDetailOnly(program)
@@ -92,8 +97,8 @@ struct ExerciseStripTests {
         router.showCurrentExercise(of: program)
         let strip = try #require(await stripScrollView(in: screen))
         #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
-        #expect(await screen.tap("Superset A, 2 exercises"))
-        #expect(await screen.waitUntil { isCardCentered("Superset A, 2 exercises", in: strip, screen: screen) })
+        #expect(await screen.tap("Lift 1"))
+        #expect(await screen.waitUntil { isCardCentered("Lift 1", in: strip, screen: screen) })
         router.showCurrentExercise(of: program)
         #expect(await screen.waitUntil { isCardCentered(card, in: strip, screen: screen) })
     }
@@ -212,8 +217,8 @@ struct ExerciseStripTests {
         let scroll = ExercisePageScroll()
         let textProbe = TextTruncationProbe()
         let screen = try await HostedView(
-            ExercisePreviewStrip(pages: Array(WorkoutPage.pages(for: workout).prefix(3)),
-                                 screenWidth: 320, pageScroll: scroll, selectedPageIndex: .constant(0))
+            ExercisePreviewStrip(workoutExercises: Array(exercises.prefix(3)),
+                                 screenWidth: 320, pageScroll: scroll, selectedExerciseIndex: .constant(0))
                 .frame(width: 320)
                 .environment(\.dynamicTypeSize, size)
                 .textRenderer(textProbe)
@@ -227,34 +232,33 @@ struct ExerciseStripTests {
         }
     }
 
-    @Test("Three- and two-exercise supersets each share a single page and preview card")
-    func groupedPages() async throws {
+    @Test("Members of two- and three-exercise supersets have individual cards, pages and Review links")
+    func supersetMemberPages() async throws {
         let (_, workout) = try makeStartedWorkout()
         let exercises = workout.workoutExercises
         let a = UUID(), b = UUID()
         for member in exercises[1...3] { member.setSuperset(a) }
         for member in exercises[4...5] { member.setSuperset(b) }
-        let pages = WorkoutPage.pages(for: workout)
-        #expect(pages.map(\.indices) == [0..<1, 1..<4, 4..<6])
-        #expect(pages.map { $0.header.title } == ["Lift 1", "Superset A", "Superset B"])
-
         let screen = try await HostedView(workoutScreen(workout))
         defer { screen.close() }
         let strip = try #require(await stripScrollView(in: screen))
         let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
-        for (index, count, letter) in [(1, 3, "A"), (2, 2, "B")] {
-            let label = "Superset \(letter), \(count) exercises"
-            #expect(await screen.tap(label))
-            #expect(await screen.waitUntil { isCardCentered(label, in: strip, screen: screen) && pagerPage(pager) == index })
-            for member in 1...count {
-                #expect(screen.label(startingWith: "\(letter)\(member), Lift") != nil)
-            }
+        for index in 1..<exercises.count {
+            let member = exercises[index]
+            let name = try #require(member.shownExercise?.exerciseName)
+            #expect(await screen.tap(name))
+            #expect(await screen.waitUntil { isCardCentered(name, in: strip, screen: screen) && pagerPage(pager) == index })
+            let partners = member.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
+            #expect(screen.contains(SupersetStyle.fullLabel(partners: partners)))
         }
         #expect(await screen.tap("Review"))
-        #expect(await screen.waitUntil { pagerPage(pager) == 3 })
+        #expect(await screen.waitUntil { pagerPage(pager) == exercises.count })
+        let row = try #require(screen.label(startingWith: "Lift 3,"))
+        #expect(await screen.tap(row))
+        #expect(await screen.waitUntil { isCardCentered("Lift 3", in: strip, screen: screen) && pagerPage(pager) == 2 })
     }
 
-    @Test("Checking a set follows the next superset member vertically on the same page")
+    @Test("Checking a set pages horizontally to the next superset member")
     func followsNextMember() async throws {
         let (_, workout) = try makeStartedWorkout()
         let pair = Array(workout.workoutExercises.prefix(2))
@@ -264,16 +268,11 @@ struct ExerciseStripTests {
         defer { screen.close() }
         let strip = try #require(await stripScrollView(in: screen))
         let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
-        let heading = try #require(screen.label(startingWith: "A2, Lift 2"))
-        let before = try #require(screen.frame(of: heading)).minY
+        #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
         let current = try #require(workout.currentSet)
         current.workoutExercise.completeSet(current.workoutSet)
         #expect(workout.currentSet?.workoutExercise === pair[1])
-        #expect(WorkoutPage.pages(for: workout)[0].entryIndex == 1)
-        #expect(await screen.waitUntil {
-            guard let frame = screen.frame(of: heading) else { return false }
-            return frame.minY < before - 30 && pagerPage(pager) == 0
-        })
+        #expect(await screen.waitUntil { isCardCentered(1, in: strip, screen: screen) && pagerPage(pager) == 1 })
     }
 
     // MARK: Helpers
@@ -375,7 +374,7 @@ private struct ScrubScreen: View {
     var body: some View {
         GeometryReader { geometry in
             WorkoutDetailContent(screenWidth: geometry.size.width, topInset: 0,
-                                 pages: WorkoutPage.pages(for: workout), selectedExerciseIndex: .constant(0),
+                                 workoutExercises: workout.workoutExercises, selectedExerciseIndex: .constant(0),
                                  focusedSetField: $field, onExerciseSetsDone: { _ in }, pageScroll: scroll)
         }
     }

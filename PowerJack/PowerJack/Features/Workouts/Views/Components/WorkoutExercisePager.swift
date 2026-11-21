@@ -10,10 +10,9 @@ import SwiftUI
 
 struct WorkoutExercisePager: View {
     let screenWidth: CGFloat
-    let pages: [WorkoutPage]
+    let workoutExercises: [WorkoutExercise]
     let onExerciseSetsDone: (WorkoutExercise) -> Void
-    @Binding var selectedPageIndex: Int?
-    let selectedExerciseIndex: Int?
+    @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     /// The Review page after the last exercise. Nil when the workout is read-only.
     var review: WorkoutReviewView? = nil
@@ -21,7 +20,6 @@ struct WorkoutExercisePager: View {
     var pageRequests = 0
     let pageScroll: ExercisePageScroll
     let topInset: CGFloat
-    let stripInset: CGFloat
     let controlsHidden: Bool
     @Environment(IdleControls.self) private var idleControls: IdleControls?
 
@@ -31,19 +29,23 @@ struct WorkoutExercisePager: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 0) {
-                ForEach(pages.indices, id: \.self) { index in
-                    exercisePage(pages[index])
-                        .safeAreaPadding(.top, inset(for: index))
+                ForEach(workoutExercises.indices, id: \.self) { index in
+                    WorkoutExerciseView(
+                        onSetsDone: onExerciseSetsDone,
+                        screenWidth: screenWidth,
+                        focusedSetField: focusedSetField,
+                        workoutExercise: workoutExercises[index]
+                    )
+                        .safeAreaPadding(.top, topInset)
                         .containerRelativeFrame(.horizontal)
                         .id(index)
                 }
 
                 if let review {
                     review
-                        .safeAreaPadding(.top, inset(for: pages.count))
-                        .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
+                        .safeAreaPadding(.top, topInset + LayoutMetrics.compactSpacing)
                         .containerRelativeFrame(.horizontal)
-                        .id(pages.count)
+                        .id(workoutExercises.count)
                 }
             }
             .scrollTargetLayout(isEnabled: !pageScroll.isDrivenByStrip)
@@ -56,7 +58,7 @@ struct WorkoutExercisePager: View {
                 pageScroll.isDrivenByStrip = false
             }
             if newPhase == .interacting, pageScroll.swipeStartPage == nil {
-                pageScroll.swipeStartPage = selectedPageIndex
+                pageScroll.swipeStartPage = selectedExerciseIndex
             }
             defer {
                 if newPhase == .idle || newPhase == .animating { pageScroll.swipeStartPage = nil }
@@ -64,8 +66,8 @@ struct WorkoutExercisePager: View {
             guard !pageScroll.isDrivenByStrip, newPhase == .idle,
                   oldPhase == .interacting || oldPhase == .decelerating else { return }
             let destination = Int(Self.pagePosition(context.geometry).rounded())
-            if destination != selectedPageIndex, controlsHidden { idleControls?.show() }
-            selectedPageIndex = destination
+            if destination != selectedExerciseIndex, controlsHidden { idleControls?.show() }
+            selectedExerciseIndex = destination
         }
         .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
             if !pageScroll.isDrivenByStrip { pageScroll.position = position }
@@ -75,50 +77,19 @@ struct WorkoutExercisePager: View {
                 pagerPosition.scrollTo(x: pageScroll.position * screenWidth)
             }
         }
-        .onChange(of: selectedPageIndex) { scrollToSelection(animated: true) }
+        .onChange(of: selectedExerciseIndex) { scrollToSelection(animated: true) }
         .onChange(of: pageRequests) { scrollToSelection(animated: true) }
         .onAppear { scrollToSelection(animated: false) }
         .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
             if scrollPhase == .idle && !pageScroll.stripPhase.isScrolling { scrollToSelection(animated: false) }
         }
-        // A superset change moves exercises between pages. The pages are keyed by position, so the pager
-        // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
-        .id(pages.map { $0.exercises.map(\.persistentModelID) })
-    }
-
-    private func inset(for index: Int) -> CGFloat {
-        // The departing page holds its vertical position. The incoming page already has room for its cards.
-        let incoming = pageScroll.swipeStartPage.map { $0 != index } ?? false
-        return topInset + (controlsHidden && !incoming ? 0 : stripInset)
-    }
-
-    private func exercisePage(_ page: WorkoutPage) -> some View {
-        let currentSet = page.letter == nil ? nil : page.exercises.first?.workoutValue?.currentSet?.workoutSet
-        return ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(Array(zip(page.indices, page.exercises)), id: \.1.persistentModelID) { index, exercise in
-                        WorkoutExerciseView(onSetsDone: onExerciseSetsDone, screenWidth: screenWidth,
-                                            focusedSetField: focusedSetField, workoutExercise: exercise,
-                                            memberLabel: page.letter.map { "\($0)\(index - page.startIndex + 1)" },
-                                            currentSet: currentSet)
-                            .id(exercise.persistentModelID)
-                    }
-                }
-            }
-            .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
-            .onChange(of: selectedExerciseIndex, initial: true) { previous, selected in
-                guard page.letter != nil, let selected, page.indices.contains(selected),
-                      previous != selected || selected != page.startIndex else { return }
-                let member = page.exercises[selected - page.startIndex]
-                proxy.scrollTo(member.persistentModelID, anchor: .top)
-            }
-        }
+        // Rebuild positional scroll targets when the exercise order changes.
+        .id(workoutExercises.map(\.persistentModelID))
     }
 
     private func scrollToSelection(animated: Bool) {
-        guard let selectedPageIndex else { return }
-        let target = CGFloat(selectedPageIndex)
+        guard let selectedExerciseIndex else { return }
+        let target = CGFloat(selectedExerciseIndex)
         if animated && scrollPhase != .animating && abs(pageScroll.position - target) < 0.001 { return }
         pageScroll.isDrivenByStrip = false
         withAnimation(animated ? .easeInOut(duration: 0.325) : nil) {

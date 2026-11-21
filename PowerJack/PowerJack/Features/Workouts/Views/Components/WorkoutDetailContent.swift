@@ -11,7 +11,7 @@ struct WorkoutDetailContent: View {
     let screenWidth: CGFloat
     /// How far down the navigation bar reaches. The sets scroll up under it.
     let topInset: CGFloat
-    let pages: [WorkoutPage]
+    let workoutExercises: [WorkoutExercise]
     @Binding var selectedExerciseIndex: Int?
     let focusedSetField: FocusState<FocusedSetField?>.Binding
     let onExerciseSetsDone: (WorkoutExercise) -> Void
@@ -22,59 +22,39 @@ struct WorkoutDetailContent: View {
     @Environment(IdleControls.self) private var idleControls: IdleControls?
 
     @State private var pageRequests = 0
-    @State private var stripHeight: CGFloat = 0
-
-    /// The filmstrip and pager count groups. Review links and set actions count individual exercises.
-    private var selectedPage: Binding<Int?> {
-        Binding {
-            guard let selectedExerciseIndex else { return nil }
-            return pages.firstIndex { $0.indices.contains(selectedExerciseIndex) } ?? pages.count
-        } set: { index in
-            guard let index else { return }
-            if index == pages.count, review != nil {
-                selectedExerciseIndex = pages.last?.indices.upperBound ?? 0
-            } else if pages.indices.contains(index), !pages[index].indices.contains(selectedExerciseIndex ?? -1) {
-                selectedExerciseIndex = pages[index].entryIndex
-            }
-        }
-    }
 
     var body: some View {
         let hidden = idleControls?.isHidden == true
         let revealing = hidden && pageScroll.swipeStartPage != nil
-        let offset = pageScroll.swipeOffset(lastPage: review == nil ? pages.count - 1 : pages.count)
-        // The first set rests below the pinned strip. Later sets can scroll under it.
+        let offset = pageScroll.swipeOffset(lastPage: review == nil ? workoutExercises.count - 1 : workoutExercises.count)
         WorkoutExercisePager(
             screenWidth: screenWidth,
-            pages: pages,
+            workoutExercises: workoutExercises,
             onExerciseSetsDone: onExerciseSetsDone,
-            selectedPageIndex: selectedPage,
-            selectedExerciseIndex: selectedExerciseIndex,
+            selectedExerciseIndex: $selectedExerciseIndex,
             focusedSetField: focusedSetField,
             review: review,
             pageRequests: pageRequests,
             pageScroll: pageScroll,
             topInset: topInset,
-            stripInset: stripHeight,
             controlsHidden: hidden
         )
         .overlay(alignment: .top) {
             EdgeBlur(edge: .top)
                 .frame(height: topInset)
         }
-        .overlay(alignment: .top) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             ExercisePreviewStrip(
-                pages: pages,
+                workoutExercises: workoutExercises,
                 screenWidth: screenWidth,
                 showsReview: review != nil,
                 pageScroll: pageScroll,
-                selectedPageIndex: selectedPage,
+                selectedExerciseIndex: $selectedExerciseIndex,
                 onReselect: { pageRequests += 1 }
             )
             .padding(.top, LayoutMetrics.compactSpacing)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
-            // Slide the cards down from behind the navigation bar inside the incoming page's mask.
-            .offset(y: revealing ? -8 * (1 - abs(offset)) : 0)
+            // Bring the cards up from the bottom along the incoming page’s edge.
+            .offset(y: revealing ? 8 * (1 - abs(offset)) : 0)
             // Reveal only the portion over the incoming page, following its edge in either direction.
             .mask {
                 Rectangle().scaleEffect(x: revealing ? abs(offset) : 1, y: 1,
@@ -83,7 +63,7 @@ struct WorkoutDetailContent: View {
             .opacity(hidden && !revealing ? 0 : 1)
             .allowsHitTesting(!hidden)
             .accessibilityHidden(hidden)
-            .padding(.top, topInset)
+            .frame(height: idleControls?.previewStripCollapsed == true && !revealing ? 0 : nil)
         }
         .frame(width: screenWidth)
     }

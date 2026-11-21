@@ -81,7 +81,6 @@ private struct PowerJackScreens: View {
                         .programRouteDestinations()
                 }
                 .powerJackTabPage()
-                .toolbarVisibility(idleControls.isHidden ? .hidden : .visible, for: .tabBar)
             }
 
             Tab("Templates", systemImage: "square.stack.3d.up", value: MainBrowserOption.templates) {
@@ -102,6 +101,7 @@ private struct PowerJackScreens: View {
                 .powerJackTabPage()
             }
         }
+        .scrollEdgeEffectHidden(true, for: .bottom)
         .restTimer(inWorkoutHeader: showsWorkoutHeader, onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
         .environment(idleControls)
