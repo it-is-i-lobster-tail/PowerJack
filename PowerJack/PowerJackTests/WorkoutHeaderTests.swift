@@ -23,7 +23,10 @@ struct WorkoutHeaderTests {
             defer { screen.close() }
             let label = try #require(screen.labels.first { $0.contains(remaining > 0 ? "Rest " : "Start set") })
             #expect(label.contains("Bench") == hidden)
-            #expect(!label.contains(equipment))
+            // The timer sits after the equipment rather than replacing it.
+            let equipmentAt = try #require(label.range(of: equipment))
+            let restAt = try #require(label.range(of: remaining > 0 ? "Rest " : "Start set"))
+            #expect(equipmentAt.upperBound <= restAt.lowerBound)
         }
     }
 

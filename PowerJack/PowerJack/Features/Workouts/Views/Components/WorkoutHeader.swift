@@ -131,8 +131,8 @@ struct WorkoutHeader: View {
     }
 }
 
-/// When the cards fade the pill takes over their title. A running timer always owns its own line.
-/// A superset member leads its second line with the superset, in the color of its bar.
+/// When the cards fade the pill takes over their title. Its second line reads superset, equipment,
+/// then any running rest timer. The superset is in the color of its bar.
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
     let controlsHidden: Bool
@@ -155,7 +155,8 @@ private struct HeaderLabel: View {
             }
             HStack(spacing: 8) {
                 if let superset = page.superset {
-                    Label(superset.title, systemImage: "link")
+                    // While resting the line also holds the timer, so the superset shortens to its letter.
+                    Label(rest == nil ? superset.title : superset.letter, systemImage: "link")
                         .labelStyle(.titleAndIcon)
                         .foregroundStyle(superset.color)
                         .opacity(showsPageText ? 1 : 0)
@@ -171,7 +172,13 @@ private struct HeaderLabel: View {
     }
 
     @ViewBuilder
+    /// The equipment, then a running rest timer to its right.
     private var detail: some View {
+        if let equipment = page.equipment {
+            Text(equipment)
+                .foregroundStyle(controlsHidden ? Color.secondary : .primary)
+                .opacity(showsPageText ? 1 : 0)
+        }
         if let rest {
             // Measure the widest countdown state without creating a live timer per swipe endpoint.
             ZStack {
@@ -181,15 +188,9 @@ private struct HeaderLabel: View {
             .monospacedDigit()
             .padding(.leading, 16)
             .hidden()
-            .overlay {
+            .overlay(alignment: .leading) {
                 if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
             }
-            .font(controlsHidden ? .subheadline : .headline)
-        } else if let equipment = page.equipment {
-            Text(equipment)
-                .font(controlsHidden ? .subheadline : .headline)
-                .foregroundStyle(controlsHidden ? Color.secondary : .primary)
-                .opacity(showsPageText ? 1 : 0)
         }
     }
 }
