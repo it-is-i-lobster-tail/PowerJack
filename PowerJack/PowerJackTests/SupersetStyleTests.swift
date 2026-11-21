@@ -2,8 +2,7 @@
 //  SupersetStyleTests.swift
 //  PowerJackTests
 //
-//  Supersets are colored by letter, the label at the top of a page shortens to "Superset B" when the
-//  partners' names are too long, and a workout can start at most five.
+//  Supersets are colored by letter, VoiceOver names every partner, and a workout can start at most five.
 //
 
 import Foundation
@@ -17,19 +16,9 @@ struct SupersetStyleTests {
     /// Held by the suite instance so models stay valid for the whole test.
     private let container = PowerJackSeed.makeInMemoryContainer()
 
-    @Test("The full label shows while it fits in 45 characters, then just the letter")
-    func labelLength() {
-        let short = SupersetStyle.label(letter: "A", partners: ["Skull Crusher"])
-        #expect(short == "Superset with Skull Crusher")
-
-        // Exactly 45 characters still fits.
-        let fits = "Superset with " + String(repeating: "x", count: 31)
-        #expect(fits.count == 45)
-        #expect(SupersetStyle.label(letter: "A", partners: [String(repeating: "x", count: 31)]) == fits)
-        #expect(SupersetStyle.label(letter: "A", partners: [String(repeating: "x", count: 32)]) == "Superset A")
-
+    @Test("VoiceOver hears every partner's name")
+    func fullLabel() {
         let long = ["Cable Overhead Extension", "Dumbbell Lateral Raise"]
-        #expect(SupersetStyle.label(letter: "B", partners: long) == "Superset B")
         #expect(SupersetStyle.fullLabel(partners: long) == "Superset with Cable Overhead Extension and Dumbbell Lateral Raise")
     }
 

@@ -8,18 +8,46 @@
 
 import SwiftUI
 
+/// The superset an exercise page belongs to, shown in the pill in the color of its bar.
+struct WorkoutPageSuperset {
+    let letter: String
+    let color: Color
+    let partners: [String]
+
+    init(letter: String, color: Color, partners: [String]) {
+        self.letter = letter
+        self.color = color
+        self.partners = partners
+    }
+
+    init?(_ workoutExercise: WorkoutExercise) {
+        guard let index = workoutExercise.supersetIndex else { return nil }
+        self.init(letter: Workout.supersetLetter(at: index),
+                  color: SupersetStyle.color(at: index),
+                  partners: workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName })
+    }
+
+    /// e.g. "Superset A".
+    var title: String { "Superset \(letter)" }
+}
+
 enum WorkoutPageHeader {
-    case exercise(Exercise?), review
+    case exercise(Exercise?, superset: WorkoutPageSuperset? = nil), review
 
     var title: String {
         switch self {
-        case .exercise(let exercise): exercise?.exerciseName ?? "Exercise"
+        case .exercise(let exercise, _): exercise?.exerciseName ?? "Exercise"
         case .review: "Review"
         }
     }
 
     var equipment: String? {
-        if case .exercise(let exercise) = self { return exercise?.equipment.displayName }
+        if case .exercise(let exercise, _) = self { return exercise?.equipment.displayName }
+        return nil
+    }
+
+    var superset: WorkoutPageSuperset? {
+        if case .exercise(_, let superset) = self { return superset }
         return nil
     }
 }
@@ -42,7 +70,10 @@ struct WorkoutHeader: View {
 
     private var idleLabel: String {
         guard let equipment = visiblePage.equipment else { return visiblePage.title }
-        return controlsHidden ? "\(visiblePage.title), \(equipment)" : equipment
+        let detail = [visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, equipment]
+            .compactMap(\.self)
+            .joined(separator: ", ")
+        return controlsHidden ? "\(visiblePage.title), \(detail)" : detail
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
@@ -101,6 +132,7 @@ struct WorkoutHeader: View {
 }
 
 /// When the cards fade the pill takes over their title. A running timer always owns its own line.
+/// A superset member leads its second line with the superset, in the color of its bar.
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
     let controlsHidden: Bool
@@ -121,29 +153,44 @@ private struct HeaderLabel: View {
                     .minimumScaleFactor(0.01)
                     .opacity(showsPageText ? 1 : 0)
             }
-            if let rest {
-                // Measure the widest countdown state without creating a live timer per swipe endpoint.
-                ZStack {
-                    Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
-                    Text("Start set")
+            HStack(spacing: 8) {
+                if let superset = page.superset {
+                    Label(superset.title, systemImage: "link")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(superset.color)
+                        .opacity(showsPageText ? 1 : 0)
+                        .accessibilityLabel(SupersetStyle.fullLabel(partners: superset.partners))
                 }
-                .monospacedDigit()
-                .padding(.leading, 16)
-                .hidden()
-                .overlay {
-                    if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
-                }
-                .font(controlsHidden ? .subheadline : .headline)
-            } else if let equipment = page.equipment {
-                Text(equipment)
-                    .font(controlsHidden ? .subheadline : .headline)
-                    .foregroundStyle(controlsHidden ? Color.secondary : .primary)
-                    .opacity(showsPageText ? 1 : 0)
+                detail
             }
+            .font(controlsHidden ? .subheadline : .headline)
         }
         .lineLimit(1)
         .padding(.horizontal, 12)
         .padding(.vertical, controlsHidden ? 6 : 8)
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let rest {
+            // Measure the widest countdown state without creating a live timer per swipe endpoint.
+            ZStack {
+                Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
+                Text("Start set")
+            }
+            .monospacedDigit()
+            .padding(.leading, 16)
+            .hidden()
+            .overlay {
+                if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
+            }
+            .font(controlsHidden ? .subheadline : .headline)
+        } else if let equipment = page.equipment {
+            Text(equipment)
+                .font(controlsHidden ? .subheadline : .headline)
+                .foregroundStyle(controlsHidden ? Color.secondary : .primary)
+                .opacity(showsPageText ? 1 : 0)
+        }
     }
 }
 

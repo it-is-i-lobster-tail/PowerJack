@@ -79,6 +79,16 @@ struct WorkoutHeaderTests {
         #expect(!textProbe.truncated.contains(true))
     }
 
+    @Test("A superset member's pill names its superset before the equipment")
+    func supersetLabel() async throws {
+        let superset = WorkoutPageSuperset(letter: "A", color: .blue, partners: ["Row"])
+        let screen = try await HostedView(
+            WorkoutHeader(pages: [.exercise(bench, superset: superset)], controlsHidden: false, pageScroll: ExercisePageScroll())
+        )
+        defer { screen.close() }
+        #expect(screen.contains("Superset with Row, \(Equipment.barbell.displayName)"))
+    }
+
     @Test("Review keeps its own title")
     func reviewHeader() async throws {
         let screen = try await HostedView(WorkoutHeader(pages: [.review], controlsHidden: true, pageScroll: ExercisePageScroll()))

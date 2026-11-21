@@ -249,7 +249,9 @@ struct ExerciseStripTests {
             #expect(await screen.tap(name))
             #expect(await screen.waitUntil { isCardCentered(name, in: strip, screen: screen) && pagerPage(pager) == index })
             let partners = member.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
-            #expect(screen.contains(SupersetStyle.fullLabel(partners: partners)))
+            // The header pill names the superset, with every partner for VoiceOver.
+            let superset = SupersetStyle.fullLabel(partners: partners)
+            #expect(screen.labels.contains { $0.contains(superset) })
         }
         #expect(await screen.tap("Review"))
         #expect(await screen.waitUntil { pagerPage(pager) == exercises.count })
