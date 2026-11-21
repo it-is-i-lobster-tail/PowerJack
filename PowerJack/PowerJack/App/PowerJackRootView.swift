@@ -75,7 +75,7 @@ private struct PowerJackScreens: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            Tab("Programs", systemImage: "list.bullet.rectangle", value: MainBrowserOption.programs) {
+            Tab("Programs", systemImage: "dumbbell", value: MainBrowserOption.programs) {
                 NavigationStack(path: $router.path) {
                     ProgramListView()
                         .programRouteDestinations()
@@ -84,7 +84,7 @@ private struct PowerJackScreens: View {
                 .toolbarVisibility(idleControls.isHidden ? .hidden : .visible, for: .tabBar)
             }
 
-            Tab("Templates", systemImage: "square.stack", value: MainBrowserOption.templates) {
+            Tab("Templates", systemImage: "square.stack.3d.up", value: MainBrowserOption.templates) {
                 TemplateProgramListView()
                     .powerJackTabPage()
             }
