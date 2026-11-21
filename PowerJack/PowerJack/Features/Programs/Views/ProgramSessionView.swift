@@ -41,6 +41,7 @@ struct ProgramSessionView: View {
                 )
             }
         }
+        .toolbarVisibility(.hidden, for: .tabBar)
         .animation(.easeInOut(duration: 0.35), value: program.nextWorkout?.persistentModelID)
         .animation(.easeInOut(duration: 0.35), value: summary.isEmpty)
     }

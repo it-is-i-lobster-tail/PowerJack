@@ -8,6 +8,22 @@
 
 import SwiftUI
 
+enum WorkoutPageHeader {
+    case exercise(Exercise?), review
+
+    var title: String {
+        switch self {
+        case .exercise(let exercise): exercise?.exerciseName ?? "Exercise"
+        case .review: "Review"
+        }
+    }
+
+    var equipment: String? {
+        if case .exercise(let exercise) = self { return exercise?.equipment.displayName }
+        return nil
+    }
+}
+
 struct WorkoutHeader: View {
     @Environment(\.workoutHeaderRest) private var rest
 

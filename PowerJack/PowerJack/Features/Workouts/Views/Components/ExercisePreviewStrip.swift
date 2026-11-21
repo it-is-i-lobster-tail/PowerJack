@@ -24,7 +24,7 @@ final class ExercisePageScroll {
 }
 
 struct ExercisePreviewStrip: View {
-    let pages: [WorkoutPage]
+    let workoutExercises: [WorkoutExercise]
     let screenWidth: CGFloat
     /// Adds a Review card after the last exercise.
     var showsReview = false
@@ -35,7 +35,7 @@ struct ExercisePreviewStrip: View {
     private static let cardHeight: CGFloat = 58
     /// How big the other cards are next to the selected one.
     private static let restingScale: CGFloat = 0.78
-    @Binding var selectedPageIndex: Int?
+    @Binding var selectedExerciseIndex: Int?
     /// Tapping the exercise already selected, so the pages can come back to it.
     var onReselect: () -> Void = {}
 
@@ -67,14 +67,18 @@ struct ExercisePreviewStrip: View {
 
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: spacing) {
-                ForEach(pages.indices, id: \.self) { index in
-                    let page = pages[index]
-                    card(page.header.title, index: index, isDone: page.exercises.allSatisfy(\.isDone),
-                         width: cardWidth, count: page.letter == nil ? nil : page.exercises.count)
+                ForEach(workoutExercises.indices, id: \.self) { index in
+                    let exercise = workoutExercises[index]
+                    card(exercise.shownExercise?.exerciseName ?? "Exercise", index: index,
+                         isDone: exercise.isDone, width: cardWidth)
+                        .accessibilityHint(exercise.supersetPartners.isEmpty ? "" : "Superset")
+                        .overlay(alignment: .bottomLeading) {
+                            supersetUnderline(from: index)
+                        }
                 }
 
                 if showsReview {
-                    card("Review", index: pages.count, isDone: false, width: cardWidth)
+                    card("Review", index: workoutExercises.count, isDone: false, width: cardWidth)
                 }
             }
             .scrollTargetLayout(isEnabled: isBrowsingStrip)
@@ -93,7 +97,7 @@ struct ExercisePreviewStrip: View {
             if newPhase == .idle, oldPhase == .interacting || oldPhase == .decelerating {
                 let index = Int(cardPosition(context.geometry).rounded())
                 pageScroll.position = CGFloat(index)
-                selectedPageIndex = index
+                selectedExerciseIndex = index
             }
         }
         .onScrollGeometryChange(for: CGFloat.self, of: cardPosition) { _, position in
@@ -128,21 +132,21 @@ struct ExercisePreviewStrip: View {
     }
 
     private func cardPosition(_ geometry: ScrollGeometry) -> CGFloat {
-        let last = max(0, pages.count - (showsReview ? 0 : 1))
+        let last = max(0, workoutExercises.count - (showsReview ? 0 : 1))
         let offset = geometry.contentOffset.x + geometry.contentInsets.leading
         return min(max(0, offset / step), CGFloat(last))
     }
 
     /// Selected is solid blue and full size, done exercises are tinted blue with a check, the rest
     /// stay plain. A card blends between the looks as its page swipes on or off the screen.
-    private func card(_ title: String, index: Int, isDone: Bool, width: CGFloat, count: Int? = nil) -> some View {
+    private func card(_ title: String, index: Int, isDone: Bool, width: CGFloat) -> some View {
         let focus = Self.focus(ofCard: index, pagePosition: pageScroll.position)
         let shape = RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
 
         return Button {
             selectExercise(at: index)
         } label: {
-            cardLabel(title, count: count, isDone: isDone, isSelected: focus >= 0.5, textScale: Self.textScale(focus: focus, dynamicTypeSize: dynamicTypeSize))
+            cardLabel(title, isDone: isDone, isSelected: focus >= 0.5, textScale: Self.textScale(focus: focus, dynamicTypeSize: dynamicTypeSize))
                 // The name changes color halfway, where the two cards are the same size. Blending it
                 // along the way would fade it into the blue.
                 .animation(.easeInOut(duration: 0.2), value: focus >= 0.5)
@@ -174,19 +178,14 @@ struct ExercisePreviewStrip: View {
         return resting + (1 - resting) * focus
     }
 
-    private func cardLabel(_ title: String, count: Int?, isDone: Bool, isSelected: Bool, textScale: CGFloat) -> some View {
+    private func cardLabel(_ title: String, isDone: Bool, isSelected: Bool, textScale: CGFloat) -> some View {
         // One font laid out at the full card size, then scaled, so the name grows with the card
         // and wraps the same way all through a swipe.
-        VStack(spacing: 1) {
-            Text(title)
-                .font(.callout.weight(.medium))
-                .lineLimit(3)
-                .minimumScaleFactor(0.01)
-                .multilineTextAlignment(.center)
-            if let count {
-                Text("\(count) exercises").font(.caption).lineLimit(1)
-            }
-        }
+        Text(title)
+            .font(.callout.weight(.medium))
+            .lineLimit(3)
+            .minimumScaleFactor(0.01)
+            .multilineTextAlignment(.center)
             .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
             .padding(.horizontal, isDone ? 15 : 4)
             .padding(.vertical, 2)
@@ -204,13 +203,29 @@ struct ExercisePreviewStrip: View {
             }
     }
 
+    /// One line in the superset's color under all of its cards, drawn from its first card.
+    @ViewBuilder
+    private func supersetUnderline(from index: Int) -> some View {
+        let workoutExercise = workoutExercises[index]
+        let partners = workoutExercise.supersetPartners
+        if !partners.isEmpty, index == 0 || !partners.contains(where: { $0 === workoutExercises[index - 1] }) {
+            let count = CGFloat(partners.count + 1)
+            Capsule()
+                .fill(workoutExercise.supersetColor ?? .accentColor)
+                .frame(width: cardWidth * count + spacing * (count - 1), height: 3)
+                .offset(y: 6)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     private func selectExercise(at index: Int) {
         withAnimation(.easeInOut(duration: 0.325)) {
             pageScroll.isDrivenByStrip = false
-            if index == selectedPageIndex {
+            if index == selectedExerciseIndex {
                 onReselect()
             } else {
-                selectedPageIndex = index
+                selectedExerciseIndex = index
             }
         }
     }

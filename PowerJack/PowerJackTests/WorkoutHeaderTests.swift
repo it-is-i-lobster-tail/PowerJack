@@ -7,13 +7,12 @@ import Testing
 struct WorkoutHeaderTests {
     private let bench = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
 
-    @Test("The pill follows navigation visibility, page type and rest", arguments: [true, false], [true, false])
-    func headerStates(superset: Bool, hidden: Bool) async throws {
-        let page: WorkoutPageHeader = superset ? .superset("B") : .exercise(bench)
-        let view = WorkoutHeader(pages: [page], controlsHidden: hidden, pageScroll: ExercisePageScroll())
+    @Test("The pill follows navigation visibility, rest and exercise visibility", arguments: [true, false])
+    func headerStates(hidden: Bool) async throws {
+        let view = WorkoutHeader(pages: [.exercise(bench)], controlsHidden: hidden, pageScroll: ExercisePageScroll())
         let idle = try await HostedView(view)
         let equipment = Equipment.barbell.displayName
-        #expect(idle.contains(superset ? "Superset B" : hidden ? "Bench, \(equipment)" : equipment))
+        #expect(idle.contains(hidden ? "Bench, \(equipment)" : equipment))
         idle.close()
 
         for remaining in [45.0, -1.0] {
@@ -22,9 +21,8 @@ struct WorkoutHeaderTests {
                 endsAt: now.addingTimeInterval(remaining), exerciseName: "Bench", setNumber: 2, setCount: 3), onTap: {})
             let screen = try await HostedView(view.environment(\.workoutHeaderRest, timer))
             defer { screen.close() }
-            let title = superset ? "Superset B" : "Bench"
             let label = try #require(screen.labels.first { $0.contains(remaining > 0 ? "Rest " : "Start set") })
-            #expect(label.contains(title) == hidden)
+            #expect(label.contains("Bench") == hidden)
             #expect(!label.contains(equipment))
         }
     }
@@ -43,9 +41,10 @@ struct WorkoutHeaderTests {
         #expect(abs(before.midX - after.midX) < 1)
     }
 
-    @Test("The pill width follows the swipe across an exercise and a superset")
+    @Test("The pill width follows the swipe between exercise pages")
     func swipeWidthFollowsPages() async throws {
-        let pages: [WorkoutPageHeader] = [.exercise(bench), .superset("B")]
+        let row = Exercise(exerciseName: "Row", exerciseEquipment: .dumbbell, primaryMuscleFocus: .back)
+        let pages: [WorkoutPageHeader] = [.exercise(bench), .exercise(row)]
         let scroll = ExercisePageScroll()
         let screen = try await HostedView(WorkoutHeader(pages: pages, controlsHidden: false, pageScroll: scroll))
         defer { screen.close() }
@@ -53,7 +52,7 @@ struct WorkoutHeaderTests {
         let start = try #require(screen.frame(of: equipment)).width
         scroll.position = 1
         await screen.settle()
-        let end = try #require(screen.frame(of: "Superset B")).width
+        let end = try #require(screen.frame(of: Equipment.dumbbell.displayName)).width
         scroll.position = 0.5
         await screen.settle()
         let middle = try #require(screen.frame(of: equipment)).width

@@ -124,8 +124,8 @@ struct WorkoutDetailView: View {
     }
 
     var body: some View {
-        let pages = WorkoutPage.pages(for: workout)
-        if pages.isEmpty {
+        let exercises = workout.workoutExercises
+        if exercises.isEmpty {
             // Nothing to log, so skipping is the way on to the next workout.
             ContentUnavailableView {
                 Label("No exercises", systemImage: "dumbbell")
@@ -144,7 +144,7 @@ struct WorkoutDetailView: View {
                 WorkoutDetailContent(
                     screenWidth: geometry.size.width,
                     topInset: geometry.safeAreaInsets.top,
-                    pages: pages,
+                    workoutExercises: exercises,
                     selectedExerciseIndex: $selectedExerciseIndex,
                     focusedSetField: $focusedSetField,
                     onExerciseSetsDone: handleSetsDone,
@@ -174,7 +174,7 @@ struct WorkoutDetailView: View {
 
                     ToolbarItem(placement: .principal) {
                         WorkoutHeader(
-                            pages: pages.map(\.header) + (isReadOnly ? [] : [.review]),
+                            pages: exercises.map { .exercise($0.shownExercise) } + (isReadOnly ? [] : [.review]),
                             controlsHidden: controlsHidden,
                             pageScroll: pageScroll,
                             idleWidth: max(0, geometry.size.width - 2 * LayoutMetrics.sectionSpacing)
@@ -189,7 +189,7 @@ struct WorkoutDetailView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             WorkoutActionsMenu(
                                 workout: workout,
-                                selectedExerciseIndex: $selectedExerciseIndex,
+                                selectedExerciseIndex: selectedExerciseIndex,
                                 isShowingWorkoutExerciseSheet: $isShowingWorkoutExerciseSheet,
                                 onEditExercise: editExercise,
                                 onSkipWorkout: onSkipWorkout,
@@ -236,7 +236,7 @@ struct WorkoutDetailView: View {
                     }
                 }
             }
-            // Keep the workout layout steady as the number pad slides over the bottom tabs.
+            // Keep the exercise strip in place as the number pad slides over it.
             .keyboardSlidesOver()
             .sheet(item: $presentedSheet, onDismiss: continueFinishing) { sheet in
                 switch sheet {
@@ -262,12 +262,9 @@ struct WorkoutDetailView: View {
                 showRequestedExercise()
                 presentSheetIfNeeded()
             }
-            .onChange(of: selectedExerciseIndex) { previous, selected in
+            .onChange(of: selectedExerciseIndex) {
                 presentSheetIfNeeded()
-                // Logging a set within the same page keeps the bars in their current idle state.
-                if !pages.contains(where: { $0.indices.contains(previous ?? -1) && $0.indices.contains(selected ?? -1) }) {
-                    idleControls?.show()
-                }
+                idleControls?.show()
             }
             // Keep the strip available through a long scrub and while the number pad is open.
             .onChange(of: focusedSetField != nil || pageScroll.stripPhase.isScrolling || pageScroll.swipeStartPage != nil) { _, interacting in
