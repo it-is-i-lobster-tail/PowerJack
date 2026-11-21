@@ -7,7 +7,7 @@ import Testing
 struct WorkoutHeaderTests {
     private let bench = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
 
-    @Test("The pill always shows the name and equipment, with any rest timer after the equipment")
+    @Test("The pill always shows the name, and a rest timer takes the equipment's place")
     func headerStates() async throws {
         let view = WorkoutHeader(pages: [.exercise(bench)], pageScroll: ExercisePageScroll())
         let idle = try await HostedView(view)
@@ -23,10 +23,8 @@ struct WorkoutHeaderTests {
             defer { screen.close() }
             let label = try #require(screen.labels.first { $0.contains(remaining > 0 ? "Rest " : "Start set") })
             #expect(label.contains("Bench"))
-            // The timer sits after the equipment rather than replacing it.
-            let equipmentAt = try #require(label.range(of: equipment))
-            let restAt = try #require(label.range(of: remaining > 0 ? "Rest " : "Start set"))
-            #expect(equipmentAt.upperBound <= restAt.lowerBound)
+            // The timer takes the equipment's place.
+            #expect(!label.contains(equipment))
         }
     }
 

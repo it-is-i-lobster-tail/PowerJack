@@ -119,8 +119,8 @@ struct WorkoutHeader: View {
     }
 }
 
-/// The exercise name, then a line with its superset, equipment and any running rest timer.
-/// The superset is in the color of its bar.
+/// The exercise name, then a line with its superset and equipment. A running rest timer takes the
+/// equipment's place. The superset is in the color of its bar.
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
     let rest: RestPeriod?
@@ -135,8 +135,7 @@ private struct HeaderLabel: View {
                 .opacity(showsPageText ? 1 : 0)
             HStack(spacing: 8) {
                 if let superset = page.superset {
-                    // While resting the line also holds the timer, so the superset shortens to its letter.
-                    Label(rest == nil ? superset.title : superset.letter, systemImage: "link")
+                    Label(superset.title, systemImage: "link")
                         .labelStyle(.titleAndIcon)
                         .foregroundStyle(superset.color)
                         .opacity(showsPageText ? 1 : 0)
@@ -151,14 +150,9 @@ private struct HeaderLabel: View {
         .padding(.vertical, 6)
     }
 
-    /// The equipment, then a running rest timer to its right.
+    /// The equipment, or a running rest timer in its place.
     @ViewBuilder
     private var detail: some View {
-        if let equipment = page.equipment {
-            Text(equipment)
-                .foregroundStyle(.secondary)
-                .opacity(showsPageText ? 1 : 0)
-        }
         if let rest {
             // Measure the widest countdown state without creating a live timer per swipe endpoint.
             ZStack {
@@ -168,9 +162,13 @@ private struct HeaderLabel: View {
             .monospacedDigit()
             .padding(.leading, 16)
             .hidden()
-            .overlay(alignment: .leading) {
+            .overlay {
                 if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
             }
+        } else if let equipment = page.equipment {
+            Text(equipment)
+                .foregroundStyle(.secondary)
+                .opacity(showsPageText ? 1 : 0)
         }
     }
 }
