@@ -86,12 +86,6 @@ struct WorkoutExerciseView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let supersetText, let index = workoutExercise.supersetIndex {
-                Label(supersetText, systemImage: "link")
-                    .font(.caption)
-                    .foregroundStyle(SupersetStyle.color(at: index))
-                    .accessibilityLabel(SupersetStyle.fullLabel(partners: supersetPartnerNames))
-            }
             if workoutExercise.checkInPending {
                 Label("Check-in required", systemImage: "cross.case")
                     .font(.caption)
@@ -105,17 +99,6 @@ struct WorkoutExerciseView: View {
     private var substituteText: String? {
         guard workoutExercise.substitute != nil, let planned = workoutExercise.exercise else { return nil }
         return "Sub for \(planned.exerciseName) · this week"
-    }
-
-    /// e.g. "Superset with Skull Crusher", or "Superset B" when the names are too long.
-    private var supersetText: String? {
-        let partners = supersetPartnerNames
-        guard !partners.isEmpty, let index = workoutExercise.supersetIndex else { return nil }
-        return SupersetStyle.label(letter: Workout.supersetLetter(at: index), partners: partners)
-    }
-
-    private var supersetPartnerNames: [String] {
-        workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
     }
 
     private var warmupGroup: some View {

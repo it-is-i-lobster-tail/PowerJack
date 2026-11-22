@@ -2,24 +2,52 @@
 //  WorkoutHeader.swift
 //  PowerJack
 //
-//  The workout header picks up the page title as the preview cards fade.
+//  The workout header always shows the page's exercise name and equipment.
 //  Between pages its width follows the swipe, from one exercise's bubble to the next.
 //
 
 import SwiftUI
 
+/// The superset an exercise page belongs to, shown in the pill in the color of its bar.
+struct WorkoutPageSuperset {
+    let letter: String
+    let color: Color
+    let partners: [String]
+
+    init(letter: String, color: Color, partners: [String]) {
+        self.letter = letter
+        self.color = color
+        self.partners = partners
+    }
+
+    init?(_ workoutExercise: WorkoutExercise) {
+        guard let index = workoutExercise.supersetIndex else { return nil }
+        self.init(letter: Workout.supersetLetter(at: index),
+                  color: SupersetStyle.color(at: index),
+                  partners: workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName })
+    }
+
+    /// e.g. "Superset A".
+    var title: String { "Superset \(letter)" }
+}
+
 enum WorkoutPageHeader {
-    case exercise(Exercise?), review
+    case exercise(Exercise?, superset: WorkoutPageSuperset? = nil), review
 
     var title: String {
         switch self {
-        case .exercise(let exercise): exercise?.exerciseName ?? "Exercise"
+        case .exercise(let exercise, _): exercise?.exerciseName ?? "Exercise"
         case .review: "Review"
         }
     }
 
     var equipment: String? {
-        if case .exercise(let exercise) = self { return exercise?.equipment.displayName }
+        if case .exercise(let exercise, _) = self { return exercise?.equipment.displayName }
+        return nil
+    }
+
+    var superset: WorkoutPageSuperset? {
+        if case .exercise(_, let superset) = self { return superset }
         return nil
     }
 }
@@ -28,9 +56,7 @@ struct WorkoutHeader: View {
     @Environment(\.workoutHeaderRest) private var rest
 
     let pages: [WorkoutPageHeader]
-    let controlsHidden: Bool
     let pageScroll: ExercisePageScroll
-    var idleWidth: CGFloat?
 
     private var position: CGFloat {
         min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
@@ -40,9 +66,10 @@ struct WorkoutHeader: View {
         pages.isEmpty ? .review : pages[Int(position.rounded(.toNearestOrEven))]
     }
 
-    private var idleLabel: String {
-        guard let equipment = visiblePage.equipment else { return visiblePage.title }
-        return controlsHidden ? "\(visiblePage.title), \(equipment)" : equipment
+    private var pageLabel: String {
+        [visiblePage.title, visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, visiblePage.equipment]
+            .compactMap(\.self)
+            .joined(separator: ", ")
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
@@ -59,33 +86,26 @@ struct WorkoutHeader: View {
             // Reserve the widest page title before the swipe starts. The toolbar can still
             // constrain long titles to the space between its leading and trailing buttons.
             ForEach(pages.indices, id: \.self) { index in
-                // Reserve room for both idle states, so the toolbar stays centered as its contents change.
-                ForEach([false, true], id: \.self) { hidden in
-                    HeaderLabel(page: pages[index], controlsHidden: hidden, rest: rest?.period)
-                        .hidden()
-                        .accessibilityHidden(true)
-                }
+                HeaderLabel(page: pages[index], rest: rest?.period)
+                    .hidden()
+                    .accessibilityHidden(true)
             }
         }
         .overlay {
-            // Keep the toolbar's center anchor while letting the idle title use the faded buttons' space.
-            pill
-                .frame(width: controlsHidden ? idleWidth : nil)
-                .fixedSize(horizontal: false, vertical: true)
+            pill.fixedSize(horizontal: false, vertical: true)
         }
         .animation(.easeInOut(duration: 0.18), value: rest != nil)
-        .animation(IdleControls.fade, value: controlsHidden)
     }
 
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(page: visiblePage, controlsHidden: controlsHidden, rest: rest?.period,
-                        showsCountdown: true, showsPageText: swipe == nil)
+            HeaderLabel(page: visiblePage, rest: rest?.period, showsCountdown: swipe == nil, showsPageText: swipe == nil)
+            // Mid-swipe each page carries its own timer, so it slides with that page's superset tag.
             if let swipe {
-                HeaderLabel(page: swipe.from, controlsHidden: controlsHidden, rest: rest?.period)
+                HeaderLabel(page: swipe.from, rest: rest?.period, showsCountdown: true)
                     .accessibilityHidden(true)
-                HeaderLabel(page: swipe.to, controlsHidden: controlsHidden, rest: rest?.period)
+                HeaderLabel(page: swipe.to, rest: rest?.period, showsCountdown: true)
                     .accessibilityHidden(true)
             }
         }
@@ -94,56 +114,65 @@ struct WorkoutHeader: View {
         .contentShape(.capsule)
         .gesture(TapGesture().onEnded { rest?.onTap() }, isEnabled: rest != nil)
         .accessibilityElement(children: rest == nil ? .ignore : .combine)
-        .accessibilityLabel(idleLabel, isEnabled: rest == nil)
+        .accessibilityLabel(pageLabel, isEnabled: rest == nil)
         .accessibilityAddTraits(rest == nil ? [] : .isButton)
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// When the cards fade the pill takes over their title. A running timer always owns its own line.
+/// The exercise name, then a line with its superset and equipment. A running rest timer takes the
+/// equipment's place. The superset is in the color of its bar.
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
-    let controlsHidden: Bool
     let rest: RestPeriod?
     var showsCountdown = false
     var showsPageText = true
 
-    private var showsTitle: Bool {
-        if case .review = page { return true }
-        return controlsHidden || (rest == nil && page.equipment == nil)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            if showsTitle {
-                Text(page.title)
-                    .font(.headline)
-                    .minimumScaleFactor(0.01)
-                    .opacity(showsPageText ? 1 : 0)
-            }
-            if let rest {
-                // Measure the widest countdown state without creating a live timer per swipe endpoint.
-                ZStack {
-                    Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
-                    Text("Start set")
+            Text(page.title)
+                .font(.headline)
+                .minimumScaleFactor(0.01)
+                .opacity(showsPageText ? 1 : 0)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let superset = page.superset {
+                    Label(superset.title, systemImage: "link")
+                        .labelStyle(.titleAndIcon)
+                        // A touch smaller than the equipment, so it reads as a tag.
+                        .font(.footnote)
+                        .foregroundStyle(superset.color)
+                        .opacity(showsPageText ? 1 : 0)
+                        .accessibilityLabel(SupersetStyle.fullLabel(partners: superset.partners))
                 }
-                .monospacedDigit()
-                .padding(.leading, 16)
-                .hidden()
-                .overlay {
-                    if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
-                }
-                .font(controlsHidden ? .subheadline : .headline)
-            } else if let equipment = page.equipment {
-                Text(equipment)
-                    .font(controlsHidden ? .subheadline : .headline)
-                    .foregroundStyle(controlsHidden ? Color.secondary : .primary)
-                    .opacity(showsPageText ? 1 : 0)
+                detail
             }
+            .font(.subheadline)
         }
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .padding(.vertical, controlsHidden ? 6 : 8)
+        .padding(.vertical, 6)
+    }
+
+    /// The equipment, or a running rest timer in its place.
+    @ViewBuilder
+    private var detail: some View {
+        if let rest {
+            // Measure the widest countdown state, so the label keeps its width as the seconds change.
+            ZStack {
+                Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
+                Text("Start set")
+            }
+            .monospacedDigit()
+            .padding(.leading, 16)
+            .hidden()
+            .overlay {
+                if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
+            }
+        } else if let equipment = page.equipment {
+            Text(equipment)
+                .foregroundStyle(.secondary)
+                .opacity(showsPageText ? 1 : 0)
+        }
     }
 }
 

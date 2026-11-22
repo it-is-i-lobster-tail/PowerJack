@@ -2,8 +2,7 @@
 //  SupersetStyle.swift
 //  PowerJack
 //
-//  How supersets look everywhere they're shown: one color per letter, and a short label
-//  when the full list of partners would be too long to read at a glance.
+//  How supersets look everywhere they're shown: one color per letter.
 //
 
 import SwiftUI
@@ -23,16 +22,7 @@ enum SupersetStyle {
         colors[index % colors.count]
     }
 
-    /// Longer than this, "Superset with …" becomes just "Superset B".
-    static let maxLabelLength = 45
-
-    /// e.g. "Superset with Skull Crusher", or "Superset B" when the names don't fit.
-    static func label(letter: String, partners: [String]) -> String {
-        let full = fullLabel(partners: partners)
-        return full.count > maxLabelLength ? "Superset \(letter)" : full
-    }
-
-    /// Every partner's name, for VoiceOver and anywhere there's room.
+    /// e.g. "Superset with Skull Crusher", every partner's name for VoiceOver.
     static func fullLabel(partners: [String]) -> String {
         "Superset with \(partners.formatted(.list(type: .and)))"
     }
