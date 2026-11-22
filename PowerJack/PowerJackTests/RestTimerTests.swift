@@ -20,6 +20,13 @@ struct RestTimerTests {
         UserDefaults.standard.set(WeightUnit.pounds.rawValue, forKey: AppSettings.Key.weightUnit)
     }
 
+    @Test("The rest wheel lists only seconds that stay inside 0:30...5:00")
+    func restWheelSecondOptions() {
+        #expect(MinuteSecondWheel.secondOptions(forMinute: 0) == Array(stride(from: 30, to: 60, by: 5)))
+        #expect(MinuteSecondWheel.secondOptions(forMinute: 1) == Array(stride(from: 0, to: 60, by: 5)))
+        #expect(MinuteSecondWheel.secondOptions(forMinute: 5) == [0])
+    }
+
     @Test("Fatigue level picks the rest length")
     func fatigueLevelRestLengths() {
         #expect(FatigueLevel.low.restLength == .short)

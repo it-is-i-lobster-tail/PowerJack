@@ -201,6 +201,9 @@ struct AppScreenTests {
         await screen.adjust(at: 0, increment: false)
         #expect(RestLength.range.contains(.seconds(defaults.integer(forKey: key))), "\(screen.labels)")
         #expect(defaults.integer(forKey: key) < 300, "\(screen.labels)")
+        // Down to 0 min snaps up to the 0:30 floor.
+        for _ in 0 ..< 5 { await screen.adjust(at: 0, increment: false) }
+        #expect(defaults.integer(forKey: key) == 30, "\(screen.labels)")
 
         // Opening another length closes the first.
         let long = try #require(screen.label(startingWith: "Long"))
