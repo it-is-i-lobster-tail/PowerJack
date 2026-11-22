@@ -43,7 +43,7 @@ struct ExerciseStripTests {
         }
         #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
         // Finish Workout is the last row of the list, so it clears the strip once the list is scrolled to its end.
-        await screen.scrollToBottom()
+        await scrollReviewListToEnd(in: screen)
         let finish = try #require(screen.frame(of: "Finish Workout"))
         #expect(finish.maxY < strip.convert(strip.bounds, to: nil).minY, "Finish \(finish)")
     }
@@ -291,6 +291,26 @@ struct ExerciseStripTests {
     private func programScreen() -> some View {
         ProgramStack(router: router)
             .modelContainer(container)
+    }
+
+    /// Scrolls the Review list as far as a finger could: its end may be hidden under the strip
+    /// (the bottom inset) even when the list is shorter than the screen.
+    private func scrollReviewListToEnd(in screen: HostedView) async {
+        func lists(in view: UIView) -> [UIScrollView] {
+            var found = view.subviews.flatMap(lists)
+            if let list = view as? UIScrollView,
+               view is UICollectionView || view is UITableView,
+               list.contentSize.width <= list.bounds.width + 1 {
+                found.append(list)
+            }
+            return found
+        }
+        for list in lists(in: screen.window) {
+            let insets = list.adjustedContentInset
+            let end = max(list.contentSize.height + insets.bottom - list.bounds.height, -insets.top)
+            list.setContentOffset(CGPoint(x: list.contentOffset.x, y: end), animated: false)
+        }
+        await screen.settle()
     }
 
     /// The strip is the short sideways scroller under the pager.
