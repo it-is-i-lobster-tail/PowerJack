@@ -42,8 +42,10 @@ struct ExerciseStripTests {
             await screen.tap(name)
         }
         #expect(await screen.waitUntil { isCardCentered("Review", in: strip, screen: screen) }, "offset \(strip.contentOffset.x)")
+        // Finish Workout is the last row of the list, so it clears the strip once the list is scrolled to its end.
+        await screen.scrollToBottom()
         let finish = try #require(screen.frame(of: "Finish Workout"))
-        #expect(finish.maxY < strip.convert(strip.bounds, to: nil).minY)
+        #expect(finish.maxY < strip.convert(strip.bounds, to: nil).minY, "Finish \(finish)")
     }
 
     @Test("Resuming a workout mid-way scrolls the strip to the current exercise")
