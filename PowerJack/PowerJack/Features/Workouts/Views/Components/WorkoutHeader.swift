@@ -100,11 +100,12 @@ struct WorkoutHeader: View {
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(page: visiblePage, rest: rest?.period, showsCountdown: true, showsPageText: swipe == nil)
+            HeaderLabel(page: visiblePage, rest: rest?.period, showsCountdown: swipe == nil, showsPageText: swipe == nil)
+            // Mid-swipe each page carries its own timer, so it slides with that page's superset tag.
             if let swipe {
-                HeaderLabel(page: swipe.from, rest: rest?.period)
+                HeaderLabel(page: swipe.from, rest: rest?.period, showsCountdown: true)
                     .accessibilityHidden(true)
-                HeaderLabel(page: swipe.to, rest: rest?.period)
+                HeaderLabel(page: swipe.to, rest: rest?.period, showsCountdown: true)
                     .accessibilityHidden(true)
             }
         }
@@ -156,7 +157,7 @@ private struct HeaderLabel: View {
     @ViewBuilder
     private var detail: some View {
         if let rest {
-            // Measure the widest countdown state without creating a live timer per swipe endpoint.
+            // Measure the widest countdown state, so the label keeps its width as the seconds change.
             ZStack {
                 Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
                 Text("Start set")
