@@ -54,6 +54,12 @@ struct ValidatedNameField: View {
 
                 TextField(prompt, text: $text)
                     .focused($isFocused)
+                    .textInputAutocapitalization(.words)
+                    // Title case: "of", "the" and such go lowercase once the next word starts.
+                    .onChange(of: text) { previous, typed in
+                        let titled = TitleCase.typed(typed, after: previous)
+                        if titled != typed { text = titled }
+                    }
                     .padding(.horizontal, 13)
                     .padding(.vertical, LayoutMetrics.compactSpacing)
                     .glassEffect(
