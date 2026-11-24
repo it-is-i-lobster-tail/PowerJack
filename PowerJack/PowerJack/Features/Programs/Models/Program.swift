@@ -240,7 +240,8 @@ extension Program {
     private func logSets(of workout: Workout) {
         let setsByMuscle = workout.loggedSetsByMuscle
         guard !setsByMuscle.isEmpty else { return }
-        modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle, sessionID: workout.syncID))
+        modelContext?.insert(WorkoutLog(date: .now, setsByMuscle: setsByMuscle,
+                                       sessionID: workout.syncID, programType: templateType))
     }
     /// Skips the rest of `workout` and moves the program forward.
     /// Completed sets stay completed and count toward history; only unfinished sets are skipped.

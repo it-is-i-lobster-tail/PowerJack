@@ -8,7 +8,9 @@
 //  so new or rarely set fields can be missing, and TestFlight and App Store builds then
 //  fail to upload. After changing a model:
 //  1. Run the app from Xcode with the `-initCloudKitSchema` launch argument, signed in to iCloud.
-//  2. In the CloudKit Console, check Development, then Deploy Schema Changes to Production.
+//  2. For the movement metadata upgrade, verify Joint, JointMovement and ExerciseJointAction,
+//     their relationships, and Exercise's movement pattern and execution style in Development.
+//  3. Deploy Schema Changes to Production before distributing the build through TestFlight or the App Store.
 //
 
 #if DEBUG

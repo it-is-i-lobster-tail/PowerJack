@@ -1,0 +1,22 @@
+{
+  "regions": [
+    {"id":"lowerBody","name":"Lower body","description":"Hips and legs of the lower body"},
+    {"id":"upperBody","name":"Upper body","description":"Upper body including the chest, back, shoulders and arms"},
+    {"id":"arm","name":"Arms","description":"Upper arm and forearm","emphasis":["biceps","triceps"]},
+    {"id":"trunk","name":"Core","description":"Core muscles of the abdominal wall and trunk"}
+  ],
+  "muscles": [
+    {"muscle":"quads","regions":["lowerBody"],"description":"Quadriceps on the front of the thigh"},
+    {"muscle":"hamstrings","regions":["lowerBody"],"description":"Hamstrings at the back of the thigh"},
+    {"muscle":"glutes","regions":["lowerBody"],"description":"Gluteal muscles at the hips and buttocks"},
+    {"muscle":"calves","regions":["lowerBody"],"description":"Calf muscles in the lower leg"},
+    {"muscle":"chest","regions":["upperBody"],"description":"Pectorals of the chest"},
+    {"muscle":"shoulders","regions":["upperBody"],"description":"Deltoids of the shoulder"},
+    {"muscle":"back","regions":["upperBody"],"description":"Upper and middle back muscles"},
+    {"muscle":"biceps","regions":["upperBody","arm"],"description":"Biceps at the front of the upper arm"},
+    {"muscle":"triceps","regions":["upperBody","arm"],"description":"Triceps at the back of the upper arm"},
+    {"muscle":"forearms","regions":["upperBody","arm"],"description":"Forearm muscles at the wrist"},
+    {"muscle":"abs","regions":["trunk"],"description":"Abdominal muscles at the front of the torso"},
+    {"muscle":"obliques","regions":["trunk"],"description":"Obliques at the sides of the abdomen"}
+  ]
+}

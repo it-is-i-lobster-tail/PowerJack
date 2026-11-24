@@ -234,9 +234,9 @@ final class HostedView {
         return true
     }
 
-    /// Types into the first text field on screen, replacing what it held.
+    /// Types into the first text field on screen, with an option to keep its existing text.
     @discardableResult
-    func typeIntoFirstField(_ text: String) async -> Bool {
+    func typeIntoFirstField(_ text: String, replacing: Bool = true) async -> Bool {
         func search(_ view: UIView) -> UITextField? {
             if let field = view as? UITextField { return field }
             for subview in view.subviews {
@@ -247,8 +247,10 @@ final class HostedView {
         guard let field = search(window) else { return false }
         field.becomeFirstResponder()
         await settle()
-        field.selectAll(nil)
-        field.deleteBackward()
+        if replacing {
+            field.selectAll(nil)
+            field.deleteBackward()
+        }
         field.insertText(text)
         await settle()
         return true

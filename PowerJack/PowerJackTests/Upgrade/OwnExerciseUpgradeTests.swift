@@ -40,6 +40,42 @@ struct OwnExerciseUpgradeTests {
         #expect(try UpgradeManifest(context: context) == saved, "\(fixture.version)")
     }
 
+    @Test("Movement upgrade preserves a renamed bench and a custom exercise with its original catalog name")
+    func renamedBuiltInAndSameNameCustom() throws {
+        let fixture = try #require(UpgradeFixture.bundled.first { $0.version == "1.0.51" })
+        let url = try copyStore(of: fixture)
+        try execute("UPDATE ZEXERCISE SET ZEXERCISENAME = 'Meet Bench', ZCUSTOMRESTTIMEVALUE = 137 WHERE ZCATALOGID = 'barbell-bench-press'", on: url)
+        try execute("UPDATE ZEXERCISE SET ZEXERCISENAME = 'Barbell Bench Press' WHERE ZUSERCREATEDVALUE = 1", on: url)
+        let config = ModelConfiguration(schema: PowerJackSchema.schema, url: url, cloudKitDatabase: .none)
+        let linkedRows: Set<UUID>
+        let customRows: Set<UUID>
+        do {
+            let container = try ModelContainer(for: PowerJackSchema.schema, configurations: [config])
+            let rows = try container.mainContext.fetch(FetchDescriptor<Exercise>())
+            let bench = try #require(rows.first { $0.catalogID == "barbell-bench-press" })
+            let custom = try #require(rows.first { $0.userCreated })
+            let benchID = bench.persistentModelID
+            let customID = custom.persistentModelID
+            linkedRows = Set((bench.workoutExercisesValue ?? []).compactMap(\.syncIDValue))
+            customRows = Set((custom.workoutExercisesValue ?? []).compactMap(\.syncIDValue))
+            #expect(!linkedRows.isEmpty && !customRows.isEmpty)
+            try ExerciseCatalog.seed(in: container.mainContext)
+            let seeded = try container.mainContext.fetch(FetchDescriptor<Exercise>())
+            #expect(seeded.first { $0.catalogID == "barbell-bench-press" }?.persistentModelID == benchID)
+            #expect(seeded.first { $0.userCreated }?.persistentModelID == customID)
+        }
+        let reopened = try ModelContainer(for: PowerJackSchema.schema, configurations: [config])
+        let rows = try reopened.mainContext.fetch(FetchDescriptor<Exercise>())
+        let bench = try #require(rows.first { $0.catalogID == "barbell-bench-press" })
+        let custom = try #require(rows.first { $0.userCreated })
+        #expect(bench.exerciseName == "Meet Bench" && bench.customRestTimeValue == 137)
+        #expect(bench.movementPattern == .horizontalPress && bench.jointActions?.count == 2)
+        #expect(Set((bench.workoutExercisesValue ?? []).compactMap(\.syncIDValue)) == linkedRows)
+        #expect(custom.exerciseName == "Barbell Bench Press" && custom.catalogID == nil)
+        #expect(custom.movementPattern == nil && custom.executionStyle == nil && (custom.jointActions ?? []).isEmpty)
+        #expect(Set((custom.workoutExercisesValue ?? []).compactMap(\.syncIDValue)) == customRows)
+    }
+
     /// Upgraded stores stay open for the whole run, like `HostedView.makeStore()`.
     private static var open: [ModelContainer] = []
 

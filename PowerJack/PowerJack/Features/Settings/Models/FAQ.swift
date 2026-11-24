@@ -194,10 +194,10 @@ extension FAQ {
                 ]
             ),
             Entry(
-                question: "What does the Volume tab show?",
+                question: "What does the Data tab show?",
                 answer: [
-                    "How many hard sets each muscle has averaged per week, over the last 30 days, 90 days, year, or all time.",
-                    "The colors show what that amount does: 0–2 sets a week is too little, 3–5 maintains a muscle, 6–12 grows it, 13–25 is where growth tops out, and 26 or more is likely more than you can recover from.",
+                    "Hypertrophy shows your average weekly working sets by muscle. Pick Current Program, 30 days, or 90 days.",
+                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a chart to expand it, pinch to zoom, or drag sideways to move along its axis.",
                 ]
             ),
             Entry(

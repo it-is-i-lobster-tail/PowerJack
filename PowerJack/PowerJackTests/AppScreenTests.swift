@@ -227,8 +227,8 @@ struct AppScreenTests {
         #expect(screen.contains("My Programs"), "\(screen.labels)")
     }
 
-    @Test("Volume is empty until a workout is logged, then shows every muscle")
-    func volume() async throws {
+    @Test("Data opens weekly volume and switches to targets and estimated maxes")
+    func dataTab() async throws {
         let screen = try await HostedView(
             PowerJackRootView()
                 .modelContainer(container)
@@ -236,12 +236,12 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.selectTab("Volume")
-        #expect(await screen.waitUntil { screen.contains("No workouts yet") }, "\(screen.labels)")
-
-        container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
-        #expect(await screen.waitUntil { screen.contains("Chest") }, "\(screen.labels)")
-        #expect(screen.contains("Hamstrings"), "\(screen.labels)")
+        await screen.selectTab("Data")
+        #expect(await screen.waitUntil { screen.contains("Average working sets per week") })
+        #expect(await screen.selectSegment("Targets"))
+        #expect(screen.contains("Target vs. Actual"))
+        #expect(await screen.selectSegment("One Rep Max"))
+        #expect(screen.contains("1 Rep Max (estimated)"))
     }
 
     @Test("The template builder adds exercises from the catalog")
