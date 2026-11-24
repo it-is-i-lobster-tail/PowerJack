@@ -47,7 +47,7 @@ struct WorkoutSupersetEditor: View {
                             } label: {
                                 Label("Remove", systemImage: "minus.circle")
                             }
-                            .tint(.red)
+                            .tint(.blue)
                         }
                     }
                     .onMove { source, destination in
@@ -67,13 +67,13 @@ struct WorkoutSupersetEditor: View {
                 }
             }
             .safeAreaBar(edge: .bottom, spacing: 0) {
-                Button(role: .destructive) {
+                Button {
                     workout.removeSuperset(supersetID)
                     save()
                 } label: {
                     Text("Remove Superset")
                         .font(.subheadline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.blue)
                         .frame(maxWidth: .infinity, minHeight: 28)
                 }
                 .buttonStyle(.glass)
