@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      apply_cloudkit_schema:
+        description: Reapply the committed schema to CloudKit Development
+        type: boolean
+        default: false
 
 concurrency:
   group: unit-tests-${{ github.event.pull_request.number || github.ref }}
@@ -64,6 +69,135 @@ jobs:
         with:
           name: TestResults
           path: TestResults.xcresult
+
+  cloudkit-schema:
+    name: Prepare CloudKit schema
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: macos-26
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: cloudkit-development-schema
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Development and check Production
+        id: schema
+        shell: bash
+        env:
+          CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_API_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+          APPLY_SCHEMA: ${{ inputs.apply_cloudkit_schema }}
+        run: |
+          schema=PowerJack/CloudKitSchema.ckdb
+          export DEVELOPER_DIR="$XCODE_PATH/Contents/Developer"
+
+          git fetch --no-tags origin main
+          current_schema=$(git ls-tree FETCH_HEAD -- "$schema")
+          tested_schema=$(git ls-tree HEAD -- "$schema")
+          if [[ "$current_schema" != "$tested_schema" ]]; then
+            echo "A newer schema is on main. This run skipped the CloudKit update." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ -z "$CLOUDKIT_MANAGEMENT_TOKEN" ]]; then
+            echo "::error::Set CLOUDKIT_API_TOKEN to a CloudKit Management Token."
+            exit 1
+          fi
+
+          container=(--team-id KWZTWNA57G --container-id iCloud.com.stanleycloud.PowerJack)
+          development="$RUNNER_TEMP/CloudKitSchema.ckdb"
+          production="$RUNNER_TEMP/CloudKitProduction.ckdb"
+          xcrun cktool export-schema "${container[@]}" --environment development --output-file "$development"
+          test -s "$development"
+
+          if [[ ! -f "$schema" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            # Unrelated pushes leave in-progress edits in the shared Development environment alone.
+            previous_schema="$tested_schema"
+            if [[ "${APPLY_SCHEMA:-}" == true ]]; then
+              previous_schema=
+            elif [[ -n "$BEFORE" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+              previous_schema=$(git ls-tree "$BEFORE" -- "$schema")
+            fi
+
+            if ! cmp -s "$schema" "$development"; then
+              if [[ "$previous_schema" != "$tested_schema" ]]; then
+                if [[ -n "$BEFORE" ]] && ! git show "$BEFORE:$schema" | cmp -s "$development" -; then
+                  echo "::error::CloudKit Development changed since the previous schema commit. Reconcile Development and the merged schema before promoting."
+                  exit 1
+                fi
+                xcrun cktool import-schema "${container[@]}" --environment development --validate --file "$schema"
+                rm "$development"
+                xcrun cktool export-schema "${container[@]}" --environment development --output-file "$development"
+                echo "Imported the merged schema into CloudKit Development." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "publish=true" >> "$GITHUB_OUTPUT"
+                echo "The Development export differs from the committed schema. Review the Development changes before promoting them." >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          fi
+
+          xcrun cktool export-schema "${container[@]}" --environment production --output-file "$production"
+          if cmp -s "$development" "$production"; then
+            echo "The CloudKit Development and Production exports match." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The CloudKit Development and Production exports differ. Before merging main into staging, review **Deploy Schema Changes** in [CloudKit Console](https://icloud.developer.apple.com/)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the Development schema
+        if: ${{ !cancelled() && steps.schema.outputs.publish == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudkit-development-schema
+          path: ${{ runner.temp }}/CloudKitSchema.ckdb
+          if-no-files-found: error
+
+      - name: Open a schema pull request
+        if: steps.schema.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          schema=PowerJack/CloudKitSchema.ckdb
+          snapshot="$RUNNER_TEMP/CloudKitSchema.ckdb"
+          git fetch --no-tags origin main
+          base=$(git rev-parse FETCH_HEAD)
+          if [[ "$(git ls-tree "$base" -- "$schema")" != "$(git ls-tree HEAD -- "$schema")" ]]; then
+            echo "The schema on main changed while this job was running. A newer run will check it." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          before=$(git ls-tree --object-only "$base" -- "$schema")
+          after=$(git hash-object "$snapshot")
+          branch="codex/cloudkit-schema-${before:0:12}-${after:0:12}"
+          pr=$(gh pr list --base main --head "$branch" --state open --json url --jq '.[0].url // empty')
+          if [[ -z "$pr" ]]; then
+            remote_tip=$(git ls-remote origin "refs/heads/$branch")
+            if [[ -z "$remote_tip" ]]; then
+              git switch --detach "$base"
+              cp "$snapshot" "$schema"
+              git add -- "$schema"
+              git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit -m "Snapshot CloudKit Development schema"
+              git push origin "HEAD:refs/heads/$branch"
+            fi
+            pr=$(gh pr create --base main --head "$branch" --title "Snapshot CloudKit Development schema" --body-file - <<'EOF'
+          This is the schema exported from PowerJack’s CloudKit Development environment after CI passed on main. Review the record types, fields, and indexes before merging.
+
+          To promote a schema to Production before the staging release, use **Deploy Schema Changes** in [CloudKit Console](https://icloud.developer.apple.com/).
+          EOF
+            )
+          fi
+          printf 'CloudKit schema pull request: %s\n' "$pr" >> "$GITHUB_STEP_SUMMARY"
 
   # Each merge to main raises the patch version (0.1.0 -> 0.1.1) and commits it
   # back, so Archive builds from main carry the next version. A push that
