@@ -84,9 +84,14 @@ private struct RestLengthRow: View {
 struct MinuteSecondWheel: View {
     @Binding var seconds: Int
 
-    private static let range = Int(RestLength.range.lowerBound.components.seconds)
+    static let range = Int(RestLength.range.lowerBound.components.seconds)
         ... Int(RestLength.range.upperBound.components.seconds)
-    private static let step = Int(RestLength.step.components.seconds)
+    static let step = Int(RestLength.step.components.seconds)
+
+    /// The seconds that keep `minute` inside `range`, like 30...55 at 0 min and only 0 at 5 min.
+    static func secondOptions(forMinute minute: Int) -> [Int] {
+        stride(from: 0, to: 60, by: step).filter { range.contains(minute * 60 + $0) }
+    }
 
     private var minutes: Binding<Int> {
         Binding(
@@ -110,16 +115,18 @@ struct MinuteSecondWheel: View {
                 }
             }
             Picker("Seconds", selection: secondsPart) {
-                ForEach(Array(stride(from: 0, to: 60, by: Self.step)), id: \.self) { second in
+                ForEach(Self.secondOptions(forMinute: seconds / 60), id: \.self) { second in
                     Text("\(second) sec").tag(second)
                 }
             }
+            // A new minute changes the list, so rebuild the wheel to show the right pick.
+            .id(seconds / 60)
         }
         .pickerStyle(.wheel)
         .labelsHidden()
     }
 
-    /// Out-of-range picks (like 0 min 10 sec) snap back to the nearest allowed time.
+    /// A minute change that leaves the seconds out of range (like 1:15 to 0 min) snaps back to the nearest allowed time.
     private func setTotal(_ total: Int) {
         let clamped = min(max(total, Self.range.lowerBound), Self.range.upperBound)
         withAnimation { seconds = clamped }
