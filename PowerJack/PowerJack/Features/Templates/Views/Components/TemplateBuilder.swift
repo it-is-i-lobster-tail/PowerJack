@@ -454,7 +454,7 @@ struct ChangeExercisePicker: View {
     var body: some View {
         ExerciseSelectionView(
             navigationTitle: "Change Exercise",
-            isExerciseEnabled: { $0 !== current },
+            mode: .change(current),
             onSelect: onSelect
         )
         .presentationDetents([.large])

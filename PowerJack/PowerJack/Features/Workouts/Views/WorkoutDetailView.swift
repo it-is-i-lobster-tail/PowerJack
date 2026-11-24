@@ -205,6 +205,7 @@ struct WorkoutDetailView: View {
                     if let selectedWorkoutExercise {
                         ExerciseSelectionView(
                             navigationTitle: "Change Exercise",
+                            mode: .change(selectedWorkoutExercise.exercise),
                             onSelect: { exercise in
                                 selectedWorkoutExercise.changeExercise(newExercise: exercise)
                                 save()
