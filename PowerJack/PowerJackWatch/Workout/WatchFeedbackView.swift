@@ -25,22 +25,32 @@ struct WatchFeedbackView: View {
 
     var body: some View {
         // Each answer brings up the next question; the last one saves and moves on straight away.
-        Group {
-            if draft.asksTopSet && draft.topSetRepsInReserve == nil {
-                question("Top set: reps left?", selection: $draft.topSetRepsInReserve)
-            } else if draft.ratesRepsInReserve && draft.repsInReserve == nil {
-                question("Last set: reps left?", selection: $draft.repsInReserve)
-            } else if !draft.ratesRepsInReserve && draft.levelOfEffort == nil {
-                question("How hard was it?", selection: $draft.levelOfEffort)
-            } else {
-                question("Any pain?", selection: $draft.levelOfPain)
-            }
+        NavigationStack {
+            questions
+                .toolbar {
+                    if canGoBack {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Back", systemImage: "chevron.backward", action: goBack)
+                        }
+                    }
+                }
+                .toolbarVisibility(canGoBack ? .visible : .hidden, for: .navigationBar)
         }
-        .navigationTitle(workoutExercise.shownExercise?.exerciseName ?? "Feedback")
         .interactiveDismissDisabled()
-        .toolbar(.hidden, for: .navigationBar)
         .onChange(of: draft.canSave) { _, canSave in
             if canSave { save() }
+        }
+    }
+
+    @ViewBuilder private var questions: some View {
+        if draft.asksTopSet && draft.topSetRepsInReserve == nil {
+            question("Top set: reps left?", selection: $draft.topSetRepsInReserve)
+        } else if draft.ratesRepsInReserve && draft.repsInReserve == nil {
+            question("Last set: reps left?", selection: $draft.repsInReserve)
+        } else if !draft.ratesRepsInReserve && draft.levelOfEffort == nil {
+            question("How hard was it?", selection: $draft.levelOfEffort)
+        } else {
+            question("Any pain?", selection: $draft.levelOfPain)
         }
     }
 
@@ -70,26 +80,19 @@ struct WatchFeedbackView: View {
                     Button {
                         withAnimation { selection.wrappedValue = option }
                     } label: {
-                        HStack {
-                            Text(option.valueText)
-                                .font(.headline)
-                                .monospacedDigit()
-                                .frame(width: 24, alignment: .leading)
-                            Text(option.label)
-                        }
+                        Text(option.label)
                     }
                 }
             } header: {
-                Text(title)
-                    .font(.headline)
-                    .textCase(nil)
-            }
-
-            if canGoBack {
-                Button("Back", systemImage: "chevron.backward") {
-                    withAnimation { goBack() }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(workoutExercise.shownExercise?.exerciseName ?? "Feedback")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(title)
+                        .font(.headline)
                 }
-                .foregroundStyle(.secondary)
+                .textCase(nil)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .id(title)

@@ -121,6 +121,55 @@ struct WatchLiveEntryTests {
         #expect(devices.replica.pending.isEmpty)
     }
 
+    @Test("Watch set edits keep the set identity through sync and preserve existing sets")
+    func watchSetEditsSync() throws {
+        let (devices, _, exercise) = try startedOnWatch()
+        let program = try devices.watchProgram
+        let original = exercise.workingSets.compactMap(\.syncID)
+        let addedID = UUID()
+
+        devices.onWatch { $0.edit(.addSet(.working, id: addedID), of: exercise, in: program) }
+        let added = try #require(exercise.workingSets.last)
+        #expect(added.syncID == addedID)
+        #expect(try devices.sendChanges())
+        #expect(try devices.onPhone(added).syncID == addedID)
+
+        devices.onWatch { $0.edit(.removeSet(.working, id: addedID), of: exercise, in: program) }
+        #expect(try devices.sendChanges())
+        let path = try #require(RowPath(exercise))
+        let phoneExercise = try #require(devices.phoneProgram.workoutExercise(at: path))
+        #expect(phoneExercise.workingSets.compactMap(\.syncID) == original)
+        #expect(exercise.workingSets.compactMap(\.syncID) == original)
+    }
+
+    @Test("Watch superset creation, reorder and removal replay in order on the phone")
+    func watchSupersetEditsSync() throws {
+        let (devices, _, exercise) = try startedOnWatch()
+        let program = try devices.watchProgram
+        let workout = try #require(exercise.workoutValue)
+        let target = try #require(workout.supersetChoices(for: exercise).first?.first)
+        let targetPath = try #require(RowPath(target))
+        let id = UUID()
+        devices.onWatch(together: false) {
+            $0.edit(.joinSuperset(target: targetPath, id: id), of: exercise, in: program)
+        }
+        let order = try #require(workout.superset(id)).compactMap(\.syncID)
+        try #require(order.count == 2)
+        devices.onWatch(together: false) {
+            $0.edit(.reorderSuperset(id: id, members: order, source: IndexSet(integer: 0), destination: 2),
+                    of: exercise, in: program)
+        }
+
+        #expect(try devices.sendChanges())
+        let phoneWorkout = try #require(devices.phoneProgram.nextWorkout)
+        #expect(phoneWorkout.superset(id)?.compactMap(\.syncID) == Array(order.reversed()))
+
+        devices.onWatch { $0.edit(.leaveSuperset(id: id), of: target, in: program) }
+        #expect(try devices.sendChanges())
+        #expect(phoneWorkout.superset(id) == nil)
+        #expect(workout.superset(id) == nil)
+    }
+
     // MARK: Helpers
 
     /// A workout started on the watch and on the iPhone, and its first working set on the watch.

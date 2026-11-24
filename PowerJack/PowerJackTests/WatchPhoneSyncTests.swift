@@ -313,6 +313,7 @@ struct WatchPhoneSyncTests {
             actions.start(dayOne, in: watchProgram, at: t0.addingTimeInterval(86_400))
             let set = try #require(exercise.nextSet)
             var entry = SetEntry(for: set, unit: .pounds)
+            if entry.reps == nil { entry.reps = 8 }
             if entry.weightTenthsPounds == nil { entry.weight = 100 }
             actions.log(entry, on: set, of: exercise, at: t0.addingTimeInterval(86_460))
             return set
@@ -396,6 +397,23 @@ struct WatchPhoneSyncTests {
         #expect(phoneReceipts.map(\.device) == [SyncDevice.watch, SyncDevice.iPhone])
         #expect(phoneReceipts[0].setID == watchSet.syncID)
         #expect(phoneReceipts[0].sessionID == watchExercise.workoutValue?.syncID)
+    }
+
+    @Test("Skipping a workout on the watch keeps logged sets and syncs its skipped status")
+    func watchSkipsPartlyLoggedWorkout() throws {
+        let (devices, set, exercise) = try startedOnWatch()
+        let program = try devices.watchProgram
+        let workout = try #require(exercise.workoutValue)
+        let phoneSet = try devices.onPhone(set)
+        logOnWatch(devices, set, of: exercise, reps: 8, at: t0)
+
+        devices.onWatch { $0.skip(workout, in: program) }
+        #expect(workout.status == .skipped)
+        try devices.sendChanges()
+
+        #expect(phoneSet.status == .complete)
+        #expect(phoneSet.reps == 8)
+        #expect(phoneSet.workoutExerciseValue?.workoutValue?.status == .skipped)
     }
 
     @Test("Finishing on the watch with an exercise partly logged asks its feedback first, and the iPhone keeps it")

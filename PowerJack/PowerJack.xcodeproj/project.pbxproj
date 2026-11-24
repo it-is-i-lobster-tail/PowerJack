@@ -121,11 +121,13 @@
 				"Features/Workouts/Models/Workout+Duration.swift",
 				"Features/Workouts/Models/Workout+Summary.swift",
 				"Features/Workouts/Models/Workout+Superset.swift",
+				"Features/Workouts/Models/Workout+SupersetEditing.swift",
 				Features/Workouts/Models/Workout.swift,
 				"Features/Workouts/Models/WorkoutExercise+Substitute.swift",
 				Features/Workouts/Models/WorkoutExercise.swift,
 				Features/Workouts/Models/WorkoutSet.swift,
 				Features/Workouts/Views/Components/FeedbackDraft.swift,
+				Features/Workouts/Views/Components/SwipeWidthLayout.swift,
 				"Shared/Extensions/Array+OrderedModel.swift",
 				"Shared/Extensions/Collection+Active.swift",
 				"Shared/Extensions/Duration+PowerJack.swift",
@@ -162,6 +164,7 @@
 				Shared/Sync/WatchChange.swift,
 				Shared/Sync/WatchReplica.swift,
 				Shared/Sync/WorkoutMirroring.swift,
+				Shared/UI/SupersetStyle.swift,
 			);
 			target = 1F14988543D70A99CD0B3851 /* PowerJackWatch */;
 		};
