@@ -6,11 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      apply_cloudkit_schema:
-        description: Reapply the committed schema to CloudKit Development
-        type: boolean
-        default: false
 
 concurrency:
   group: unit-tests-${{ github.event.pull_request.number || github.ref }}
@@ -63,6 +58,27 @@ jobs:
             -parallel-testing-enabled NO \
             -resultBundlePath TestResults.xcresult
 
+      - name: Extract the compiled model
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          attachments="$RUNNER_TEMP/cloudkit-test-attachments"
+          xcrun xcresulttool export attachments \
+            --path TestResults.xcresult \
+            --test-id 'CloudKitSchemaExportTests/testExportSchema()' \
+            --output-path "$attachments"
+          model=$(jq -er '[.[].attachments[] | select(.suggestedHumanReadableName | startswith("CloudKitModel_")) | .exportedFileName]
+            | if length == 1 then .[0] else error("Expected one CloudKit model attachment") end' "$attachments/manifest.json")
+          cp "$attachments/$model" "$RUNNER_TEMP/CloudKitModel.json"
+
+      - name: Upload the compiled model
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudkit-model
+          path: ${{ runner.temp }}/CloudKitModel.json
+          if-no-files-found: error
+
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -88,22 +104,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/download-artifact@v5
+        with:
+          name: cloudkit-model
+          path: ${{ runner.temp }}
+
       - name: Prepare Development and check Production
         id: schema
         shell: bash
         env:
           CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_API_TOKEN }}
-          BEFORE: ${{ github.event.before }}
-          APPLY_SCHEMA: ${{ inputs.apply_cloudkit_schema }}
         run: |
           schema=PowerJack/CloudKitSchema.ckdb
           export DEVELOPER_DIR="$XCODE_PATH/Contents/Developer"
 
           git fetch --no-tags origin main
-          current_schema=$(git ls-tree FETCH_HEAD -- "$schema")
-          tested_schema=$(git ls-tree HEAD -- "$schema")
-          if [[ "$current_schema" != "$tested_schema" ]]; then
-            echo "A newer schema is on main. This run skipped the CloudKit update." >> "$GITHUB_STEP_SUMMARY"
+          if ! git diff --quiet HEAD FETCH_HEAD -- PowerJack/PowerJack scripts/merge-cloudkit-schema.py PowerJack/PowerJackTests/CloudKitSchemaExportTests.swift; then
+            echo "A newer app build is on main. This run skipped the CloudKit update." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -114,36 +131,25 @@ jobs:
 
           container=(--team-id KWZTWNA57G --container-id iCloud.com.stanleycloud.PowerJack)
           development="$RUNNER_TEMP/CloudKitSchema.ckdb"
+          prepared="$RUNNER_TEMP/CloudKitPrepared.ckdb"
           production="$RUNNER_TEMP/CloudKitProduction.ckdb"
+          model="$RUNNER_TEMP/CloudKitModel.json"
           xcrun cktool export-schema "${container[@]}" --environment development --output-file "$development"
-          test -s "$development"
+          python3 scripts/merge-cloudkit-schema.py "$model" "$development" "$prepared"
+          if ! cmp -s "$development" "$prepared"; then
+            xcrun cktool import-schema "${container[@]}" --environment development --validate --file "$prepared"
+            rm "$development"
+            xcrun cktool export-schema "${container[@]}" --environment development --output-file "$development"
+            python3 scripts/merge-cloudkit-schema.py "$model" "$development" "$prepared"
+            if ! cmp -s "$development" "$prepared"; then
+              echo "::error::CloudKit Development is still missing fields from the compiled model."
+              exit 1
+            fi
+            echo "Applied schema changes from the compiled model to CloudKit Development." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
-          if [[ ! -f "$schema" ]]; then
+          if ! cmp -s "$schema" "$development"; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            # Unrelated pushes leave in-progress edits in the shared Development environment alone.
-            previous_schema="$tested_schema"
-            if [[ "${APPLY_SCHEMA:-}" == true ]]; then
-              previous_schema=
-            elif [[ -n "$BEFORE" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
-              previous_schema=$(git ls-tree "$BEFORE" -- "$schema")
-            fi
-
-            if ! cmp -s "$schema" "$development"; then
-              if [[ "$previous_schema" != "$tested_schema" ]]; then
-                if [[ -n "$BEFORE" ]] && ! git show "$BEFORE:$schema" | cmp -s "$development" -; then
-                  echo "::error::CloudKit Development changed since the previous schema commit. Reconcile Development and the merged schema before promoting."
-                  exit 1
-                fi
-                xcrun cktool import-schema "${container[@]}" --environment development --validate --file "$schema"
-                rm "$development"
-                xcrun cktool export-schema "${container[@]}" --environment development --output-file "$development"
-                echo "Imported the merged schema into CloudKit Development." >> "$GITHUB_STEP_SUMMARY"
-              else
-                echo "publish=true" >> "$GITHUB_OUTPUT"
-                echo "The Development export differs from the committed schema. Review the Development changes before promoting them." >> "$GITHUB_STEP_SUMMARY"
-              fi
-            fi
           fi
 
           xcrun cktool export-schema "${container[@]}" --environment production --output-file "$production"
@@ -171,7 +177,7 @@ jobs:
           snapshot="$RUNNER_TEMP/CloudKitSchema.ckdb"
           git fetch --no-tags origin main
           base=$(git rev-parse FETCH_HEAD)
-          if [[ "$(git ls-tree "$base" -- "$schema")" != "$(git ls-tree HEAD -- "$schema")" ]]; then
+          if ! git diff --quiet HEAD "$base" -- PowerJack/PowerJack "$schema"; then
             echo "The schema on main changed while this job was running. A newer run will check it." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
