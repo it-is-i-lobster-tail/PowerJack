@@ -305,6 +305,12 @@ struct WorkoutReviewTests {
         #expect(screen.labels.contains { $0.hasPrefix("Bench") && $0.contains("Done") }, "\(screen.labels)")
         #expect(screen.labels.contains { $0.hasPrefix("Row") && $0.contains("Not done") }, "\(screen.labels)")
 
+        // Finish Workout sits under the last exercise instead of floating over the list.
+        let rowLabel = try #require(screen.labels.first { $0.hasPrefix("Row") && $0.contains("Not done") })
+        let lastRow = try #require(screen.frame(of: rowLabel))
+        let finish = try #require(screen.frame(of: "Finish Workout"))
+        #expect(finish.minY >= lastRow.maxY, "Finish \(finish) last row \(lastRow)")
+
         // Unlogged sets ask first instead of finishing; Finish with nothing left is covered in WorkoutScreenTests.
         await screen.tap("Finish Workout")
         #expect(await screen.waitUntil { screen.contains("Skip and Finish") }, "\(screen.labels)")

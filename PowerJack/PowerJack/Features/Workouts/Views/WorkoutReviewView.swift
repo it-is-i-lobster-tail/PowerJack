@@ -50,19 +50,27 @@ struct WorkoutReviewView: View {
                     }
                 }
             }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+
+            // Sits right after the last exercise and scrolls with the list, never over it.
             Button(action: finish) {
                 Text("Finish Workout")
                     .font(.subheadline)
                     .frame(maxWidth: .infinity, minHeight: 28)
             }
             .buttonStyle(.glassProminent)
-            .padding(.horizontal, LayoutMetrics.sectionSpacing)
-            .padding(.vertical, LayoutMetrics.compactSpacing)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden, edges: .bottom)
+            .listRowInsets(
+                EdgeInsets(
+                    top: LayoutMetrics.sectionSpacing,
+                    leading: LayoutMetrics.sectionSpacing,
+                    bottom: LayoutMetrics.sectionSpacing * 2,
+                    trailing: LayoutMetrics.sectionSpacing
+                )
+            )
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .confirmationDialog(
             "\(remainingSets) \(remainingSets == 1 ? "set isn't" : "sets aren't") logged",
             isPresented: $isConfirmingFinish,
