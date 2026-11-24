@@ -14,8 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  XCODE_PATH: /Applications/Xcode_26.6.app
-  SIMULATOR: iPhone 17 Pro
+  XCODE_PATH: /Applications/Xcode_27.2.app
+  SIMULATOR: iPhone 17e
+  IOS_VERSION: "27.2"
   SHARDS: 4
   HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -48,7 +49,7 @@ jobs:
     name: Upgrade (part ${{ matrix.shard }})
     needs: scope
     if: needs.scope.outputs.run == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 150
     strategy:
       fail-fast: false
@@ -67,15 +68,15 @@ jobs:
 
       - name: Create simulator
         run: |
-          runtime=$(xcrun simctl list runtimes --json | jq -r --arg device "$SIMULATOR" '
+          runtime=$(xcrun simctl list runtimes --json | jq -r --arg device "$SIMULATOR" --arg version "$IOS_VERSION" '
             [.runtimes[]
-              | select(.platform == "iOS" and .isAvailable)
+              | select(.platform == "iOS" and .isAvailable and .version == $version)
               | select(any(.supportedDeviceTypes[]; .name == $device))]
             | sort_by(.version | split(".") | map(tonumber))
             | last | .identifier // empty')
 
           if [ -z "$runtime" ]; then
-            echo "::error::No iOS runtime on this runner supports $SIMULATOR."
+            echo "::error::No iOS $IOS_VERSION runtime on this runner supports $SIMULATOR."
             exit 1
           fi
 
