@@ -12,7 +12,7 @@ import TipKit
 private enum MainBrowserOption: String {
     case programs = "Programs"
     case templates = "Templates"
-    case volume = "Volume"
+    case data = "Data"
     case settings = "Settings"
 }
 
@@ -88,8 +88,8 @@ private struct PowerJackScreens: View {
                     .powerJackTabPage()
             }
 
-            Tab("Volume", systemImage: "chart.bar", value: MainBrowserOption.volume) {
-                VolumeView()
+            Tab("Data", systemImage: "chart.bar", value: MainBrowserOption.data) {
+                ProgramDataView()
                     .powerJackTabPage()
             }
 
@@ -111,7 +111,7 @@ private struct PowerJackScreens: View {
             switch section {
             case .programs: ProgramsHint.opened.sendDonation()
             case .templates: WelcomeHint().invalidate(reason: .actionPerformed)
-            case .volume, .settings: break
+            case .data, .settings: break
             }
         }
         .onAppear(perform: restoreActiveWorkout)

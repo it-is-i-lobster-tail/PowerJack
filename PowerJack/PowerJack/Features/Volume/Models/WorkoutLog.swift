@@ -26,10 +26,12 @@ final class WorkoutLog {
     private var hamstringsValue: Double = 0
     // The workout's sync ID, so the same workout finished on two devices keeps one log.
     private var sessionIDValue: UUID?
+    private var programTypeValue: String?
 
-    init(date: Date, setsByMuscle: [Muscle: Double], sessionID: UUID? = nil) {
+    init(date: Date, setsByMuscle: [Muscle: Double], sessionID: UUID? = nil, programType: TemplateType? = nil) {
         self.dateValue = date
         self.sessionIDValue = sessionID
+        self.programTypeValue = programType?.rawValue
         for (muscle, sets) in setsByMuscle {
             setSets(sets, for: muscle)
         }
@@ -43,6 +45,7 @@ extension WorkoutLog {
     // Date
     var date: Date { dateValue }
     var sessionID: UUID? { sessionIDValue }
+    var programType: TemplateType? { programTypeValue.flatMap(TemplateType.init(rawValue:)) }
 
     /// Logs that name the workout they came from. Older logs don't, and are never merged.
     static func withSession(in context: ModelContext) throws -> [WorkoutLog] {

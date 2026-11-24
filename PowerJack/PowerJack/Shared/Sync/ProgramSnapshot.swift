@@ -107,6 +107,7 @@ extension ProgramSnapshot {
             if let found = byKey[key], !found.fromSnapshotValue { continue }
             byKey[key] = exercise
         }
+        var received: [Exercise] = []
         for state in exercises {
             if let exercise = byKey[state.key] {
                 if exercise.fromSnapshotValue { exercise.apply(state) }
@@ -114,8 +115,10 @@ extension ProgramSnapshot {
                 let copy = Exercise(snapshot: state)
                 context.insert(copy)
                 byKey[state.key] = copy
+                if copy.catalogID != nil { received.append(copy) }
             }
         }
+        if !received.isEmpty { try MovementCatalog.reconcile(received, in: context) }
         return byKey
     }
 
