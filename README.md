@@ -32,7 +32,7 @@ Questions, ideas or bugs: [open an issue](https://github.com/it-is-i-lobster-tai
 
 Before distributing the movement catalog update:
 
-- [ ] Run the Debug app with `-initCloudKitSchema` on a development device signed in to iCloud. In the Development environment for `iCloud.com.stanleycloud.PowerJack`, confirm the new Exercise fields, Joint, JointMovement and ExerciseJointAction records and their relationships.
+- [ ] After CI prepares the Development schema, confirm the new Exercise fields, Joint, JointMovement and ExerciseJointAction records and their relationships in CloudKit Console.
 - [ ] Deploy the additive schema changes to Production in CloudKit Console before distributing the TestFlight or App Store build.
 
 Xcode Cloud builds every release. Merging a pull request into a branch is all it takes:

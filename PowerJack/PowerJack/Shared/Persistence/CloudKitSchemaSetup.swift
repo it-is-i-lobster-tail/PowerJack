@@ -2,15 +2,9 @@
 //  CloudKitSchemaSetup.swift
 //  PowerJack
 //
-//  Writes every model field to the CloudKit Development schema.
-//
-//  CloudKit only adds a field to Development when a debug build uploads a value for it,
-//  so new or rarely set fields can be missing, and TestFlight and App Store builds then
-//  fail to upload. After changing a model:
-//  1. Run the app from Xcode with the `-initCloudKitSchema` launch argument, signed in to iCloud.
-//  2. For the movement metadata upgrade, verify Joint, JointMovement and ExerciseJointAction,
-//     their relationships, and Exercise's movement pattern and execution style in Development.
-//  3. Deploy Schema Changes to Production before distributing the build through TestFlight or the App Store.
+//  CI prepares the CloudKit Development schema from the merged model on main.
+//  For local troubleshooting, a signed-in debug build can initialize Development
+//  with the `-initCloudKitSchema` launch argument.
 //
 
 #if DEBUG
