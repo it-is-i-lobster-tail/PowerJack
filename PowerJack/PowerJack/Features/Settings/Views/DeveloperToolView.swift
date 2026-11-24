@@ -13,6 +13,7 @@ import UniformTypeIdentifiers
 struct DeveloperToolView: View {
     private let traceLog: TraceLog
 
+    @AppStorage(AppSettings.Key.developerTools) private var developerToolsEnabled = AppSettings.Default.developerTools
     @State private var isTracing: Bool
     @State private var files: [TraceLog.File] = []
     @State private var isConfirmingOn = false
@@ -31,34 +32,13 @@ struct DeveloperToolView: View {
     private var content: some View {
         Form {
             Section {
-                Toggle("Trace Logging", isOn: tracing)
+                Toggle("Enable Developer Tools", isOn: $developerToolsEnabled)
             } footer: {
-                Text("Records every tap, screen, save and change to your training, rest timers and syncing, in files that stay on this iPhone until you share them. Names and anything you type are left out. Turning it off deletes the files.")
+                Text("Unlock additional settings and menu options for development work and testing.")
             }
 
-            if isTracing || !files.isEmpty {
-                Section("Files") {
-                    if files.isEmpty {
-                        Text("No files yet")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(files) { file in
-                        NavigationLink {
-                            TraceFileView(file: file, traceLog: traceLog)
-                        } label: {
-                            TraceFileRow(file: file)
-                        }
-                    }
-                    .onDelete(perform: delete)
-                }
-
-                Section {
-                    ShareLink(item: TraceArchive(traceLog: traceLog), preview: SharePreview("PowerJack Trace")) {
-                        Label("Export All as Zip", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(files.isEmpty)
-                }
-            }
+            traceSections
+                .disabled(!developerToolsEnabled)
         }
         .navigationTitle("Developer Tools")
         .navigationBarTitleDisplayMode(.inline)
@@ -75,6 +55,44 @@ struct DeveloperToolView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Every trace file on this iPhone will be deleted.")
+        }
+    }
+
+    @ViewBuilder
+    private var traceSections: some View {
+        Section {
+            Toggle(isOn: tracing) {
+                Text("Trace Logging")
+                    .foregroundStyle(developerToolsEnabled ? .primary : .secondary)
+            }
+        } footer: {
+            Text("Records every tap, screen, save and change to your training, rest timers and syncing, in files that stay on this iPhone until you share them. Names and anything you type are left out. Turning it off deletes the files.")
+        }
+
+        if isTracing || !files.isEmpty {
+            Section("Files") {
+                if files.isEmpty {
+                    Text("No files yet")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(files) { file in
+                    NavigationLink {
+                        TraceFileView(file: file, traceLog: traceLog)
+                    } label: {
+                        TraceFileRow(file: file)
+                            .foregroundStyle(developerToolsEnabled ? .primary : .secondary)
+                    }
+                    .deleteDisabled(!developerToolsEnabled)
+                }
+                .onDelete(perform: delete)
+            }
+
+            Section {
+                ShareLink(item: TraceArchive(traceLog: traceLog), preview: SharePreview("PowerJack Trace")) {
+                    Label("Export All as Zip", systemImage: "square.and.arrow.up")
+                }
+                .disabled(files.isEmpty)
+            }
         }
     }
 
