@@ -29,15 +29,16 @@ final class CloudKitSchemaExportTests: XCTestCase {
         }
         XCTAssertFalse(entities.isEmpty)
 
+        guard ProcessInfo.processInfo.environment["POWERJACK_EXPORT_CLOUDKIT_MODEL"] == "1" else { return }
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let attachment = XCTAttachment(
-            data: try encoder.encode(entities.sorted { $0.name < $1.name }),
-            uniformTypeIdentifier: "public.json"
+        let caches = URL.cachesDirectory
+        try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
+        try encoder.encode(entities.sorted { $0.name < $1.name }).write(
+            to: caches.appending(path: "PowerJackCloudKitModel.json"),
+            options: .atomic
         )
-        attachment.name = "CloudKitModel"
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 
     private func rootName(of entity: NSEntityDescription) throws -> String {
