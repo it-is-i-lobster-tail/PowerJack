@@ -101,6 +101,7 @@ private struct PowerJackScreens: View {
                 .powerJackTabPage()
             }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .scrollEdgeEffectHidden(true, for: .bottom)
         .restTimer(inWorkoutHeader: showsWorkoutHeader, onOpenCurrentExercise: openCurrentExercise)
         .environment(router)
