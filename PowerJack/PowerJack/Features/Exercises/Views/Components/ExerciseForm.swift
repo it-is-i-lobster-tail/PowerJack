@@ -43,19 +43,24 @@ struct ExerciseForm: View {
                     isFocused: $nameIsFocused
                 )
 
-                GlassPickerField(
-                    selection: $draft.equipment,
-                    options: Equipment.allCases.sorted { $0.displayName < $1.displayName },
-                    height: boxHeight
-                ) {
-                    FormFieldLabel(
-                        systemImage: "figure.cross.training",
-                        title: "Equipment",
-                        detail: "Select equipment"
-                    )
-                } optionLabel: { equipment in
-                    Text(equipment.displayName)
+                NavigationLink {
+                    EquipmentList { base, name in
+                        draft.equipment = base
+                        draft.customEquipmentName = name
+                    }
+                } label: {
+                    HStack {
+                        FormFieldLabel(
+                            systemImage: "figure.cross.training",
+                            title: "Equipment",
+                            detail: LocalizedStringKey(draft.customEquipmentName ?? draft.equipment?.displayName ?? "Select equipment")
+                        )
+                        Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    }
                 }
+                .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                .frame(height: boxHeight)
+                .powerJackGlassCard(interactive: true)
 
                 GlassPickerField(
                     selection: $draft.primaryMuscle,

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 enum Equipment: String, Codable, CaseIterable, Identifiable {
     case barbell
@@ -32,5 +33,18 @@ enum Equipment: String, Codable, CaseIterable, Identifiable {
         case .kettlebell: "Kettlebell"
         case .legPress: "Leg Press"
         }
+    }
+}
+
+/// User-defined equipment inherits the loading rules of a built-in type.
+@Model
+final class CustomEquipment {
+    static let nameLimit = 16
+    var name: String = ""
+    var base: Equipment = Equipment.machine
+
+    init(name: String, base: Equipment) {
+        self.name = name
+        self.base = base
     }
 }
