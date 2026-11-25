@@ -15,7 +15,15 @@ struct HeartRatePacket: Codable {
 final class WorkoutHeartRate {
     static let shared = WorkoutHeartRate()
 
-    private(set) var bpm: Int?
+    private(set) var bpm: Int? {
+        didSet {
+            #if os(iOS)
+            if bpm != oldValue {
+                Task { await RestLiveActivityController.refreshHeartRate() }
+            }
+            #endif
+        }
+    }
     @ObservationIgnored private var samples: [UUID: HeartRateSample] = [:]
     @ObservationIgnored private var refresh: Task<Void, Never>?
 
