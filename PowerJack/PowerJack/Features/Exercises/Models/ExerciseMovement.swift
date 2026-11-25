@@ -11,7 +11,7 @@ enum MovementPattern: String, Codable {
     case squat, splitSquatLunge, legPress, hipHinge, hipThrustBridge
     case kneeExtension, kneeFlexion, hipExtension, hipAbduction, calfRaise
     case trunkFlexion, hipFlexion, trunkRotation, resistLateralFlexion
-    case wristFlexion, wristExtension
+    case wristFlexion, wristExtension, scapularElevation, resistExtension
 }
 
 enum JointActionRole: String, Codable {

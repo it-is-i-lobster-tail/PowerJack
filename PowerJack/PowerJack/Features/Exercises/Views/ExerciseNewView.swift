@@ -17,9 +17,11 @@ struct ExerciseNewView: View {
     @State private var draft: ExerciseDraft
     @State private var saveErrorMessage: String?
 
-    init(name: String = "", onSave: @escaping (Exercise) -> Void) {
+    init(name: String = "", primaryMuscle: Muscle? = nil, onSave: @escaping (Exercise) -> Void) {
         self.onSave = onSave
-        _draft = State(initialValue: ExerciseDraft(name: name))
+        var draft = ExerciseDraft(name: name)
+        draft.primaryMuscle = primaryMuscle
+        _draft = State(initialValue: draft)
     }
 
     var body: some View {

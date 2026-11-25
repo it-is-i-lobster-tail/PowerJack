@@ -10,6 +10,7 @@ import Foundation
 struct ExerciseDraft {
     var name: String = ""
     var equipment: Equipment?
+    var customEquipmentName: String?
     var primaryMuscle: Muscle?
     var secondaryMuscles: [Muscle] = []
     var minReps: Int = Exercise.defaultMinReps
@@ -40,6 +41,7 @@ struct ExerciseDraft {
     init(exercise: Exercise) {
         name = exercise.exerciseName
         equipment = exercise.equipment
+        customEquipmentName = exercise.customEquipmentName
         primaryMuscle = exercise.primaryMuscleFocus
         secondaryMuscles = exercise.secondaryMusclesValue
         minReps = exercise.minReps
@@ -106,6 +108,7 @@ struct ExerciseDraft {
             maxReps: maxReps,
             fatigueLevel: fatigueLevel
         )
+        exercise.customEquipmentName = customEquipmentName
         exercise.customRestTime = customRestTime
         return exercise
     }
@@ -118,6 +121,7 @@ struct ExerciseDraft {
         if exercise.userCreated, !isBuiltIn, let equipment, let primaryMuscle {
             exercise.exerciseName = trimmedName
             exercise.equipment = equipment
+            exercise.customEquipmentName = customEquipmentName
             exercise.primaryMuscleFocus = primaryMuscle
             exercise.secondaryMuscles = secondaryMuscles
         }

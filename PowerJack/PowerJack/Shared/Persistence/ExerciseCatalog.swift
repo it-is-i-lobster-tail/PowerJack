@@ -8,6 +8,7 @@ enum ExerciseCatalog {
         let id: String
         let name: String
         let equipment: Equipment
+        let equipmentName: String?
         let primaryMuscle: Muscle
         let fatigueLevel: FatigueLevel
         let secondaryMuscles: [Muscle]
@@ -22,12 +23,14 @@ enum ExerciseCatalog {
             _ fatigueLevel: FatigueLevel,
             _ profile: MovementCatalog.Profile,
             _ secondaryMuscles: [Muscle] = [],
+            equipmentName: String? = nil,
             was previousFatigueLevel: FatigueLevel? = nil
         ) {
             self.profile = profile
             self.id = id
             self.name = name
             self.equipment = equipment
+            self.equipmentName = equipmentName
             self.primaryMuscle = primaryMuscle
             self.fatigueLevel = fatigueLevel
             self.secondaryMuscles = secondaryMuscles
@@ -46,6 +49,7 @@ enum ExerciseCatalog {
                 userCreated: false,
                 fatigueLevel: fatigueLevel
             )
+            exercise.customEquipmentName = equipmentName
             exercise.catalogID = id
             return exercise
         }
@@ -145,6 +149,22 @@ enum ExerciseCatalog {
         // Loadable bodyweight: a weight of 0 is bodyweight alone. See `adoptOwnCopies`.
         Entry("weighted-pull-up", "Weighted Pull-Ups", .loadableBodyweight, .back, .moderate, .pullUp, [.biceps, .forearms, .abs]),
         Entry("weighted-dip", "Weighted Dips", .loadableBodyweight, .chest, .moderate, .dip, [.triceps, .shoulders]),
+        Entry("sit-up", "Sit-Up", .loadableBodyweight, .abs, .low, .crunch, [.obliques]),
+        Entry("lateral-lunge", "Lateral Lunge", .loadableBodyweight, .quads, .moderate, .lunge, [.glutes, .hamstrings]),
+        Entry("ab-wheel-rollout", "Ab Wheel Rollout", .bodyweight, .abs, .low, .rollout, [.obliques, .shoulders], equipmentName: "Ab Wheel"),
+        Entry("single-leg-romanian-deadlift", "Single-Leg Romanian Deadlift", .loadableBodyweight, .hamstrings, .moderate, .hinge, [.glutes, .back]),
+        Entry("mountain-climber", "Mountain Climber", .bodyweight, .abs, .low, .legRaise, [.shoulders, .quads]),
+        Entry("split-squat", "Split Squat", .loadableBodyweight, .quads, .moderate, .lunge, [.glutes, .hamstrings]),
+        Entry("trap-bar-deadlift", "Trap Bar Deadlift", .barbell, .quads, .high, .deadlift, [.glutes, .hamstrings, .back, .forearms], equipmentName: "Trap Bar"),
+        Entry("burpee", "Burpee", .bodyweight, .quads, .moderate, .burpee, [.chest, .glutes, .shoulders]),
+        Entry("dumbbell-arnold-press", "Dumbbell Arnold Press", .dumbbell, .shoulders, .moderate, .overhead, [.triceps]),
+        Entry("machine-chest-press", "Machine Chest Press", .machine, .chest, .moderate, .bench, [.triceps, .shoulders]),
+        Entry("dumbbell-shrug", "Dumbbell Shrug", .dumbbell, .back, .low, .shrug, [.forearms]),
+        Entry("barbell-good-morning", "Barbell Good Morning", .barbell, .hamstrings, .moderate, .hinge, [.glutes, .back, .abs]),
+        Entry("reverse-lunge", "Reverse Lunge", .loadableBodyweight, .quads, .moderate, .lunge, [.glutes, .hamstrings]),
+        Entry("kettlebell-swing", "Kettlebell Swing", .kettlebell, .glutes, .moderate, .swing, [.hamstrings, .back, .abs]),
+        Entry("ez-bar-preacher-curl", "EZ-Bar Preacher Curl", .barbell, .biceps, .low, .curl, [.forearms], equipmentName: "EZ Bar"),
+        Entry("russian-twist", "Russian Twist", .loadableBodyweight, .obliques, .low, .chop, [.abs]),
     ]
 
     /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
@@ -237,7 +257,7 @@ enum ExerciseCatalog {
     static func adoptOwnCopies(in context: ModelContext) throws -> Bool {
         let own = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID == nil && !$0.keepsCustomIdentity }))
         var changed = false
-        for exercise in own {
+        for exercise in own where exercise.customEquipmentName == nil {
             let name = matchingName(exercise.exerciseName)
             guard
                 let id = replacedOwnNames.first(where: { $0.value.contains(name) })?.key,

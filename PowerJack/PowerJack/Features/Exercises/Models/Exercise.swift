@@ -13,6 +13,8 @@ let maxSecondaryMuscles: Int = 4
 
 @Model
 final class Exercise {
+    var customEquipmentName: String?
+    var equipmentDisplayName: String { customEquipmentName ?? equipment.displayName }
     var movementPattern: MovementPattern?
     var executionStyle: ExecutionStyle?
     @Relationship(deleteRule: .cascade, inverse: \ExerciseJointAction.exercise)
@@ -153,6 +155,7 @@ extension Exercise {
             syncID: syncIDValue,
             name: exerciseName,
             equipment: exerciseEquipment,
+            customEquipmentName: customEquipmentName,
             addsToBodyweight: addsToBodyweightValue ? true : nil,
             primaryMuscle: primaryMuscleFocus,
             secondaryMuscles: secondaryMusclesValue,
@@ -178,6 +181,7 @@ extension Exercise {
         catalogID = state.catalogID
         syncIDValue = state.syncID
         exerciseName = state.name
+        customEquipmentName = state.customEquipmentName
         exerciseEquipment = state.equipment == .loadableBodyweight ? .bodyweight : state.equipment
         addsToBodyweightValue = state.addsToBodyweight == true || state.equipment == .loadableBodyweight
         primaryMuscleFocus = state.primaryMuscle

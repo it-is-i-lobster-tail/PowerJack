@@ -29,7 +29,7 @@ struct MovementCatalogTests {
         let context = container.mainContext
         try ExerciseCatalog.seed(in: context)
         let exercises = try context.fetch(FetchDescriptor<Exercise>())
-        #expect(Set(exercises.compactMap(\.catalogID)).count == 65)
+        #expect(Set(exercises.compactMap(\.catalogID)).count == ExerciseCatalog.entries.count)
         try verifyProfiles(exercises)
         let bench = try #require(exercises.first { $0.catalogID == "barbell-bench-press" })
         #expect(bench.movementPattern == .horizontalPress && bench.executionStyle == .controlled)

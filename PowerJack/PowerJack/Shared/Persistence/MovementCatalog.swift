@@ -20,6 +20,10 @@ enum MovementCatalog {
         var style: ExecutionStyle = .controlled
         var role: JointActionRole = .produces
 
+        static let shrug = Self(pattern: .scapularElevation, movements: ["scapula.elevation"])
+        static let rollout = Self(pattern: .resistExtension, movements: ["trunk.extension"], role: .resists)
+        static let swing = Self(pattern: .hipHinge, movements: ["hip.extension"], style: .explosive)
+        static let burpee = Self(pattern: .squat, movements: ["knee.extension", "hip.extension", "elbow.extension"], style: .explosive)
         static let bench = Self(pattern: .horizontalPress, movements: ["shoulder.horizontalAdduction", "elbow.extension"])
         static let fly = Self(pattern: .chestFly, movements: ["shoulder.horizontalAdduction"])
         static let pullUp = Self(pattern: .verticalPull, movements: ["shoulder.adduction", "elbow.flexion"])

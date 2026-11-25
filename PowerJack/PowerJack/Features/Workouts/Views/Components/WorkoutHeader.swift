@@ -42,7 +42,7 @@ enum WorkoutPageHeader {
     }
 
     var equipment: String? {
-        if case .exercise(let exercise, _) = self { return exercise?.equipment.displayName }
+        if case .exercise(let exercise, _) = self { return exercise?.equipmentDisplayName }
         return nil
     }
 

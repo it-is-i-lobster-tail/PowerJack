@@ -37,6 +37,13 @@ struct MyGymSettingsView: View {
                 }
 
                 NavigationLink {
+                    EquipmentList()
+                } label: {
+                    SettingsRowLabel(systemImage: "dumbbell", title: "Equipment",
+                                     detail: "Add equipment for your exercises.")
+                }
+
+                NavigationLink {
                     LoadStepsView()
                 } label: {
                     SettingsRowLabel(
