@@ -445,6 +445,9 @@ extension Workout {
             locked: lockedValue,
             startedAt: startedAtValue,
             endedAt: endedAtValue,
+            pausedAt: pausedAtValue,
+            pausedSeconds: pausedSecondsValue,
+            setPausedSeconds: setPausedSecondsValue,
             createdAt: createdAtValue,
             createdOn: createdOnValue,
             startedOn: startedOnValue,
@@ -469,6 +472,12 @@ extension Workout {
         lockedValue = state.locked
         startedAtValue = state.startedAt
         endedAtValue = state.endedAt
+        // Older phones omit the pause clock. Keep any clock already synced through iCloud.
+        if let seconds = state.pausedSeconds {
+            pausedAtValue = state.pausedAt
+            pausedSecondsValue = seconds
+            setPausedSecondsValue = state.setPausedSeconds ?? 0
+        }
         createdAtValue = state.createdAt
         createdOnValue = state.createdOn
         startedOnValue = state.startedOn

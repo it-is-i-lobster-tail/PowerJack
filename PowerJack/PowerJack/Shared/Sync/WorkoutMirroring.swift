@@ -19,6 +19,7 @@ final class WorkoutMirroring: NSObject {
 
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
+    var workoutIsPaused: (() -> Bool)?
 
     private static var configuration: HKWorkoutConfiguration {
         let configuration = HKWorkoutConfiguration()
@@ -29,10 +30,11 @@ final class WorkoutMirroring: NSObject {
 
     #if os(watchOS)
     private var heartRateQuery: Task<Void, Never>?
-    private var isStarting = false
 
     /// Takes the program the iPhone sent back. Set by `WatchSync`.
     var onData: ((Data) -> Void)?
+
+    private var pendingStart: UUID?
 
     /// Whether the session runs and reaches the iPhone.
     private(set) var isMirroring = false
@@ -41,23 +43,30 @@ final class WorkoutMirroring: NSObject {
     func begin() async {
         // A session the iPhone just ended, by Pause Workout or closing PowerJack, may not have said so yet.
         if let session, session.state == .ended { ended(session) }
-        guard HKHealthStore.isHealthDataAvailable(), session == nil, !isStarting else { return }
-        isStarting = true
-        defer { isStarting = false }
+        guard HKHealthStore.isHealthDataAvailable(), workoutIsPaused?() != true,
+              session == nil, pendingStart == nil else { return }
+        let startID = UUID()
+        pendingStart = startID
+        defer { if pendingStart == startID { pendingStart = nil } }
         do {
             // HealthKit prompts only for types the user hasn't already considered.
             try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()],
                                                        read: [HKQuantityType(.heartRate)])
             if let recovered = try await healthStore.recoverActiveWorkoutSession() {
+                guard pendingStart == startID, workoutIsPaused?() != true else {
+                    if workoutIsPaused?() == true { recovered.end() }
+                    return
+                }
                 adopt(recovered)
                 return
             }
+            guard pendingStart == startID, workoutIsPaused?() != true else { return }
             guard healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return }
             let session = try HKWorkoutSession(healthStore: healthStore, configuration: Self.configuration)
             adopt(session)
             session.startActivity(with: .now)
             try await session.startMirroringToCompanionDevice()
-            isMirroring = true
+            if self.session === session { isMirroring = true }
         } catch {
             // Health permission declined, or no iPhone to mirror to: the link still works without it.
             Logger.sync.info("Workout session not mirrored: \(error.localizedDescription)")
@@ -67,6 +76,7 @@ final class WorkoutMirroring: NSObject {
 
     /// Ends the session once the workout is finished.
     func end() {
+        pendingStart = nil
         heartRateQuery?.cancel()
         WorkoutHeartRate.shared.clear()
         session?.end()
@@ -119,6 +129,11 @@ final class WorkoutMirroring: NSObject {
     }
 
     private func adopt(_ session: HKWorkoutSession) {
+        // The watch can finish mirroring after Pause Workout has already been tapped.
+        guard workoutIsPaused?() != true else {
+            session.end()
+            return
+        }
         session.delegate = self
         WorkoutHeartRate.shared.clear()
         self.session = session
