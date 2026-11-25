@@ -253,11 +253,12 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { screen.contains(TrainingStudy.armReps.caption) })
         #expect(await screen.waitUntil { screen.contains("No matching history") })
         #expect(screen.contains("How to Read"))
-        #expect(screen.label(startingWith: "For example,") == nil)
+        let question = "Where did your direct reps go?"
+        #expect(!screen.contains(question))
         try #require(await screen.tap("How to Read"))
-        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") != nil })
+        #expect(await screen.waitUntil { screen.contains(question) })
         try #require(await screen.tap("How to Read"))
-        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") == nil })
+        #expect(await screen.waitUntil { !screen.contains(question) })
         try #require(await screen.goBack())
         #expect(screen.contains(left))
     }

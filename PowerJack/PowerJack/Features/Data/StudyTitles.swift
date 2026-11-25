@@ -21,6 +21,8 @@ extension StudyHistory {
         case .original: dates = nil
         case .all: dates = ("All history", "All history")
         case .year(let year): dates = (String(year), String(year))
+        case .day:
+            dates = (rangeLabel, selectedRange?.start.formatted(.dateTime.month(.abbreviated).day().year()) ?? rangeLabel)
         case .month(let year, _):
             if let date = selectedRange?.start {
                 let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
@@ -38,6 +40,9 @@ extension StudyHistory {
             let y = relationshipVerticalKey(for: options.horizontalLift).map(exerciseName(for:)) ?? "Reverse lunge"
             subjects = [x + " and " + y]
             shortSubjects = [x, y]
+        } else if let focus = options.searchFocus, focus.describes(options) {
+            subjects = [focus.name]
+            shortSubjects = subjects
         } else {
             if !exerciseNames.isEmpty {
                 subjects.append(exerciseNames.formatted(.list(type: .and)))
@@ -56,6 +61,13 @@ extension StudyHistory {
         let focus = subjects.joined(separator: " · ")
         var headline = metric.full
         if !focus.isEmpty { headline += " for " + focus }
+        if let search = options.searchFocus, search.describes(options) {
+            if id == .gluteSources { headline = "Set credits for " + search.name }
+            if id == .frequency {
+                let adjective = ["arms": "arm", "legs": "leg"][search.name] ?? search.name
+                headline = "Working " + adjective + " sets by weekday"
+            }
+        }
         if !parameters.isEmpty {
             headline += " · " + parameters.map { titleParameter($0.0, value: $0.1, study: id) }.joined(separator: ", ")
         }
@@ -63,6 +75,9 @@ extension StudyHistory {
             headline += (id == .recency && options.period != .all ? " · through " : " · ") + dates.full
         } else if id == .yearlyRecords || id == .armReps || id == .goal {
             headline += " · 2026"
+        }
+        if options.showsFullSearchTitle == true {
+            return StudyTitle(full: headline, caption: headline)
         }
         if headline.split(whereSeparator: \.isWhitespace).count <= 6 { return StudyTitle(full: headline, caption: headline) }
 
@@ -149,7 +164,7 @@ extension TrainingStudy {
         switch self {
         case .legWork: ("Weekly set credits", "set credits", "legs")
         case .armReps:
-            if case .month = period { ("Daily reps", "daily reps", "arms") }
+            if period.usesDailyBuckets { ("Daily reps", "daily reps", "arms") }
             else { ("Monthly reps", "monthly reps", "arms") }
         case .gluteSources: ("Set credits by exercise", "set credits", "glutes")
         case .frequency: ("Working sets by weekday", "weekday sets", "legs")

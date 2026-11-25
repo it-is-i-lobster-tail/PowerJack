@@ -33,6 +33,14 @@ struct TrainingStudyTests {
             for study in TrainingStudy.allCases {
                 let result = history.result(for: study)
                 #expect(result.figure != nil, "\(study.caption) needs matching sample history")
+                for presentation in result.availablePresentations {
+                    for transpose in result.supportsTranspose ? [false, true] : [false] {
+                        let displayed = result.presented(as: presentation, transpose: transpose)
+                        #expect(
+                            displayed.readingExample?.isEmpty == false,
+                            "\(study.caption) needs a reading example for \(presentation), transposed: \(transpose)")
+                    }
+                }
                 let preview = StudyFigureView(study: result, compact: true).frame(width: 158, height: 90)
                 let image = try #require(ImageRenderer(content: preview).cgImage)
                 // A transparent bitmap can be returned even if none of the chart's marks actually drew.

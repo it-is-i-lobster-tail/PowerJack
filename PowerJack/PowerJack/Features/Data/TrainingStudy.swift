@@ -111,6 +111,9 @@ struct StudyResult: Identifiable, Equatable {
     var detail: StudyTable?
     var emptyReason = "Log matching working sets to see this chart."
     var alternateBars: [StudyBar] = []
+    var readingFigure: StudyFigure?
+    var hasUnresolvedIntent = false
+    var question: String?
     var title: StudyTitle?
     var presentation: StudyPresentation = .original
     var horizontalCategories = false
