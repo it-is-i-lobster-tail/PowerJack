@@ -29,6 +29,10 @@ final class WatchSync {
         // Opening the app asks before the link is up, so ask again once it is, and whenever the iPhone comes back.
         DeviceLink.shared.onConnected = { [weak self] in self?.push() }
         WorkoutMirroring.shared.onData = { [weak self] in self?.receive(snapshot: $0) }
+        WorkoutMirroring.shared.workoutIsPaused = { [weak self] in
+            guard let self, !self.store.isReplacingContainer else { return false }
+            return (try? self.currentWorkout(in: self.store.container.mainContext))?.isPaused == true
+        }
         DeviceLink.shared.start()
     }
 
@@ -49,8 +53,8 @@ final class WatchSync {
         }
     }
 
-    private func hasWorkoutInProgress(in context: ModelContext) throws -> Bool {
-        try context.fetch(FetchDescriptor<Program>()).active?.nextWorkout?.status == .active
+    private func currentWorkout(in context: ModelContext) throws -> Workout? {
+        try context.fetch(FetchDescriptor<Program>()).active?.nextWorkout
     }
 
     private func receive(snapshot data: Data) {
@@ -60,15 +64,19 @@ final class WatchSync {
             let snapshot = try SyncPayload.decode(ProgramSnapshot.self, from: data)
             defer { heardFromIPhone = replica.heardFromIPhone }
             let context = store.container.mainContext
-            let wasTraining = try hasWorkoutInProgress(in: context)
+            let previous = try currentWorkout(in: context)
+            let wasTraining = previous?.status == .active
+            let wasPaused = previous?.isPaused == true
             guard try replica.receive(snapshot, in: context) else {
                 // The iPhone doesn't have every change yet: send them before taking its program.
                 push()
                 return
             }
-            // A workout finished on the iPhone ends the watch's session too, so the watch stops holding the screen.
-            if wasTraining, try !hasWorkoutInProgress(in: context) {
+            let current = try currentWorkout(in: context)
+            if current?.isPaused == true || (wasTraining && current?.status != .active) {
                 WorkoutMirroring.shared.end()
+            } else if wasPaused, current?.status == .active {
+                Task { await WorkoutMirroring.shared.begin() }
             }
         } catch {
             Logger.sync.error("Could not apply the iPhone's program: \(error.localizedDescription)")
