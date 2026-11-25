@@ -59,14 +59,14 @@ final class WatchReplica {
 
     /// Keeps a change made on the watch until the iPhone has it.
     @discardableResult
-    func record(_ action: WatchChange.Action, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
+    func record(_ action: WatchChange.Action, at row: RowPath?, together: Bool, date: Date = .now, exerciseEdit: WatchChange.ExerciseEdit? = nil, skippedWorkout: Bool? = nil) -> WatchChange? {
         guard let row else {
             Logger.sync.warning("A watch change has no row to name")
             return nil
         }
         let id = defaults.integer(forKey: Key.lastChangeID) + 1
         defaults.set(id, forKey: Key.lastChangeID)
-        let change = WatchChange(id: id, install: install, date: date, together: together, row: row, action: action)
+        let change = WatchChange(skippedWorkout: skippedWorkout, exerciseEdit: exerciseEdit, id: id, install: install, date: date, together: together, row: row, action: action)
         pending.append(change)
         return change
     }
@@ -94,7 +94,7 @@ final class WatchReplica {
     func recordEntry(weightTenthsPounds: Int?, reps: Int?, at row: RowPath?, together: Bool, date: Date = .now) -> WatchChange? {
         var weightTenthsPounds = weightTenthsPounds
         var reps = reps
-        if let last = pending.last, last.row == row, case .enterSet(let lastWeight, let lastReps) = last.action {
+        if let last = pending.last, last.exerciseEdit == nil, last.row == row, case .enterSet(let lastWeight, let lastReps) = last.action {
             weightTenthsPounds = weightTenthsPounds ?? lastWeight
             reps = reps ?? lastReps
             pending.removeLast()

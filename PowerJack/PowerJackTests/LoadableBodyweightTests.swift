@@ -130,7 +130,11 @@ struct LoadableBodyweightTests {
     func watchEntry() throws {
         let workoutExercise = try makeWorkout(.loadableBodyweight, sets: [(8, nil), (8, nil)]).workoutExercise
         let first = try #require(workoutExercise.workingSets.first)
+        #expect(SetEntry(for: first, unit: .pounds).weightText == "BW")
+        first.weightTenthsPounds = nil
         var entry = SetEntry(for: first, unit: .pounds)
+        #expect(entry.weight == nil && entry.weightText == "—")
+        entry.weightSteps += 1
         #expect(entry.weight == 0 && entry.weightText == "BW" && entry.weightTenthsPounds == 0)
 
         workoutExercise.log(entry, on: first)

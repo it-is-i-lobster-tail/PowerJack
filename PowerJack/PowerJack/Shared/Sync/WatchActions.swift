@@ -29,6 +29,14 @@ struct WatchActions {
         replica.record(.logSet(log), at: RowPath(workoutSet), together: together, date: date)
     }
 
+    func edit(_ edit: WatchChange.ExerciseEdit, of exercise: WorkoutExercise, in program: Program) {
+        guard let workout = exercise.workoutValue, let path = RowPath(exercise),
+              edit.apply(to: exercise, in: workout, program: program)
+        else { return }
+        // Older iPhones can acknowledge this edit and still apply the other actions in the batch.
+        replica.record(.enterSet(weightTenthsPounds: nil, reps: nil), at: path, together: together, exerciseEdit: edit)
+    }
+
     func skipWarmups(of workoutExercise: WorkoutExercise) {
         workoutExercise.skipWarmups()
         replica.record(.skipWarmups, at: RowPath(workoutExercise), together: together)
@@ -60,6 +68,13 @@ struct WatchActions {
         workout.skipRemainingSets()
         program.finishWorkout(workout)
         replica.record(.finishWorkout, at: row, together: together)
+    }
+
+    func skip(_ workout: Workout, in program: Program) {
+        guard program.status == .active, workout.status == .active else { return }
+        let row = RowPath(workout)
+        program.skipWorkout(workout)
+        replica.record(.finishWorkout, at: row, together: together, skippedWorkout: true)
     }
 
     /// Enters what's dialed in on a set still to do, so the iPhone shows it before it's logged.

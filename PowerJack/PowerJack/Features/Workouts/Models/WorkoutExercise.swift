@@ -437,7 +437,7 @@ extension WorkoutExercise {
     }
     /// Warmups are capped at `maxWarmupSets` and left out while they're disabled.
     /// Working sets are capped at `maxSets`.
-    private func canAddSet(type: SetType) -> Bool {
+    func canAddSet(type: SetType) -> Bool {
         switch type {
         case .warmup: warmupSets.count < Self.maxWarmupSets && !warmupsDisabledValue
         case .working: workingSets.count < Self.maxSets

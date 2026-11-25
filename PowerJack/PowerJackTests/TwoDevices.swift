@@ -167,6 +167,7 @@ extension WatchActions {
             var logged = 0
             while let workoutSet = workoutExercise.nextSet, logged < 20 {
                 var entry = SetEntry(for: workoutSet, unit: .pounds)
+                if entry.reps == nil { entry.reps = 8 }
                 if entry.weightTenthsPounds == nil { entry.weight = weight }
                 log(entry, on: workoutSet, of: workoutExercise, at: date.addingTimeInterval(Double(logged + 1) * 60))
                 logged += 1

@@ -30,14 +30,20 @@ struct WatchWorkoutTests {
         #expect(entry.weightTenthsPounds == 505)
     }
 
-    @Test("A barbell set with nothing entered starts at the empty bar")
-    func entryStartsAtBar() throws {
-        let workoutExercise = try makeStartedExercise(equipment: .barbell)
-        let workoutSet = try #require(workoutExercise.workingSets.first)
+    @Test("A set without entered or planned values stays empty and cannot be logged")
+    func emptyEntry() throws {
+        let exercise = try makeStartedExercise(equipment: .barbell)
+        let set = try #require(exercise.workingSets.first)
+        var entry = SetEntry(for: set, unit: .pounds)
+        #expect(entry.weightText == "—")
+        #expect(entry.reps == nil)
+        entry.weight = 45
+        exercise.log(entry, on: set)
+        #expect(set.status == .active)
 
-        #expect(SetEntry(for: workoutSet, unit: .pounds).weight == LoadGrid.barPounds)
-        #expect(SetEntry(for: workoutSet, unit: .kilograms).weight == LoadGrid.barKilograms)
-        #expect(SetEntry(for: workoutSet, unit: .pounds).reps == 6)
+        let prescription = WorkoutSet(order: 0, plannedReps: 5, plannedWeightTenthsPounds: 450)
+        let planned = SetEntry(for: prescription, unit: .pounds)
+        #expect(planned.reps == 5 && planned.weight == 45)
     }
 
     @Test("Each click of the Digital Crown is one load step")
@@ -77,6 +83,7 @@ struct WatchWorkoutTests {
         workoutExercise.powerJackTopSetsValue = 1
         let top = try #require(workoutExercise.workingSets.first)
         var entry = SetEntry(for: top, unit: .pounds)
+        entry.reps = 6
         entry.weight = 225
 
         workoutExercise.log(entry, on: top)
@@ -89,11 +96,13 @@ struct WatchWorkoutTests {
     func logNeedsWeight() throws {
         let dumbbell = try makeStartedExercise(equipment: .dumbbell)
         let weighted = try #require(dumbbell.workingSets.first)
+        weighted.reps = 6
         dumbbell.log(SetEntry(for: weighted, unit: .pounds), on: weighted)
         #expect(weighted.status == .active)
 
         let bodyweight = try makeStartedExercise(equipment: .bodyweight)
         let unweighted = try #require(bodyweight.workingSets.first)
+        unweighted.reps = 6
         bodyweight.log(SetEntry(for: unweighted, unit: .pounds), on: unweighted)
         #expect(unweighted.status == .complete)
         #expect(unweighted.weightTenthsPounds == nil)
@@ -105,6 +114,7 @@ struct WatchWorkoutTests {
         #expect(workoutExercise.nextSet?.isWarmup == true)
         let first = try #require(workoutExercise.workingSets.first)
         var entry = SetEntry(for: first, unit: .pounds)
+        entry.reps = 6
         entry.weight = 40
 
         workoutExercise.log(entry, on: first)
@@ -195,6 +205,7 @@ struct WatchWorkoutTests {
         var logged = 0
         while let workoutSet = workoutExercise.nextSet, logged < 20 {
             var entry = SetEntry(for: workoutSet, unit: .pounds)
+            if entry.reps == nil { entry.reps = 8 }
             if entry.weightTenthsPounds == nil {
                 entry.weight = 100
             }

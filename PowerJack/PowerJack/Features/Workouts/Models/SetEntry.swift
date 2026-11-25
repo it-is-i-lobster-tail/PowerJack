@@ -9,17 +9,16 @@
 import Foundation
 
 struct SetEntry: Equatable {
-    /// In `unit`. Bodyweight sets leave it at 0.
-    var weight: Double
-    var reps: Int
+    /// In `unit`. An explicit zero means bodyweight alone on loadable bodyweight exercises.
+    var weight: Double?
+    var reps: Int?
     let unit: WeightUnit
     /// One click of the Digital Crown, in `unit`.
     let weightStep: Double
     /// Loadable bodyweight, where a weight of 0 is bodyweight alone and can be logged.
     let addsToBodyweight: Bool
 
-    /// Starts on what the set holds: what's entered, else its target. A set with nothing yet
-    /// starts at the empty bar for a barbell, and at the exercise's lowest rep target.
+    /// An entered value takes precedence over the prescription for this set.
     init(for workoutSet: WorkoutSet, unit: WeightUnit = .current) {
         let workoutExercise = workoutSet.workoutExerciseValue
         let equipment = workoutExercise?.shownExercise?.equipment ?? .machine
@@ -27,25 +26,17 @@ struct SetEntry: Equatable {
         self.weightStep = StrengthLoadSteps.step(for: equipment, in: unit) ?? 1
         self.addsToBodyweight = equipment == .loadableBodyweight
 
-        if let tenths = workoutSet.weightTenthsPounds ?? workoutSet.weightTenthsPlannedPounds {
-            weight = unit.value(fromTenthsPounds: tenths)
-        } else if equipment == .barbell {
-            weight = unit == .kilograms ? LoadGrid.barKilograms : LoadGrid.barPounds
-        } else {
-            weight = 0
-        }
-
-        reps = workoutSet.reps
-            ?? workoutSet.repsPlanned
-            ?? workoutExercise?.targetReps
-            ?? workoutExercise?.exercise?.minReps
-            ?? Exercise.defaultMinReps
+        weight = workoutSet.upcomingWeightTenthsPounds.map { unit.value(fromTenthsPounds: $0) }
+        reps = workoutSet.upcomingReps
     }
 
     /// The weight counted in load steps, so each click of the Digital Crown is one step, whatever its size.
     var weightSteps: Double {
-        get { weight / weightStep }
-        set { weight = newValue.rounded() * weightStep }
+        get { weight.map { $0 / weightStep } ?? (addsToBodyweight ? -1 : 0) }
+        set {
+            let steps = newValue.rounded()
+            if steps > 0 || (addsToBodyweight && steps == 0) { weight = steps * weightStep }
+        }
     }
 
     /// The heaviest weight a set can log, in load steps.
@@ -55,7 +46,8 @@ struct SetEntry: Equatable {
 
     /// `nil` until a weight is dialed in, so an empty weight is never logged. Loadable bodyweight logs 0 as bodyweight.
     var weightTenthsPounds: Int? {
-        weight > 0 || addsToBodyweight ? unit.tenthsPounds(from: weight) : nil
+        guard let weight else { return nil }
+        return weight > 0 || addsToBodyweight ? unit.tenthsPounds(from: weight) : nil
     }
 
     /// Loadable bodyweight with nothing added.
@@ -63,7 +55,8 @@ struct SetEntry: Equatable {
 
     /// e.g. "225", or "BW" for bodyweight alone.
     var weightText: String {
-        isBodyweight ? "BW" : weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+        guard let weight else { return "—" }
+        return isBodyweight ? "BW" : weight.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
     }
 
     /// Whether this entry holds what the dial starts on for `workoutSet`.
@@ -73,8 +66,8 @@ struct SetEntry: Equatable {
     }
 
     /// The part of this entry that differs from what the dial starts on for `workoutSet`, so only
-    /// what the lifter changed is entered: not the set's target, nor the empty bar a set without
-    /// one starts on. Bodyweight sets compare reps only.
+    /// what the lifter changed is entered.
+    /// Bodyweight sets compare reps only.
     func changes(from workoutSet: WorkoutSet, repsOnly: Bool) -> (weightTenthsPounds: Int?, reps: Int?) {
         let shown = SetEntry(for: workoutSet, unit: unit)
         let weight = repsOnly ? nil : weightTenthsPounds
@@ -89,7 +82,8 @@ extension WorkoutExercise {
     /// Logs `entry` on `workoutSet` and completes it. As when typing it on the phone, the weight carries
     /// to the later sets still to do, except from a TOP set, which is heavier than the BACK sets after it.
     func log(_ entry: SetEntry, on workoutSet: WorkoutSet, at date: Date = .now) {
-        log(weightTenthsPounds: entry.weightTenthsPounds, reps: entry.reps, on: workoutSet, at: date)
+        guard let reps = entry.reps else { return }
+        log(weightTenthsPounds: entry.weightTenthsPounds, reps: reps, on: workoutSet, at: date)
     }
 
     /// Logs `reps` at `weightTenthsPounds` on `workoutSet`, as `log(_:on:at:)` does. The iPhone runs

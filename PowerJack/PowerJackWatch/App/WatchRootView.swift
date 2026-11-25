@@ -47,14 +47,19 @@ private struct ProgramHomeView: View {
 
     @State private var openedWorkout: Workout?
     @State private var openedWorkoutID: UUID?
+    @State private var previewsExercises = false
 
     /// The workout on screen. Syncing can swap the watch's copy of it for the iPhone's own,
     /// which is then found by its sync ID.
     private var shownWorkout: Binding<Workout?> {
         Binding {
             guard let openedWorkout else { return nil }
-            if openedWorkout.modelContext != nil, !openedWorkout.isDeleted { return openedWorkout }
-            return openedWorkoutID.flatMap { id in program.programWeeks.flatMap(\.workouts).first { $0.syncID == id } }
+            if openedWorkout.modelContext != nil, !openedWorkout.isDeleted {
+                return openedWorkout.status == .active ? openedWorkout : nil
+            }
+            return openedWorkoutID.flatMap { id in
+                program.programWeeks.flatMap(\.workouts).first { $0.syncID == id && $0.status == .active }
+            }
         } set: {
             openedWorkout = $0
             openedWorkoutID = $0?.syncID
@@ -64,33 +69,86 @@ private struct ProgramHomeView: View {
     var body: some View {
         Group {
             if let workout = program.nextWorkout {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Button(workout.status == .active ? "Resume" : "Start Workout") {
-                            start(workout)
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        if let device = workout.inProgressElsewhere {
-                            Text("In progress on \(device)")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Text(program.templateName)
-                            .font(.headline)
-                            .padding(.top, 4)
-
-                        ForEach(workout.workoutExercises) { workoutExercise in
-                            Text(workoutExercise.shownExercise?.exerciseName ?? "")
-                                .font(.footnote)
+                VStack(spacing: 4) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(program.activityTitle(for: workout))
+                                .font(.title2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .accessibilityAddTraits(.isHeader)
+
+                            Text(program.templateName)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                            let exercises = workout.workoutExercises
+                            if !workout.allExercisesFinished,
+                               exercises.indices.contains(workout.currentExerciseIndex),
+                               let exercise = exercises[workout.currentExerciseIndex].shownExercise {
+                                Text(exercise.exerciseName)
+                                    .font(.headline)
+                                    .accessibilityLabel("Next exercise, \(exercise.exerciseName)")
+                            }
+                            if let device = workout.inProgressElsewhere {
+                                Text("In progress on \(device)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Button {
+                                previewsExercises = true
+                            } label: {
+                                HStack {
+                                    Text("View exercises")
+                                    Spacer()
+                                    Text("\(exercises.count)")
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                    Image(systemName: "chevron.forward")
+                                        .foregroundStyle(.secondary)
+                                        .accessibilityHidden(true)
+                                }
+                                .frame(minHeight: 32)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .font(.footnote)
+                            .accessibilityLabel("View \(exercises.count) exercises")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .scrollEdgeEffectHidden(true, for: .top)
+                    .padding(.top, -8)
+
+                    Button {
+                        start(workout)
+                    } label: {
+                        Text(workout.status == .active ? "Resume" : "Start Workout")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.small)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
+                .ignoresSafeArea(.container, edges: .bottom)
+                .sheet(isPresented: $previewsExercises) {
+                    NavigationStack {
+                        List(workout.workoutExercises) { exercise in
+                            WatchExerciseProgressRow(exercise: exercise)
+                        }
+                        .navigationTitle("Exercises")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Close", systemImage: "xmark") { previewsExercises = false }
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .navigationTitle(program.activityTitle(for: workout))
             } else {
                 ContentUnavailableView("Program complete", systemImage: "checkmark.seal")
             }
@@ -111,6 +169,7 @@ private struct ProgramHomeView: View {
     private func openActiveWorkoutIfAsked() {
         guard WorkoutLaunch.shared.opensActiveWorkout, let workout = program.nextWorkout, workout.status == .active else { return }
         WorkoutLaunch.shared.opensActiveWorkout = false
+        previewsExercises = false
         if shownWorkout.wrappedValue == nil {
             shownWorkout.wrappedValue = workout
         }

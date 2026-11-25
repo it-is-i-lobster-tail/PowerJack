@@ -62,6 +62,10 @@ extension WatchChange {
     /// Does on the iPhone what the watch did, the same way the watch's screens did it.
     /// - Returns: false when the iPhone has no row where the change names one.
     func apply(to program: Program, in context: ModelContext) -> Bool {
+        if let exerciseEdit {
+            guard let exercise = program.workoutExercise(at: row), let workout = exercise.workoutValue else { return false }
+            return exerciseEdit.apply(to: exercise, in: workout, program: program)
+        }
         switch action {
         case .startWorkout:
             guard let workout = program.workout(at: row) else { return false }
@@ -88,8 +92,12 @@ extension WatchChange {
         case .finishWorkout:
             guard let workout = program.workout(at: row) else { return false }
             if workout.status == .active {
-                workout.skipRemainingSets()
-                program.finishWorkout(workout)
+                if skippedWorkout == true {
+                    program.skipWorkout(workout)
+                } else {
+                    workout.skipRemainingSets()
+                    program.finishWorkout(workout)
+                }
             }
         case .skipRemainingSets:
             guard let workout = program.workout(at: row) else { return false }
