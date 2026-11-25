@@ -21,6 +21,7 @@ enum AppSettings {
         static let hints = "settings.hints"
         static let weightUnit = "settings.weightUnit"
         static let appearance = "settings.appearance"
+        static let developerTools = "developer.toolsEnabled"
     }
 
     enum Default {
@@ -36,5 +37,6 @@ enum AppSettings {
         static let liftPattern = HapticPattern.shortShortLong
         static let iCloudBackup = true
         static let hints = true
+        static let developerTools = false
     }
 }

@@ -13,7 +13,8 @@ struct ProgramDetailView: View {
 
     @Environment(ProgramsRouter.self) private var router
     @Environment(\.modelContext) private var modelContext
-    @State private var isConfirmingReset = false
+    @AppStorage(AppSettings.Key.developerTools) private var developerToolsEnabled = AppSettings.Default.developerTools
+    @State private var isConfirmingProgressionUpdate = false
     @State private var saveErrorMessage: String?
 
     /// Each early workout gets its own hint on Start Workout, shown until it starts.
@@ -78,9 +79,9 @@ struct ProgramDetailView: View {
                         Button("Edit Days", systemImage: "square.and.pencil") {
                             router.showEditDays(program)
                         }
-                        if program.canResetProgression {
-                            Button("Reset Progression", systemImage: "arrow.counterclockwise") {
-                                isConfirmingReset = true
+                        if developerToolsEnabled && program.canResetProgression {
+                            Button("Force Update Progression", systemImage: "arrow.clockwise") {
+                                isConfirmingProgressionUpdate = true
                             }
                         }
                     } label: {
@@ -89,8 +90,8 @@ struct ProgramDetailView: View {
                 }
             }
         }
-        .alert("Reset Progression?", isPresented: $isConfirmingReset) {
-            Button("Reset", role: .destructive, action: resetProgression)
+        .alert("Force Update Progression?", isPresented: $isConfirmingProgressionUpdate) {
+            Button("Force Update", role: .destructive, action: forceUpdateProgression)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Workouts you haven't started this week get fresh sets, reps and weights from your ratings. Any changes you made to them will be replaced.")
@@ -121,13 +122,13 @@ struct ProgramDetailView: View {
         }
     }
 
-    private func resetProgression() {
+    private func forceUpdateProgression() {
         program.resetProgression()
         do {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            saveErrorMessage = "Progression couldn't be reset. Please try again."
+            saveErrorMessage = "Progression couldn't be updated. Please try again."
         }
     }
 }
