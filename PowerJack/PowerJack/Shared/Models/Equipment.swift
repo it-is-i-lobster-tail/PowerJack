@@ -22,7 +22,7 @@ enum Equipment: String, Codable, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var displayName: String {
+    nonisolated var displayName: String {
         switch self {
         case .barbell: "Barbell"
         case .dumbbell: "Dumbbell"

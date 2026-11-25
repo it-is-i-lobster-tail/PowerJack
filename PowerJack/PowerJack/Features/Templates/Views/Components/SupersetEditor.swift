@@ -6,12 +6,17 @@
 import SwiftData
 import SwiftUI
 
-/// One superset's own list: drag to change the order, swipe to take an exercise out.
+/// One superset's own list: drag to change the order, swipe to take an exercise out or change it.
 struct SupersetEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var templateWorkoutDraft: TemplateWorkoutDraft
     let supersetID: UUID
+    /// Exercises with sets logged in a workout in progress. They can't be changed.
+    var loggedExercises: Set<UUID> = []
+
+    /// The exercise being swapped for another, in the same spot in the superset.
+    @State private var exerciseToChange: TemplateExerciseDraft?
 
     private var superset: TemplateExerciseBlock? {
         templateWorkoutDraft.superset(supersetID)
@@ -42,7 +47,16 @@ struct SupersetEditor: View {
                             } label: {
                                 Label("Remove", systemImage: "minus.circle")
                             }
-                            .tint(.red)
+                            .tint(.blue)
+
+                            if !loggedExercises.contains(templateExerciseDraft.id) {
+                                Button {
+                                    exerciseToChange = templateExerciseDraft
+                                } label: {
+                                    Label("Change", systemImage: "slider.horizontal.3")
+                                }
+                                .tint(.orange)
+                            }
                         }
                     }
                     .onMove { source, destination in
@@ -53,10 +67,15 @@ struct SupersetEditor: View {
                         )
                     }
                 } footer: {
-                    Text("Touch and hold to change the order. Swipe left to take an exercise out. It stays on the day, just below the superset.")
+                    Text("Touch and hold to change the order. Swipe left to take an exercise out or change it. One taken out stays on the day, just below the superset.")
                 }
             }
             .animation(.default, value: superset?.exercises)
+            .sheet(item: $exerciseToChange) { changing in
+                ChangeExercisePicker(current: changing.exercise) { exercise in
+                    templateWorkoutDraft.changeExercise(changing.id, to: exercise)
+                }
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -64,9 +83,24 @@ struct SupersetEditor: View {
                     Button("Done", action: dismiss.callAsFunction)
                 }
             }
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                if let superset {
+                    Button {
+                        templateWorkoutDraft.unstack(superset)
+                    } label: {
+                        Text("Remove Superset")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                    .padding(.bottom, LayoutMetrics.compactSpacing)
+                }
+            }
         }
         .scrollEdgeEffectStyle(.soft, for: .all)
-        // Taking the last exercise out ends the superset, so there's nothing left to show.
+        // Close the editor when the superset ends.
         .onChange(of: superset == nil) { _, isGone in
             if isGone { dismiss() }
         }

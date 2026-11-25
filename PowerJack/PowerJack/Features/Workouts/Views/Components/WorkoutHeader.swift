@@ -2,46 +2,82 @@
 //  WorkoutHeader.swift
 //  PowerJack
 //
-//  The glass bubble at the top of a workout: the exercise on screen with its equipment under it.
-//  While the bars fade, the title steps down and only an active rest keeps its subtitle.
+//  The workout header always shows the page's exercise name and equipment.
 //  Between pages its width follows the swipe, from one exercise's bubble to the next.
 //
 
 import SwiftUI
 
+/// The superset an exercise page belongs to, shown in the pill in the color of its bar.
+struct WorkoutPageSuperset {
+    let letter: String
+    let color: Color
+    let partners: [String]
+
+    init(letter: String, color: Color, partners: [String]) {
+        self.letter = letter
+        self.color = color
+        self.partners = partners
+    }
+
+    init?(_ workoutExercise: WorkoutExercise) {
+        guard let index = workoutExercise.supersetIndex else { return nil }
+        self.init(letter: Workout.supersetLetter(at: index),
+                  color: SupersetStyle.color(at: index),
+                  partners: workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName })
+    }
+
+    /// e.g. "Superset A".
+    var title: String { "Superset \(letter)" }
+}
+
+enum WorkoutPageHeader {
+    case exercise(Exercise?, superset: WorkoutPageSuperset? = nil), review
+
+    var title: String {
+        switch self {
+        case .exercise(let exercise, _): exercise?.exerciseName ?? "Exercise"
+        case .review: "Review"
+        }
+    }
+
+    var equipment: String? {
+        if case .exercise(let exercise, _) = self { return exercise?.equipmentDisplayName }
+        return nil
+    }
+
+    var superset: WorkoutPageSuperset? {
+        if case .exercise(_, let superset) = self { return superset }
+        return nil
+    }
+}
+
 struct WorkoutHeader: View {
     @Environment(\.workoutHeaderRest) private var rest
 
-    /// The exercise on screen. Nil on the Review page.
-    let exercise: Exercise?
-    /// True while the controls are faded.
-    var isCompact = false
-    /// The exercise on each page, nil for Review, and where the pages are scrolled to.
-    var pages: [Exercise?] = []
-    var pageScroll: ExercisePageScroll? = nil
+    let pages: [WorkoutPageHeader]
+    let pageScroll: ExercisePageScroll
+    var showsHeartRate = false
 
-    /// The expanded toolbar item's size. While compact, the header keeps taking up this much room and the
-    /// bubble shrinks in the middle of it, so the navigation bar doesn't re-center it mid-animation.
-    @State private var fullSize: CGSize?
+    private var bpm: Int? { showsHeartRate ? WorkoutHeartRate.shared.bpm : nil }
 
-    /// During a scrub the focused card can cross several exercises before the selection settles.
-    private var visibleExercise: Exercise? {
-        guard let pageScroll, !pages.isEmpty else { return exercise }
-        let position = min(max(0, pageScroll.position), CGFloat(pages.count - 1))
-        return pages[Int(position.rounded(.toNearestOrEven))]
+    private var position: CGFloat {
+        min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
     }
 
-    private var title: String { visibleExercise?.exerciseName ?? "Review" }
+    private var visiblePage: WorkoutPageHeader {
+        pages.isEmpty ? .review : pages[Int(position.rounded(.toNearestOrEven))]
+    }
 
-    private var accessibilityText: String {
-        guard let exercise = visibleExercise, !isCompact else { return title }
-        return "\(title), \(exercise.equipmentDisplayName)"
+    private var pageLabel: String {
+        [visiblePage.title, visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, visiblePage.equipment, bpm.map { "Heart rate, \($0) beats per minute" }]
+            .compactMap(\.self)
+            .joined(separator: ", ")
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
-    private var swipe: (from: Exercise?, to: Exercise?, progress: CGFloat)? {
-        guard let pageScroll, pages.count > 1 else { return nil }
-        let position = min(max(pageScroll.position, 0), CGFloat(pages.count - 1))
+    private var swipe: (from: WorkoutPageHeader, to: WorkoutPageHeader, progress: CGFloat)? {
+        guard pages.count > 1 else { return nil }
         let from = Int(position.rounded(.down))
         let progress = position - CGFloat(from)
         guard progress > 0.001, from + 1 < pages.count else { return nil }
@@ -53,30 +89,26 @@ struct WorkoutHeader: View {
             // Reserve the widest page title before the swipe starts. The toolbar can still
             // constrain long titles to the space between its leading and trailing buttons.
             ForEach(pages.indices, id: \.self) { index in
-                HeaderLabel(exercise: pages[index], isCompact: false, rest: rest?.period)
+                HeaderLabel(page: pages[index], rest: rest?.period, bpm: bpm)
                     .hidden()
-                    .frame(height: 0)
                     .accessibilityHidden(true)
             }
-            pill
         }
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            if !isCompact { fullSize = size }
+        .overlay {
+            pill.fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: isCompact ? fullSize?.width : nil, height: isCompact ? fullSize?.height : nil)
         .animation(.easeInOut(duration: 0.18), value: rest != nil)
-        .animation(IdleControls.fade, value: isCompact)
     }
 
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(exercise: visibleExercise, isCompact: isCompact, rest: rest?.period,
-                        showsCountdown: true, showsTitle: swipe == nil)
+            HeaderLabel(page: visiblePage, rest: rest?.period, bpm: bpm, showsCountdown: swipe == nil, showsPageText: swipe == nil)
+            // Mid-swipe each page carries its own timer, so it slides with that page's superset tag.
             if let swipe {
-                HeaderLabel(exercise: swipe.from, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                HeaderLabel(page: swipe.from, rest: rest?.period, bpm: bpm, showsCountdown: true)
                     .accessibilityHidden(true)
-                HeaderLabel(exercise: swipe.to, isCompact: isCompact, rest: rest?.period, showsSubtitle: false)
+                HeaderLabel(page: swipe.to, rest: rest?.period, bpm: bpm, showsCountdown: true)
                     .accessibilityHidden(true)
             }
         }
@@ -85,64 +117,77 @@ struct WorkoutHeader: View {
         .contentShape(.capsule)
         .gesture(TapGesture().onEnded { rest?.onTap() }, isEnabled: rest != nil)
         .accessibilityElement(children: rest == nil ? .ignore : .combine)
-        .accessibilityLabel(accessibilityText, isEnabled: rest == nil)
+        .accessibilityLabel(pageLabel, isEnabled: rest == nil)
         .accessibilityAddTraits(rest == nil ? [] : .isButton)
         .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// Equipment and rest share one subtitle line. Only equipment folds away when idle.
+/// The exercise name, then a line with its superset and equipment. A running rest timer takes the
+/// equipment's place. The superset is in the color of its bar.
 private struct HeaderLabel: View {
-    let exercise: Exercise?
-    let isCompact: Bool
+    let page: WorkoutPageHeader
     let rest: RestPeriod?
+    let bpm: Int?
     var showsCountdown = false
-    var showsTitle = true
-    var showsSubtitle = true
-
-    private var foldsSubtitle: Bool { isCompact && rest == nil }
+    var showsPageText = true
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(exercise?.exerciseName ?? "Review")
-                .font(isCompact ? .callout.weight(.semibold) : .headline)
-                .foregroundStyle(showsTitle ? Color.primary : .clear)
-            if exercise != nil || rest != nil {
-                let equipment = exercise?.equipmentDisplayName ?? ""
-                // The equipment's font metrics own this line, even when the ring is showing.
-                ZStack {
-                    Text(equipment.isEmpty ? " " : equipment)
-                        .foregroundStyle(.secondary)
-                        .opacity(rest == nil ? 1 : 0)
-                        .accessibilityHidden(rest != nil || foldsSubtitle)
-                    if let rest {
-                        // Reserve the widest timer state once, including for swipe endpoint measurements.
-                        ZStack {
-                            Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
-                            Text("Start set")
-                        }
-                        .monospacedDigit()
-                        .padding(.leading, 16)
-                        .hidden()
-                    }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(page.title)
+                    .font(.headline)
+                    .minimumScaleFactor(0.01)
+                if let bpm {
+                    WorkoutHeartRateLabel(
+                        bpm: bpm,
+                        font: .caption2.weight(.medium),
+                        showsUnit: false,
+                        usesZoneStyle: true
+                    )
+                    .foregroundStyle(.secondary)
                 }
-                .overlay {
-                    if let rest, showsCountdown {
-                        HeaderRestSubtitle(rest: rest)
-                            .fixedSize()
-                            .transition(.opacity)
-                    }
-                }
-                .font(.subheadline)
-                .fixedSize()
-                .opacity(foldsSubtitle || !showsSubtitle ? 0 : 1)
-                .frame(width: foldsSubtitle ? 0 : nil, height: foldsSubtitle ? 0 : nil, alignment: .top)
-                .clipped()
             }
+            .opacity(showsPageText ? 1 : 0)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let superset = page.superset {
+                    Label(superset.title, systemImage: "link")
+                        .labelStyle(.titleAndIcon)
+                        // A touch smaller than the equipment, so it reads as a tag.
+                        .font(.footnote)
+                        .foregroundStyle(superset.color)
+                        .opacity(showsPageText ? 1 : 0)
+                        .accessibilityLabel(SupersetStyle.fullLabel(partners: superset.partners))
+                }
+                detail
+            }
+            .font(.subheadline)
         }
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .padding(.vertical, isCompact ? 6 : 8)
+        .padding(.vertical, 6)
+    }
+
+    /// The equipment, or a running rest timer in its place.
+    @ViewBuilder
+    private var detail: some View {
+        if let rest {
+            // Measure the widest countdown state, so the label keeps its width as the seconds change.
+            ZStack {
+                Text("Rest " + Duration.seconds(Int(rest.duration.rounded(.up))).minuteSecondText)
+                Text("Start set")
+            }
+            .monospacedDigit()
+            .padding(.leading, 16)
+            .hidden()
+            .overlay {
+                if showsCountdown { HeaderRestSubtitle(rest: rest).fixedSize() }
+            }
+        } else if let equipment = page.equipment {
+            Text(equipment)
+                .foregroundStyle(.secondary)
+                .opacity(showsPageText ? 1 : 0)
+        }
     }
 }
 
@@ -166,36 +211,5 @@ private struct HeaderRestSubtitle: View {
             .foregroundStyle(ready ? Color.green : .orange)
             .animation(.easeInOut(duration: 0.18), value: ready)
         }
-    }
-}
-
-/// Lays out the label at its own size. Mid-swipe it also measures both pages' labels, with the
-/// room the navigation bar offers, and takes a width part way between them.
-private struct SwipeWidthLayout: Layout {
-    let progress: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let label = subviews.first else { return .zero }
-        let size = label.sizeThatFits(proposal)
-        guard subviews.count == 3 else { return size }
-        let from = subviews[1].sizeThatFits(proposal).width
-        let to = subviews[2].sizeThatFits(proposal).width
-        return CGSize(width: from + (to - from) * progress, height: size.height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        subviews.first?.place(at: center, anchor: .center, proposal: proposal)
-        guard subviews.count == 3 else { return }
-
-        // Move complete labels through the capsule like the pages beneath them. Its
-        // interpolated width must never become a line-breaking constraint for either name.
-        let from = subviews[1]
-        let to = subviews[2]
-        let distance = (from.sizeThatFits(.unspecified).width + to.sizeThatFits(.unspecified).width) / 2
-        from.place(at: CGPoint(x: center.x - progress * distance, y: center.y),
-                   anchor: .center, proposal: .unspecified)
-        to.place(at: CGPoint(x: center.x + (1 - progress) * distance, y: center.y),
-                 anchor: .center, proposal: .unspecified)
     }
 }

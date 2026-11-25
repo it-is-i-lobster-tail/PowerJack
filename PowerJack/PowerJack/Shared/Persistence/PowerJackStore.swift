@@ -22,6 +22,7 @@ final class PowerJackStore {
     /// because reading a model after its container closes crashes the app.
     private(set) var isReplacingContainer = false
 
+    let allowsExternalSync: Bool
     private let inMemory: Bool
     @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
     /// What the scheduled tidy-up follows, for the trace.
@@ -34,6 +35,7 @@ final class PowerJackStore {
 
     init(inMemory: Bool = false) {
         self.inMemory = inMemory
+        allowsExternalSync = true
         let savedSetting = UserDefaults.standard.object(forKey: AppSettings.Key.iCloudBackup) as? Bool
         let syncs = !inMemory && (savedSetting ?? AppSettings.Default.iCloudBackup)
         #if DEBUG
@@ -47,7 +49,18 @@ final class PowerJackStore {
         PowerJackSchema.logCloudKitErrors()
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// A separate, local-only simulator database. Its workouts stay off iCloud and paired watches.
+    init(simulatorTrainingContainer: ModelContainer) {
+        self.container = simulatorTrainingContainer
+        inMemory = false
+        syncsWithICloud = false
+        allowsExternalSync = false
+    }
+    #endif
+
     func turnOnICloudBackup() {
+        guard allowsExternalSync else { return }
         TraceLog.record(.iCloud, "iCloud Backup: turning on")
         saveBeforeSwitching()
         switchContainer(syncsWithICloud: true)
@@ -57,6 +70,7 @@ final class PowerJackStore {
     /// Deletes the copy in iCloud, then stops syncing. Data on this iPhone is kept.
     /// If iCloud can't be reached, nothing changes and the error is thrown.
     func turnOffICloudBackup() async throws {
+        guard allowsExternalSync else { return }
         // Saved before the iCloud copy goes, so the save can't upload into it again.
         TraceLog.record(.iCloud, "iCloud Backup: turning off, deleting the iCloud copy")
         saveBeforeSwitching()
@@ -84,6 +98,7 @@ final class PowerJackStore {
 
     /// Whether this iPhone is signed in to iCloud, so backup can actually run.
     func iCloudAccountAvailable() async -> Bool {
+        guard allowsExternalSync else { return false }
         let status = try? await CKContainer(identifier: PowerJackSchema.cloudKitContainerID).accountStatus()
         return status == .available
     }

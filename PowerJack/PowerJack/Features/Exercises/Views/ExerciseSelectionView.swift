@@ -12,101 +12,118 @@ struct ExerciseSelectionView: View {
     @Environment(\.dismiss) private var dismiss
 
     let navigationTitle: String
-    let isExerciseEnabled: (Exercise) -> Bool
+    let mode: ExercisePickerMode
     let onSelect: ((Exercise) -> Void)?
 
-    @Query(sort: \Exercise.exerciseName) private var exercises: [Exercise]
+    @Query private var exercises: [Exercise]
+    @State private var index: ExerciseChartSearch.Index?
     @State private var searchText = ""
+    @State private var muscles: Set<Muscle> = []
     @State private var exerciseToEdit: Exercise?
+    @State private var isCreating = false
+    @State private var isFiltering = false
 
-    private var filteredExercises: [Exercise] {
-        if searchText.isEmpty {
-            return exercises
-        }
-
-        return exercises.filter {
-            $0.exerciseName.localizedStandardContains(searchText) ||
-            $0.equipmentDisplayName.localizedStandardContains(searchText) ||
-            $0.primaryMuscleFocus.rawValue.localizedStandardContains(searchText)
-        }
-    }
-
-    // A search that finds nothing becomes the new exercise's name.
-    private var newExerciseName: String {
-        filteredExercises.isEmpty ? searchText : ""
-    }
-
-    private var emptyTitle: LocalizedStringKey {
-        searchText.isEmpty ? "No exercises" : "No matching exercises"
-    }
-
-    private var emptySystemImage: String {
-        searchText.isEmpty ? "dumbbell" : "magnifyingglass"
-    }
-
-    init(
-        navigationTitle: String,
-        isExerciseEnabled: @escaping (Exercise) -> Bool = { _ in true },
-        onSelect: ((Exercise) -> Void)? = nil
-    ) {
+    init(navigationTitle: String, mode: ExercisePickerMode = .add, onSelect: ((Exercise) -> Void)? = nil) {
         self.navigationTitle = navigationTitle
-        self.isExerciseEnabled = isExerciseEnabled
+        self.mode = mode
         self.onSelect = onSelect
     }
 
     var body: some View {
-        content.traceScreen("Exercise Picker")
-    }
-
-    @ViewBuilder
-    private var content: some View {
+        let results = ExercisePickerResults(exercises: exercises, index: index, query: searchText, muscles: muscles, mode: mode)
         NavigationStack {
-            AddableListScaffold(
-                navigationTitle: LocalizedStringKey(navigationTitle),
-                isEmpty: filteredExercises.isEmpty,
-                emptyTitle: emptyTitle,
-                emptySystemImage: emptySystemImage
-            ) {
-                List(filteredExercises) { exercise in
-                    ExerciseSelectionRow(
-                        exercise: exercise,
-                        isEnabled: isExerciseEnabled(exercise),
-                        onSelect: { selectOrEdit(exercise) }
-                    )
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            edit(exercise)
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
+            List {
+                if !results.suggested.isEmpty {
+                    Section("Suggested") {
+                        ForEach(results.suggested) { exercise in row(exercise) }
                     }
                 }
-            } createDestination: {
-                ExerciseNewView(name: newExerciseName, onSave: handleNewExercise)
+                if !results.named.isEmpty {
+                    Section {
+                        ForEach(results.named) { exercise in row(exercise) }
+                    } header: {
+                        if !results.suggested.isEmpty { Text("Exercises") }
+                    }
+                }
             }
+            .overlay {
+                if results.isEmpty {
+                    if index == nil && !searchText.isEmpty {
+                        ProgressView("Preparing search")
+                    } else {
+                        EmptyStateView(title: searchText.isEmpty && muscles.isEmpty ? "No exercises" : "No matching exercises",
+                                       systemImage: "magnifyingglass")
+                    }
+                }
+            }
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercises")
             .searchPresentationToolbarBehavior(.avoidHidingContent)
             .navigationDestination(item: $exerciseToEdit) { exercise in
-                ExerciseDetailView(
-                    exercise: exercise
-                )
+                ExerciseDetailView(exercise: exercise)
+            }
+            .navigationDestination(isPresented: $isCreating) {
+                ExerciseNewView(name: results.isEmpty ? searchText : "", onSave: handleNewExercise)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(action: dismiss.callAsFunction) {
-                        Image(systemName: "arrow.left")
+                    if mode.isSubstitution {
+                        Button("Cancel", action: dismiss.callAsFunction)
+                    } else {
+                        Button("Close", systemImage: "arrow.left", action: dismiss.callAsFunction)
                     }
-                    .accessibilityLabel("Close")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Filter", systemImage: muscles.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill") {
+                        isFiltering = true
+                    }
+                    .accessibilityValue(muscles.isEmpty ? "All muscles" : "\(muscles.count) selected")
+                }
+                if !mode.isSubstitution {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Add", systemImage: "plus") { isCreating = true }
+                    }
                 }
             }
         }
+        .sheet(isPresented: $isFiltering) {
+            NavigationStack {
+                List {
+                    FilterOptions("All muscles", choices: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
+                                  selected: $muscles, title: { $0.rawValue.capitalized })
+                }
+                .navigationTitle("Filter")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { isFiltering = false }
+                    }
+                }
+            }
+        }
+        .background { ExerciseSearchIndexLoader(index: $index) }
         .scrollEdgeEffectStyle(.soft, for: .all)
+        .traceScreen(mode.isSubstitution ? "Substitute Picker" : "Exercise Picker")
+    }
+
+    @ViewBuilder
+    private func row(_ exercise: Exercise) -> some View {
+        if case .substitute(let workoutExercise) = mode {
+            ExerciseSelectionRow(exercise: exercise, isSelected: exercise === workoutExercise.substitute) {
+                selectOrEdit(exercise)
+            }
+            .buttonStyle(.plain)
+        } else {
+            ExerciseSelectionRow(exercise: exercise) { selectOrEdit(exercise) }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button("Edit", systemImage: "pencil") { edit(exercise) }
+                        .tint(.blue)
+                }
+        }
     }
 
     private func selectOrEdit(_ exercise: Exercise) {
-        guard isExerciseEnabled(exercise) else { return }
-
         guard let onSelect else {
             edit(exercise)
             return
@@ -132,6 +149,7 @@ struct ExerciseSelectionView: View {
 
     ExerciseSelectionView(
         navigationTitle: "Change Exercise",
+        mode: .change(scenario.weekOneWorkouts[2].workoutExercises[0].exercise),
         onSelect: { exercise in
             scenario.weekOneWorkouts[2].workoutExercises[0]
                 .changeExercise(newExercise: exercise)

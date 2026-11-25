@@ -15,6 +15,10 @@ let maxSecondaryMuscles: Int = 4
 final class Exercise {
     var customEquipmentName: String?
     var equipmentDisplayName: String { customEquipmentName ?? equipment.displayName }
+    var movementPattern: MovementPattern?
+    var executionStyle: ExecutionStyle?
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseJointAction.exercise)
+    var jointActions: [ExerciseJointAction]? = []
 
     var catalogID: String? = nil
     var exerciseName: String = ""
@@ -24,6 +28,9 @@ final class Exercise {
     var primaryMuscleFocus: Muscle = Muscle.chest
     var secondaryMusclesValue: [Muscle] = []
     var userCreatedValue: Bool = false
+    // Older stores can contain user-created versions of the two lifts the catalog adopted.
+    // A custom lift created today keeps its own identity even if its name matches either one.
+    var keepsCustomIdentity: Bool = false
     // Rows that use this exercise. Kept so CloudKit has both sides of each link.
     var templateExercisesValue: [TemplateExercise]? = []
     var workoutExercisesValue: [WorkoutExercise]? = []
@@ -73,6 +80,7 @@ final class Exercise {
         self.primaryMuscleFocus = primaryMuscleFocus
         self.secondaryMusclesValue = secondaryMuscles
         self.userCreatedValue = userCreated
+        self.keepsCustomIdentity = userCreated
         self.minRepsValue = minReps
         self.maxRepsValue = maxReps ?? fatigueLevel.defaultMaxReps
         self.fatigueLevelValue = fatigueLevel
@@ -156,7 +164,8 @@ extension Exercise {
             minReps: minRepsValue,
             maxReps: maxRepsValue,
             fatigueLevel: fatigueLevelValue,
-            customRestTime: customRestTimeValue
+            customRestTime: customRestTimeValue,
+            keepsCustomIdentity: keepsCustomIdentity ? true : nil
         )
     }
 
@@ -178,6 +187,7 @@ extension Exercise {
         primaryMuscleFocus = state.primaryMuscle
         secondaryMusclesValue = state.secondaryMuscles
         userCreatedValue = state.userCreated
+        if state.keepsCustomIdentity == true { keepsCustomIdentity = true }
         createdAtValue = state.createdAt.addingTimeInterval(1)
         minRepsValue = state.minReps
         maxRepsValue = state.maxReps
@@ -187,6 +197,9 @@ extension Exercise {
 
     /// Points every row using `duplicate` at this exercise, so `duplicate` can be deleted.
     func takeOverRows(of duplicate: Exercise) {
+        for action in duplicate.jointActions ?? [] {
+            action.exercise = self
+        }
         for row in duplicate.templateExercisesValue ?? [] {
             row.exercise = self
         }

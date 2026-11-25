@@ -42,7 +42,7 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Personalization", settleFor: .milliseconds(600)), "\(screen.labels)")
         let inApp = try #require(screen.label(startingWith: "In-App Timer"), "\(screen.labels)")
         await screen.tap(inApp)
@@ -60,9 +60,8 @@ struct AppScreenTests {
         #expect(store.syncsWithICloud)
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
-        // The sheet can take longer than a fixed wait to slide away on CI.
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(await screen.waitUntil { !screen.contains("Personalization") }, "\(screen.labels)")
     }
 
@@ -77,8 +76,8 @@ struct AppScreenTests {
         let screen = try await HostedView(PowerJackAppContent().environment(store))
         defer { screen.close() }
 
-        await screen.tap("Templates", settleFor: .milliseconds(800))
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
@@ -86,7 +85,7 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: "iCloud Backup") != nil, "Settings closed: \(screen.labels)")
 
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
     }
 
@@ -116,7 +115,7 @@ struct AppScreenTests {
         #expect(screen.contains("Start Workout"), "\(screen.labels)")
 
         // Before the fix, the old page re-rendered on the new container and crashed here.
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
@@ -127,7 +126,7 @@ struct AppScreenTests {
 
         // The new in-memory store is empty, so the screens rebuilt from it show no program.
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
         #expect(!screen.contains("Start Workout"), "\(screen.labels)")
     }
@@ -135,7 +134,7 @@ struct AppScreenTests {
     @Test("Settings lists its groups, and each opens a page holding its settings")
     func settingsGroups() async throws {
         let screen = try await HostedView(
-            SettingsView()
+            NavigationStack { SettingsView() }
                 .modelContainer(container)
                 .environment(PowerJackStore(inMemory: true))
         )
@@ -202,6 +201,9 @@ struct AppScreenTests {
         await screen.adjust(at: 0, increment: false)
         #expect(RestLength.range.contains(.seconds(defaults.integer(forKey: key))), "\(screen.labels)")
         #expect(defaults.integer(forKey: key) < 300, "\(screen.labels)")
+        // Down to 0 min snaps up to the 0:30 floor.
+        for _ in 0 ..< 5 { await screen.adjust(at: 0, increment: false) }
+        #expect(defaults.integer(forKey: key) == 30, "\(screen.labels)")
 
         // Opening another length closes the first.
         let long = try #require(screen.label(startingWith: "Long"))
@@ -218,28 +220,78 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Templates", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
-        await screen.tap("Templates", settleFor: .milliseconds(500))
-        await screen.tap("Programs", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(500))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
     }
 
-    @Test("Volume is empty until a workout is logged, then shows every muscle")
-    func volume() async throws {
+    @Test("Data shows two chart columns and opens the selected chart")
+    func dataTab() async throws {
+        // Each chart remembers its settings, including across a test-host relaunch.
+        let suite = "PowerJackDataTabTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
         let screen = try await HostedView(
             PowerJackRootView()
+                .defaultAppStorage(defaults)
                 .modelContainer(container)
                 .environment(PowerJackStore(inMemory: true))
         )
         defer { screen.close() }
 
-        await screen.tap("Volume")
-        #expect(await screen.waitUntil { screen.contains("No workouts yet") }, "\(screen.labels)")
+        await screen.selectTab("Data")
+        let left = TrainingStudy.legWork.genericName
+        let right = TrainingStudy.armReps.genericName
+        try #require(await screen.waitUntil { screen.contains(left) && screen.contains(right) })
+        let first = try #require(screen.frame(of: left))
+        let second = try #require(screen.frame(of: right))
+        #expect(first.midX < second.midX)
+        #expect(abs(first.minY - second.minY) < 2)
+        try #require(await screen.tap(right))
+        #expect(await screen.waitUntil { screen.contains(TrainingStudy.armReps.caption) })
+        #expect(await screen.waitUntil { screen.contains("No matching history") })
+        #expect(screen.contains("How to Read"))
+        #expect(screen.label(startingWith: "For example,") == nil)
+        try #require(await screen.tap("How to Read"))
+        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") != nil })
+        try #require(await screen.tap("How to Read"))
+        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") == nil })
+        try #require(await screen.goBack())
+        #expect(screen.contains(left))
+    }
 
-        container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
-        #expect(await screen.waitUntil { screen.contains("Chest") }, "\(screen.labels)")
-        #expect(screen.contains("Hamstrings"), "\(screen.labels)")
+    @Test("A fresh gallery opens each card with its own saved view")
+    func rememberedChartViews() async throws {
+        let suite = "PowerJackSavedChartTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let reps = StudyOptions(period: .year(2025), muscles: [.biceps])
+        let credits = StudyOptions(period: .year(2026), muscles: [.quads])
+        var data = try SavedStudyViews(data: Data()).saving(reps, for: .armReps)
+        data = try SavedStudyViews(data: data).saving(credits, for: .legWork)
+        defaults.set(data, forKey: SavedStudyViews.storageKey)
+        let history = StudyHistory(programs: [], archive: [], logs: [], unit: .pounds)
+        let repsTitle = history.result(for: .armReps, options: reps).displayTitle
+        let creditsTitle = history.result(for: .legWork, options: credits).displayTitle
+        func gallery() async throws -> HostedView {
+            try await HostedView(ProgramDataView().defaultAppStorage(defaults).modelContainer(container))
+        }
+
+        do {
+            let first = try await gallery()
+            defer { first.close() }
+            try #require(await first.tap(repsTitle))
+            #expect(await first.waitUntil { first.contains(repsTitle) && first.contains("How to Read") })
+        }
+        let reset = try SavedStudyViews(data: data).saving(StudyOptions(), for: .armReps)
+        defaults.set(reset, forKey: SavedStudyViews.storageKey)
+        let reopened = try await gallery()
+        defer { reopened.close() }
+        #expect(reopened.contains(TrainingStudy.armReps.genericName))
+        try #require(await reopened.tap(creditsTitle))
+        #expect(await reopened.waitUntil { reopened.contains(creditsTitle) && reopened.contains("How to Read") })
     }
 
     @Test("The template builder adds exercises from the catalog")
@@ -279,18 +331,18 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
-    @Test("Both swipes on an exercise row show Superset | Edit | Trash, and a full swipe right supersets")
+    @Test("Both swipes on an exercise row show Superset | Edit | Change | Trash, and a full swipe right supersets")
     func exerciseRowSwipeActions() {
         let leading = ExerciseRowAction.actions(isLogged: false, from: .leading)
         let trailing = ExerciseRowAction.actions(isLogged: false, from: .trailing)
-        #expect(leading == [.superset, .edit, .trash])
+        #expect(leading == [.superset, .edit, .change, .trash])
         // The trailing edge lists from the right, so on screen it reads the same left to right.
         #expect(Array(trailing.reversed()) == leading)
         #expect(leading.first == .superset, "A full swipe right runs the first leading action")
         #expect(trailing.first == .trash)
     }
 
-    @Test("A logged exercise's swipes show Superset and Edit but never Trash")
+    @Test("A logged exercise's swipes show Superset and Edit but never Change or Trash")
     func loggedExerciseRowSwipeActions() {
         #expect(ExerciseRowAction.actions(isLogged: true, from: .leading) == [.superset, .edit])
         #expect(ExerciseRowAction.actions(isLogged: true, from: .trailing) == [.edit, .superset])

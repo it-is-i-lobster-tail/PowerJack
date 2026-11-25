@@ -19,8 +19,11 @@ enum AppSettings {
         static let liftPattern = "settings.restTimer.liftPattern"
         static let iCloudBackup = "settings.iCloudBackup"
         static let hints = "settings.hints"
+        static let workoutReminders = "settings.workoutReminders.enabled"
+        static let workoutReminderEveningMinute = "settings.workoutReminders.eveningMinute"
         static let weightUnit = "settings.weightUnit"
         static let appearance = "settings.appearance"
+        static let developerTools = "developer.toolsEnabled"
     }
 
     enum Default {
@@ -36,5 +39,6 @@ enum AppSettings {
         static let liftPattern = HapticPattern.shortShortLong
         static let iCloudBackup = true
         static let hints = true
+        static let developerTools = false
     }
 }

@@ -9,6 +9,24 @@
 import Foundation
 
 extension Workout {
+    /// The supersets in order. Each gets a letter by its place: A for the first, then B, and so on.
+    var supersets: [[WorkoutExercise]] { exerciseGroups.filter { $0.count > 1 } }
+
+    /// The superset with this ID, or nil once it has ended.
+    func superset(_ supersetID: UUID) -> [WorkoutExercise]? {
+        supersets.first { $0[0].supersetID == supersetID }
+    }
+
+    /// "A" for the workout's first superset, "B" for the second, and so on.
+    func supersetLetter(for superset: [WorkoutExercise]) -> String {
+        Self.supersetLetter(at: supersets.firstIndex { $0.first === superset.first } ?? 0)
+    }
+
+    static func supersetLetter(at index: Int) -> String {
+        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init)
+        return letters[min(index, letters.count - 1)]
+    }
+
     /// The exercises in order, with each superset's exercises together. Only exercises next to each
     /// other with the same superset ID form one, so a lone ID is just an exercise on its own.
     var exerciseGroups: [[WorkoutExercise]] {
@@ -46,6 +64,12 @@ extension Workout {
 }
 
 extension WorkoutExercise {
+    /// Where this exercise's superset sits in the workout: 0 for A, 1 for B. Nil when it stands alone.
+    var supersetIndex: Int? {
+        guard supersetID != nil, let workout = workoutValue else { return nil }
+        return workout.supersets.firstIndex { $0.contains { $0 === self } }
+    }
+
     /// The other exercises in this exercise's superset, in order. Empty when it stands alone.
     var supersetPartners: [WorkoutExercise] {
         guard supersetID != nil, let workout = workoutValue else { return [] }

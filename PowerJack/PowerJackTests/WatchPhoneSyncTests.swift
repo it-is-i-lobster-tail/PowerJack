@@ -67,6 +67,23 @@ struct SetRefereeTests {
 struct WatchPhoneSyncTests {
     private let t0 = Date.now.addingTimeInterval(-3600)
 
+    @Test("A paused workout reaches the watch and resumes with the same elapsed pause")
+    func pauseAndResume() throws {
+        let devices = try TwoDevices()
+        let workout = try #require(try devices.phoneProgram.nextWorkout)
+        workout.start(at: t0)
+        workout.pause(at: t0 + 60)
+        try devices.sendProgram()
+        let watchWorkout = try #require(try devices.watchProgram.nextWorkout)
+        #expect(watchWorkout.isPaused)
+        #expect(watchWorkout.pausedAt == workout.pausedAt)
+
+        workout.resume(at: t0 + 90)
+        try devices.sendProgram()
+        #expect(!watchWorkout.isPaused)
+        #expect(watchWorkout.pausedSeconds == 30)
+    }
+
     @Test("A watch that never synced through iCloud gets the running program straight from the iPhone")
     func watchGetsProgram() throws {
         let devices = try TwoDevices()
@@ -313,6 +330,7 @@ struct WatchPhoneSyncTests {
             actions.start(dayOne, in: watchProgram, at: t0.addingTimeInterval(86_400))
             let set = try #require(exercise.nextSet)
             var entry = SetEntry(for: set, unit: .pounds)
+            if entry.reps == nil { entry.reps = 8 }
             if entry.weightTenthsPounds == nil { entry.weight = 100 }
             actions.log(entry, on: set, of: exercise, at: t0.addingTimeInterval(86_460))
             return set
@@ -396,6 +414,23 @@ struct WatchPhoneSyncTests {
         #expect(phoneReceipts.map(\.device) == [SyncDevice.watch, SyncDevice.iPhone])
         #expect(phoneReceipts[0].setID == watchSet.syncID)
         #expect(phoneReceipts[0].sessionID == watchExercise.workoutValue?.syncID)
+    }
+
+    @Test("Skipping a workout on the watch keeps logged sets and syncs its skipped status")
+    func watchSkipsPartlyLoggedWorkout() throws {
+        let (devices, set, exercise) = try startedOnWatch()
+        let program = try devices.watchProgram
+        let workout = try #require(exercise.workoutValue)
+        let phoneSet = try devices.onPhone(set)
+        logOnWatch(devices, set, of: exercise, reps: 8, at: t0)
+
+        devices.onWatch { $0.skip(workout, in: program) }
+        #expect(workout.status == .skipped)
+        try devices.sendChanges()
+
+        #expect(phoneSet.status == .complete)
+        #expect(phoneSet.reps == 8)
+        #expect(phoneSet.workoutExerciseValue?.workoutValue?.status == .skipped)
     }
 
     @Test("Finishing on the watch with an exercise partly logged asks its feedback first, and the iPhone keeps it")

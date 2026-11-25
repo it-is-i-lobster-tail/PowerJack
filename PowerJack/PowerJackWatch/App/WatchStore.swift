@@ -99,7 +99,15 @@ final class WatchStore {
     /// The catalog isn't seeded here: everything the watch shows comes from the iPhone.
     private static func makeContainer(syncsWithICloud: Bool) -> ModelContainer {
         do {
-            return try PowerJackSchema.makeModelContainer(inMemory: runsInPreviews, syncsWithICloud: syncsWithICloud)
+            let container = try PowerJackSchema.makeModelContainer(inMemory: runsInPreviews, syncsWithICloud: syncsWithICloud)
+            let context = container.mainContext
+            do {
+                if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
+            } catch {
+                context.rollback()
+                Logger.sync.error("Could not upgrade exercise metadata: \(error.localizedDescription)")
+            }
+            return container
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")
         }

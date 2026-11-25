@@ -67,17 +67,15 @@ struct SubstituteTests {
         #expect(bench.workingSets.map(\.weightTenthsPounds) == [1850, 1850])
     }
 
-    @Test("Options share the planned exercise's primary muscle, sorted by name, without the planned one")
-    func options() throws {
+    @Test("A cross-muscle substitute can be selected and undone")
+    func crossMuscleSubstitute() throws {
         let bench = try startedBench(plannedPounds: 185)
-        let all = try context.fetch(FetchDescriptor<Exercise>())
-
-        let options = bench.substituteOptions(from: all)
-
-        #expect(!options.isEmpty)
-        #expect(options.allSatisfy { $0.primaryMuscleFocus == .chest })
-        #expect(!options.contains { $0 === bench.exercise })
-        #expect(options.map(\.exerciseName) == options.map(\.exerciseName).sorted { $0.localizedStandardCompare($1) == .orderedAscending })
+        let squat = try exercise("smith-machine-squat")
+        bench.substitute(with: squat)
+        #expect(bench.shownExercise === squat)
+        bench.undoSubstitute()
+        #expect(bench.shownExercise === bench.exercise)
+        #expect(bench.workingSets.map(\.weightTenthsPounds) == [1850, 1850])
     }
 
     @Test("Substitute and Undo are offered only until a working set is logged")
@@ -225,7 +223,7 @@ struct SubstituteTests {
         workout.startAndCascade()
         let phoneRow = workout.workoutExercises[0]
         let original = try #require(phoneRow.exercise)
-        let substitute = try #require(phoneRow.substituteOptions(from: try devices.phoneContext.fetch(FetchDescriptor<Exercise>())).first)
+        let substitute = try #require(try devices.phoneContext.fetch(FetchDescriptor<Exercise>()).first { $0 !== original })
         phoneRow.substitute(with: substitute)
         try devices.phoneContext.save()
 

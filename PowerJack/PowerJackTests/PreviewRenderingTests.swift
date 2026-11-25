@@ -63,7 +63,7 @@ final class PreviewRenderingTests: XCTestCase {
                 workoutExercise: progression.checkInExercise,
                 onResolved: {}
             ).modelContainer(progression.container))),
-            ("Settings", AnyView(SettingsView().environment(settingsStore))),
+            ("Settings", AnyView(NavigationStack { SettingsView() }.environment(settingsStore))),
             ("Personalization", AnyView(NavigationStack { PersonalizationSettingsView() })),
             ("My Gym", AnyView(NavigationStack { MyGymSettingsView() })),
             ("Appearance", AnyView(NavigationStack { AppearanceSettingsView() })),

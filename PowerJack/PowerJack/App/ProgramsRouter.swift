@@ -12,6 +12,7 @@ enum ProgramRoute: Hashable {
     case newProgram
     case detail(Program)
     case session(Program)
+    case preview(Program, Workout, WorkoutReminders.Highlight?)
     case completedWorkout(Program, Workout)
     case editDays(Program)
 }
@@ -21,6 +22,8 @@ final class ProgramsRouter {
     var path: [ProgramRoute] = []
     /// Bumped to ask the open workout to scroll back to its current exercise.
     private(set) var currentExerciseRequest = 0
+    /// Retain the destination until the live workout appears, including when the timer opens it from another tab.
+    @ObservationIgnored private var requestedWorkoutID: PersistentIdentifier?
 
     func showNewProgram() {
         path.append(.newProgram)
@@ -32,6 +35,10 @@ final class ProgramsRouter {
 
     func showSession(_ program: Program) {
         path.append(.session(program))
+    }
+
+    func showPreview(_ workout: Workout, in program: Program, highlight: WorkoutReminders.Highlight? = nil) {
+        path = [.detail(program), .preview(program, workout, highlight)]
     }
 
     func showEditDays(_ program: Program) {
@@ -66,11 +73,26 @@ final class ProgramsRouter {
 
     /// Opens the active program's workout on the exercise the user should be doing now.
     func showCurrentExercise(of activeProgram: Program) {
+        requestedWorkoutID = activeProgram.nextWorkout?.persistentModelID
         let sessionPath: [ProgramRoute] = [.detail(activeProgram), .session(activeProgram)]
         if path != sessionPath {
             path = sessionPath
         }
         currentExerciseRequest += 1
+    }
+
+    /// Resolve against the current set so the member stays correct if a superset was reordered.
+    func requestedExerciseIndex(in workout: Workout) -> Int? {
+        guard requestedWorkoutID == workout.persistentModelID else { return nil }
+        if let next = workout.currentSet?.workoutExercise,
+           let index = workout.workoutExercises.firstIndex(of: next) {
+            return index
+        }
+        return workout.allExercisesFinished ? workout.workoutExercises.count : workout.currentExerciseIndex
+    }
+
+    func didShowRequestedExercise() {
+        requestedWorkoutID = nil
     }
 
     func popToRoot() {
@@ -89,7 +111,9 @@ extension View {
                 ProgramDetailView(program: program)
             case .session(let program):
                 ProgramSessionView(program: program)
-            case .completedWorkout(let program, let workout):
+            case .preview(let program, let workout, let highlight):
+                PreviewWorkoutView(program: program, workout: workout, highlight: highlight)
+            case .completedWorkout(_, let workout):
                 WorkoutDetailView(workout: workout, isReadOnly: true)
             case .editDays(let program):
                 ProgramLayoutView(program: program)

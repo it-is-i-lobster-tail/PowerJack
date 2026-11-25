@@ -19,6 +19,7 @@ final class WorkoutMirroring: NSObject {
 
     private let healthStore = HKHealthStore()
     private var session: HKWorkoutSession?
+    var workoutIsPaused: (() -> Bool)?
 
     private static var configuration: HKWorkoutConfiguration {
         let configuration = HKWorkoutConfiguration()
@@ -28,10 +29,12 @@ final class WorkoutMirroring: NSObject {
     }
 
     #if os(watchOS)
-    private static let askedForHealthKey = "sync.askedForHealth"
+    private var heartRateQuery: Task<Void, Never>?
 
     /// Takes the program the iPhone sent back. Set by `WatchSync`.
     var onData: ((Data) -> Void)?
+
+    private var pendingStart: UUID?
 
     /// Whether the session runs and reaches the iPhone.
     private(set) var isMirroring = false
@@ -39,24 +42,31 @@ final class WorkoutMirroring: NSObject {
     /// Starts the session for the workout on screen, or picks up the one running before the app relaunched.
     func begin() async {
         // A session the iPhone just ended, by Pause Workout or closing PowerJack, may not have said so yet.
-        if session?.state == .ended { session = nil }
-        guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
+        if let session, session.state == .ended { ended(session) }
+        guard HKHealthStore.isHealthDataAvailable(), workoutIsPaused?() != true,
+              session == nil, pendingStart == nil else { return }
+        let startID = UUID()
+        pendingStart = startID
+        defer { if pendingStart == startID { pendingStart = nil } }
         do {
+            // HealthKit prompts only for types the user hasn't already considered.
+            try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()],
+                                                       read: [HKQuantityType(.heartRate)])
             if let recovered = try await healthStore.recoverActiveWorkoutSession() {
+                guard pendingStart == startID, workoutIsPaused?() != true else {
+                    if workoutIsPaused?() == true { recovered.end() }
+                    return
+                }
                 adopt(recovered)
                 return
             }
-            // Asked once, as the first workout opens. Without permission the link works on its own.
-            if !UserDefaults.standard.bool(forKey: Self.askedForHealthKey) {
-                UserDefaults.standard.set(true, forKey: Self.askedForHealthKey)
-                try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [])
-            }
+            guard pendingStart == startID, workoutIsPaused?() != true else { return }
             guard healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized else { return }
             let session = try HKWorkoutSession(healthStore: healthStore, configuration: Self.configuration)
             adopt(session)
             session.startActivity(with: .now)
             try await session.startMirroringToCompanionDevice()
-            isMirroring = true
+            if self.session === session { isMirroring = true }
         } catch {
             // Health permission declined, or no iPhone to mirror to: the link still works without it.
             Logger.sync.info("Workout session not mirrored: \(error.localizedDescription)")
@@ -66,6 +76,9 @@ final class WorkoutMirroring: NSObject {
 
     /// Ends the session once the workout is finished.
     func end() {
+        pendingStart = nil
+        heartRateQuery?.cancel()
+        WorkoutHeartRate.shared.clear()
         session?.end()
         session = nil
         isMirroring = false
@@ -75,6 +88,32 @@ final class WorkoutMirroring: NSObject {
         session.delegate = self
         self.session = session
         isMirroring = session.state == .running
+        heartRateQuery?.cancel()
+        WorkoutHeartRate.shared.clear()
+        let start = max(session.startDate ?? .now, Date.now.addingTimeInterval(-10))
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)
+        let query = HKAnchoredObjectQueryDescriptor(predicates: [
+            .quantitySample(type: HKQuantityType(.heartRate), predicate: predicate)
+        ], anchor: nil)
+        heartRateQuery = Task {
+            do {
+                for try await update in query.results(for: healthStore) {
+                    guard !Task.isCancelled, self.session === session else { return }
+                    let unit = HKUnit.count().unitDivided(by: .minute())
+                    let cutoff = Date.now.addingTimeInterval(-10)
+                    let samples = update.addedSamples.filter { $0.endDate > cutoff }.map {
+                        HeartRateSample(id: $0.uuid, date: $0.endDate, bpm: $0.quantity.doubleValue(for: unit))
+                    }
+                    guard !samples.isEmpty else { continue }
+                    WorkoutHeartRate.shared.receive(samples)
+                    if let data = try? JSONEncoder().encode(HeartRatePacket(heartRateSamples: samples)) {
+                        _ = await send(data)
+                    }
+                }
+            } catch {
+                Logger.sync.debug("Heart rate collection stopped")
+            }
+        }
     }
     #else
     /// Applies the watch's changes and answers with the program. Set by `PhoneSync`.
@@ -90,7 +129,13 @@ final class WorkoutMirroring: NSObject {
     }
 
     private func adopt(_ session: HKWorkoutSession) {
+        // The watch can finish mirroring after Pause Workout has already been tapped.
+        guard workoutIsPaused?() != true else {
+            session.end()
+            return
+        }
         session.delegate = self
+        WorkoutHeartRate.shared.clear()
         self.session = session
     }
 
@@ -100,6 +145,7 @@ final class WorkoutMirroring: NSObject {
     func endWatchWorkout() {
         guard let session else { return }
         TraceLog.record(.watch, "Ended the watch's workout session")
+        WorkoutHeartRate.shared.clear()
         session.end()
         self.session = nil
     }
@@ -137,6 +183,10 @@ final class WorkoutMirroring: NSObject {
         #if os(watchOS)
         onData?(data)
         #else
+        if let packet = try? JSONDecoder().decode(HeartRatePacket.self, from: data) {
+            WorkoutHeartRate.shared.receive(packet.heartRateSamples)
+            return
+        }
         if let answer = onData?(data) {
             _ = await send(answer)
         }
@@ -146,7 +196,9 @@ final class WorkoutMirroring: NSObject {
     private func ended(_ ended: HKWorkoutSession) {
         guard ended === session else { return }
         session = nil
+        WorkoutHeartRate.shared.clear()
         #if os(watchOS)
+        heartRateQuery?.cancel()
         isMirroring = false
         #endif
     }
@@ -162,6 +214,7 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
         let failure = error.localizedDescription
         let traced = TraceLog.describe(error)
         Task { @MainActor in
+            self.ended(workoutSession)
             Logger.sync.error("Workout session failed: \(failure)")
             TraceLog.record(.watch, "Workout session failed: \(traced)")
         }
@@ -169,6 +222,7 @@ extension WorkoutMirroring: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
         Task { @MainActor in
+            guard self.session === workoutSession else { return }
             for item in data {
                 await self.received(item)
             }

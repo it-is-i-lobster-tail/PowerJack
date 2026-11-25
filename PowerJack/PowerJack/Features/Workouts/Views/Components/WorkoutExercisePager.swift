@@ -19,8 +19,9 @@ struct WorkoutExercisePager: View {
     /// Goes up when the selected exercise is tapped again in the strip, to bring its page back.
     var pageRequests = 0
     let pageScroll: ExercisePageScroll
-    /// Room for the bars over the pages. Each page scrolls under them but comes to rest inside.
-    var pageInsets = EdgeInsets()
+    let topInset: CGFloat
+    let controlsHidden: Bool
+    @Environment(IdleControls.self) private var idleControls: IdleControls?
 
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var pagerPosition = ScrollPosition()
@@ -35,15 +36,14 @@ struct WorkoutExercisePager: View {
                         focusedSetField: focusedSetField,
                         workoutExercise: workoutExercises[index]
                     )
-                        .safeAreaPadding(pageInsets)
+                        .safeAreaPadding(.top, topInset)
                         .containerRelativeFrame(.horizontal)
                         .id(index)
                 }
 
                 if let review {
                     review
-                        .safeAreaPadding(pageInsets)
-                        .safeAreaPadding(.top, LayoutMetrics.compactSpacing)
+                        .safeAreaPadding(.top, topInset + LayoutMetrics.compactSpacing)
                         .containerRelativeFrame(.horizontal)
                         .id(workoutExercises.count)
                 }
@@ -57,9 +57,17 @@ struct WorkoutExercisePager: View {
             if newPhase == .tracking || newPhase == .interacting {
                 pageScroll.isDrivenByStrip = false
             }
+            if newPhase == .interacting, pageScroll.swipeStartPage == nil {
+                pageScroll.swipeStartPage = selectedExerciseIndex
+            }
+            defer {
+                if newPhase == .idle || newPhase == .animating { pageScroll.swipeStartPage = nil }
+            }
             guard !pageScroll.isDrivenByStrip, newPhase == .idle,
                   oldPhase == .interacting || oldPhase == .decelerating else { return }
-            selectedExerciseIndex = Int(Self.pagePosition(context.geometry).rounded())
+            let destination = Int(Self.pagePosition(context.geometry).rounded())
+            if destination != selectedExerciseIndex, controlsHidden { idleControls?.show() }
+            selectedExerciseIndex = destination
         }
         .onScrollGeometryChange(for: CGFloat.self, of: Self.pagePosition) { _, position in
             if !pageScroll.isDrivenByStrip { pageScroll.position = position }
@@ -75,8 +83,7 @@ struct WorkoutExercisePager: View {
         .onScrollGeometryChange(for: [CGFloat].self, of: Self.layoutKey) { _, _ in
             if scrollPhase == .idle && !pageScroll.stripPhase.isScrolling { scrollToSelection(animated: false) }
         }
-        // A superset change moves exercises between pages. The pages are keyed by position, so the pager
-        // starts fresh on the selected page instead of keeping its old scroll state and each page's state.
+        // Rebuild positional scroll targets when the exercise order changes.
         .id(workoutExercises.map(\.persistentModelID))
     }
 

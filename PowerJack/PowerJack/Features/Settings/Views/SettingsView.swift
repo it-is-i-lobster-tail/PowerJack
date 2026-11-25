@@ -8,77 +8,68 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
+    private enum Page: Hashable {
+        case personalization, myGym, appearance, importData, yourData, faq, legal, developerTool
+    }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    NavigationLink {
-                        AppearanceSettingsView()
-                    } label: {
-                        SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
-                    }
-
-                    NavigationLink {
-                        List {
-                            NavigationLink("FitNotes CSV Import") { FitNotesImportView() }
-                        }
-                        .navigationTitle("Import")
-                    } label: {
-                        SettingsGroupLabel(title: "Import", systemImage: "square.and.arrow.down")
-                    }
-
-                    NavigationLink {
-                        MyGymSettingsView()
-                    } label: {
-                        SettingsGroupLabel(title: "My Gym", systemImage: "dumbbell")
-                    }
-
-                    NavigationLink {
-                        PersonalizationSettingsView()
-                    } label: {
-                        SettingsGroupLabel(title: "Personalization", systemImage: "slider.horizontal.3")
-                    }
-
-                    NavigationLink {
-                        YourDataSettingsView()
-                    } label: {
-                        SettingsGroupLabel(title: "Your Data", systemImage: "externaldrive")
-                    }
+        Form {
+            Section {
+                NavigationLink(value: Page.appearance) {
+                    SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
                 }
 
-                Section {
-                    NavigationLink {
-                        FAQView()
-                    } label: {
-                        SettingsGroupLabel(title: "FAQ", systemImage: "questionmark.circle")
-                    }
-
-                    NavigationLink {
-                        LegalSettingsView()
-                    } label: {
-                        SettingsGroupLabel(title: "Legal", systemImage: "doc.text")
-                    }
+                NavigationLink(value: Page.importData) {
+                    SettingsGroupLabel(title: "Import", systemImage: "square.and.arrow.down")
                 }
 
-                Section {
-                    NavigationLink {
-                        DeveloperToolView()
-                    } label: {
-                        SettingsGroupLabel(title: "Developer Tools", systemImage: "ladybug")
-                    }
+                NavigationLink(value: Page.myGym) {
+                    SettingsGroupLabel(title: "My Gym", systemImage: "dumbbell")
+                }
+
+                NavigationLink(value: Page.personalization) {
+                    SettingsGroupLabel(title: "Personalization", systemImage: "slider.horizontal.3")
+                }
+
+                NavigationLink(value: Page.yourData) {
+                    SettingsGroupLabel(title: "Your Data", systemImage: "externaldrive")
                 }
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: dismiss.callAsFunction)
+
+            Section {
+                NavigationLink(value: Page.faq) {
+                    SettingsGroupLabel(title: "FAQ", systemImage: "questionmark.circle")
+                }
+
+                NavigationLink(value: Page.legal) {
+                    SettingsGroupLabel(title: "Legal", systemImage: "doc.text")
+                }
+            }
+
+            Section {
+                NavigationLink(value: Page.developerTool) {
+                    SettingsGroupLabel(title: "Developer Tools", systemImage: "ladybug")
                 }
             }
         }
-        .scrollEdgeEffectStyle(.soft, for: .all)
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: Page.self) { page in
+            switch page {
+            case .personalization: PersonalizationSettingsView()
+            case .myGym: MyGymSettingsView()
+            case .appearance: AppearanceSettingsView()
+            case .importData:
+                List {
+                    NavigationLink("FitNotes CSV Import") { FitNotesImportView() }
+                }
+                .navigationTitle("Import")
+            case .yourData: YourDataSettingsView()
+            case .faq: FAQView()
+            case .legal: LegalSettingsView()
+            case .developerTool: DeveloperToolView()
+            }
+        }
     }
 }
 
@@ -119,6 +110,6 @@ struct SettingsRowLabel: View {
 }
 
 #Preview("Settings") {
-    SettingsView()
+    NavigationStack { SettingsView() }
         .environment(PowerJackStore(inMemory: true))
 }

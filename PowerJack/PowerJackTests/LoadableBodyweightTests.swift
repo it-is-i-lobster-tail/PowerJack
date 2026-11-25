@@ -130,7 +130,11 @@ struct LoadableBodyweightTests {
     func watchEntry() throws {
         let workoutExercise = try makeWorkout(.loadableBodyweight, sets: [(8, nil), (8, nil)]).workoutExercise
         let first = try #require(workoutExercise.workingSets.first)
+        #expect(SetEntry(for: first, unit: .pounds).weightText == "BW")
+        first.weightTenthsPounds = nil
         var entry = SetEntry(for: first, unit: .pounds)
+        #expect(entry.weight == nil && entry.weightText == "—")
+        entry.weightSteps += 1
         #expect(entry.weight == 0 && entry.weightText == "BW" && entry.weightTenthsPounds == 0)
 
         workoutExercise.log(entry, on: first)
@@ -195,6 +199,7 @@ struct LoadableBodyweightTests {
     func adoptsOwnCopy() throws {
         let context = container.mainContext
         let own = Exercise(exerciseName: "weighted pullups", exerciseEquipment: .bodyweight, primaryMuscleFocus: .biceps, userCreated: true, minReps: 6, maxReps: 10)
+        own.keepsCustomIdentity = false // Legacy row from before the catalog shipped weighted pull-ups.
         own.customRestTime = 150
         own.assignSyncID()
         let notIt = Exercise(exerciseName: "Weighted Pull-Up Negatives", exerciseEquipment: .bodyweight, primaryMuscleFocus: .back, userCreated: true)
@@ -234,6 +239,7 @@ struct LoadableBodyweightTests {
 
         // An older device's own exercise, made long before, with a workout logged on it.
         let imported = Exercise(exerciseName: "Weighted Dips", exerciseEquipment: .dumbbell, primaryMuscleFocus: .triceps, userCreated: true)
+        imported.keepsCustomIdentity = false // An older device's record lacks this field.
         imported.createdAtValue = Date(timeIntervalSinceReferenceDate: 700_000_000)
         context.insert(imported)
         let (workout, sets) = try makeWorkout(imported, sets: [(10, 250)])

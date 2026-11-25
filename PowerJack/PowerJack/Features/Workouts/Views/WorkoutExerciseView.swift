@@ -61,6 +61,7 @@ struct WorkoutExerciseView: View {
             // Room below the bar, inside the scroll content so the system's soft fade under the bar
             // doesn't reach the first line.
             .padding(.top, 26)
+            .padding(.bottom, LayoutMetrics.compactSpacing)
         }
         // The number pad slides over the sets, so the one being typed in scrolls up above it.
         .keepsFocusAboveKeyboard(focusedSetField.wrappedValue?.setID)
@@ -85,12 +86,6 @@ struct WorkoutExerciseView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if let supersetText, let index = workoutExercise.supersetIndex {
-                Label(supersetText, systemImage: "link")
-                    .font(.caption)
-                    .foregroundStyle(SupersetStyle.color(at: index))
-                    .accessibilityLabel(SupersetStyle.fullLabel(partners: supersetPartnerNames))
-            }
             if workoutExercise.checkInPending {
                 Label("Check-in required", systemImage: "cross.case")
                     .font(.caption)
@@ -104,17 +99,6 @@ struct WorkoutExerciseView: View {
     private var substituteText: String? {
         guard workoutExercise.substitute != nil, let planned = workoutExercise.exercise else { return nil }
         return "Sub for \(planned.exerciseName) · this week"
-    }
-
-    /// e.g. "Superset with Skull Crusher", or "Superset B" when the names are too long.
-    private var supersetText: String? {
-        let partners = supersetPartnerNames
-        guard !partners.isEmpty, let index = workoutExercise.supersetIndex else { return nil }
-        return SupersetStyle.label(letter: Workout.supersetLetter(at: index), partners: partners)
-    }
-
-    private var supersetPartnerNames: [String] {
-        workoutExercise.supersetPartners.compactMap { $0.shownExercise?.exerciseName }
     }
 
     private var warmupGroup: some View {
@@ -158,7 +142,8 @@ struct WorkoutExerciseView: View {
     }
 
     private func setRows(_ sets: [WorkoutSet]) -> some View {
-        VStack(spacing: LayoutMetrics.compactSpacing) {
+        let currentSet = workoutExercise.supersetID == nil ? nil : workoutExercise.workoutValue?.currentSet?.workoutSet
+        return VStack(spacing: LayoutMetrics.compactSpacing) {
             ForEach(sets) { workoutSet in
                 WorkoutSetView(
                     focusedSetField: focusedSetField,
@@ -173,6 +158,15 @@ struct WorkoutExerciseView: View {
                 )
                 .frame(width: screenWidth * 0.88)
                 .frame(minHeight: setRowHeight)
+                .overlay(alignment: .leading) {
+                    if workoutSet === currentSet {
+                        Capsule()
+                            .fill(workoutExercise.supersetColor ?? .accentColor)
+                            .frame(width: 3)
+                            .padding(.vertical, 8)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .id(workoutSet.id)
 
                 if workoutExercise.needsTopSetRating, workoutExercise.isLastTopSet(workoutSet) {

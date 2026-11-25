@@ -125,6 +125,7 @@ struct FeedbackAnsweredOnceTests {
             actions.start(workout, in: watchProgram, at: t0)
             for (index, workoutSet) in workoutExercise.workingSets.enumerated() {
                 var entry = SetEntry(for: workoutSet, unit: .pounds)
+                if entry.reps == nil { entry.reps = 8 }
                 if entry.weightTenthsPounds == nil { entry.weight = 100 }
                 actions.log(entry, on: workoutSet, of: workoutExercise, at: t0.addingTimeInterval(Double(index + 1) * 60))
             }

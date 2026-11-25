@@ -122,10 +122,12 @@ struct WorkoutScreenTests {
         await screen.tap("Set 1")
 
         // Over to Review with set 2 still to do, and finish.
-        await screen.tap("Review", settleFor: .milliseconds(800))
-        await screen.tap("Finish Workout", settleFor: .milliseconds(800))
-        await screen.tap("Skip and Finish", settleFor: .milliseconds(800))
-        #expect(screen.contains("Level of Pain"), "\(screen.labels)")
+        try #require(await screen.tap("Review"))
+        try #require(await screen.waitUntil { screen.contains("Finish Workout") }, "\(screen.labels)")
+        try #require(await screen.tap("Finish Workout"))
+        try #require(await screen.waitUntil { screen.contains("Skip and Finish") }, "\(screen.labels)")
+        try #require(await screen.tap("Skip and Finish"))
+        try #require(await screen.waitUntil { screen.contains("Level of Pain") }, "\(screen.labels)")
         #expect(workout.status == .active)
 
         // The answers save straight away, and then the workout finishes.

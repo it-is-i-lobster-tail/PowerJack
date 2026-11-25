@@ -48,22 +48,33 @@ struct RestTimerLiveActivity: Widget {
                         .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                PowerJackMark()
-                    .frame(height: 16)
-                    .padding(.leading, 2)
-            } compactTrailing: {
-                switch phase {
-                case .resting:
-                    RestStatus(phase: phase)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: 44)
-                case .ready:
-                    RestStatus(phase: phase)
-                        .font(.caption.weight(.semibold))
-                case .none:
-                    Text(state.shortSetText)
-                        .font(.caption.weight(.semibold))
+                VStack(alignment: .leading, spacing: 0) {
+                    CompactRestStatus(phase: phase)
+                    if let bpm = state.heartRateBPM {
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart")
+                                .foregroundStyle(.pink)
+                                .frame(width: 14)
+                            Text("\(bpm) BPM")
+                                .monospacedDigit()
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .lineLimit(1)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Heart rate, \(bpm) beats per minute")
+                    }
                 }
+                .padding(.leading, 7)
+            } compactTrailing: {
+                VStack(alignment: .trailing, spacing: 0) {
+                    CompactExerciseName(name: state.exerciseName)
+                    Text(state.compactSetText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .padding(.trailing, 7)
             } minimal: {
                 ActivityBadge(phase: phase)
             }
@@ -85,7 +96,7 @@ private enum RestPhase: Equatable {
 
     init(_ context: ActivityViewContext<RestActivityAttributes>) {
         if let rest = context.state.rest {
-            self = context.isStale ? .ready : .resting(rest)
+            self = context.isStale || rest.upperBound <= .now ? .ready : .resting(rest)
         } else {
             self = .none
         }
@@ -185,6 +196,94 @@ private struct WorkoutLockScreenView: View {
         }
         .padding(16)
         .foregroundStyle(.white)
+    }
+}
+
+private struct CompactRestStatus: View {
+    let phase: RestPhase
+
+    var body: some View {
+        switch phase {
+        case .resting(let rest):
+            ZStack(alignment: .leading) {
+                HStack(spacing: 3) {
+                    ProgressView(timerInterval: rest, countsDown: true) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        EmptyView()
+                    }
+                    .progressViewStyle(.circular)
+                    .tint(.orange)
+                    .frame(width: 14, height: 14)
+                    .accessibilityHidden(true)
+                    RestStatus(phase: phase)
+                        .font(.caption.weight(.semibold))
+                        .frame(width: 34)
+                }
+                ready
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .background(.black)
+                    .mask { deadlineReveal(at: rest.upperBound) }
+                    .accessibilityHidden(true)
+            }
+            .fixedSize()
+        case .ready:
+            ready
+        case .none:
+            PowerJackMark().frame(height: 16)
+        }
+    }
+
+    // ActivityKit can deliver its stale update after the timer reaches zero. A system-rendered
+    // progress view reveals the ready label at the deadline, even while the app is suspended.
+    private func deadlineReveal(at end: Date) -> some View {
+        GeometryReader { geometry in
+            ProgressView(timerInterval: end...end.addingTimeInterval(0.1), countsDown: false) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+            .progressViewStyle(.linear)
+            .tint(.white)
+            .frame(width: geometry.size.width + 8, height: 4)
+            .background(.black)
+            .compositingGroup()
+            .contrast(8)
+            .luminanceToAlpha()
+            .scaleEffect(x: 1, y: geometry.size.height, anchor: .center)
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+    }
+
+    private var ready: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 14, weight: .semibold))
+                .accessibilityHidden(true)
+            Text("Start Set")
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.green)
+    }
+}
+
+private struct CompactExerciseName: View {
+    let name: String
+
+    private var shortName: String {
+        for prefix in ["Barbell ", "Dumbbell ", "Kettlebell ", "Machine ", "Cable "] where name.hasPrefix(prefix) {
+            return String(name.dropFirst(prefix.count))
+        }
+        return name
+    }
+
+    var body: some View {
+        Text(shortName)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .accessibilityLabel(name)
     }
 }
 

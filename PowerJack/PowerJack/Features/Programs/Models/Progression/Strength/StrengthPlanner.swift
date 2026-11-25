@@ -70,6 +70,59 @@ enum StrengthPlanner: WeekPlanner {
     /// Runs the rules that depend on what happened since the week was planned: a lift's first week loads
     /// from its record, a break restarts it lighter (12.1), and pain lowers it or opens a check-in (15).
     static func prepareToStart(_ workout: Workout, in program: Program, at date: Date) {
+        forEachStartPlan(of: workout, in: program, at: date, updateBlock: true) { entry, start in
+            var plan = start.plan
+            if plan != start.stored || start.roleChanged {
+                // A break or pain moves the working load, and the warm-ups follow it (5.7).
+                if start.role != .accessory {
+                    plan.warmups = StrengthPrescriber.warmups(
+                        for: plan, slot: start.context, record: start.record
+                    )
+                }
+                write(plan, to: entry, role: start.role)
+            }
+            if start.needsCheckIn, let pain = start.record.pain.ratings.last.flatMap(LevelOfPain.init(rawValue:)) {
+                entry.requireCheckIn(sourcePain: pain)
+            }
+        }
+    }
+
+    struct PreviewStability {
+        var targets: Set<Int> = []
+        var counts: Set<Int> = []
+        var normalBench: Set<Int> = []
+    }
+
+    /// Forecast only: a preview must never rewrite the session or advance the block.
+    static func previewStability(_ workout: Workout, in program: Program, at date: Date) -> PreviewStability {
+        var stable = PreviewStability()
+        forEachStartPlan(of: workout, in: program, at: date, updateBlock: false) { entry, start in
+            guard !start.needsCheckIn, !start.roleChanged else { return }
+            if start.plan.sets.count == start.stored.sets.count { stable.counts.insert(entry.order) }
+            if start.plan.sets == start.stored.sets {
+                stable.targets.insert(entry.order)
+                if start.plan.kind == .normal && entry.shownExercise?.catalogID == StrengthLifts.benchID {
+                    stable.normalBench.insert(entry.order)
+                }
+            }
+        }
+        return stable
+    }
+
+    private struct StartPlan {
+        let plan: StrengthSlotPlan
+        let stored: StrengthSlotPlan
+        let role: StrengthRole
+        let roleChanged: Bool
+        let needsCheckIn: Bool
+        let context: StrengthSlotContext
+        let record: StrengthLiftRecord
+    }
+
+    private static func forEachStartPlan(
+        of workout: Workout, in program: Program, at date: Date, updateBlock: Bool,
+        apply: (WorkoutExercise, StartPlan) -> Void
+    ) {
         guard let week = program.programWeek(containing: workout) else { return }
         let earlierWeeks = Array(program.programWeeks.filter { $0.order < week.order }.reversed())
         var state = StrengthLog.latestState(in: program.modelContext)
@@ -86,7 +139,7 @@ enum StrengthPlanner: WeekPlanner {
             if session.plan.kind == .returnWeek1, session.trained { returnBands[slot.key] = session.plan.returnBand }
         }
         // A new program starts where the block clock left off, until something in its first week is trained.
-        if week.order == 0, !week.workouts.contains(where: { $0 !== workout && isTrained($0) }) {
+        if updateBlock, week.order == 0, !week.workouts.contains(where: { $0 !== workout && isTrained($0) }) {
             week.setBlock(kind: state.clock.upcoming, blockWeek: state.clock.blockWeek)
         }
         fitBlock(&state.clock, weekIndex: week.order, in: program)
@@ -134,16 +187,10 @@ enum StrengthPlanner: WeekPlanner {
                 lastSession: history.first(where: \.trained),
                 grid: context.grid
             )
-            if plan != stored || roleChanged {
-                // A break or pain moves the working load, and the warm-ups follow it (5.7).
-                if slot.role != .accessory {
-                    plan.warmups = StrengthPrescriber.warmups(for: plan, slot: context, record: record)
-                }
-                write(plan, to: workoutExercise, role: slot.role)
-            }
-            if needsCheckIn, let pain = record.pain.ratings.last.flatMap(LevelOfPain.init(rawValue:)) {
-                workoutExercise.requireCheckIn(sourcePain: pain)
-            }
+            apply(workoutExercise, StartPlan(
+                plan: plan, stored: stored, role: slot.role, roleChanged: roleChanged,
+                needsCheckIn: needsCheckIn, context: context, record: record
+            ))
         }
     }
 

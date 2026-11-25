@@ -265,6 +265,36 @@ struct SupersetTests {
         #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
     }
 
+    @Test("Changing an exercise keeps its spot, and its superset when it's in one")
+    func changingKeepsSpot() throws {
+        var day = makeDay(["A", "B", "C", "D"])
+        day.startSuperset(with: day.blocks[1])
+        day.add(day.blocks[2], to: day.supersets[0])
+        let supersetID = try #require(day.supersets[0].exercises[0].supersetID)
+        let e = makeDay(["E"]).templateExerciseDrafts[0].exercise
+        let f = makeDay(["F"]).templateExerciseDrafts[0].exercise
+
+        // In a superset, the new one takes the old one's place in it.
+        let b = day.supersets[0].exercises[0]
+        day.changeExercise(b.id, to: e)
+        #expect(names(day) == [["A"], ["E", "C"], ["D"]])
+        #expect(day.superset(supersetID)?.exercises.map(\.exercise.exerciseName) == ["E", "C"])
+        #expect(!day.templateExerciseDrafts.contains { $0.id == b.id }, "A new ID, so a running day gives it its own sets")
+
+        // On its own, it stays on its own in the same spot.
+        let a = day.templateExerciseDrafts[0]
+        day.changeExercise(a.id, to: f)
+        #expect(names(day) == [["F"], ["E", "C"], ["D"]])
+        #expect(day.templateExerciseDrafts[0].supersetID == nil)
+        #expect(day.templateExerciseDrafts.map(\.order) == Array(0..<4))
+
+        // Picking the same exercise, or one no longer on the day, changes nothing.
+        let unchanged = day.templateExerciseDrafts
+        day.changeExercise(unchanged[3].id, to: unchanged[3].exercise)
+        day.changeExercise(UUID(), to: e)
+        #expect(day.templateExerciseDrafts == unchanged)
+    }
+
     @Test("Removing a superset's partner ends it, but one just started waits for others")
     func supersetLeftAloneEnds() throws {
         var day = makeDay(["A", "B", "C"])

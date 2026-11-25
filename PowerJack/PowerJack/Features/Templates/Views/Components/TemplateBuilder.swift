@@ -220,6 +220,8 @@ struct TemplateWorkoutBuilder: View {
     @State private var exerciseToSuperset: TemplateExerciseBlock?
     /// The superset open in its own list, to reorder or take one out.
     @State private var supersetToEdit: UUID?
+    /// The exercise being swapped for another, in the same spot.
+    @State private var exerciseToChange: TemplateExerciseDraft?
     
     var body: some View {
         // No NavigationStack of its own: Edit Days shows this inside the Programs stack, whose typed
@@ -265,10 +267,16 @@ struct TemplateWorkoutBuilder: View {
             if let supersetToEdit {
                 SupersetEditor(
                     templateWorkoutDraft: $templateWorkoutDraft,
-                    supersetID: supersetToEdit
+                    supersetID: supersetToEdit,
+                    loggedExercises: loggedExercises
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(item: $exerciseToChange) { changing in
+            ChangeExercisePicker(current: changing.exercise) { exercise in
+                templateWorkoutDraft.changeExercise(changing.id, to: exercise)
             }
         }
     }
@@ -330,6 +338,7 @@ struct TemplateWorkoutBuilder: View {
             switch action {
             case .superset: supersetButton(block)
             case .edit: editButton(templateExerciseDraft)
+            case .change: changeButton(templateExerciseDraft)
             case .trash: trashButton(templateExerciseDraft)
             }
         }
@@ -351,6 +360,15 @@ struct TemplateWorkoutBuilder: View {
             Label("Edit", systemImage: "pencil")
         }
         .tint(.blue)
+    }
+
+    private func changeButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
+        Button {
+            exerciseToChange = templateExerciseDraft
+        } label: {
+            Label("Change", systemImage: "slider.horizontal.3")
+        }
+        .tint(.orange)
     }
 
     private func trashButton(_ templateExerciseDraft: TemplateExerciseDraft) -> some View {
@@ -403,14 +421,17 @@ extension TemplateWorkoutBuilder {
 }
 
 /// What swiping an exercise row offers. Both swipes show the same actions in the same order,
-/// Superset | Edit | Trash, so neither side has to be learned.
+/// Superset | Edit | Change | Trash, so neither side has to be learned.
 enum ExerciseRowAction: CaseIterable {
-    case superset, edit, trash
+    case superset, edit, change, trash
+
+    /// Change and Trash both take the exercise off the day, along with anything logged.
+    var removesExercise: Bool { self == .change || self == .trash }
 
     /// The actions a swipe from `edge` lists, from that edge inward, which is how SwiftUI lays
-    /// them out. A logged exercise has no Trash, since logged sets are never thrown away.
+    /// them out. A logged exercise has no Change or Trash, since logged sets are never thrown away.
     static func actions(isLogged: Bool, from edge: HorizontalEdge) -> [ExerciseRowAction] {
-        let leftToRight = allCases.filter { $0 != .trash || !isLogged }
+        let leftToRight = allCases.filter { !isLogged || !$0.removesExercise }
         return edge == .leading ? leftToRight : leftToRight.reversed()
     }
 }
@@ -422,6 +443,22 @@ struct TemplateExerciseBuilder: View {
     var body: some View {
         TemplateExerciseLabel(exercise: exercise, isLogged: isLogged)
             .powerJackGlassPanel()
+    }
+}
+
+/// The exercise picker, opened to swap an exercise for another. The current one can't be picked.
+struct ChangeExercisePicker: View {
+    let current: Exercise
+    let onSelect: (Exercise) -> Void
+
+    var body: some View {
+        ExerciseSelectionView(
+            navigationTitle: "Change Exercise",
+            mode: .change(current),
+            onSelect: onSelect
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 
