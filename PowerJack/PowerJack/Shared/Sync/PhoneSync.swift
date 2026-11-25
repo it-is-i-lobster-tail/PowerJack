@@ -24,6 +24,10 @@ final class PhoneSync {
         // A watch app that turns up later, or a link that comes up after launch, gets the program then.
         DeviceLink.shared.onWatchAppAvailable = { [weak self] in self?.scheduleSend() }
         WorkoutMirroring.shared.onData = { [weak self] in self?.receive(changes: $0) }
+        WorkoutMirroring.shared.workoutIsPaused = { [weak self] in
+            guard let context = self?.context else { return false }
+            return (try? context.fetch(FetchDescriptor<Program>()))?.active?.nextWorkout?.isPaused == true
+        }
         WorkoutMirroring.shared.start()
         DeviceLink.shared.start()
         Task { [weak self] in

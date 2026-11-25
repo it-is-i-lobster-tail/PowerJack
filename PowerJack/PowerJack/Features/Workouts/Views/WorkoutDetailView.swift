@@ -176,7 +176,8 @@ struct WorkoutDetailView: View {
                         WorkoutHeader(
                             pages: exercises.map { .exercise($0.shownExercise, superset: WorkoutPageSuperset($0)) }
                                 + (isReadOnly ? [] : [.review]),
-                            pageScroll: pageScroll
+                            pageScroll: pageScroll,
+                            showsHeartRate: !isReadOnly
                         )
                     }
 

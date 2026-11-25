@@ -57,6 +57,9 @@ struct WorkoutHeader: View {
 
     let pages: [WorkoutPageHeader]
     let pageScroll: ExercisePageScroll
+    var showsHeartRate = false
+
+    private var bpm: Int? { showsHeartRate ? WorkoutHeartRate.shared.bpm : nil }
 
     private var position: CGFloat {
         min(max(0, pageScroll.position), CGFloat(max(0, pages.count - 1)))
@@ -67,7 +70,7 @@ struct WorkoutHeader: View {
     }
 
     private var pageLabel: String {
-        [visiblePage.title, visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, visiblePage.equipment]
+        [visiblePage.title, visiblePage.superset.map { SupersetStyle.fullLabel(partners: $0.partners) }, visiblePage.equipment, bpm.map { "Heart rate, \($0) beats per minute" }]
             .compactMap(\.self)
             .joined(separator: ", ")
     }
@@ -86,7 +89,7 @@ struct WorkoutHeader: View {
             // Reserve the widest page title before the swipe starts. The toolbar can still
             // constrain long titles to the space between its leading and trailing buttons.
             ForEach(pages.indices, id: \.self) { index in
-                HeaderLabel(page: pages[index], rest: rest?.period)
+                HeaderLabel(page: pages[index], rest: rest?.period, bpm: bpm)
                     .hidden()
                     .accessibilityHidden(true)
             }
@@ -100,12 +103,12 @@ struct WorkoutHeader: View {
     private var pill: some View {
         let swipe = swipe
         return SwipeWidthLayout(progress: swipe?.progress ?? 0) {
-            HeaderLabel(page: visiblePage, rest: rest?.period, showsCountdown: swipe == nil, showsPageText: swipe == nil)
+            HeaderLabel(page: visiblePage, rest: rest?.period, bpm: bpm, showsCountdown: swipe == nil, showsPageText: swipe == nil)
             // Mid-swipe each page carries its own timer, so it slides with that page's superset tag.
             if let swipe {
-                HeaderLabel(page: swipe.from, rest: rest?.period, showsCountdown: true)
+                HeaderLabel(page: swipe.from, rest: rest?.period, bpm: bpm, showsCountdown: true)
                     .accessibilityHidden(true)
-                HeaderLabel(page: swipe.to, rest: rest?.period, showsCountdown: true)
+                HeaderLabel(page: swipe.to, rest: rest?.period, bpm: bpm, showsCountdown: true)
                     .accessibilityHidden(true)
             }
         }
@@ -125,15 +128,27 @@ struct WorkoutHeader: View {
 private struct HeaderLabel: View {
     let page: WorkoutPageHeader
     let rest: RestPeriod?
+    let bpm: Int?
     var showsCountdown = false
     var showsPageText = true
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(page.title)
-                .font(.headline)
-                .minimumScaleFactor(0.01)
-                .opacity(showsPageText ? 1 : 0)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(page.title)
+                    .font(.headline)
+                    .minimumScaleFactor(0.01)
+                if let bpm {
+                    WorkoutHeartRateLabel(
+                        bpm: bpm,
+                        font: .caption2.weight(.medium),
+                        showsUnit: false,
+                        usesZoneStyle: true
+                    )
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .opacity(showsPageText ? 1 : 0)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let superset = page.superset {
                     Label(superset.title, systemImage: "link")

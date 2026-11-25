@@ -59,6 +59,9 @@ struct WorkoutState: Codable, Equatable {
     var locked: Bool
     var startedAt: Date?
     var endedAt: Date?
+    var pausedAt: Date?
+    var pausedSeconds: Double?
+    var setPausedSeconds: Double?
     var createdAt: Date?
     var createdOn: String?
     var startedOn: String?

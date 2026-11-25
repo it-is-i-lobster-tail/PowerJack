@@ -31,6 +31,10 @@ struct WatchExerciseView: View {
             GeometryReader { viewport in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
+                        if let bpm = WorkoutHeartRate.shared.bpm {
+                            WorkoutHeartRateLabel(bpm: bpm, font: .system(size: heartRateSize, weight: .medium))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
                         exerciseHeading
 
                         if workoutExercise.checkInPending {
@@ -39,7 +43,7 @@ struct WatchExerciseView: View {
                                 .foregroundStyle(.orange)
                         } else if let workoutSet, let entry {
                             setHeader(workoutSet)
-                            Spacer(minLength: 4)
+                            Spacer(minLength: 2)
                             values(entry)
                                 .frame(maxWidth: .infinity, alignment: .center)
                             Spacer(minLength: 4)
@@ -52,11 +56,12 @@ struct WatchExerciseView: View {
                 }
                 .scrollEdgeEffectHidden(true, for: .top)
             }
-            .padding(.top, 6)
+            .padding(.top, WorkoutHeartRate.shared.bpm == nil ? 20 : 2)
             if !workoutExercise.checkInPending, let workoutSet, let entry {
                 primaryAction(entry, on: workoutSet)
                     .controlSize(.small)
                     .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 6)
                     .padding(.bottom, 8)
             }
         }
@@ -76,15 +81,22 @@ struct WatchExerciseView: View {
         .onChange(of: shownValues) { followSet() }
     }
 
+    @ScaledMetric(relativeTo: .caption2) private var heartRateSize: CGFloat = 11
     @ScaledMetric(relativeTo: .subheadline) private var headingSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .subheadline) private var wrappedHeadingSize: CGFloat = 14
     @ScaledMetric(relativeTo: .caption2) private var supersetLabelSize: CGFloat = 10
 
     private var exerciseHeading: some View {
-        Text(movementName)
-            .font(.system(size: headingSize, weight: .semibold))
-            .lineLimit(1, reservesSpace: true)
-            .minimumScaleFactor(0.4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        let name = Text(movementName)
+        return ViewThatFits(in: .horizontal) {
+            name.font(.system(size: headingSize, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            name.font(.system(size: wrappedHeadingSize, weight: .semibold))
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var movementName: String {
