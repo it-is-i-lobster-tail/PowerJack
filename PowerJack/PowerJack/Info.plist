@@ -14,7 +14,7 @@
 		</dict>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
-	<string>PowerJack doesn't read your Health data.</string>
+	<string>PowerJack uses your heart rate during a workout to show live beats per minute on your Apple Watch and iPhone.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>PowerJack follows the workout running on your Apple Watch, so your iPhone shows each set as you log it. Nothing is saved to Health.</string>
 	<key>UIBackgroundModes</key>

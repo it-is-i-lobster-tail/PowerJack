@@ -165,6 +165,7 @@
 				Shared/Sync/WatchActions.swift,
 				Shared/Sync/WatchChange.swift,
 				Shared/Sync/WatchReplica.swift,
+				Shared/Sync/WorkoutHeartRate.swift,
 				Shared/Sync/WorkoutMirroring.swift,
 				Shared/UI/SupersetStyle.swift,
 			);

@@ -85,7 +85,6 @@ struct WatchWorkoutView: View {
         .tabViewStyle(.page(indexDisplayMode: .never))
         .coordinateSpace(name: "workoutPages")
         .onPreferenceChange(WatchPagePosition.self) { scrollPosition = $0 }
-        .padding(.top, 14)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbarVisibility(.hidden, for: .navigationBar)
