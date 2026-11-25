@@ -227,21 +227,71 @@ struct AppScreenTests {
         #expect(screen.contains("My Programs"), "\(screen.labels)")
     }
 
-    @Test("Data opens weekly volume and switches to targets and estimated maxes")
+    @Test("Data shows two chart columns and opens the selected chart")
     func dataTab() async throws {
+        // Each chart remembers its settings, including across a test-host relaunch.
+        let suite = "PowerJackDataTabTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
         let screen = try await HostedView(
             PowerJackRootView()
+                .defaultAppStorage(defaults)
                 .modelContainer(container)
                 .environment(PowerJackStore(inMemory: true))
         )
         defer { screen.close() }
 
         await screen.selectTab("Data")
-        #expect(await screen.waitUntil { screen.contains("Average working sets per week") })
-        #expect(await screen.selectSegment("Targets"))
-        #expect(screen.contains("Target vs. Actual"))
-        #expect(await screen.selectSegment("One Rep Max"))
-        #expect(screen.contains("1 Rep Max (estimated)"))
+        let left = TrainingStudy.legWork.genericName
+        let right = TrainingStudy.armReps.genericName
+        try #require(await screen.waitUntil { screen.contains(left) && screen.contains(right) })
+        let first = try #require(screen.frame(of: left))
+        let second = try #require(screen.frame(of: right))
+        #expect(first.midX < second.midX)
+        #expect(abs(first.minY - second.minY) < 2)
+        try #require(await screen.tap(right))
+        #expect(await screen.waitUntil { screen.contains(TrainingStudy.armReps.caption) })
+        #expect(await screen.waitUntil { screen.contains("No matching history") })
+        #expect(screen.contains("How to Read"))
+        #expect(screen.label(startingWith: "For example,") == nil)
+        try #require(await screen.tap("How to Read"))
+        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") != nil })
+        try #require(await screen.tap("How to Read"))
+        #expect(await screen.waitUntil { screen.label(startingWith: "For example,") == nil })
+        try #require(await screen.goBack())
+        #expect(screen.contains(left))
+    }
+
+    @Test("A fresh gallery opens each card with its own saved view")
+    func rememberedChartViews() async throws {
+        let suite = "PowerJackSavedChartTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let reps = StudyOptions(period: .year(2025), muscles: [.biceps])
+        let credits = StudyOptions(period: .year(2026), muscles: [.quads])
+        var data = try SavedStudyViews(data: Data()).saving(reps, for: .armReps)
+        data = try SavedStudyViews(data: data).saving(credits, for: .legWork)
+        defaults.set(data, forKey: SavedStudyViews.storageKey)
+        let history = StudyHistory(programs: [], archive: [], logs: [], unit: .pounds)
+        let repsTitle = history.result(for: .armReps, options: reps).displayTitle
+        let creditsTitle = history.result(for: .legWork, options: credits).displayTitle
+        func gallery() async throws -> HostedView {
+            try await HostedView(ProgramDataView().defaultAppStorage(defaults).modelContainer(container))
+        }
+
+        do {
+            let first = try await gallery()
+            defer { first.close() }
+            try #require(await first.tap(repsTitle))
+            #expect(await first.waitUntil { first.contains(repsTitle) && first.contains("How to Read") })
+        }
+        let reset = try SavedStudyViews(data: data).saving(StudyOptions(), for: .armReps)
+        defaults.set(reset, forKey: SavedStudyViews.storageKey)
+        let reopened = try await gallery()
+        defer { reopened.close() }
+        #expect(reopened.contains(TrainingStudy.armReps.genericName))
+        try #require(await reopened.tap(creditsTitle))
+        #expect(await reopened.waitUntil { reopened.contains(creditsTitle) && reopened.contains("How to Read") })
     }
 
     @Test("The template builder adds exercises from the catalog")

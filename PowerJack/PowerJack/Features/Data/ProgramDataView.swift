@@ -2,249 +2,188 @@ import SwiftData
 import SwiftUI
 
 struct ProgramDataView: View {
-    private enum Mode: String, CaseIterable {
-        case volume = "Volume"
-        case targets = "Targets"
-        case oneRepMax = "One Rep Max"
-    }
-
-    private enum Filter: String, Identifiable {
-        case muscles = "Muscle groups"
-        case programTypes = "Program type"
-
-        var id: Self { self }
-    }
-
     @Query private var programs: [Program]
     @Query private var logs: [WorkoutLog]
-    @State private var searchText = ""
-    @State private var searchIndex: ExerciseChartSearch.Index?
+    @Query private var archived: [HistoryRecord]
     @AppStorage(AppSettings.Key.weightUnit) private var unit = WeightUnit.current
-    @Environment(\.verticalSizeClass) private var verticalSize
-    @State private var mode = Mode.volume
-    @State private var isLandscape = false
-
-    @State private var selectedRange = VolumeRange.currentProgram
-    @State private var selectedMuscles: Set<Muscle> = []
-    @State private var selectedProgramTypes: Set<TemplateType> = []
-    @State private var openFilter: Filter?
-
-    private var currentProgram: Program? { programs.active }
-    private var range: VolumeRange {
-        selectedRange == .currentProgram && currentProgram == nil ? .days30 : selectedRange
-    }
-    private var matchingPrograms: [Program] {
-        programs.filter { matchesProgramType($0) }
-    }
-
-    private func matchesProgramType(_ program: Program) -> Bool {
-        selectedProgramTypes.isEmpty || selectedProgramTypes.contains(program.templateType)
-    }
 
     var body: some View {
-        let query = DataSearchQuery(searchText)
-        let search = searchIndex?.results(for: query.exerciseText)
-        let isSearching = query.dateFilter != nil || search != nil
-        NavigationStack {
-            VStack(spacing: 0) {
-                HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-                    TextField("Search by muscle, date, exercise, or intent", text: $searchText)
-                        .font(.subheadline)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.search)
-                        .accessibilityIdentifier("dataExerciseSearch")
-                    if !searchText.isEmpty {
-                        Button("Clear search", systemImage: "xmark.circle.fill") { searchText = "" }
-                            .labelStyle(.iconOnly)
-                            .foregroundStyle(.secondary)
+        let history = StudyHistory(programs: programs, archive: archived, logs: logs, unit: unit)
+        StudyGallery(history: history)
+    }
+}
+
+private struct StudyGallery: View {
+    let history: StudyHistory
+    @AppStorage(SavedStudyViews.storageKey) private var storedOptions = Data()
+
+    private func save(_ options: StudyOptions, for id: TrainingStudy) {
+        if let data = try? SavedStudyViews(data: storedOptions).saving(options, for: id) {
+            storedOptions = data
+        }
+    }
+    @Namespace private var zoom
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 2)
+
+    var body: some View {
+        let choices = SavedStudyViews(data: storedOptions)
+        return NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                    ForEach(TrainingStudy.allCases) { id in
+                        let options = choices[id]
+                        let study = history.result(for: id, options: options)
+                            .presented(as: options.presentation, transpose: options.transpose)
+                        NavigationLink(value: study.id) {
+                            VStack(alignment: .leading, spacing: 7) {
+                                StudyThumbnail(study: study)
+                                    .aspectRatio(1.65, contentMode: .fit)
+                                    .powerJackGlassCard()
+                                    .matchedTransitionSource(id: study.id, in: zoom)
+                                Text(study.galleryCaption)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.horizontal, 3)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(study.galleryAccessibilityLabel)
+                        .accessibilityHint(
+                            study.figure == nil ? "No matching history. Opens chart details." : "Opens full-size chart."
+                        )
+                        .accessibilityIdentifier("data.study.\(study.id.rawValue)")
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.quaternary, in: .capsule)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                Picker("Data view", selection: $mode) {
-                    ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: verticalSize == .compact ? 480 : .infinity)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 20)
+            }
+            .navigationTitle("Data")
+            .navigationDestination(for: TrainingStudy.self) { id in
+                let options = choices[id]
+                let study = history.result(for: id, options: options)
+                    .presented(as: options.presentation, transpose: options.transpose)
+                StudyDetail(study: study, history: history, options: options, apply: { save($0, for: id) })
+                    .navigationTransition(.zoom(sourceID: id, in: zoom))
+            }
+        }
+    }
+}
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 24) {
-                        if searchIndex == nil && !query.exerciseText.isEmpty {
-                            ProgressView("Preparing search")
-                        } else {
-                            switch mode {
-                            case .volume:
-                                let matchingLogs = WeeklyVolume.logs(logs, matching: selectedProgramTypes, programs: programs)
-                                let excludesCurrent = query.dateFilter == nil && range == .currentProgram
-                                    && currentProgram.map { !matchesProgramType($0) } == true
-                                if let search, search.muscles.isEmpty || (!selectedMuscles.isEmpty && selectedMuscles.isDisjoint(with: search.muscles)) {
-                                    searchEmpty
-                                } else {
-                                    VolumeView(logs: excludesCurrent ? [] : matchingLogs,
-                                           currentProgram: currentProgram, range: range, dateFilter: query.dateFilter,
-                                           selectedMuscles: selectedMuscles,
-                                           searchMuscles: search?.muscles, isLandscape: isLandscape)
-                                }
-                            case .targets:
-                                Text("Target vs. Actual").font(.title2.bold())
-                                if query.dateFilter == nil, range == .currentProgram,
-                                   let program = currentProgram, matchesProgramType(program) {
-                                    Text(program.templateName).foregroundStyle(.secondary)
-                                }
-                                let histories = ProgramExerciseHistory.exercises(
-                                    in: matchingPrograms, range: range, dateFilter: query.dateFilter,
-                                    primaryMuscles: selectedMuscles, search: search
-                                ).filter { history in
-                                    !isSearching || history.sets.contains { set in
-                                        (set.targetReps != nil && set.reps != nil) || (set.targetLoad != nil && set.load != nil)
-                                    }
-                                }
-                                if histories.isEmpty {
-                                    if isSearching { searchEmpty } else {
-                                        Text("No working sets logged in this range.").foregroundStyle(.secondary)
-                                    }
-                                } else {
-                                    ForEach(histories) { exercise in
-                                        if exercise.sets.isEmpty {
-                                            VStack(alignment: .leading) {
-                                                Text(exercise.name).font(.headline)
-                                                Text("No working sets logged yet.").foregroundStyle(.secondary)
-                                            }
-                                        } else {
-                                            ExerciseHistoryChart(exercise: exercise, unit: unit)
-                                        }
-                                        Divider()
-                                    }
-                                }
-                            case .oneRepMax:
-                                Text("1 Rep Max (estimated)")
-                                    .font(.title2.bold())
-                                    .accessibilityAddTraits(.isHeader)
-                                let now = Date.now
-                                let visible = ProgramExerciseHistory.exercises(
-                                    in: matchingPrograms, range: range, dateFilter: query.dateFilter,
-                                    primaryMuscles: selectedMuscles, search: search, now: now
-                                ).filter { $0.personalBest != nil }
-                                if isSearching && visible.isEmpty { searchEmpty }
-                                let allHistory = ProgramExerciseHistory.exercises(
-                                    in: matchingPrograms, range: nil, primaryMuscles: selectedMuscles, search: search, now: now
-                                )
-                                let bests = Dictionary(uniqueKeysWithValues: allHistory.compactMap { exercise in
-                                    exercise.personalBest.map { (exercise.id, $0) }
-                                })
-                                ForEach(visible) { exercise in
-                                    if let chart = OneRepMaxChart(exercise: exercise, personalBest: bests[exercise.id], unit: unit) {
-                                        chart
-                                        Divider()
-                                    }
-                                }
-                            }
+/// Rasterize only the visible tiles, at the device scale and in its current appearance.
+private struct StudyThumbnail: View {
+    let study: StudyResult
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var scale
+    @State private var image: Image?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            Group {
+                if let image { image.resizable() } else { StudyFigureView(study: study, compact: true).padding(10) }
+            }
+            .frame(width: size.width, height: size.height)
+            .onChange(of: ThumbnailInput(size: size, scheme: scheme, scale: scale, study: study), initial: true) {
+                guard size.width > 0, size.height > 0 else { return }
+                let content = StudyFigureView(study: study, compact: true)
+                    .padding(10).frame(width: size.width, height: size.height)
+                    .environment(\.colorScheme, scheme)
+                let renderer = ImageRenderer(content: content)
+                renderer.scale = scale
+                image = renderer.cgImage.map { Image(decorative: $0, scale: scale) }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private struct ThumbnailInput: Equatable {
+        var size: CGSize
+        var scheme: ColorScheme
+        var scale: CGFloat
+        var study: StudyResult
+    }
+}
+
+private struct StudyDetail: View {
+    let study: StudyResult
+    let history: StudyHistory
+    let options: StudyOptions
+    let apply: (StudyOptions) -> Void
+    @State private var customizing = false
+    @State private var fullscreen = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text(study.displayTitle).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
+                    Text(study.scope).font(.subheadline).foregroundStyle(.secondary)
+                    chart
+                    if !study.summary.isEmpty { Text(study.summary).font(.body) }
+                    if let data = underlyingValues {
+                        DisclosureGroup("Values (\(data.rows.count))") {
+                            StudyTableView(table: data).padding(.top, 8)
                         }
                     }
-                    .padding()
-                    .padding(.bottom, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .id(mode)
-                .scrollDismissesKeyboard(.interactively)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
             }
-            .background { ExerciseSearchIndexLoader(index: $searchIndex) }
-            .onGeometryChange(for: Bool.self) { geometry in
-                geometry.size.width > geometry.size.height
-            } action: { isLandscape = $0 }
-            .navigationTitle("Data")
-            .navigationBarTitleDisplayMode(verticalSize == .compact ? .inline : .large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    dateRangeMenu(for: query)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    muscleGroupsAction
-                }
-                .visibilityPriority(.low)
-                ToolbarOverflowMenu {
-                    programTypesAction
-                }
+            StudyReadingGuide(study: study)
+        }
+        .navigationTitle("Chart").navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Customize chart", systemImage: "slider.horizontal.3") { customizing = true }
+                Button("Full screen", systemImage: "arrow.up.left.and.arrow.down.right") { fullscreen = true }
             }
         }
-        .sheet(item: $openFilter) { filter in
-            NavigationStack {
-                List {
-                    switch filter {
-                    case .muscles:
-                        FilterOptions("All muscles", choices: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
-                                      selected: $selectedMuscles, title: { $0.rawValue.capitalized })
-                    case .programTypes:
-                        FilterOptions("All program types", choices: TemplateType.allCases,
-                                      selected: $selectedProgramTypes, title: \.name)
-                    }
-                }
-                .navigationTitle(filter.rawValue)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { openFilter = nil }
-                    }
+        .sheet(isPresented: $customizing) {
+            StudyCustomizationView(id: study.id, history: history, apply: apply, draft: options)
+        }
+        .fullScreenCover(isPresented: $fullscreen) { StudyFullscreenView(study: study, title: study.displayTitle) }
+        .accessibilityIdentifier("data.detail.\(study.id.rawValue)")
+    }
+
+    @ViewBuilder private var chart: some View {
+        let view = StudyFigureView(study: study, compact: false)
+        switch study.figure {
+        case .traces(let series, _):
+            view.frame(height: 290)
+            legend(series.map(\.name))
+        case .bars(let bars):
+            view.frame(height: 270)
+            let labels = bars.reduce(into: [String]()) {
+                if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }
+            }
+            if !labels.isEmpty { legend(labels) }
+        case .comparison(let points, _):
+            view.frame(height: max(160, CGFloat(Set(points.map(\.category)).count) * 54))
+            legend(points.map(\.series).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } })
+        case .matrix:
+            ScrollView(.horizontal) { view }
+        case .liftPanels, .attempts, .table, nil: view
+        }
+    }
+
+    private func legend(_ labels: [String]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), alignment: .leading)], alignment: .leading, spacing: 6) {
+            ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
+                HStack(spacing: 6) {
+                    Circle().fill(WorkoutChartPalette.color(at: i, scheme: scheme)).frame(width: 8, height: 8)
+                    Text(label).font(.caption)
                 }
             }
         }
     }
 
-    private var searchEmpty: some View {
-        Text("No matching charts for these filters.").foregroundStyle(.secondary)
-    }
-
-    private func dateRangeMenu(for query: DataSearchQuery) -> some View {
-        Menu("Date range", systemImage: "calendar") {
-            Picker("Date range", selection: Binding<VolumeRange?>(get: {
-                query.dateFilter == nil ? range : nil
-            }, set: { option in
-                guard let option else { return }
-                selectedRange = option
-                if query.dateFilter != nil { searchText = query.exerciseText }
-            })) {
-                if let dateFilter = query.dateFilter {
-                    Text(dateFilter.name).tag(Optional<VolumeRange>.none).disabled(true)
-                }
-                ForEach(VolumeRange.allCases.filter { $0 != .currentProgram || currentProgram != nil }) { option in
-                    Text(option.name).tag(Optional(option))
-                }
-            }
-            .pickerStyle(.inline)
-        }
-        .accessibilityValue(query.dateFilter?.name ?? range.name)
-    }
-
-    private var muscleGroupsAction: some View {
-        Button("Muscle groups", systemImage: "line.3.horizontal.decrease") {
-            openFilter = .muscles
-        }
-        .accessibilityValue(selectedMuscles.isEmpty ? "All muscles" : "\(selectedMuscles.count) selected")
-    }
-
-    private var programTypesAction: some View {
-        Button("Program type", systemImage: "list.bullet.rectangle") {
-            openFilter = .programTypes
-        }
-        .accessibilityValue(selectedProgramTypes.isEmpty ? "All program types" : "\(selectedProgramTypes.count) selected")
+    private var underlyingValues: StudyTable? {
+        if case .table = study.figure { return nil }
+        return study.detail ?? study.plottedValues
     }
 }
-
-#if DEBUG
-#Preview("Data · Physique") {
-    ProgramDataView()
-        .modelContainer(PowerJackSeed.trainingHistory())
-}
-
-#Preview("Data · Physique Landscape", traits: .landscapeLeft) {
-    ProgramDataView()
-        .modelContainer(PowerJackSeed.trainingHistory())
-}
-#endif
