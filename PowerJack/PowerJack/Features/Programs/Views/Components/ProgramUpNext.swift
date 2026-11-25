@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct ProgramUpNext: View {
+    @Environment(ProgramsRouter.self) private var router
+
     let program: Program
     let workout: Workout
     let startHint: (any Hint)?
@@ -46,6 +48,13 @@ struct ProgramUpNext: View {
 
             ProgramStartWorkout(program: program, workout: workout)
                 .popoverHint(startHint)
+
+            if workout.status == .planned && !workout.workoutExercises.isEmpty {
+                Button("Preview what’s next", systemImage: "list.bullet") {
+                    router.showPreview(workout, in: program)
+                }
+                .buttonStyle(.borderless)
+            }
 
             if let device = workout.inProgressElsewhere {
                 Text("In progress on \(device)")
