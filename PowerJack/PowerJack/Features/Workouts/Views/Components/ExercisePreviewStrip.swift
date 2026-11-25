@@ -30,11 +30,13 @@ struct ExercisePreviewStrip: View {
     var showsReview = false
     /// Where the pages are. The strip slides, recolors and resizes its cards along with them.
     let pageScroll: ExercisePageScroll
-    private static let visibleCards: CGFloat = 3
-    private static let edgeMargin: CGFloat = 16
-    private static let cardHeight: CGFloat = 58
-    /// How big the other cards are next to the selected one.
-    private static let restingScale: CGFloat = 0.78
+    private static let edgeFade: CGFloat = 64
+    private static let restingHeight: CGFloat = 54
+    private static let focusedHeight: CGFloat = 64
+    private static let previewNameLength = 20
+    /// Space between a superset's cards and the line under them.
+    private static let underlineGap: CGFloat = 6
+
     @Binding var selectedExerciseIndex: Int?
     /// Tapping the exercise already selected, so the pages can come back to it.
     var onReselect: () -> Void = {}
@@ -52,25 +54,19 @@ struct ExercisePreviewStrip: View {
         }
     }
 
-    /// Three whole cards fit on screen, so nothing is left half cut off.
-    private var cardWidth: CGFloat {
-        max(0, (screenWidth - Self.edgeMargin * 2 - spacing * (Self.visibleCards - 1)) / Self.visibleCards)
-    }
-
-    /// From one card to the next.
-    private var step: CGFloat { cardWidth + spacing }
+    /// The second neighbor is centered just inside each edge, leaving part of it offscreen.
+    private var step: CGFloat { max(spacing, screenWidth * 0.238) }
+    private var slotWidth: CGFloat { step - spacing }
 
     var body: some View {
-        // One card's worth of room before the first card and after the last, so every card,
-        // the first and last too, can sit in the middle.
-        let sideMargin = Self.edgeMargin + cardWidth + spacing
+        // The first and last cards also need room to center their slots.
+        let sideMargin = max(0, (screenWidth - slotWidth) / 2)
 
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: spacing) {
                 ForEach(workoutExercises.indices, id: \.self) { index in
                     let exercise = workoutExercises[index]
-                    card(exercise.shownExercise?.exerciseName ?? "Exercise", index: index,
-                         isDone: exercise.isDone, width: cardWidth)
+                    card(exercise.shownExercise?.exerciseName ?? "Exercise", index: index, isDone: exercise.isDone)
                         .accessibilityHint(exercise.supersetPartners.isEmpty ? "" : "Superset")
                         .overlay(alignment: .bottomLeading) {
                             supersetUnderline(from: index)
@@ -78,11 +74,12 @@ struct ExercisePreviewStrip: View {
                 }
 
                 if showsReview {
-                    card("Review", index: workoutExercises.count, isDone: false, width: cardWidth)
+                    card("Review", index: workoutExercises.count, isDone: false)
                 }
             }
             .scrollTargetLayout(isEnabled: isBrowsingStrip)
-            .padding(.vertical, LayoutMetrics.compactSpacing)
+            // Room for the superset line, which the scroll view would clip.
+            .padding(.vertical, Self.underlineGap + 2)
         }
         .contentMargins(.horizontal, sideMargin, for: .scrollContent)
         // Cards the lifter flicks to come to rest in the middle slot.
@@ -113,9 +110,22 @@ struct ExercisePreviewStrip: View {
         .onChange(of: pageScroll.position) {
             if !pageScroll.isDrivenByStrip { followPages() }
         }
-        .frame(height: 75)
-        // The cards keep their size, so their names stop growing where they still fit.
-        // `textScale` caps at the same size.
+        .mask {
+            GeometryReader { geometry in
+                let fade = min(0.16, Self.edgeFade / max(1, geometry.size.width))
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: fade),
+                        .init(color: .black, location: 1 - fade),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+        }
+        .frame(height: Self.focusedHeight + (Self.underlineGap + 2) * 2)
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
@@ -139,28 +149,35 @@ struct ExercisePreviewStrip: View {
 
     /// Selected is solid blue and full size, done exercises are tinted blue with a check, the rest
     /// stay plain. A card blends between the looks as its page swipes on or off the screen.
-    private func card(_ title: String, index: Int, isDone: Bool, width: CGFloat) -> some View {
+    private func card(_ title: String, index: Int, isDone: Bool) -> some View {
         let focus = Self.focus(ofCard: index, pagePosition: pageScroll.position)
+        let isSelected = focus >= 0.5
+        let height = Self.restingHeight + (Self.focusedHeight - Self.restingHeight) * focus
         let shape = RoundedRectangle(cornerRadius: LayoutMetrics.compactCornerRadius)
 
         return Button {
             selectExercise(at: index)
         } label: {
-            cardLabel(title, isDone: isDone, isSelected: focus >= 0.5, textScale: Self.textScale(focus: focus, dynamicTypeSize: dynamicTypeSize))
+            cardLabel(title, isDone: isDone, isSelected: isSelected, focus: focus)
                 // The name changes color halfway, where the two cards are the same size. Blending it
                 // along the way would fade it into the blue.
-                .animation(.easeInOut(duration: 0.2), value: focus >= 0.5)
-                .frame(width: width + spacing, height: Self.cardHeight)
+                .animation(.easeInOut(duration: 0.2), value: isSelected)
+                .frame(width: cardWidth(focus: focus), height: height)
                 .background {
                     shape.fill(isDone ? Color.accentColor.opacity(VisualOpacity.light) : Color.gray.opacity(VisualOpacity.subtle))
                     shape.fill(Color.accentColor).opacity(focus)
                 }
-                .scaleEffect(Self.restingScale + (1 - Self.restingScale) * focus)
+                .contentShape(.rect)
         }
-        // Keep the snap targets equally spaced as the visible cards grow and shrink.
-        .frame(width: width)
+        .accessibilityLabel(Text(verbatim: title))
         .accessibilityValue(isDone ? "Done" : "")
+        // Only the face changes size. Equal slots keep the pager and scroll targets in sync.
+        .frame(width: slotWidth, height: Self.focusedHeight)
         .id(index)
+    }
+
+    private func cardWidth(focus: CGFloat) -> CGFloat {
+        max(0, slotWidth - 12 + 30 * focus)
     }
 
     /// How selected a card looks: 1 while its page fills the screen, down to 0 a page away.
@@ -171,31 +188,42 @@ struct ExercisePreviewStrip: View {
     /// How big a card's name is next to the selected card's: caption size a page away, callout size on
     /// its page, and smoothly between while the pages swipe.
     static func textScale(focus: CGFloat, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
-        let sizes = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(dynamicTypeSize, .xxxLarge)))
+        let sizes = typeTraits(dynamicTypeSize)
         let caption = UIFont.preferredFont(forTextStyle: .caption1, compatibleWith: sizes).pointSize
         let callout = UIFont.preferredFont(forTextStyle: .callout, compatibleWith: sizes).pointSize
         let resting = caption / callout
         return resting + (1 - resting) * focus
     }
 
-    private func cardLabel(_ title: String, isDone: Bool, isSelected: Bool, textScale: CGFloat) -> some View {
-        // One font laid out at the full card size, then scaled, so the name grows with the card
-        // and wraps the same way all through a swipe.
-        Text(title)
-            .font(.callout.weight(.medium))
-            .lineLimit(3)
-            .minimumScaleFactor(0.01)
+    private static func typeTraits(_ size: DynamicTypeSize) -> UITraitCollection {
+        UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, .xxxLarge)))
+    }
+
+    private func cardLabel(_ title: String, isDone: Bool, isSelected: Bool, focus: CGFloat) -> some View {
+        let calloutSize = UIFont.preferredFont(forTextStyle: .callout, compatibleWith: Self.typeTraits(dynamicTypeSize)).pointSize
+        let pointSize = calloutSize * Self.textScale(focus: focus, dynamicTypeSize: dynamicTypeSize)
+        let titleText = Text(verbatim: title)
+        let fittedTitle = !isSelected && title.count > Self.previewNameLength
+            ? Text(verbatim: String(title.prefix(Self.previewNameLength)) + "…")
+            : titleText
+
+        return ViewThatFits(in: .vertical) {
+            titleText.fixedSize(horizontal: false, vertical: true)
+            // Long words and wide characters may need smaller type to fit the card.
+            fittedTitle.lineLimit(3).minimumScaleFactor(0.25)
+        }
+            .font(.system(size: pointSize, weight: isSelected ? .semibold : .medium))
             .multilineTextAlignment(.center)
             .foregroundStyle(isSelected ? Color.white : isDone ? Color.accentColor : Color.primary)
-            .padding(.horizontal, isDone ? 15 : 4)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
+            .padding(.top, isDone ? 11 : 0)
+            .padding(.vertical, 3)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scaleEffect(textScale)
             // Done is marked with more than color.
             .overlay(alignment: .topTrailing) {
                 if isDone {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(.system(size: 9))
                         .foregroundStyle(isSelected ? Color.white : Color.accentColor)
                         .padding(4)
                         .accessibilityHidden(true)
@@ -209,11 +237,12 @@ struct ExercisePreviewStrip: View {
         let workoutExercise = workoutExercises[index]
         let partners = workoutExercise.supersetPartners
         if !partners.isEmpty, index == 0 || !partners.contains(where: { $0 === workoutExercises[index - 1] }) {
-            let count = CGFloat(partners.count + 1)
+            let firstWidth = cardWidth(focus: Self.focus(ofCard: index, pagePosition: pageScroll.position))
+            let lastWidth = cardWidth(focus: Self.focus(ofCard: index + partners.count, pagePosition: pageScroll.position))
             Capsule()
                 .fill(workoutExercise.supersetColor ?? .accentColor)
-                .frame(width: cardWidth * count + spacing * (count - 1), height: 3)
-                .offset(y: 6)
+                .frame(width: step * CGFloat(partners.count) + (firstWidth + lastWidth) / 2, height: 3)
+                .offset(x: (slotWidth - firstWidth) / 2, y: Self.underlineGap)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
