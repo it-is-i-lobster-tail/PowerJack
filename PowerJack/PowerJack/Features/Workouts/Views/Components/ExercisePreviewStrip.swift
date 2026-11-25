@@ -34,6 +34,7 @@ struct ExercisePreviewStrip: View {
     private static let restingHeight: CGFloat = 54
     private static let focusedHeight: CGFloat = 64
     private static let previewNameLength = 20
+    private static let neighborShift: CGFloat = 9
     /// Space between a superset's cards and the line under them.
     private static let underlineGap: CGFloat = 6
 
@@ -42,6 +43,7 @@ struct ExercisePreviewStrip: View {
     var onReselect: () -> Void = {}
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.layoutDirection) private var layoutDirection
 
     @State private var stripPosition = ScrollPosition()
     private let spacing = LayoutMetrics.compactSpacing
@@ -57,6 +59,7 @@ struct ExercisePreviewStrip: View {
     /// The second neighbor is centered just inside each edge, leaving part of it offscreen.
     private var step: CGFloat { max(spacing, screenWidth * 0.238) }
     private var slotWidth: CGFloat { step - spacing }
+    private var horizontalDirection: CGFloat { layoutDirection == .leftToRight ? 1 : -1 }
 
     var body: some View {
         // The first and last cards also need room to center their slots.
@@ -171,13 +174,21 @@ struct ExercisePreviewStrip: View {
         }
         .accessibilityLabel(Text(verbatim: title))
         .accessibilityValue(isDone ? "Done" : "")
-        // Only the face changes size. Equal slots keep the pager and scroll targets in sync.
+        .offset(x: cardOffset(at: index) * horizontalDirection)
+        // The faces move within fixed slots so the pager and scroll targets stay in sync.
         .frame(width: slotWidth, height: Self.focusedHeight)
         .id(index)
     }
 
     private func cardWidth(focus: CGFloat) -> CGFloat {
         max(0, slotWidth - 12 + 30 * focus)
+    }
+
+    /// Move the immediate neighbors toward the outer cards, even between pages during a swipe.
+    private func cardOffset(at index: Int) -> CGFloat {
+        let distance = CGFloat(index) - pageScroll.position
+        let weight = max(0, 1 - abs(abs(distance) - 1))
+        return Self.neighborShift * weight * (distance < 0 ? -1 : 1)
     }
 
     /// How selected a card looks: 1 while its page fills the screen, down to 0 a page away.
@@ -238,11 +249,14 @@ struct ExercisePreviewStrip: View {
         let partners = workoutExercise.supersetPartners
         if !partners.isEmpty, index == 0 || !partners.contains(where: { $0 === workoutExercises[index - 1] }) {
             let firstWidth = cardWidth(focus: Self.focus(ofCard: index, pagePosition: pageScroll.position))
-            let lastWidth = cardWidth(focus: Self.focus(ofCard: index + partners.count, pagePosition: pageScroll.position))
+            let lastIndex = index + partners.count
+            let lastWidth = cardWidth(focus: Self.focus(ofCard: lastIndex, pagePosition: pageScroll.position))
+            let firstOffset = cardOffset(at: index)
+            let span = step * CGFloat(partners.count) + cardOffset(at: lastIndex) - firstOffset
             Capsule()
                 .fill(workoutExercise.supersetColor ?? .accentColor)
-                .frame(width: step * CGFloat(partners.count) + (firstWidth + lastWidth) / 2, height: 3)
-                .offset(x: (slotWidth - firstWidth) / 2, y: Self.underlineGap)
+                .frame(width: span + (firstWidth + lastWidth) / 2, height: 3)
+                .offset(x: ((slotWidth - firstWidth) / 2 + firstOffset) * horizontalDirection, y: Self.underlineGap)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

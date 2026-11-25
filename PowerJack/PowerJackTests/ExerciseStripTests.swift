@@ -177,8 +177,11 @@ struct ExerciseStripTests {
         let strip = try #require(await stripScrollView(in: screen))
         let pager = try #require(screen.horizontalScrollViews.first { $0 !== strip })
         #expect(await screen.waitUntil { isCardCentered(0, in: strip, screen: screen) })
-        let cards = try cardFrames(["Lift 1", "Lift 2"], in: strip, screen: screen)
-        let halfCard = (cards[1].midX - cards[0].midX) / 2
+        // The faces shift within their slots. Use the distance between the first and last
+        // scroll targets to calculate a half step.
+        let insets = strip.adjustedContentInset
+        let travel = strip.contentSize.width + insets.left + insets.right - strip.bounds.width
+        let halfCard = travel / CGFloat(2 * (workout.workoutExercises.count - 1))
 
         // Hold the strip between snap targets, before any change to the selected index.
         scroll.isDrivenByStrip = true
