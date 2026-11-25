@@ -67,6 +67,23 @@ struct SetRefereeTests {
 struct WatchPhoneSyncTests {
     private let t0 = Date.now.addingTimeInterval(-3600)
 
+    @Test("A paused workout reaches the watch and resumes with the same elapsed pause")
+    func pauseAndResume() throws {
+        let devices = try TwoDevices()
+        let workout = try #require(try devices.phoneProgram.nextWorkout)
+        workout.start(at: t0)
+        workout.pause(at: t0 + 60)
+        try devices.sendProgram()
+        let watchWorkout = try #require(try devices.watchProgram.nextWorkout)
+        #expect(watchWorkout.isPaused)
+        #expect(watchWorkout.pausedAt == workout.pausedAt)
+
+        workout.resume(at: t0 + 90)
+        try devices.sendProgram()
+        #expect(!watchWorkout.isPaused)
+        #expect(watchWorkout.pausedSeconds == 30)
+    }
+
     @Test("A watch that never synced through iCloud gets the running program straight from the iPhone")
     func watchGetsProgram() throws {
         let devices = try TwoDevices()
