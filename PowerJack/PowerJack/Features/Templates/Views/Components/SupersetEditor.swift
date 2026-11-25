@@ -47,7 +47,7 @@ struct SupersetEditor: View {
                             } label: {
                                 Label("Remove", systemImage: "minus.circle")
                             }
-                            .tint(.red)
+                            .tint(.blue)
 
                             if !loggedExercises.contains(templateExerciseDraft.id) {
                                 Button {
@@ -83,9 +83,24 @@ struct SupersetEditor: View {
                     Button("Done", action: dismiss.callAsFunction)
                 }
             }
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                if let superset {
+                    Button {
+                        templateWorkoutDraft.unstack(superset)
+                    } label: {
+                        Text("Remove Superset")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                    }
+                    .buttonStyle(.glass)
+                    .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                    .padding(.bottom, LayoutMetrics.compactSpacing)
+                }
+            }
         }
         .scrollEdgeEffectStyle(.soft, for: .all)
-        // Taking the last exercise out ends the superset, so there's nothing left to show.
+        // Close the editor when the superset ends.
         .onChange(of: superset == nil) { _, isGone in
             if isGone { dismiss() }
         }

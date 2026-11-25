@@ -80,7 +80,7 @@ struct WorkoutActionsMenu: View {
                 }
 
                 if workout.canEditSupersets {
-                    supersetButtons(for: selectedWorkoutExercise)
+                    supersetButton(for: selectedWorkoutExercise)
                 }
 
                 Divider()
@@ -160,20 +160,9 @@ struct WorkoutActionsMenu: View {
         }
     }
 
-    /// Add to Superset for an exercise on its own. In a superset, Remove from Superset and Edit Superset instead.
     @ViewBuilder
-    private func supersetButtons(for workoutExercise: WorkoutExercise) -> some View {
+    private func supersetButton(for workoutExercise: WorkoutExercise) -> some View {
         if let supersetID = workoutExercise.supersetID, !workoutExercise.supersetPartners.isEmpty {
-            Button {
-                withAnimation {
-                    workout.removeFromSuperset(workoutExercise)
-                    modelContext.saveTraced("removed from superset")
-                }
-            } label: {
-                Label("Remove from Superset", systemImage: "square.split.1x2")
-                Text(Hint.removeFromSuperset)
-            }
-
             Button {
                 onEditSuperset(supersetID)
             } label: {
@@ -203,7 +192,6 @@ struct WorkoutActionsMenu: View {
         static let editExercise = "Rep range, rest and more"
         static let turnOnWarmups = "Adds warmup sets back"
         static let addToSuperset = "Start or join a superset"
-        static let removeFromSuperset = "Does it on its own"
         static let editSuperset = "Reorder or remove"
         static let skipExercise = "Skips its remaining sets"
         static let restoreExercise = "Brings back its sets"
@@ -211,7 +199,7 @@ struct WorkoutActionsMenu: View {
 
         static let all = [
             changeExercise, substitute, undoSubstitute, editExercise, turnOnWarmups, addToSuperset,
-            removeFromSuperset, editSuperset, skipExercise, restoreExercise, skipWorkout,
+            editSuperset, skipExercise, restoreExercise, skipWorkout,
         ]
     }
 
