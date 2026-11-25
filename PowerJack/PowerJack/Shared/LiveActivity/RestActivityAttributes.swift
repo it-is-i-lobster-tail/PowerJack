@@ -43,6 +43,13 @@ nonisolated struct WorkoutActivityState: Codable, Hashable {
     var canCompleteAtTarget: Bool
     /// `nil` when no rest is running, e.g. at the start of a workout or of a new exercise.
     var rest: ClosedRange<Date>?
+    var heartRateBPM: Int?
+
+    var compactSetText: String {
+        setText
+            .replacingOccurrences(of: "Warmup ", with: "Warmup Set ", options: .anchored)
+            .replacingOccurrences(of: " of ", with: "/")
+    }
 
     /// The sets the Live Activity shows as chips, at most `size`: the one before the current set,
     /// the current one and the ones after. `before` and `after` count the sets left off each side.

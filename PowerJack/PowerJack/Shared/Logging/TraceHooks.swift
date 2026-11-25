@@ -258,6 +258,7 @@ extension ProgramRoute {
         case .newProgram: "New Program"
         case .detail(let program): "Program Detail, \(program.traceDescription)"
         case .session(let program): "Workout, \(program.nextWorkout?.traceDescription ?? "no workout")"
+        case .preview: "Workout Preview"
         case .completedWorkout(_, let workout): "Completed Workout, \(workout.traceDescription)"
         case .editDays(let program): "Edit Days, \(program.traceDescription)"
         }

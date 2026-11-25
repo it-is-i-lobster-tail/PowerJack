@@ -31,12 +31,11 @@ enum RestLiveActivityController {
         }
 
         let attributes = RestActivityAttributes(workoutTitle: workoutTitle)
-        // Past the stale date the widget swaps the countdown for "Start set".
-        let content = ActivityContent(state: state, staleDate: state.rest?.upperBound)
 
         if let activity = running.first(where: { $0.attributes == attributes }) {
             await end(running.filter { $0.id != activity.id })
-            if activity.content.state != state {
+            let content = contentWithCurrentHeartRate(state)
+            if activity.content.state != content.state {
                 TraceLog.record(.timer, "Live Activity updated: \(state.setText), resting \(state.rest != nil)")
                 await activity.update(content)
             }
@@ -45,12 +44,29 @@ enum RestLiveActivityController {
 
         await end(running)
         do {
-            _ = try Activity.request(attributes: attributes, content: content)
+            _ = try Activity.request(attributes: attributes, content: contentWithCurrentHeartRate(state))
             TraceLog.record(.timer, "Live Activity started: \(state.setText)")
         } catch {
             Logger.restTimer.error("Could not start the workout Live Activity: \(error.localizedDescription)")
             TraceLog.record(.timer, "Could not start the Live Activity: \(TraceLog.describe(error))")
         }
+    }
+
+    /// Updates an existing activity when HealthKit delivers a sample while the app is backgrounded.
+    static func refreshHeartRate() async {
+        for activity in Activity<RestActivityAttributes>.activities
+        where activity.activityState == .active || activity.activityState == .stale {
+            let content = contentWithCurrentHeartRate(activity.content.state)
+            if content.state != activity.content.state {
+                await activity.update(content)
+            }
+        }
+    }
+
+    private static func contentWithCurrentHeartRate(_ state: WorkoutActivityState) -> ActivityContent<WorkoutActivityState> {
+        var state = state
+        state.heartRateBPM = WorkoutHeartRate.shared.bpm
+        return ActivityContent(state: state, staleDate: state.rest?.upperBound)
     }
 
     /// Brings the activity in line with `program`'s current workout, for changes made while

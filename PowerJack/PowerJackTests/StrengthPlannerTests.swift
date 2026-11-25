@@ -510,6 +510,20 @@ struct StrengthPlannerTests {
         #expect(try context.fetch(FetchDescriptor<StrengthLog>()).count == 1)
     }
 
+    @Test("Forecasting a bench target leaves the saved workout and block untouched")
+    func benchPreviewIsReadOnly() throws {
+        let program = try makeProgram()
+        let workout = try #require(program.nextWorkout)
+        let week = try #require(program.programWeek(containing: workout))
+        let before = workout.planSummary
+        let blockBefore = week.weekKind
+
+        #expect(StrengthPlanner.previewStability(workout, in: program, at: .now).normalBench.isEmpty)
+        #expect(workout.planSummary == before)
+        #expect(week.weekKind == blockBefore)
+        #expect(workout.status == .planned)
+    }
+
     // MARK: Helpers
 
     /// Day 1: squat, bench. Day 2: squat, front squat, curl.

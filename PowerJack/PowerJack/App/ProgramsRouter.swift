@@ -12,6 +12,7 @@ enum ProgramRoute: Hashable {
     case newProgram
     case detail(Program)
     case session(Program)
+    case preview(Program, Workout, WorkoutReminders.Highlight?)
     case completedWorkout(Program, Workout)
     case editDays(Program)
 }
@@ -34,6 +35,10 @@ final class ProgramsRouter {
 
     func showSession(_ program: Program) {
         path.append(.session(program))
+    }
+
+    func showPreview(_ workout: Workout, in program: Program, highlight: WorkoutReminders.Highlight? = nil) {
+        path = [.detail(program), .preview(program, workout, highlight)]
     }
 
     func showEditDays(_ program: Program) {
@@ -106,7 +111,9 @@ extension View {
                 ProgramDetailView(program: program)
             case .session(let program):
                 ProgramSessionView(program: program)
-            case .completedWorkout(let program, let workout):
+            case .preview(let program, let workout, let highlight):
+                PreviewWorkoutView(program: program, workout: workout, highlight: highlight)
+            case .completedWorkout(_, let workout):
                 WorkoutDetailView(workout: workout, isReadOnly: true)
             case .editDays(let program):
                 ProgramLayoutView(program: program)
