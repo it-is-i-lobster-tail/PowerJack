@@ -146,8 +146,9 @@ final class HostedView {
     @discardableResult
     func tap(_ label: String, settleFor duration: Duration = .milliseconds(300)) async -> Bool {
         let matches = elements().filter { $0.accessibilityLabel == label }
-        guard !matches.isEmpty else { return false }
-        let activated = matches.contains { $0.accessibilityActivate() } || runAlertAction(titled: label)
+        // A duplicate accessibility element can claim activation while the alert stays open.
+        let activated = runAlertAction(titled: label) || matches.contains { $0.accessibilityActivate() }
+        guard activated || !matches.isEmpty else { return false }
         await settle(duration)
         return activated
     }

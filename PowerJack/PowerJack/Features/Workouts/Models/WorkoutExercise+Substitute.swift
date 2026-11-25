@@ -2,8 +2,8 @@
 //  WorkoutExercise+Substitute.swift
 //  PowerJack
 //
-//  One-Time Substitute: when the equipment is busy, the lifter swaps in another exercise for the same
-//  muscle, for this workout only. `exercise` stays the planned exercise, so next week, Edit Days, Reset
+//  One-Time Substitute: when the equipment is busy, the lifter swaps in another exercise
+//  for this workout only. `exercise` stays the planned exercise, so next week, Edit Days, Reset
 //  Progression and templates never see the swap, and progression counts the work toward the planned exercise.
 //
 
@@ -18,14 +18,6 @@ extension WorkoutExercise {
     /// Only before any working set is logged, since the logged sets would mix two exercises.
     var canSubstitute: Bool {
         !locked && status == .active && completedWorkingSets == 0
-    }
-
-    /// Exercises that can stand in for the planned one: the same primary muscle, sorted by name.
-    func substituteOptions(from exercises: [Exercise]) -> [Exercise] {
-        guard let exercise else { return [] }
-        return exercises
-            .filter { $0 !== exercise && $0.primaryMuscleFocus == exercise.primaryMuscleFocus }
-            .sorted { $0.exerciseName.localizedStandardCompare($1.exerciseName) == .orderedAscending }
     }
 
     /// Swaps `substitute` in for this workout. Sets still to do take its weights from the last time it was done.

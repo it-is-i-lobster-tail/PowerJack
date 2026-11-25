@@ -155,7 +155,7 @@ struct ProgramDataView: View {
                 .id(mode)
                 .scrollDismissesKeyboard(.interactively)
             }
-            .background { DataSearchIndexLoader(index: $searchIndex) }
+            .background { ExerciseSearchIndexLoader(index: $searchIndex) }
             .onGeometryChange(for: Bool.self) { geometry in
                 geometry.size.width > geometry.size.height
             } action: { isLandscape = $0 }
@@ -179,10 +179,10 @@ struct ProgramDataView: View {
                 List {
                     switch filter {
                     case .muscles:
-                        filterOptions("All muscles", choices: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
+                        FilterOptions("All muscles", choices: Muscle.allCases.sorted { $0.rawValue < $1.rawValue },
                                       selected: $selectedMuscles, title: { $0.rawValue.capitalized })
                     case .programTypes:
-                        filterOptions("All program types", choices: TemplateType.allCases,
+                        FilterOptions("All program types", choices: TemplateType.allCases,
                                       selected: $selectedProgramTypes, title: \.name)
                     }
                 }
@@ -234,57 +234,6 @@ struct ProgramDataView: View {
             openFilter = .programTypes
         }
         .accessibilityValue(selectedProgramTypes.isEmpty ? "All program types" : "\(selectedProgramTypes.count) selected")
-    }
-
-    @ViewBuilder
-    private func filterOptions<Option: Identifiable & Hashable>(
-        _ allTitle: String, choices: [Option], selected: Binding<Set<Option>>, title: @escaping (Option) -> String
-    ) -> some View {
-        Section {
-            filterOption(allTitle, isSelected: selected.wrappedValue.isEmpty) {
-                selected.wrappedValue.removeAll()
-            }
-        }
-        Section {
-            ForEach(choices) { option in
-                filterOption(title(option), isSelected: selected.wrappedValue.contains(option)) {
-                    if selected.wrappedValue.remove(option) == nil { selected.wrappedValue.insert(option) }
-                }
-            }
-        }
-    }
-
-    private func filterOption(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(title)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// Watches catalog edits independently of the text field. All inference and
-/// document preparation happen once per catalog revision, off the UI thread.
-private struct DataSearchIndexLoader: View {
-    @Query private var exercises: [Exercise]
-    @Binding var index: ExerciseChartSearch.Index?
-
-    var body: some View {
-        let documents = exercises.map(ExerciseChartSearch.Document.init)
-        Color.clear.task(id: documents) {
-            let build = Task.detached(priority: .userInitiated) { ExerciseChartSearch.Index(documents) }
-            let updated = await build.value
-            if !Task.isCancelled { index = updated }
-        }
     }
 }
 

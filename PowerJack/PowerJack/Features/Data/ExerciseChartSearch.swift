@@ -4,6 +4,9 @@ import SwiftData
 nonisolated struct ExerciseChartSearch: Sendable {
     let ranks: [PersistentIdentifier: Int]
     let muscles: Set<Muscle>
+    // Literal matches have one rank per tier. Semantic matches also encode
+    // distance within the tier so pickers can weigh close matches against the source.
+    var ranksPerTier = 1
 
     /// Take value snapshots on the store's actor. Indexing never retains SwiftData objects.
     struct Document: Hashable, Sendable {
@@ -142,7 +145,29 @@ nonisolated struct ExerciseChartSearch: Sendable {
                 ranks[match.entry.document.id] = Int((1 - match.score) * 1000)
                 focus.insert(match.entry.document.primary)
             }
-            return ExerciseChartSearch(ranks: ranks, muscles: focus)
+            return ExerciseChartSearch(ranks: ranks, muscles: focus, ranksPerTier: 1000)
+        }
+
+        /// How well each lift can stand in for the source. A shared muscle or movement
+        /// anchors the comparison even when a custom exercise has no mechanics profile.
+        func relatedness(to id: PersistentIdentifier) -> [PersistentIdentifier: Float] {
+            guard let source = entries.first(where: { $0.document.id == id }) else { return [:] }
+            let original = source.document
+            var scores: [PersistentIdentifier: Float] = [:]
+            for entry in entries where entry.document.id != id {
+                let candidate = entry.document
+                let sameMuscle = original.primary == candidate.primary
+                let samePattern = original.pattern != nil && original.pattern == candidate.pattern
+                let assists = candidate.secondary.contains(original.primary) || original.secondary.contains(candidate.primary)
+                guard sameMuscle || samePattern || assists else { continue }
+
+                var score: Float = sameMuscle ? 4 : 0
+                if samePattern { score += 3 }
+                score += ExerciseTextEncoder.similarity(source.mechanics, entry.mechanics)
+                score += ExerciseTextEncoder.similarity(source.vector, entry.vector)
+                scores[candidate.id] = score
+            }
+            return scores
         }
 
         private func muscleResults(_ focus: AnatomyTopic.Focus, scored: [ScoredEntry], cutoff: Float) -> ExerciseChartSearch {
@@ -168,7 +193,7 @@ nonisolated struct ExerciseChartSearch: Sendable {
                 let similarity = min(1, max(0, match.score))
                 ranks[doc.id] = tier * 1000 + Int((1 - similarity) * 999)
             }
-            return ExerciseChartSearch(ranks: ranks, muscles: ranks.isEmpty ? [] : focus.muscles)
+            return ExerciseChartSearch(ranks: ranks, muscles: ranks.isEmpty ? [] : focus.muscles, ranksPerTier: 1000)
         }
     }
 

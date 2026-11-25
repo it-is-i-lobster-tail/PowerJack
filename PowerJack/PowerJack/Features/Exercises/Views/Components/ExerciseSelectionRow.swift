@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ExerciseSelectionRow: View {
     let exercise: Exercise
-    let isEnabled: Bool
+    var isSelected = false
     let onSelect: () -> Void
 
     var body: some View {
@@ -32,9 +32,13 @@ struct ExerciseSelectionRow: View {
                 }
 
                 Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                }
             }
+            .contentShape(.rect)
         }
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : VisualOpacity.standard)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
