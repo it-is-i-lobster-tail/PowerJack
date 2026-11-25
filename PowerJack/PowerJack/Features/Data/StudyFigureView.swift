@@ -22,10 +22,18 @@ struct StudyFigureView: View {
                                 .position(by: .value("Series", trace.name))
                                 .foregroundStyle(ink(i))
                         } else if trace.style == .dots || trace.points.count == 1 {
-                            PointMark(x: x, y: y)
-                                .symbol(i.isMultiple(of: 2) ? BasicChartSymbolShape.circle : .diamond)
-                                .symbolSize(compact ? 14 : 36)
-                                .foregroundStyle(ink(i))
+                            if study.id == .effort, trace.name == "Target" {
+                                PointMark(x: x, y: y)
+                                    .symbol {
+                                        Circle().strokeBorder(ink(i), lineWidth: compact ? 1 : 2)
+                                            .frame(width: compact ? 7 : 13, height: compact ? 7 : 13)
+                                    }
+                            } else {
+                                PointMark(x: x, y: y)
+                                    .symbol(i.isMultiple(of: 2) ? BasicChartSymbolShape.circle : .diamond)
+                                    .symbolSize(compact ? 14 : 36)
+                                    .foregroundStyle(ink(i))
+                            }
                         } else {
                             LineMark(x: x, y: y, series: .value("Series", trace.name))
                                 .interpolationMethod(trace.style == .step ? .stepEnd : .linear)
@@ -56,6 +64,7 @@ struct StudyFigureView: View {
                 }
             }
             .modifier(StudyAxes(compact: compact, x: study.xLabel, y: study.yLabel))
+            .modifier(StudyDateInspection(series: series, study: study, enabled: dates && !compact))
         case .liftPanels(let series):
             VStack(alignment: .leading, spacing: compact ? 3 : 18) {
                 ForEach(Array(series.prefix(compact ? 3 : series.count).enumerated()), id: \.offset) { index, trace in
@@ -75,6 +84,7 @@ struct StudyFigureView: View {
                     .chartXAxis(compact ? .hidden : .visible)
                     .chartYAxis(compact ? .hidden : .visible)
                     .frame(height: compact ? nil : 145)
+                    .modifier(StudyDateInspection(series: [trace], study: study, enabled: !compact))
                     if compact { Divider() }
                 }
             }
@@ -128,7 +138,7 @@ struct StudyFigureView: View {
         case .bars(let bars):
             StudyCategoryPlot(study: study, bars: bars, compact: compact)
         case .matrix(let cols, let rows, let values):
-            StudyMatrix(columns: cols, rows: rows, values: values, compact: compact)
+            StudyMatrix(study: study, columns: cols, rows: rows, values: values, compact: compact)
         case .table(let table):
             StudyTableView(table: table, compact: compact)
         case nil:
@@ -140,6 +150,91 @@ struct StudyFigureView: View {
                     "No matching history", systemImage: "chart.xyaxis.line", description: Text(study.emptyReason))
             }
         }
+    }
+}
+
+/// Tap the plot to inspect a session. VoiceOver can step through the same dates.
+private struct StudyDateInspection: ViewModifier {
+    let series: [StudySeries]
+    let study: StudyResult
+    let enabled: Bool
+    @State private var selection: Double?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            let dates = Set(series.flatMap { $0.points.map(\.x) }).sorted()
+            if let latest = dates.last {
+                let selected = selection.flatMap { dates.contains($0) ? $0 : nil } ?? latest
+                VStack(alignment: .leading, spacing: 5) {
+                    content.chartOverlay { proxy in
+                        GeometryReader { geometry in
+                            if let plot = proxy.plotFrame {
+                                let frame = geometry[plot]
+                                ZStack(alignment: .topLeading) {
+                                    if let x = position(selected, in: proxy) {
+                                        Rectangle().fill(.secondary.opacity(0.5))
+                                            .frame(width: 1, height: frame.height)
+                                            .offset(x: frame.minX + x, y: frame.minY)
+                                    }
+                                    Rectangle().fill(.clear).contentShape(Rectangle())
+                                        .onTapGesture { location in
+                                            guard frame.contains(location),
+                                                let x = time(at: location.x - frame.minX, in: proxy)
+                                            else { return }
+                                            selection = dates.min { abs($0 - x) < abs($1 - x) }
+                                        }
+                                }
+                            }
+                        }
+                        .accessibilityHidden(true)
+                    }
+                    Text(readout(selected)).font(.caption).monospacedDigit()
+                        .accessibilityLabel("Selected workout")
+                        .accessibilityValue(readout(selected))
+                        .accessibilityAdjustableAction { direction in
+                            guard let i = dates.firstIndex(of: selected) else { return }
+                            switch direction {
+                            case .increment: selection = dates[min(dates.count - 1, i + 1)]
+                            case .decrement: selection = dates[max(0, i - 1)]
+                            @unknown default: break
+                            }
+                        }
+                }
+            } else {
+                content
+            }
+        } else {
+            content
+        }
+    }
+
+    private func position(_ time: Double, in proxy: ChartProxy) -> CGFloat? {
+        if case .liftPanels = study.figure {
+            return proxy.position(forX: Date(timeIntervalSince1970: time))
+        }
+        return proxy.position(forX: time)
+    }
+
+    private func time(at x: CGFloat, in proxy: ChartProxy) -> Double? {
+        if case .liftPanels = study.figure {
+            return proxy.value(atX: x, as: Date.self)?.timeIntervalSince1970
+        }
+        return proxy.value(atX: x, as: Double.self)
+    }
+
+    private func readout(_ x: Double) -> String {
+        let date = Date(timeIntervalSince1970: x).formatted(date: .abbreviated, time: .omitted)
+        let values = series.map { trace in
+            let observations = trace.points.filter { $0.x == x }.map { point in
+                study.id == .effort && trace.name == "Reported" && point.y == 5 ? "5+" : point.y.studyNumber
+            }
+            let value =
+                observations.isEmpty
+                ? (study.id == .effort && trace.name == "Reported" ? "Unrated" : "—")
+                : observations.joined(separator: ", ")
+            return "\(trace.name) \(value)"
+        }
+        return ([date, study.yLabel] + values).joined(separator: " · ")
     }
 }
 
@@ -259,8 +354,10 @@ private struct StudyAxes: ViewModifier {
     }
 }
 
-private struct StudyMatrix: View {
+struct StudyMatrix: View {
     @Environment(\.colorScheme) private var scheme
+    let study: StudyResult
+    @State private var selection: String?
     let columns: [String]
     let rows: [String]
     let values: [[Double?]]
@@ -269,40 +366,84 @@ private struct StudyMatrix: View {
     var body: some View {
         let maximum = max(1, values.flatMap { $0 }.compactMap { $0 }.max() ?? 1)
         let shown = compact ? min(6, rows.count) : rows.count
-        Grid(horizontalSpacing: compact ? 2 : 3, verticalSpacing: compact ? 2 : 4) {
+        VStack(alignment: .leading, spacing: compact ? 0 : 8) {
             if !compact {
-                GridRow {
-                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                    ForEach(columns.indices, id: \.self) { i in Text(columns[i]).font(.caption2).foregroundStyle(.secondary)
+                Text(selection ?? "Select a cell for its labels and value.")
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 300, alignment: .leading)
+            }
+            Grid(horizontalSpacing: compact ? 2 : 3, verticalSpacing: compact ? 2 : 4) {
+                if !compact {
+                    GridRow {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        ForEach(columns.indices, id: \.self) { i in
+                            Text(columns[i]).font(.caption2).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true).frame(width: columnWidth(i))
+                        }
                     }
                 }
-            }
-            ForEach(0..<shown, id: \.self) { r in
-                GridRow {
-                    if !compact { Text(rows[r]).font(.caption.weight(.medium)).gridColumnAlignment(.leading) }
-                    ForEach(columns.indices, id: \.self) { c in
-                        let value = values[r][c]
-                        RoundedRectangle(cornerRadius: compact ? 2 : 4)
-                            .fill(
-                                value.map {
-                                    WorkoutChartPalette.color(at: 0, scheme: scheme).opacity(0.12 + 0.8 * $0 / maximum)
-                                } ?? Color.secondary.opacity(0.1)
+                ForEach(0..<shown, id: \.self) { r in
+                    GridRow {
+                        if !compact {
+                            Text(rows[r]).font(.caption.weight(.medium)).fixedSize(
+                                horizontal: false, vertical: true
                             )
-                            .frame(minWidth: compact ? 2 : 32, minHeight: compact ? 5 : 32)
-                            .overlay {
-                                if !compact {
-                                    Text(value?.studyNumber ?? "–").font(.caption.monospacedDigit())
-                                        .foregroundStyle(
-                                            (value ?? 0) / maximum > 0.60
-                                                ? (scheme == .dark ? Color.black : .white) : .primary)
+                            .frame(width: 116, alignment: .leading)
+                        }
+                        ForEach(columns.indices, id: \.self) { c in
+                            let value = values[r][c]
+                            let cell = RoundedRectangle(cornerRadius: compact ? 2 : 4)
+                                .fill(
+                                    value.map {
+                                        WorkoutChartPalette.color(at: 0, scheme: scheme).opacity(
+                                            0.12 + 0.8 * $0 / maximum)
+                                    } ?? Color.secondary.opacity(0.1)
+                                )
+                                .frame(minWidth: compact ? 2 : 32, minHeight: compact ? 5 : 32)
+                                .overlay {
+                                    if !compact {
+                                        Text(value?.studyNumber ?? "–").font(.caption.monospacedDigit())
+                                            .foregroundStyle(
+                                                (value ?? 0) / maximum > 0.60
+                                                    ? (scheme == .dark ? Color.black : .white) : .primary)
+                                    }
                                 }
+                            if compact {
+                                cell
+                            } else {
+                                let units = study.id == .legWork ? "credited sets" : "working sets"
+                                let amount = value.map { "\($0.studyNumber) \(units)" } ?? "No log"
+                                let label = "\(study.yLabel) \(rows[r]) · \(study.xLabel) \(columns[c]) · \(amount)"
+                                Button {
+                                    selection = label
+                                } label: {
+                                    cell.frame(width: columnWidth(c), height: 44)
+                                        .overlay {
+                                            if selection == label {
+                                                RoundedRectangle(cornerRadius: 4).strokeBorder(.primary, lineWidth: 2)
+                                            }
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(label)
+                                .accessibilityAddTraits(selection == label ? .isSelected : [])
                             }
-                            .accessibilityLabel("\(rows[r]), \(columns[c]), \(value?.studyNumber ?? "no log")")
+                        }
                     }
                 }
             }
         }
+        .onChange(of: study) { selection = nil }
     }
+    private func columnWidth(_ i: Int) -> CGFloat {
+        Self.width(for: columns[i])
+    }
+
+    static func width(for column: String) -> CGFloat {
+        min(128, max(44, CGFloat(column.count) * 7 + 8))
+    }
+
 }
 
 struct StudyTableView: View {

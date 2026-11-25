@@ -9,6 +9,8 @@ struct StudySet {
     var status: Status
     var logged: Date?
     var rating: RepsInReserve?
+    var started: Date?
+    var seconds: Double?
 }
 
 struct StudySession {
@@ -30,6 +32,10 @@ struct StudySession {
     var repsOnly = false
     var targetRIR: Int?
     var sets: [StudySet]
+    var warmups: [StudySet] = []
+    var movementPattern: MovementPattern?
+    var equipment: Equipment?
+    var isAccessory: Bool?
 
     var done: [StudySet] { sets.filter { $0.status == .complete } }
     var opening: StudySet? { sets.first.flatMap { $0.status == .complete ? $0 : nil } }
@@ -45,11 +51,29 @@ struct StudySession {
     }
 }
 
+struct StudyWorkout {
+    let key: String
+    let program: String
+    let template: String
+    let activeProgram: Bool
+    let weekNumber: Int
+    let weekKind: String
+    let block: String?
+    let status: Status
+    let began: Date?
+    let ended: Date?
+    let seconds: Double?
+    let primaryMuscles: Set<Muscle>
+    var date: Date? { began ?? ended }
+}
+
 struct StudyHistory {
     var options = StudyOptions()
     private(set) var selectedRange: DateInterval?
     private var exerciseMuscles: [Muscle] = []
     let sessions: [StudySession]
+    let plansFromLivePrograms: Set<String>
+    let workouts: [StudyWorkout]
     let credits: [(date: Date, muscle: Muscle, sets: Double)]
     let today: Date
     let firstDate: Date
@@ -69,10 +93,21 @@ struct StudyHistory {
         self.today = today
         self.calendar = calendar
         var sessions: [StudySession] = []
+        var workouts: [String: StudyWorkout] = [:]
+        let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ("catalog:" + $0.id, $0) })
         for program in programs {
             let pid = program.syncID?.uuidString ?? String(describing: program.persistentModelID)
             for week in program.programWeeks {
-                for workout in week.workouts where workout.status != .planned {
+                for workout in week.workouts {
+                    let key = "\(pid)/\(week.order)/\(workout.order)"
+                    if let date = workout.startedAt ?? workout.endedAt, date > today { continue }
+                    workouts[key] = StudyWorkout(key: key, program: pid, template: program.templateName,
+                        activeProgram: program.status == .active, weekNumber: week.order + 1,
+                        weekKind: week.weekKind?.rawValue ?? "", block: week.blockWeek > 0 ? "\(pid)/\(week.order + 1 - week.blockWeek)" : nil,
+                        status: workout.status, began: workout.startedAt, ended: workout.endedAt,
+                        seconds: workout.endedAt == nil ? nil : workout.duration(),
+                        primaryMuscles: Set(workout.workoutExercises.compactMap { $0.shownExercise?.primaryMuscleFocus }))
+                    guard workout.status != .planned else { continue }
                     guard let date = workout.endedAt ?? workout.startedAt, date <= today else { continue }
                     for slot in workout.workoutExercises {
                         guard let exercise = slot.shownExercise else { continue }
@@ -85,7 +120,8 @@ struct StudyHistory {
                             return StudySet(
                                 reps: set.reps, load: set.weightTenthsPounds, target: set.repsPlanned,
                                 targetLoad: set.weightTenthsPlannedPounds, status: set.status, logged: set.completedAt,
-                                rating: set.status == .complete && completed == rated ? feedback?.repsInReserve : nil)
+                                rating: set.status == .complete && completed == rated ? feedback?.repsInReserve : nil,
+                                started: set.startedAt, seconds: set.duration)
                         }
                         sessions.append(
                             StudySession(
@@ -101,7 +137,13 @@ struct StudyHistory {
                                 primary: exercise.primaryMuscleFocus, assisting: exercise.secondaryMuscles,
                                 loaded: !exercise.repsOnly && !exercise.addsToBodyweight,
                                 repsOnly: exercise.repsOnly, targetRIR: slot.rirTarget,
-                                sets: sets))
+                                sets: sets, warmups: slot.warmupSets.map { set in
+                                    StudySet(reps: set.reps, load: set.weightTenthsPounds, target: set.repsPlanned,
+                                        targetLoad: set.weightTenthsPlannedPounds, status: set.status, logged: set.completedAt,
+                                        started: set.startedAt, seconds: set.duration)
+                                }, movementPattern: exercise.movementPattern ?? exercise.syncKey.flatMap { catalog[$0]?.profile.pattern },
+                                equipment: exercise.equipment,
+                                isAccessory: slot.strengthRole.map { $0 == .accessory } ?? slot.powerJackRoleValue.map { $0 == "accessory" }))
                     }
                 }
             }
@@ -119,17 +161,24 @@ struct StudyHistory {
         }
         for entry in archivedSlots.values {
             let rows = entry.sorted { $0.order < $1.order }.map(\.row)
-            guard let first = rows.first, let date = first.workoutEnded ?? first.workoutStarted, date <= today else {
-                continue
-            }
+            guard let first = rows.first else { continue }
+            if let date = first.workoutStarted ?? first.workoutEnded, date > today { continue }
             let pid = (entry.first?.programID ?? entry.first?.batchID)?.uuidString ?? first.programName
+            let key = "\(pid)/\(first.week)/\(first.day)"
+            let primary = Muscle(rawValue: first.primaryMuscle.lowercased())
+            let muscles = (workouts[key]?.primaryMuscles ?? []).union([primary].compactMap { $0 })
+            workouts[key] = StudyWorkout(key: key, program: pid, template: first.programName,
+                activeProgram: false, weekNumber: first.week, weekKind: first.weekType.lowercased(), block: nil,
+                status: Status(rawValue: first.workoutStatus.lowercased()) ?? .planned, began: first.workoutStarted,
+                ended: first.workoutEnded, seconds: first.workoutSeconds, primaryMuscles: muscles)
+            guard let date = first.workoutEnded ?? first.workoutStarted, date <= today else { continue }
             let working = rows.filter { $0.setType != "Warmup" }
             var sets = working.map { row in
                 StudySet(
                     reps: row.reps, load: row.weightTenthsPounds, target: row.targetReps,
                     targetLoad: row.targetWeightTenthsPounds,
                     status: Status(rawValue: row.setStatus.lowercased()) ?? .planned,
-                    logged: row.setLogged)
+                    logged: row.setLogged, started: row.setStarted, seconds: row.setSeconds.map(Double.init))
             }
             if let last = sets.lastIndex(where: { $0.status == .complete }) {
                 sets[last].rating = RepsInReserve.allCases.first { $0.label == first.effort }
@@ -145,8 +194,16 @@ struct StudyHistory {
                     loaded: ![Equipment.bodyweight.displayName, Equipment.loadableBodyweight.displayName, ""].contains(
                         first.equipment),
                     repsOnly: first.equipment == Equipment.bodyweight.displayName,
-                    targetRIR: Int(first.rirTarget), sets: sets))
+                    targetRIR: Int(first.rirTarget), sets: sets,
+                    warmups: rows.filter { $0.setType == "Warmup" }.map { row in
+                        StudySet(reps: row.reps, load: row.weightTenthsPounds, target: row.targetReps,
+                            targetLoad: row.targetWeightTenthsPounds, status: Status(rawValue: row.setStatus.lowercased()) ?? .planned,
+                            logged: row.setLogged, started: row.setStarted, seconds: row.setSeconds.map(Double.init))
+                    }, movementPattern: catalog[first.exerciseKey]?.profile.pattern,
+                    equipment: Equipment.allCases.first { $0.displayName == first.equipment }))
         }
+        self.plansFromLivePrograms = Set(programs.map { $0.syncID?.uuidString ?? String(describing: $0.persistentModelID) })
+        self.workouts = workouts.values.sorted { ($0.date ?? .distantFuture, $0.key) < ($1.date ?? .distantFuture, $1.key) }
         self.sessions = sessions.sorted { ($0.date, $0.workout, $0.slot) < ($1.date, $1.workout, $1.slot) }
         let recordedLogs = logs.filter { $0.date <= today }
         self.firstDate = min(self.sessions.first?.date ?? today, recordedLogs.map(\.date).min() ?? today)
@@ -171,6 +228,9 @@ struct StudyHistory {
         case .month(let year, let month):
             history.selectedRange = calendar.date(from: DateComponents(year: year, month: month, day: 1))
                 .flatMap { calendar.dateInterval(of: .month, for: $0) }
+        case let .day(year, month, day):
+            history.selectedRange = calendar.date(from: DateComponents(year: year, month: month, day: day))
+                .flatMap { calendar.dateInterval(of: .day, for: $0) }
         case .original, .all: history.selectedRange = nil
         }
         return history
@@ -186,6 +246,7 @@ struct StudyHistory {
         case .original: return ""
         case .all: return "All recorded history"
         case .year(let year): return String(year)
+        case .day: return selectedRange?.start.formatted(.dateTime.month(.wide).day().year()) ?? ""
         case .month: return selectedRange?.start.formatted(.dateTime.month(.wide).year()) ?? ""
         }
     }

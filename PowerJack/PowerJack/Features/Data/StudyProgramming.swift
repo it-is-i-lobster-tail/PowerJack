@@ -52,7 +52,7 @@ extension StudyHistory {
                     .init(name: "Target", points: targets, style: .dots),
                     .init(name: "Reported", points: ratings, style: .dots),
                 ], dates: true,
-                summary: "Reported effort belongs to the rated last working set. A 5 is five or more reps left.",
+                summary: slots.isEmpty ? "" : "\(ratings.count) of \(slots.count) sessions have a reported effort. Unrated means no rating was logged. A 5 means five or more reps left.",
                 detail: StudyTable(columns: ["Date", "Target", "Reported"], rows: rows))
         case .lastCurl:
             let slots = focusedLift(Self.curl, includeEarlier: true).filter { $0.opening?.load == curlLoad }
@@ -101,8 +101,27 @@ extension StudyHistory {
                         return .init(Double(i + 1), Double(r))
                     })
             }
+            let rows = matched.reversed().map { slot in
+                let reps = slot.sets.map { $0.status == .complete ? $0.reps : nil }
+                var change = "—"
+                if let first = reps[0], let last = reps[setsTarget - 1] {
+                    let difference = last - first
+                    change = difference > 0 ? "+\(difference)" : String(difference)
+                }
+                return [day(slot.date), change] + reps.map { $0.map(String.init) ?? "—" }
+            }
+            let changes = series.compactMap { line -> Double? in
+                guard let first = line.points.first, first.x == 1, let last = line.points.last,
+                    last.x == Double(setsTarget) else { return nil }
+                return last.y - first.y
+            }
+            let columns = ["Date", "Last − first"] + (1...setsTarget).map { "Set \($0)" }
+            let summary = Self.quantile(changes).map {
+                "Median last-set change from set one was \($0.studyNumber) reps across \(changes.count) sessions with both sets logged."
+            } ?? ""
             return traces(
-                id, "\(benchName) · \(setsTarget) sets at \(loadText(benchLoad))", "Working-set position", "Reps", series)
+                id, "\(benchName) · \(setsTarget) sets at \(loadText(benchLoad))", "Working-set position", "Reps", series,
+                summary: summary, detail: rows.isEmpty ? nil : StudyTable(columns: columns, rows: rows))
         case .substitutions:
             let slots = sessions.filter { includes($0.date) && $0.planned == focusKey(Self.squat) && !$0.done.isEmpty }
             let grouped = Dictionary(grouping: slots, by: \.name)
@@ -113,7 +132,7 @@ extension StudyHistory {
             }
             var result = table(
                 id, "Planned \(squatName) · completed slots", ["Performed exercise", "Slots", "Share"], rows,
-                "Only slots retaining the original exercise are included.")
+                "Counts completed slots where the planned exercise is known, including slots where you did a substitute.")
             result.alternateBars = grouped.keys.sorted().map { StudyBar(label: $0, value: Double(grouped[$0]?.count ?? 0)) }
             result.xLabel = "Performed exercise"
             result.yLabel = "Completed slots"
@@ -199,9 +218,21 @@ extension StudyHistory {
                 }
                 return .init(name: "\(day(first[0].date)) · \(loadText(Int(base.rounded())))", points: points)
             }
+            let weekNumbers = Set(series.flatMap { $0.points.map(\.x) }).sorted()
+            let rows = weekNumbers.map { week in
+                [String(Int(week))] + series.map { block in
+                    block.points.first(where: { $0.x == week }).map { "\($0.y.studyNumber)%" } ?? "—"
+                }
+            }
+            let shared = rows.last { !$0.contains("—") }
+            let summary = shared.map { row in
+                let values = zip(series, row.dropFirst()).map { "\($0.name): \($1)" }.joined(separator: " · ")
+                return "Week \(row[0]) change from baseline by block. \(values)."
+            } ?? ""
             return traces(
                 id, "\(squatName) · latest \(parameter(.sessions, 3)) recorded blocks", "Block week",
-                "Change from week one (%)", series)
+                "Change from week one (%)", series, summary: summary,
+                detail: rows.isEmpty ? nil : StudyTable(columns: ["Block week"] + series.map(\.name), rows: rows))
         default:
             let minutes = parameter(.minutes, 50)
             let lower = sessions.filter {

@@ -57,7 +57,7 @@ struct StudyCustomizationView: View {
                                 get: { draft.muscles.map(\.rawValue) },
                                 set: { draft.muscles = $0.compactMap(Muscle.init(rawValue:)) }
                             ), choices: Muscle.allCases.map { .init(key: $0.rawValue, name: $0.rawValue.capitalized) },
-                            multiple: id != .gluteSources, fallback: defaultMuscles)
+                            multiple: true, fallback: defaultMuscles)
                             .accessibilityIdentifier("data.control.muscles")
                     }
                     if id != .legWork {
@@ -165,8 +165,8 @@ struct StudyCustomizationView: View {
         if !draft.exerciseKeys.isEmpty { return "Exercise muscles" }
         switch id {
         case .gluteSources: return "Glutes"
-        case .armReps, .repChanges: return "Arms"
-        default: return "Legs"
+        case .armReps, .repChanges: return StudyHistory.arms.map(\.rawValue).joined(separator: ", ")
+        default: return StudyHistory.legs.map(\.rawValue).joined(separator: ", ")
         }
     }
 
@@ -235,7 +235,7 @@ private struct StudyChoiceList: View {
     }
 }
 
-private struct StudyPeriodPicker: View {
+struct StudyPeriodPicker: View {
     @Binding var period: StudyPeriod
     let defaultLabel: String
     let calendar: Calendar
@@ -246,15 +246,17 @@ private struct StudyPeriodPicker: View {
         case all = "All history"
         case year = "Year"
         case month = "Month"
+        case day = "Day"
     }
     private var year: Int {
         switch period {
-        case .year(let value), .month(let value, _): value
+        case .year(let value), .month(let value, _), .day(let value, _, _): value
         default: calendar.component(.year, from: today)
         }
     }
     private var month: Int {
         if case .month(_, let number) = period { return number }
+        if case .day(_, let number, _) = period { return number }
         return calendar.component(.month, from: today)
     }
     private var kind: Kind {
@@ -262,6 +264,7 @@ private struct StudyPeriodPicker: View {
         case .original: .original
         case .all: .all
         case .year: .year
+        case .day: .day
         case .month: .month
         }
     }
@@ -275,6 +278,7 @@ private struct StudyPeriodPicker: View {
                     case .original: period = .original
                     case .all: period = .all
                     case .year: period = .year(year)
+                    case .day: period = .day(year: year, month: month, day: 1)
                     case .month: period = .month(year: year, month: month)
                     }
                 })
@@ -282,6 +286,16 @@ private struct StudyPeriodPicker: View {
             ForEach(Kind.allCases, id: \.self) { Text($0 == .original ? defaultLabel : $0.rawValue).tag($0) }
         }
         .accessibilityIdentifier("data.control.period")
+        if case let .day(year, month, day) = period {
+            DatePicker("Date", selection: Binding(get: {
+                calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? today
+            }, set: { date in
+                let parts = calendar.dateComponents([.year, .month, .day], from: date)
+                if let year = parts.year, let month = parts.month, let day = parts.day {
+                    period = .day(year: year, month: month, day: day)
+                }
+            }), displayedComponents: .date)
+        }
         if kind == .year || kind == .month {
             let current = calendar.component(.year, from: today)
             let first = calendar.component(.year, from: earliest)
@@ -308,7 +322,7 @@ private struct StudyPeriodPicker: View {
     }
 }
 
-private struct StudyNumberEditor: View {
+struct StudyNumberEditor: View {
     let parameter: StudyParameter
     let id: TrainingStudy
     let defaultValue: Int?

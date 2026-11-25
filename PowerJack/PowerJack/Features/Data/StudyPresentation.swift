@@ -62,10 +62,22 @@ extension StudyResult {
         }
         if style == .table {
             // These source tables include observations such as the actual set or the paired week.
-            let values =
-                (id == .legMax || id == .relationship || id == .exerciseOrder || id == .yearlyRecords)
-                ? (detail ?? result.plottedValues) : result.plottedValues
-            if let values { result.figure = .table(values) }
+            let sourceTable: StudyTable?
+            switch id {
+            case .legMax, .relationship, .exerciseOrder, .yearlyRecords, .repeatBench, .pushups, .blocks, .benchSets, .effort:
+                sourceTable = detail
+            default:
+                sourceTable = nil
+            }
+            if let values = sourceTable ?? result.plottedValues {
+                if sourceTable == nil {
+                    switch result.figure {
+                    case .traces, .attempts, .matrix: result.readingFigure = result.figure
+                    default: break
+                    }
+                }
+                result.figure = .table(values)
+            }
             result.detail = nil
             if id == .squatSuccess {
                 result.summary =
@@ -99,6 +111,7 @@ extension StudyResult {
         case .attempts(let counts) where style != .original:
             result.xLabel = "Opening load"
             result.yLabel = "Reached target (%)"
+            result.readingFigure = result.figure
             result.figure = .bars(
                 counts.filter { $0.attempts > 0 }.map {
                     StudyBar(label: $0.label, value: 100 * Double($0.made) / Double($0.attempts))
