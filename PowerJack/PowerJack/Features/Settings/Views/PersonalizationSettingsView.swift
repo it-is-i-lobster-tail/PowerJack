@@ -7,9 +7,11 @@
 
 import ActivityKit
 import SwiftUI
+import UserNotifications
 
 struct PersonalizationSettingsView: View {
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(AppSettings.Key.inAppRestTimer)
     private var showsInAppRestTimer = AppSettings.Default.inAppRestTimer
@@ -21,6 +23,11 @@ struct PersonalizationSettingsView: View {
     private var showsHints = AppSettings.Default.hints
     @AppStorage(AppSettings.Key.weightUnit)
     private var weightUnit = WeightUnit.deviceDefault
+
+    @AppStorage(AppSettings.Key.workoutReminders) private var workoutReminders = false
+    @AppStorage(AppSettings.Key.workoutReminderEveningMinute)
+    private var reminderEveningMinute = WorkoutReminderTiming.defaultEveningMinute
+    @State private var notificationsBlocked = false
 
     @State private var liveActivitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
 
@@ -88,6 +95,43 @@ struct PersonalizationSettingsView: View {
             }
 
             Section {
+                Toggle(isOn: $workoutReminders) {
+                    SettingsRowLabel(
+                        systemImage: "bell",
+                        title: "Preview Reminders",
+                        detail: "Get a preview when PowerJack learns when you usually lift."
+                    )
+                }
+                .onChange(of: workoutReminders) { _, enabled in
+                    WorkoutReminders.shared.refresh()
+                    guard enabled else { return }
+                    Task {
+                        await WorkoutReminders.shared.requestAuthorization()
+                        await checkNotificationPermission()
+                        WorkoutReminders.shared.refresh()
+                    }
+                }
+
+                if workoutReminders {
+                    DatePicker("Evening Reminder", selection: eveningTime, displayedComponents: .hourAndMinute)
+                        .onChange(of: reminderEveningMinute) { _, _ in WorkoutReminders.shared.refresh() }
+                    if notificationsBlocked {
+                        Button("Open Notification Settings") {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                openURL(url)
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Workout Reminders")
+            } footer: {
+                if workoutReminders {
+                    Text("For lifts before 9 a.m., send the preview the evening before.")
+                }
+            }
+
+            Section {
                 Toggle(isOn: $showsHints) {
                     SettingsRowLabel(
                         systemImage: "lightbulb",
@@ -102,11 +146,28 @@ struct PersonalizationSettingsView: View {
         }
         .navigationTitle("Personalization")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: scenePhase) {
+            if scenePhase == .active { await checkNotificationPermission() }
+        }
         .task {
             for await enabled in ActivityAuthorizationInfo().activityEnablementUpdates {
                 liveActivitiesAllowed = enabled
             }
         }
+    }
+
+    private var eveningTime: Binding<Date> {
+        Binding {
+            let calendar = Calendar.current
+            return WorkoutReminderTiming.time(on: .now, minute: reminderEveningMinute, calendar: calendar) ?? .now
+        } set: { date in
+            let calendar = Calendar.current
+            reminderEveningMinute = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        }
+    }
+
+    private func checkNotificationPermission() async {
+        notificationsBlocked = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .denied
     }
 
     private func openSystemSettings() {

@@ -20,17 +20,27 @@ struct PowerJackApp: App {
 
     // Previews and unit tests never touch the real store or iCloud.
     private static var runsInMemory: Bool {
+        #if DEBUG
+        if WorkoutReminderDemo.enabled { return true }
+        #endif
         let environment = ProcessInfo.processInfo.environment
         return environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" || environment["XCTestConfigurationFilePath"] != nil
     }
 
     init() {
         Hints.configure()
+        #if DEBUG
+        if WorkoutReminderDemo.enabled {
+            WorkoutReminders.shared.start(store: Self.store)
+            return
+        }
+        #endif
         if !Self.runsInMemory {
             WeightUnit.saveDeviceDefaultIfUnpicked()
             TraceLog.shared.start()
             TraceHooks.start()
             PhoneSync.shared.start(store: Self.store)
+            WorkoutReminders.shared.start(store: Self.store)
         }
     }
 

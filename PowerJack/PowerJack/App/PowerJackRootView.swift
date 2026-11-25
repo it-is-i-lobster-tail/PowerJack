@@ -41,6 +41,9 @@ struct PowerJackRootView: View {
                     }
             }
         }
+        .onChange(of: store?.isReplacingContainer) { _, _ in
+            WorkoutReminders.shared.refresh()
+        }
         .onChange(of: selection) { _, selection in
             TraceLog.record(.screen, "Switched to \(selection.rawValue)")
         }
@@ -116,6 +119,9 @@ private struct PowerJackScreens: View {
             }
         }
         .onAppear(perform: restoreActiveWorkout)
+        .onChange(of: WorkoutReminders.shared.previewRequest, initial: true) { _, _ in
+            openRequestedPreview()
+        }
         .onChange(of: router.path) { _, path in
             TraceLog.record(.screen, "Programs: \(path.isEmpty ? "My Programs" : path.map(\.traceName).joined(separator: " > "))")
         }
@@ -129,6 +135,21 @@ private struct PowerJackScreens: View {
 
         guard let activeProgram, activeProgram.nextWorkout != nil else { return }
         router.restore(activeProgram: activeProgram)
+    }
+
+    private func openRequestedPreview() {
+        guard let requested = WorkoutReminders.shared.takePreviewRequest() else { return }
+        didRestore = true
+        selection = .programs
+        guard let activeProgram, let workout = activeProgram.nextWorkout else {
+            router.popToRoot()
+            return
+        }
+        if workout.syncID == requested.workoutID, workout.status == .planned, !workout.workoutExercises.isEmpty {
+            router.showPreview(workout, in: activeProgram, highlight: requested.highlight)
+        } else {
+            router.showDetailOnly(activeProgram)
+        }
     }
 
     /// Takes the user to the exercise they should be doing, from the rest timer or its Live Activity.
