@@ -485,7 +485,7 @@ struct TemplateExerciseLabel: View {
                 .foregroundStyle(.blue)
 
             HStack {
-                Text(exercise.equipment.displayName)
+                Text(exercise.equipmentDisplayName)
                     .font(.caption)
                     .foregroundStyle(.blue)
                     .foregroundStyle(.secondary)

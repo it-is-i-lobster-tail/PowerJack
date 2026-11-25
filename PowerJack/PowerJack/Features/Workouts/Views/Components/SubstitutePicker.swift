@@ -51,7 +51,7 @@ struct SubstitutePicker: View {
             VStack(alignment: .leading) {
                 Text(exercise.exerciseName)
                     .foregroundStyle(.primary)
-                Text(exercise.equipment.displayName)
+                Text(exercise.equipmentDisplayName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -15,9 +15,18 @@ struct SettingsView: View {
             Form {
                 Section {
                     NavigationLink {
-                        PersonalizationSettingsView()
+                        AppearanceSettingsView()
                     } label: {
-                        SettingsGroupLabel(title: "Personalization", systemImage: "slider.horizontal.3")
+                        SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
+                    }
+
+                    NavigationLink {
+                        List {
+                            NavigationLink("FitNotes CSV Import") { FitNotesImportView() }
+                        }
+                        .navigationTitle("Import")
+                    } label: {
+                        SettingsGroupLabel(title: "Import", systemImage: "square.and.arrow.down")
                     }
 
                     NavigationLink {
@@ -27,9 +36,9 @@ struct SettingsView: View {
                     }
 
                     NavigationLink {
-                        AppearanceSettingsView()
+                        PersonalizationSettingsView()
                     } label: {
-                        SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
+                        SettingsGroupLabel(title: "Personalization", systemImage: "slider.horizontal.3")
                     }
 
                     NavigationLink {

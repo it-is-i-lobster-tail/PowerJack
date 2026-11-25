@@ -35,7 +35,7 @@ struct WorkoutHeader: View {
 
     private var accessibilityText: String {
         guard let exercise = visibleExercise, !isCompact else { return title }
-        return "\(title), \(exercise.equipment.displayName)"
+        return "\(title), \(exercise.equipmentDisplayName)"
     }
 
     /// The pages on either side of a swipe, and how far it has gone from the first to the second.
@@ -108,7 +108,7 @@ private struct HeaderLabel: View {
                 .font(isCompact ? .callout.weight(.semibold) : .headline)
                 .foregroundStyle(showsTitle ? Color.primary : .clear)
             if exercise != nil || rest != nil {
-                let equipment = exercise?.equipment.displayName ?? ""
+                let equipment = exercise?.equipmentDisplayName ?? ""
                 // The equipment's font metrics own this line, even when the ring is showing.
                 ZStack {
                     Text(equipment.isEmpty ? " " : equipment)

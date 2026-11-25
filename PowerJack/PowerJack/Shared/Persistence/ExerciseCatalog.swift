@@ -7,6 +7,7 @@ enum ExerciseCatalog {
         let id: String
         let name: String
         let equipment: Equipment
+        let equipmentName: String?
         let primaryMuscle: Muscle
         let fatigueLevel: FatigueLevel
         let secondaryMuscles: [Muscle]
@@ -20,11 +21,13 @@ enum ExerciseCatalog {
             _ primaryMuscle: Muscle,
             _ fatigueLevel: FatigueLevel,
             _ secondaryMuscles: [Muscle] = [],
+            equipmentName: String? = nil,
             was previousFatigueLevel: FatigueLevel? = nil
         ) {
             self.id = id
             self.name = name
             self.equipment = equipment
+            self.equipmentName = equipmentName
             self.primaryMuscle = primaryMuscle
             self.fatigueLevel = fatigueLevel
             self.secondaryMuscles = secondaryMuscles
@@ -43,6 +46,7 @@ enum ExerciseCatalog {
                 userCreated: false,
                 fatigueLevel: fatigueLevel
             )
+            exercise.customEquipmentName = equipmentName
             exercise.catalogID = id
             return exercise
         }
@@ -142,6 +146,22 @@ enum ExerciseCatalog {
         // Loadable bodyweight: a weight of 0 is bodyweight alone. See `adoptOwnCopies`.
         Entry("weighted-pull-up", "Weighted Pull-Ups", .loadableBodyweight, .back, .moderate, [.biceps, .forearms, .abs]),
         Entry("weighted-dip", "Weighted Dips", .loadableBodyweight, .chest, .moderate, [.triceps, .shoulders]),
+        Entry("sit-up", "Sit-Up", .loadableBodyweight, .abs, .low, [.obliques]),
+        Entry("lateral-lunge", "Lateral Lunge", .loadableBodyweight, .quads, .moderate, [.glutes, .hamstrings]),
+        Entry("ab-wheel-rollout", "Ab Wheel Rollout", .bodyweight, .abs, .low, [.obliques, .shoulders], equipmentName: "Ab Wheel"),
+        Entry("single-leg-romanian-deadlift", "Single-Leg Romanian Deadlift", .loadableBodyweight, .hamstrings, .moderate, [.glutes, .back]),
+        Entry("mountain-climber", "Mountain Climber", .bodyweight, .abs, .low, [.shoulders, .quads]),
+        Entry("split-squat", "Split Squat", .loadableBodyweight, .quads, .moderate, [.glutes, .hamstrings]),
+        Entry("trap-bar-deadlift", "Trap Bar Deadlift", .barbell, .quads, .high, [.glutes, .hamstrings, .back, .forearms], equipmentName: "Trap Bar"),
+        Entry("burpee", "Burpee", .bodyweight, .quads, .moderate, [.chest, .glutes, .shoulders]),
+        Entry("dumbbell-arnold-press", "Dumbbell Arnold Press", .dumbbell, .shoulders, .moderate, [.triceps]),
+        Entry("machine-chest-press", "Machine Chest Press", .machine, .chest, .moderate, [.triceps, .shoulders]),
+        Entry("dumbbell-shrug", "Dumbbell Shrug", .dumbbell, .back, .low, [.forearms]),
+        Entry("barbell-good-morning", "Barbell Good Morning", .barbell, .hamstrings, .moderate, [.glutes, .back, .abs]),
+        Entry("reverse-lunge", "Reverse Lunge", .loadableBodyweight, .quads, .moderate, [.glutes, .hamstrings]),
+        Entry("kettlebell-swing", "Kettlebell Swing", .kettlebell, .glutes, .moderate, [.hamstrings, .back, .abs]),
+        Entry("ez-bar-preacher-curl", "EZ-Bar Preacher Curl", .barbell, .biceps, .low, [.forearms], equipmentName: "EZ Bar"),
+        Entry("russian-twist", "Russian Twist", .loadableBodyweight, .obliques, .low, [.abs]),
     ]
 
     /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
@@ -226,7 +246,7 @@ enum ExerciseCatalog {
     static func adoptOwnCopies(in context: ModelContext) throws -> Bool {
         let own = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID == nil }))
         var changed = false
-        for exercise in own {
+        for exercise in own where exercise.customEquipmentName == nil {
             let name = matchingName(exercise.exerciseName)
             guard
                 let id = replacedOwnNames.first(where: { $0.value.contains(name) })?.key,

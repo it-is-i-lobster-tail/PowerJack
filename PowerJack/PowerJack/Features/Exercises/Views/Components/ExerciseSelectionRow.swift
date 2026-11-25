@@ -19,7 +19,7 @@ struct ExerciseSelectionRow: View {
                     Text(exercise.exerciseName)
 
                     HStack {
-                        Text(exercise.equipment.displayName)
+                        Text(exercise.equipmentDisplayName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text("|")

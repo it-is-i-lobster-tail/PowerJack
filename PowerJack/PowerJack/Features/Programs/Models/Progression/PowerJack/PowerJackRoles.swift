@@ -59,6 +59,18 @@ extension PowerJackExercise {
     }
 
     private static let catalogTraits: [String: (PowerJackPattern?, Bool)] = [
+        "lateral-lunge": (.squat, true),
+        "split-squat": (.squat, true),
+        "single-leg-romanian-deadlift": (.hinge, true),
+        "machine-chest-press": (.horizontalPush, true),
+        "barbell-good-morning": (.hinge, true),
+        "reverse-lunge": (.squat, true),
+        "kettlebell-swing": (.hinge, true),
+        "trap-bar-deadlift": (.hinge, true),
+        "dumbbell-arnold-press": (.verticalPush, true),
+        "burpee": (nil, true),
+        "mountain-climber": (nil, true),
+        "ab-wheel-rollout": (nil, true),
         "barbell-back-squat": (.squat, true),
         "barbell-front-squat": (.squat, true),
         "goblet-squat": (.squat, true),

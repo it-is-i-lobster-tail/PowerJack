@@ -12,7 +12,7 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
     case pounds = "lb"
     case kilograms = "kg"
 
-    static let kilogramsPerPound = 0.45359237
+    nonisolated static let kilogramsPerPound = 0.45359237
 
     var id: Self { self }
 
@@ -51,7 +51,7 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
     }
 
     /// One unit in kilograms.
-    var kilograms: Double {
+    nonisolated var kilograms: Double {
         switch self {
         case .pounds: Self.kilogramsPerPound
         case .kilograms: 1
@@ -70,7 +70,7 @@ enum WeightUnit: String, Codable, CaseIterable, Identifiable {
         Double(tenths) / 10 * Self.kilogramsPerPound / kilograms
     }
 
-    func tenthsPounds(from value: Double) -> Int {
+    nonisolated func tenthsPounds(from value: Double) -> Int {
         Int((value * kilograms / Self.kilogramsPerPound * 10).rounded())
     }
 

@@ -129,6 +129,7 @@ struct ExerciseState: Codable, Equatable {
     var name: String
     /// As stored, so a watch on an older version can read it: `.bodyweight` for loadable bodyweight.
     var equipment: Equipment
+    var customEquipmentName: String? = nil
     /// `nil` from older versions, which had no loadable bodyweight.
     var addsToBodyweight: Bool?
     var primaryMuscle: Muscle

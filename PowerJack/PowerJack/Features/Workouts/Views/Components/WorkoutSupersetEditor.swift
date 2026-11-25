@@ -100,7 +100,7 @@ struct SupersetExerciseLabel: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text(exercise.exerciseName.localizedCapitalized)
-            Text(exercise.equipment.displayName)
+            Text(exercise.equipmentDisplayName)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

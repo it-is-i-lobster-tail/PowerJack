@@ -13,6 +13,9 @@ let maxSecondaryMuscles: Int = 4
 
 @Model
 final class Exercise {
+    var customEquipmentName: String?
+    var equipmentDisplayName: String { customEquipmentName ?? equipment.displayName }
+
     var catalogID: String? = nil
     var exerciseName: String = ""
     // Read and written through `equipment`. Never holds `.loadableBodyweight`, which versions before it
@@ -144,6 +147,7 @@ extension Exercise {
             syncID: syncIDValue,
             name: exerciseName,
             equipment: exerciseEquipment,
+            customEquipmentName: customEquipmentName,
             addsToBodyweight: addsToBodyweightValue ? true : nil,
             primaryMuscle: primaryMuscleFocus,
             secondaryMuscles: secondaryMusclesValue,
@@ -168,6 +172,7 @@ extension Exercise {
         catalogID = state.catalogID
         syncIDValue = state.syncID
         exerciseName = state.name
+        customEquipmentName = state.customEquipmentName
         exerciseEquipment = state.equipment == .loadableBodyweight ? .bodyweight : state.equipment
         addsToBodyweightValue = state.addsToBodyweight == true || state.equipment == .loadableBodyweight
         primaryMuscleFocus = state.primaryMuscle

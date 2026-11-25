@@ -26,7 +26,7 @@ struct ExerciseSelectionView: View {
 
         return exercises.filter {
             $0.exerciseName.localizedStandardContains(searchText) ||
-            $0.equipment.displayName.localizedStandardContains(searchText) ||
+            $0.equipmentDisplayName.localizedStandardContains(searchText) ||
             $0.primaryMuscleFocus.rawValue.localizedStandardContains(searchText)
         }
     }

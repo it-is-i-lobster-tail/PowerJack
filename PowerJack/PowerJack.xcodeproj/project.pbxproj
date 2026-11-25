@@ -111,6 +111,7 @@
 				"Features/RestTimer/Models/Workout+Rest.swift",
 				Features/Settings/Models/AppSettings.swift,
 				Features/Settings/Models/HistoryRecord.swift,
+				Features/Settings/Models/ImportedSet.swift,
 				Features/Templates/Models/TemplateExercise.swift,
 				Features/Templates/Models/TemplateProgram.swift,
 				Features/Templates/Models/TemplateWorkout.swift,
