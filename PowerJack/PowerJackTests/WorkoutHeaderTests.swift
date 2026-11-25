@@ -46,19 +46,22 @@ struct WorkoutHeaderTests {
         #expect(abs(middle - (start + end) / 2) < 2)
     }
 
-    @Test("A long name stays whole inside the toolbar slot", arguments: [
+    @Test("A long name and three-digit heart rate fit in the toolbar slot", arguments: [
         "Chest Supported Dumbbell Row", String(repeating: "W", count: 30)
     ])
     func longExerciseTitle(name: String) async throws {
         let exercise = Exercise(exerciseName: name, exerciseEquipment: .dumbbell, primaryMuscleFocus: .back)
         let textProbe = TextTruncationProbe()
+        let heartRate = WorkoutHeartRate.shared
+        heartRate.receive([HeartRateSample(id: UUID(), date: .now, bpm: 118)])
+        defer { heartRate.clear() }
         let screen = try await HostedView(
-            WorkoutHeader(pages: [.exercise(exercise)], pageScroll: ExercisePageScroll())
+            WorkoutHeader(pages: [.exercise(exercise)], pageScroll: ExercisePageScroll(), showsHeartRate: true)
                 .frame(width: 200)
                 .textRenderer(textProbe)
         )
         defer { screen.close() }
-        let pill = try #require(screen.frame(of: "\(name), Dumbbell"))
+        let pill = try #require(screen.frame(of: "\(name), Dumbbell, Heart rate, 118 beats per minute"))
         #expect(pill.width <= 201)
         #expect(abs(pill.midX - screen.window.bounds.midX) < 1)
         #expect(!textProbe.truncated.isEmpty)
