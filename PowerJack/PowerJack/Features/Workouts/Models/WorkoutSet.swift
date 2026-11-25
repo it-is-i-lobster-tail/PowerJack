@@ -329,15 +329,22 @@ extension WorkoutSet {
 // Corrections
 //
 extension WorkoutSet {
-    /// A set in a finished workout whose numbers can still be fixed, e.g. pounds typed while the
-    /// app was in kilograms. That's a logged set, or a skipped one that holds numbers, such as a
-    /// warmup typed and then passed over: next week's warmups copy it. The set keeps its status.
+    /// A set whose numbers can be fixed without changing its status, so it stays logged and no rest starts.
+    /// In the workout underway that's a logged set, e.g. a typo noticed during the rest. In a finished
+    /// workout it's also a skipped set that holds numbers, such as a warmup typed and then passed over:
+    /// next week's warmups copy it.
     var canCorrect: Bool {
-        guard workoutExerciseValue?.workoutValue?.status == .complete else { return false }
-        switch status {
-        case .complete: return true
-        case .skipped: return repsValue != nil || weightTenthsPoundsValue != nil
-        default: return false
+        switch workoutExerciseValue?.workoutValue?.status {
+        case .active:
+            return status == .complete && !lockedValue
+        case .complete:
+            switch status {
+            case .complete: return true
+            case .skipped: return repsValue != nil || weightTenthsPoundsValue != nil
+            default: return false
+            }
+        default:
+            return false
         }
     }
 
@@ -346,7 +353,7 @@ extension WorkoutSet {
     @discardableResult
     func correctReps(_ reps: Int) -> Bool {
         guard canCorrect, Self.isValidReps(reps) else {
-            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
+            Logger.workoutSet.warning("Can only correct a logged set, or a skipped one of a finished Workout.")
             return false
         }
         guard reps != repsValue else { return false }
@@ -360,7 +367,7 @@ extension WorkoutSet {
     func correctWeight(_ weightTenthsPounds: Int) -> Bool {
         let isValid = Self.isValidWeightTenthsPounds(weightTenthsPounds) || (weightTenthsPounds == 0 && addsToBodyweight)
         guard canCorrect, isValid else {
-            Logger.workoutSet.warning("Can only correct a logged or skipped WorkoutSet of a finished Workout.")
+            Logger.workoutSet.warning("Can only correct a logged set, or a skipped one of a finished Workout.")
             return false
         }
         guard weightTenthsPounds != weightTenthsPoundsValue else { return false }

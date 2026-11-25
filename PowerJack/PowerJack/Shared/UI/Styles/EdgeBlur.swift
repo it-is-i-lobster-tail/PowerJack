@@ -14,7 +14,7 @@ struct EdgeBlur: View {
     /// The screen edge the bar sits on.
     let edge: VerticalEdge
     /// How far the fade reaches from the bar's inner side before the blur is solid.
-    var fadeLength: CGFloat = 28
+    var fadeLength: CGFloat = 22
 
     var body: some View {
         Rectangle()

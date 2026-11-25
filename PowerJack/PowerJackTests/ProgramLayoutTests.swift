@@ -240,6 +240,48 @@ struct ProgramLayoutTests {
         #expect(draft.loggedExercises == Set(shown.map(\.id)))
     }
 
+    @Test("Changing an exercise in the day in progress swaps it in the same spot, ready to log, and later weeks follow")
+    func liveDayChange() throws {
+        let (container, template) = try makeTemplate("Full Body")
+        let program = try startProgram(template, in: container)
+        let dayOne = try startNextWorkout(of: program)
+        let logged = try #require(dayOne.workoutExercises.first)
+        try logSets(of: logged)
+        let changed = try #require(dayOne.workoutExercises.dropFirst().first)
+        let curl = try #require(try container.mainContext.fetch(FetchDescriptor<Exercise>()).first {
+            $0.exerciseName == "Dumbbell Curl"
+        })
+
+        var draft = ProgramLayoutDraft(program: program)
+        var day = draft.days.templateWorkoutDraftsValue[0]
+        let count = day.templateExerciseDrafts.count
+        day.changeExercise(day.templateExerciseDrafts[1].id, to: curl)
+        draft.days.templateWorkoutDraftsValue[0] = day
+        draft.apply()
+        try container.mainContext.save()
+
+        let expected = day.templateExerciseDrafts.map(\.exercise.exerciseName)
+        #expect(dayOne.workoutExercises.count == count)
+        #expect(dayOne.workoutExercises[0] === logged)
+        #expect(!dayOne.workoutExercises.contains { $0 === changed })
+        let added = dayOne.workoutExercises[1]
+        #expect(added.exercise === curl)
+        #expect(added.status == .active)
+        #expect(added.workingSets.count == WorkoutExercise.initialSets)
+        #expect(dayOne.workoutExercises.compactMap(\.exercise?.exerciseName) == expected)
+
+        for workoutExercise in dayOne.workoutExercises {
+            try logSets(of: workoutExercise)
+        }
+        program.finishWorkout(dayOne)
+        try container.mainContext.save()
+        while let workout = program.nextWorkout {
+            try finishNextWorkout(of: program)
+            guard let week = program.programWeek(containing: workout), week.order > 0, workout.order == 0 else { continue }
+            #expect(workout.workoutExercises.compactMap(\.exercise?.exerciseName) == expected, "week \(week.order + 1)")
+        }
+    }
+
     @Test("A skipped exercise in the day in progress stays too")
     func skippedExerciseStays() throws {
         let (container, template) = try makeTemplate("Full Body")

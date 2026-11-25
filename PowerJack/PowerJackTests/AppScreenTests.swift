@@ -42,7 +42,7 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Personalization", settleFor: .milliseconds(600)), "\(screen.labels)")
         let inApp = try #require(screen.label(startingWith: "In-App Timer"), "\(screen.labels)")
         await screen.tap(inApp)
@@ -60,9 +60,8 @@ struct AppScreenTests {
         #expect(store.syncsWithICloud)
         #expect(ObjectIdentifier(store.container) != containerBefore)
 
-        // The sheet can take longer than a fixed wait to slide away on CI.
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(await screen.waitUntil { !screen.contains("Personalization") }, "\(screen.labels)")
     }
 
@@ -77,8 +76,8 @@ struct AppScreenTests {
         let screen = try await HostedView(PowerJackAppContent().environment(store))
         defer { screen.close() }
 
-        await screen.tap("Templates", settleFor: .milliseconds(800))
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         await screen.tap(backup, settleFor: .milliseconds(800))
@@ -86,7 +85,7 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: "iCloud Backup") != nil, "Settings closed: \(screen.labels)")
 
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
     }
 
@@ -116,7 +115,7 @@ struct AppScreenTests {
         #expect(screen.contains("Start Workout"), "\(screen.labels)")
 
         // Before the fix, the old page re-rendered on the new container and crashed here.
-        #expect(await screen.tap("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
         let containerBefore = ObjectIdentifier(store.container)
@@ -127,7 +126,7 @@ struct AppScreenTests {
 
         // The new in-memory store is empty, so the screens rebuilt from it show no program.
         #expect(await screen.goBack())
-        await screen.tap("Done", settleFor: .milliseconds(800))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
         #expect(!screen.contains("Start Workout"), "\(screen.labels)")
     }
@@ -135,7 +134,7 @@ struct AppScreenTests {
     @Test("Settings lists its groups, and each opens a page holding its settings")
     func settingsGroups() async throws {
         let screen = try await HostedView(
-            SettingsView()
+            NavigationStack { SettingsView() }
                 .modelContainer(container)
                 .environment(PowerJackStore(inMemory: true))
         )
@@ -202,6 +201,9 @@ struct AppScreenTests {
         await screen.adjust(at: 0, increment: false)
         #expect(RestLength.range.contains(.seconds(defaults.integer(forKey: key))), "\(screen.labels)")
         #expect(defaults.integer(forKey: key) < 300, "\(screen.labels)")
+        // Down to 0 min snaps up to the 0:30 floor.
+        for _ in 0 ..< 5 { await screen.adjust(at: 0, increment: false) }
+        #expect(defaults.integer(forKey: key) == 30, "\(screen.labels)")
 
         // Opening another length closes the first.
         let long = try #require(screen.label(startingWith: "Long"))
@@ -218,15 +220,15 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Templates", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(800))
         #expect(screen.contains("My Templates"), "\(screen.labels)")
-        await screen.tap("Templates", settleFor: .milliseconds(500))
-        await screen.tap("Programs", settleFor: .milliseconds(800))
+        await screen.selectTab("Templates", settleFor: .milliseconds(500))
+        await screen.selectTab("Programs", settleFor: .milliseconds(800))
         #expect(screen.contains("My Programs"), "\(screen.labels)")
     }
 
-    @Test("Volume is empty until a workout is logged, then shows every muscle")
-    func volume() async throws {
+    @Test("Data opens weekly volume and switches to targets and estimated maxes")
+    func dataTab() async throws {
         let screen = try await HostedView(
             PowerJackRootView()
                 .modelContainer(container)
@@ -234,12 +236,12 @@ struct AppScreenTests {
         )
         defer { screen.close() }
 
-        await screen.tap("Volume")
-        #expect(await screen.waitUntil { screen.contains("No workouts yet") }, "\(screen.labels)")
-
-        container.mainContext.insert(WorkoutLog(date: .now, setsByMuscle: [.chest: 8]))
-        #expect(await screen.waitUntil { screen.contains("Chest") }, "\(screen.labels)")
-        #expect(screen.contains("Hamstrings"), "\(screen.labels)")
+        await screen.selectTab("Data")
+        #expect(await screen.waitUntil { screen.contains("Average working sets per week") })
+        #expect(await screen.selectSegment("Targets"))
+        #expect(screen.contains("Target vs. Actual"))
+        #expect(await screen.selectSegment("One Rep Max"))
+        #expect(screen.contains("1 Rep Max (estimated)"))
     }
 
     @Test("The template builder adds exercises from the catalog")
@@ -256,8 +258,8 @@ struct AppScreenTests {
         #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
     }
 
-    @Test("Template builder days change by tap only, so row swipes never flip the day")
-    func templateBuilderDaysAreTapOnly() async throws {
+    @Test("The day picker changes workouts and leaves horizontal swipes to the rows")
+    func templateBuilderDayPicker() async throws {
         let screen = try await HostedView(
             NavigationStack { BuilderHost() }.modelContainer(container)
         )
@@ -271,26 +273,26 @@ struct AppScreenTests {
         #expect(screen.labels.contains { $0.hasPrefix("Barbell Bench Press") }, "\(screen.labels)")
         #expect(await screen.waitUntil { !screen.contains("Close") }, "\(screen.labels)")
 
-        await screen.tap("Day 2", settleFor: .milliseconds(600))
+        try #require(await screen.selectSegment("Day 2"))
         #expect(await screen.waitUntil { !screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
         #expect(screen.horizontalScrollViews.isEmpty)
 
-        await screen.tap("Day 1", settleFor: .milliseconds(600))
+        try #require(await screen.selectSegment("Day 1"))
         #expect(await screen.waitUntil { screen.labels.contains { $0.hasPrefix("Barbell Bench Press") } }, "\(screen.labels)")
     }
 
-    @Test("Both swipes on an exercise row show Superset | Edit | Trash, and a full swipe right supersets")
+    @Test("Both swipes on an exercise row show Superset | Edit | Change | Trash, and a full swipe right supersets")
     func exerciseRowSwipeActions() {
         let leading = ExerciseRowAction.actions(isLogged: false, from: .leading)
         let trailing = ExerciseRowAction.actions(isLogged: false, from: .trailing)
-        #expect(leading == [.superset, .edit, .trash])
+        #expect(leading == [.superset, .edit, .change, .trash])
         // The trailing edge lists from the right, so on screen it reads the same left to right.
         #expect(Array(trailing.reversed()) == leading)
         #expect(leading.first == .superset, "A full swipe right runs the first leading action")
         #expect(trailing.first == .trash)
     }
 
-    @Test("A logged exercise's swipes show Superset and Edit but never Trash")
+    @Test("A logged exercise's swipes show Superset and Edit but never Change or Trash")
     func loggedExerciseRowSwipeActions() {
         #expect(ExerciseRowAction.actions(isLogged: true, from: .leading) == [.superset, .edit])
         #expect(ExerciseRowAction.actions(isLogged: true, from: .trailing) == [.edit, .superset])
@@ -339,10 +341,10 @@ struct AppScreenTests {
         #expect(screen.label(startingWith: build) != nil, "\(screen.labels)")
         #expect(screen.label(startingWith: strength) == nil, "\(screen.labels)")
 
-        #expect(await screen.tap("Strength", settleFor: .milliseconds(600)))
+        try #require(await screen.selectSegment("Strength"))
         #expect(screen.label(startingWith: strength) != nil, "\(screen.labels)")
 
-        #expect(await screen.tap("PowerJack", settleFor: .milliseconds(600)))
+        try #require(await screen.selectSegment("PowerJack"))
         #expect(screen.label(startingWith: powerJack) != nil, "\(screen.labels)")
     }
 

@@ -139,6 +139,7 @@ struct ExerciseState: Codable, Equatable {
     var maxReps: Int
     var fatigueLevel: FatigueLevel
     var customRestTime: Int?
+    var keepsCustomIdentity: Bool? = nil
 }
 
 struct StrengthLogState: Codable, Equatable {

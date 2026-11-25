@@ -164,7 +164,7 @@ extension FAQ {
                 question: "Can I build my own template?",
                 answer: [
                     "Yes. In Templates, tap + and give it a name, how many days a week you'll train, and up to four focus muscles: the ones you most want to grow. Hypertrophy and PowerJack programs give focus muscles extra sets.",
-                    "Then build each day by adding exercises. Swipe an exercise either way for Superset, Edit and Trash. The first Superset starts superset A, and later ones add to it or start the next one. You do one set of each in turn and then rest. Swipe a superset to unstack it. Tap a superset to change its order or take one exercise out. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
+                    "Then build each day by adding exercises. Swipe an exercise either way for Superset, Edit, Change and Trash. Change swaps in another exercise in the same spot. The first Superset starts superset A, and later ones add to it or start the next one. You do one set of each in turn and then rest. Swipe a superset to unstack it. Tap a superset to change its order, or to take out or change one exercise. Touch and hold to move an exercise or a whole superset. You can also copy a whole day to another day.",
                     "Everything saves as you go.",
                 ]
             ),
@@ -194,10 +194,10 @@ extension FAQ {
                 ]
             ),
             Entry(
-                question: "What does the Volume tab show?",
+                question: "What does the Data tab show?",
                 answer: [
-                    "How many hard sets each muscle has averaged per week, over the last 30 days, 90 days, year, or all time.",
-                    "The colors show what that amount does: 0–2 sets a week is too little, 3–5 maintains a muscle, 6–12 grows it, 13–25 is where growth tops out, and 26 or more is likely more than you can recover from.",
+                    "Hypertrophy shows your average weekly working sets by muscle. Pick Current Program, 30 days, or 90 days.",
+                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a chart to expand it, pinch to zoom, or drag sideways to move along its axis.",
                 ]
             ),
             Entry(

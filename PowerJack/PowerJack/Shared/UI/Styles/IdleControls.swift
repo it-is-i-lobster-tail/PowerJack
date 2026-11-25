@@ -8,18 +8,22 @@
 import SwiftUI
 import UIKit
 
-/// Fades the bottom bar, the exercise strip and the top buttons while a workout sits idle.
+/// Fades the exercise strip and the top buttons while a workout sits idle.
 /// The workout turns it on while it shows. A tap anywhere or a new exercise brings the
 /// controls back, except a tap that edits or checks off a set.
 @Observable
 final class IdleControls {
     static let idleDelay = Duration.seconds(3)
-    private static let fade = Animation.easeInOut(duration: 0.4)
+    static let fade = Animation.easeInOut(duration: 0.3)
     /// A set tap and the window's tap land together, in either order.
     private static let tapWindow = Duration.milliseconds(300)
 
-    /// True while the controls are faded out.
-    private(set) var isHidden = false
+    private enum Visibility { case visible, fadingOut, hidden }
+    private var visibility = Visibility.visible
+
+    var isHidden: Bool { visibility != .visible }
+    /// Keep the strip's height until its cards finish fading.
+    var previewStripCollapsed: Bool { visibility == .hidden }
 
     @ObservationIgnored private var isOn = false
     @ObservationIgnored private var isPaused = false
@@ -82,7 +86,12 @@ final class IdleControls {
 
     private func setHidden(_ hidden: Bool) {
         guard isHidden != hidden else { return }
-        withAnimation(Self.fade) { isHidden = hidden }
+        withAnimation(Self.fade, completionCriteria: .removed) {
+            visibility = hidden ? .fadingOut : .visible
+        } completion: {
+            guard hidden, self.visibility == .fadingOut else { return }
+            self.visibility = .hidden
+        }
     }
 }
 

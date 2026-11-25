@@ -28,6 +28,7 @@ struct ProgramSessionView: View {
             } else if let workout = program.nextWorkout {
                 WorkoutDetailView(
                     workout: workout,
+                    initialExerciseIndex: router.requestedExerciseIndex(in: workout),
                     onWorkoutFinished: { finish(workout) },
                     onSkipWorkout: { skip(workout) }
                 )
@@ -40,6 +41,7 @@ struct ProgramSessionView: View {
                 )
             }
         }
+        .toolbarVisibility(.hidden, for: .tabBar)
         .animation(.easeInOut(duration: 0.35), value: program.nextWorkout?.persistentModelID)
         .animation(.easeInOut(duration: 0.35), value: summary.isEmpty)
     }

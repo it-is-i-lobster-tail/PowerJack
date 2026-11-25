@@ -12,26 +12,28 @@ import UIKit
 @Suite(.serialized)
 struct KeyboardLayoutTests {
     @Test func screenWithBothOptOutsIsNotSqueezed() async throws {
-        let bottom = try await bottomEdgeAroundNumberPad(tabPage: .powerJackTabPage, screen: true)
+        let bottom = try await bottomEdgeAroundNumberPad(screen: true)
         #expect(bottom.after >= bottom.before)
     }
 
     @Test func screenWithoutKeyboardSlidesOverIsSqueezed() async throws {
-        let bottom = try await bottomEdgeAroundNumberPad(tabPage: .powerJackTabPage, screen: false)
+        let bottom = try await bottomEdgeAroundNumberPad(screen: false)
         #expect(bottom.after < bottom.before)
     }
 
-    @Test func tabPageWithOnlyPaddingIsSqueezed() async throws {
-        let bottom = try await bottomEdgeAroundNumberPad(tabPage: .paddingOnly, screen: true)
-        #expect(bottom.after < bottom.before)
+    @Test func nativeTabBarStaysBelowTheNumberPad() async throws {
+        let edges = try await bottomEdgeAroundNumberPad(screen: true, measureTabBar: true)
+        let keyboardTop = try #require(edges.keyboardTop)
+        #expect(edges.after >= edges.before)
+        #expect(edges.after > keyboardTop)
     }
 
     /// Content may scroll under the floating bar, but the page's safe area ends above it,
     /// so anything that respects it (the exercise strip, a Save button) rests clear of the bar.
     @Test func tabPageSafeAreaEndsAboveTheBottomBar() async throws {
-        let bottom = try await bottomEdgeAroundNumberPad(tabPage: .powerJackTabPage, screen: true, showNumberPad: false)
-        let withoutBar = try await bottomEdgeAroundNumberPad(tabPage: .none, screen: true, showNumberPad: false)
-        #expect(bottom.before == withoutBar.before - Self.barHeight)
+        let bottom = try await bottomEdgeAroundNumberPad(screen: true, showNumberPad: false)
+        let withoutBar = try await bottomEdgeAroundNumberPad(screen: true, showNumberPad: false, barVisible: false)
+        #expect(bottom.before < withoutBar.before)
     }
 
     @Test func focusedRowScrollsAboveTheNumberPad() async throws {
@@ -44,37 +46,35 @@ struct KeyboardLayoutTests {
         #expect(edges.rowBottom > edges.keyboardTop)
     }
 
-    private static let barHeight: CGFloat = 60
-
     /// The bottom edge of a pushed screen's content before and after the number pad appears.
     private func bottomEdgeAroundNumberPad(
-        tabPage: TabPageLayout,
         screen optsOut: Bool,
-        showNumberPad: Bool = true
-    ) async throws -> (before: CGFloat, after: CGFloat) {
+        showNumberPad: Bool = true,
+        barVisible: Bool = true,
+        measureTabBar: Bool = false
+    ) async throws -> (before: CGFloat, after: CGFloat, keyboardTop: CGFloat?) {
         let probe = BottomEdgeProbe()
         let screen = try await ScreenUnderTest(
             TabView {
-                Tab {
+                Tab("Programs", systemImage: "list.bullet.rectangle") {
                     NavigationStack {
                         Color.clear.navigationDestination(isPresented: .constant(true)) {
                             ProbeScreen(probe: probe, optsOut: optsOut)
                         }
                     }
-                    // Like the app, which shows its own bar instead of the system tab bar.
-                    .toolbar(.hidden, for: .tabBar)
-                    .modifier(TabPage(layout: tabPage, bottomBarHeight: Self.barHeight))
+                    .powerJackTabPage()
+                    .toolbarVisibility(barVisible ? .visible : .hidden, for: .tabBar)
                 }
+                Tab("Templates", systemImage: "square.stack") { Color.clear }
             }
             .powerJackKeyboardBehavior()
         )
         defer { screen.close() }
-        let before = probe.bottom
-        if showNumberPad {
-            try await screen.showNumberPad()
-        }
+        func edge() throws -> CGFloat { measureTabBar ? try screen.tabBarTop() : probe.bottom }
+        let before = try edge()
+        let keyboardTop = showNumberPad ? try await screen.showNumberPad() : nil
         #expect(before > 0)
-        return (before, probe.bottom)
+        return (before, try edge(), keyboardTop)
     }
 
     /// Focuses the last row of a short list that starts out under the number pad,
@@ -83,19 +83,22 @@ struct KeyboardLayoutTests {
         let probe = FocusProbe()
         let screen = try await ScreenUnderTest(
             TabView {
-                Tab {
+                Tab("Programs", systemImage: "list.bullet.rectangle") {
                     NavigationStack {
                         Color.clear.navigationDestination(isPresented: .constant(true)) {
                             FocusProbeScreen(probe: probe, keepsFocus: keepsFocus)
                         }
                     }
-                    .powerJackTabPage(bottomBarHeight: Self.barHeight)
+                    .powerJackTabPage()
                 }
+                Tab("Templates", systemImage: "square.stack") { Color.clear }
             }
             .powerJackKeyboardBehavior()
         )
         defer { screen.close() }
+        let initialRowBottom = probe.rowBottom
         let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
+        try #require(initialRowBottom > keyboardTop, "The last row must start below the keyboard's eventual top edge.")
         if keepsFocus {
             // The scroll to the focused row runs slower on CI, so give it up to 3 seconds.
             for _ in 0..<30 where probe.rowBottom > keyboardTop {
@@ -124,13 +127,22 @@ private final class ScreenUnderTest {
         try await Task.sleep(for: .seconds(1))
     }
 
+    func tabBarTop() throws -> CGFloat {
+        func findTabBar(in view: UIView) -> UITabBar? {
+            if let bar = view as? UITabBar { return bar }
+            return view.subviews.lazy.compactMap(findTabBar).first
+        }
+        let bar = try #require(findTabBar(in: window))
+        return bar.convert(bar.bounds, to: window).minY
+    }
+
     /// Brings up the real number pad, the same keyboard the Weight and Reps fields use.
-    func showNumberPad() async throws {
+    func showNumberPad() async throws -> CGFloat {
         let field = UITextField(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         field.keyboardType = .decimalPad
         window.addSubview(field)
         self.field = field
-        try await showKeyboard { field.becomeFirstResponder() }
+        return try await showKeyboard { field.becomeFirstResponder() }
     }
 
     /// Runs `bringUp`, waits for the software keyboard to show and settle, and returns its top edge.
@@ -220,28 +232,5 @@ private struct FocusProbeScreen: View {
         }
         .keyboardSlidesOver()
         .onChange(of: probe.focusRequested) { focusedRow = Self.rows.last }
-    }
-}
-
-private enum TabPageLayout {
-    case none
-    /// Room for the bar without opting out of the keyboard: the bug this suite guards against.
-    case paddingOnly
-    case powerJackTabPage
-}
-
-private struct TabPage: ViewModifier {
-    let layout: TabPageLayout
-    let bottomBarHeight: CGFloat
-
-    func body(content: Content) -> some View {
-        switch layout {
-        case .none:
-            content
-        case .paddingOnly:
-            content.padding(.bottom, bottomBarHeight)
-        case .powerJackTabPage:
-            content.powerJackTabPage(bottomBarHeight: bottomBarHeight)
-        }
     }
 }
