@@ -136,14 +136,14 @@ private struct ExpandedPlotZoom: ViewModifier {
     }
 }
 
-private struct ExportableChart: ViewModifier {
-    @Environment(\.expandedCapture) var capture
+struct ExportableChart: ViewModifier {
+    @Environment(\.expandedCapture) private var capture
     func body(content: Content) -> some View {
         content.background { if let capture { ChartMarker(capture: capture) } }
     }
 }
 
-private struct ExpandedChartPresentation<Accessory: View, Content: View>: View {
+struct ExpandedChartPresentation<Accessory: View, Content: View>: View {
     let title: String
     let close: () -> Void
     @ViewBuilder var accessory: () -> Accessory

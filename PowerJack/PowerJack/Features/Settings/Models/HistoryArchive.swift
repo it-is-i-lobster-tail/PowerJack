@@ -67,6 +67,10 @@ enum HistoryArchive {
     /// same program before iCloud brings the other's rows, so the first batch saved wins.
     static func records(in context: ModelContext) throws -> [HistoryRecord] {
         let all = try context.fetch(FetchDescriptor<HistoryRecord>(sortBy: [SortDescriptor(\.orderValue)]))
+        return uniqueBatchRecords(all)
+    }
+
+    static func uniqueBatchRecords(_ all: [HistoryRecord]) -> [HistoryRecord] {
         var kept: [UUID?: (batchID: UUID?, savedAt: Date)] = [:]
         for record in all {
             let key = record.programID ?? record.batchID

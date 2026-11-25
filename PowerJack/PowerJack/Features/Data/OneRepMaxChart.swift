@@ -17,14 +17,19 @@ extension ProgramExerciseHistory {
     var personalBest: MaxEstimate? { MaxEstimate.best(in: sets.compactMap(estimate)) }
 
     func estimate(_ set: LoggedSet) -> MaxEstimate? {
-        guard supportsLoadEstimate, let load = set.load, load > 0, let reps = set.reps, reps > 0,
+        guard supportsLoadEstimate else { return nil }
+        return Self.estimate(load: set.load, reps: set.reps, rating: set.repsInReserve)
+    }
+
+    static func estimate(load: Int?, reps: Int?, rating: RepsInReserve?) -> MaxEstimate? {
+        guard let load, load > 0, let reps, reps > 0,
               reps <= StrengthRules.e1rmMaxReps else { return nil }
-        let rir = set.repsInReserve?.rawValue ?? 0
+        let rir = rating?.rawValue ?? 0
         let repsToFailure = reps + rir
         guard rir <= StrengthRules.e1rmMaxRIR, repsToFailure <= StrengthRules.e1rmMaxReps else { return nil }
 
         let estimate = Double(load) * 36 / Double(37 - repsToFailure)
-        return MaxEstimate(tenthsPounds: Int(estimate.rounded()), hasRecordedRIR: set.repsInReserve != nil)
+        return MaxEstimate(tenthsPounds: Int(estimate.rounded()), hasRecordedRIR: rating != nil)
     }
 }
 

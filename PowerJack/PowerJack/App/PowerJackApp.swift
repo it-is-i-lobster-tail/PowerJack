@@ -13,7 +13,18 @@ import SwiftData
 @main
 struct PowerJackApp: App {
     /// Static so the Live Activity's check button, which runs outside any view, shares it.
-    static let store = PowerJackStore(inMemory: runsInMemory)
+    static let store: PowerJackStore = {
+        #if DEBUG && targetEnvironment(simulator)
+        if !runsInMemory, SimulatorTrainingHistory.isSelected {
+            do {
+                return try SimulatorTrainingHistory.openStore()
+            } catch {
+                fatalError("Could not open the sample workout history: \(error)")
+            }
+        }
+        #endif
+        return PowerJackStore(inMemory: runsInMemory)
+    }()
     static var modelContainer: ModelContainer { store.container }
 
     @UIApplicationDelegateAdaptor(PowerJackAppDelegate.self) private var appDelegate
@@ -30,7 +41,10 @@ struct PowerJackApp: App {
             WeightUnit.saveDeviceDefaultIfUnpicked()
             TraceLog.shared.start()
             TraceHooks.start()
-            PhoneSync.shared.start(store: Self.store)
+            let store = Self.store
+            if store.allowsExternalSync {
+                PhoneSync.shared.start(store: store)
+            }
         }
     }
 
