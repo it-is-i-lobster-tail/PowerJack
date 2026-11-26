@@ -76,8 +76,8 @@ struct StudyHistory {
     static let curl = "catalog:cable-curl"
 
     init(
-        programs: [Program], archive: [HistoryRecord], logs: [WorkoutLog], unit: WeightUnit,
-        today: Date = .now, calendar: Calendar = .current
+        programs: [Program], archive: [HistoryRecord], logs: [WorkoutLog], imported: [ImportedSet] = [],
+        exercises: [Exercise] = [], unit: WeightUnit, today: Date = .now, calendar: Calendar = .current
     ) {
         self.unit = unit
         self.today = today
@@ -178,13 +178,19 @@ struct StudyHistory {
                             logged: row.setLogged)
                     }))
         }
+        let importedSessions = Self.sessions(from: imported, exercises: exercises, today: today, calendar: calendar)
+        sessions += importedSessions
+        for session in importedSessions where workouts[session.workout] == nil {
+            workouts[session.workout] = StudyWorkout(
+                key: session.workout, status: .complete, began: nil, ended: session.date, seconds: nil)
+        }
         self.workouts = workouts.values.sorted { ($0.date ?? .distantFuture, $0.key) < ($1.date ?? .distantFuture, $1.key) }
         self.sessions = sessions.sorted { ($0.date, $0.workout, $0.slot) < ($1.date, $1.workout, $1.slot) }
         let recordedLogs = logs.filter { $0.date <= today }
         self.firstDate = min(self.sessions.first?.date ?? today, recordedLogs.map(\.date).min() ?? today)
         self.credits = recordedLogs.flatMap { log in
             Muscle.allCases.map { muscle in (log.date, muscle, log.sets(for: muscle)) }
-        }
+        } + importedSessions.flatMap(Self.credits)
         var hasher = Hasher()
         hasher.combine(calendar.startOfDay(for: today))
         hasher.combine(unit)
@@ -208,6 +214,45 @@ struct StudyHistory {
             hasher.combine(credit.sets)
         }
         self.revision = hasher.finalize()
+    }
+
+    /// Imported sets grouped into one session per exercise per training day, dated at local noon.
+    /// Rows without reps (cardio, timed holds) aren't strength sets, so they are left out.
+    private static func sessions(
+        from imported: [ImportedSet], exercises: [Exercise], today: Date, calendar: Calendar
+    ) -> [StudySession] {
+        let byKey = Dictionary(exercises.compactMap { e in e.syncKey.map { ($0, e) } }, uniquingKeysWith: { a, _ in a })
+        let days = Dictionary(grouping: imported.filter { $0.reps != nil }, by: \.trainingDay)
+        return days.flatMap { day, rows -> [StudySession] in
+            let parts = day.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3,
+                  let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12)),
+                  date <= today else { return [] }
+            let slots = Dictionary(grouping: rows, by: \.exerciseKey).values
+                .map { $0.sorted { $0.sourceOrder < $1.sourceOrder } }
+                .sorted { $0[0].sourceOrder < $1[0].sourceOrder }
+            return slots.enumerated().map { slot, rows in
+                let first = rows[0]
+                let exercise = byKey[first.exerciseKey]
+                let loaded = exercise.map { !$0.repsOnly && !$0.addsToBodyweight }
+                    ?? rows.contains { ($0.weightTenthsPounds ?? 0) > 0 }
+                return StudySession(
+                    date: date, workout: "imported/\(day)", routine: "Imported", seconds: nil, finished: true,
+                    slot: slot, superset: false, key: first.exerciseKey.isEmpty ? first.exerciseName : first.exerciseKey,
+                    name: exercise?.exerciseName ?? first.exerciseName,
+                    primary: exercise?.primaryMuscleFocus ?? Muscle(rawValue: first.muscle),
+                    assisting: exercise?.secondaryMuscles, loaded: loaded, repsOnly: exercise?.repsOnly ?? !loaded,
+                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) })
+            }
+        }
+    }
+
+    /// Same credit as a finished workout's log: 1 per set for the primary muscle, 0.5 for each secondary.
+    private static func credits(_ session: StudySession) -> [(date: Date, muscle: Muscle, sets: Double)] {
+        guard let primary = session.primary else { return [] }
+        let sets = Double(session.done.count)
+        let assisting = (session.assisting ?? []).filter { $0 != primary }
+        return [(session.date, primary, sets)] + assisting.map { (session.date, $0, sets / 2) }
     }
 
     func configured(for options: StudyOptions) -> Self {
