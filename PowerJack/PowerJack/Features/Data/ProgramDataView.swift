@@ -21,7 +21,8 @@ private struct StudyGallery: View {
     private let model = ChartSearchModel.shared
     @State private var appliedQuery = ""
     @State private var plan: ChartSearchPlan?
-    @State private var memo = SearchMemo()
+    @State private var results = ChartSearchResults()
+    @State private var cache = ChartResultCache()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
 
@@ -33,17 +34,19 @@ private struct StudyGallery: View {
     @Namespace private var zoom
     private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 2)
 
-    /// Search runs once per query, plan, saved controls and logged history, not on every redraw.
-    private var results: ChartSearchResults {
-        let input = SearchMemo.Input(query: appliedQuery, plan: plan, saved: storedOptions, revision: history.revision)
-        return memo.results(for: input) {
-            ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan, history: history,
-                                saved: SavedStudyViews(data: storedOptions))
-        }
+    /// Everything the results depend on. Search runs when one of these changes, not on every redraw.
+    private struct SearchInput: Equatable {
+        let text: String
+        let plan: ChartSearchPlan?
+        let saved: Data
+        let revision: Int
+    }
+
+    private var searchInput: SearchInput {
+        SearchInput(text: appliedQuery, plan: plan, saved: storedOptions, revision: history.revision)
     }
 
     var body: some View {
-        let results = results
         let searching = !appliedQuery.isEmpty
         return NavigationStack(path: $path) {
             ScrollView {
@@ -64,9 +67,11 @@ private struct StudyGallery: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .overlay {
-                if results.isEmpty, let note = results.note {
+                if !searching || !results.isEmpty {
+                    EmptyView()
+                } else if let note = results.note {
                     ContentUnavailableView("No matching history", systemImage: "chart.xyaxis.line", description: Text(note))
-                } else if results.isEmpty {
+                } else {
                     ContentUnavailableView.search(text: appliedQuery)
                 }
             }
@@ -77,6 +82,16 @@ private struct StudyGallery: View {
                     plan = nil
                     appliedQuery = text
                 }
+            }
+            .onChange(of: searchInput, initial: true) {
+                results = ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan,
+                                              history: history, saved: SavedStudyViews(data: storedOptions),
+                                              cache: cache)
+            }
+            .task {
+                // Load the embedding model off the main thread, so the first search doesn't wait for it.
+                await Task.detached(priority: .utility) { _ = ExerciseTextEncoder.bundled }.value
+                _ = ChartIndex.shared
             }
             .task(id: appliedQuery) { await askModel(appliedQuery) }
             .navigationTitle("Data")
@@ -97,19 +112,17 @@ private struct StudyGallery: View {
 
     /// Local results are already on screen. A question can add the model's chart picks a moment later.
     private func askModel(_ input: String) async {
-        let query = ChartQuery(input, history: history)
-        guard ChartSearch.asksModel(query), model.isAvailable else { return }
-        if let saved = journal.cachedPlan(input) {
-            plan = saved
-            return
+        guard model.isAvailable, ChartSearch.asksModel(ChartQuery(input, history: history)) else { return }
+        // A saved plan applies at once. A new one waits for a longer pause, so half-typed questions don't use the model.
+        if journal.cachedPlan(input) == nil {
+            guard (try? await Task.sleep(for: .milliseconds(350))) != nil else { return }
         }
-        // Wait for a pause in typing before starting the model.
-        guard (try? await Task.sleep(for: .milliseconds(350))) != nil else { return }
         let suggestions = results.cards.prefix(4).map(\.id.study)
         let resolved = await journal.resolve(input) {
             try await model.plan(for: input, suggestions: suggestions)
         }
-        guard !Task.isCancelled, input == appliedQuery, path.isEmpty, searchEdits.isEmpty else { return }
+        // Don't reorder charts under someone who has opened or edited one.
+        guard !Task.isCancelled, path.isEmpty, searchEdits.isEmpty else { return }
         plan = resolved
     }
 
@@ -145,27 +158,6 @@ private struct StudyGallery: View {
         .accessibilityLabel(study.galleryAccessibilityLabel + (expanded ? ". " + study.summary : ""))
         .accessibilityHint(study.figure == nil ? "No matching history. Opens chart details." : "Opens full-size chart.")
         .accessibilityIdentifier(expanded ? "data.answer" : "data.study.\(study.id.rawValue)")
-    }
-}
-
-/// Remembers the last search results, so a redraw that changes nothing doesn't search again.
-private final class SearchMemo {
-    struct Input: Equatable {
-        let query: String
-        let plan: ChartSearchPlan?
-        let saved: Data
-        let revision: Int
-    }
-
-    private var input: Input?
-    private var value = ChartSearchResults()
-
-    func results(for input: Input, make: () -> ChartSearchResults) -> ChartSearchResults {
-        if input != self.input {
-            value = make()
-            self.input = input
-        }
-        return value
     }
 }
 

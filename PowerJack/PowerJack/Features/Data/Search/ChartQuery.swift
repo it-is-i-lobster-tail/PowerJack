@@ -24,7 +24,8 @@ struct ChartQuery: Equatable {
     private(set) var unloggedLifts: [String] = []
     private(set) var intent = ""
 
-    var isEmpty: Bool { words.isEmpty }
+    /// A lone letter is the start of a word, not a search yet.
+    var isEmpty: Bool { words.allSatisfy { $0.count < 2 } }
     var period: StudyPeriod? { periods.count == 1 ? periods[0] : nil }
     var exerciseKeys: [String] { lifts.flatMap(\.exerciseKeys).uniqued() }
     var muscles: [Muscle] { Muscle.allCases.filter { muscle in muscleGroups.contains { $0.muscles.contains(muscle) } } }
@@ -51,6 +52,7 @@ struct ChartQuery: Equatable {
         parameters = Self.takeParameters(from: &tokens)
         tokens = tokens.flatMap { SearchWords.aliases[$0] ?? [$0] }.map(SearchWords.singular)
         let logged = LoggedLift.all(in: history)
+        Self.completeLastWord(in: &tokens, logged: logged)
         lifts = Self.takeNamedLifts(from: &tokens, logged: logged)
         unloggedLifts = Self.takeCatalogLifts(from: &tokens)
         // An unlogged lift stays in scope with no sets, so its charts are empty and its totals are zero.
@@ -272,6 +274,18 @@ extension ChartQuery {
         return subjects
     }
 
+    /// Search runs while typing, so "ben" is usually "bench" on its way. A last word that isn't a
+    /// word search knows becomes the logged lift word it starts, taken from the most-logged lift.
+    private static func completeLastWord(in tokens: inout [String], logged: [LoggedLift]) {
+        guard let last = tokens.last, last.count >= 3, Double(last) == nil,
+              !SearchWords.knownWords.contains(last), !ChartIndex.vocabulary.contains(last),
+              !logged.contains(where: { $0.words.contains(last) })
+        else { return }
+        let completion = logged.lazy.flatMap(\.words)
+            .first { $0.hasPrefix(last) && !SearchWords.notLiftWords.contains($0) && !SearchWords.muscleWords.contains($0) }
+        if let completion { tokens[tokens.count - 1] = completion }
+    }
+
     /// A catalog lift typed in full that has no logged sets, so the gallery can say so.
     private static func takeCatalogLifts(from tokens: inout [String]) -> [String] {
         var names: [String] = []
@@ -360,6 +374,9 @@ enum SearchWords {
     ] + Muscle.allCases.map { (phrase: singular($0.rawValue), name: $0.rawValue, muscles: [$0]) }
 
     static let muscleWords = Set(muscleAliases.flatMap { $0.phrase.split(separator: " ").map(String.init) })
+
+    /// Words search reads as themselves, so they are never completed into a lift name.
+    static let knownWords = notLiftWords.union(muscleWords).union(equipment).union(aliases.keys)
 
     /// Catalog names without equipment words, longest first. Single words are lift families.
     static let catalogNames: [([String], String)] = ExerciseCatalog.entries.compactMap { entry in

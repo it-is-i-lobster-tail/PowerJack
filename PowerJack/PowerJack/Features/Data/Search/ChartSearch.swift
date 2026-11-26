@@ -17,17 +17,19 @@ struct ChartSearchResults {
 /// the scope, and when it is unavailable or fails, the local results stay as they are.
 enum ChartSearch {
     /// Every chart with its saved controls, for an empty search.
-    static func gallery(history: StudyHistory, saved: SavedStudyViews) -> ChartSearchResults {
+    static func gallery(history: StudyHistory, saved: SavedStudyViews,
+                        cache: ChartResultCache = ChartResultCache()) -> ChartSearchResults {
         ChartSearchResults(cards: TrainingStudy.allCases.map { study in
             let options = saved[study]
             return GalleryCard(id: GalleryCardID(study: study, exerciseKeys: []), options: options,
-                               result: history.result(for: study, options: options))
+                               result: cache.result(for: study, options: options, in: history))
         })
     }
 
     static func results(for query: ChartQuery, plan: ChartSearchPlan? = nil, history: StudyHistory,
-                        saved: SavedStudyViews, index: ChartIndex = .shared) -> ChartSearchResults {
-        guard !query.isEmpty else { return gallery(history: history, saved: saved) }
+                        saved: SavedStudyViews, index: ChartIndex = .shared,
+                        cache: ChartResultCache = ChartResultCache()) -> ChartSearchResults {
+        guard !query.isEmpty else { return gallery(history: history, saved: saved, cache: cache) }
         let answer = answer(for: query, plan: plan, history: history)
         let note = note(for: query, history: history)
         // "Did I sleep enough?" has no chart. "Did sleep help my bench?" still shows the bench's charts.
@@ -35,13 +37,26 @@ enum ChartSearch {
         if unrecorded && !query.hasScope {
             return ChartSearchResults(answer: answer, note: note)
         }
-        // A search made only of scope, such as "arms October", narrows every chart.
-        let ranked = unrecorded ? TrainingStudy.allCases : index.relevant(for: query.intent) ?? TrainingStudy.allCases
+        // Each chart configured for the search's scope. A chart that can't show the scope has none.
+        let configurations = Dictionary(uniqueKeysWithValues: TrainingStudy.allCases.map { study in
+            (study, query.options(for: study, saved: saved[study], history: history))
+        })
+        func rank(_ intent: String) -> [TrainingStudy] {
+            // A search made only of scope, such as "arms October", narrows every chart.
+            index.relevant(for: intent) { configurations[$0]?.isEmpty == false } ?? TrainingStudy.allCases
+        }
+        var ranked = unrecorded ? TrainingStudy.allCases : rank(query.intent)
+        // Search runs while typing, so a last word that matches nothing may be unfinished: "how lo", "bench prog".
+        // Without it, a scoped search shows every chart for its scope. A long word on its own is a real miss.
+        if ranked.isEmpty, let last = query.intent.split(separator: " ").last {
+            let rest = query.intent.dropLast(last.count).trimmingCharacters(in: .whitespaces)
+            if !rest.isEmpty || query.hasScope || last.count < 4 { ranked = rank(rest) }
+        }
         let studies = ((plan?.studies ?? []) + ranked).uniqued()
         let cards = studies.flatMap { study in
-            query.options(for: study, saved: saved[study], history: history).map { options in
+            (configurations[study] ?? []).map { options in
                 GalleryCard(id: GalleryCardID(study: study, exerciseKeys: options.exerciseKeys), options: options,
-                            result: history.result(for: study, options: options))
+                            result: cache.result(for: study, options: options, in: history))
             }
         }
         // Charts with matching history come first, in ranked order.
@@ -78,5 +93,27 @@ enum ChartSearch {
         }
         guard !query.unloggedLifts.isEmpty else { return nil }
         return "No logged sets for \(query.unloggedLifts.formatted(.list(type: .and)))."
+    }
+}
+
+/// Chart results for one logged history. Refining a search, clearing it, or applying the model's
+/// plan then computes only the charts it hasn't shown yet.
+final class ChartResultCache {
+    private var revision: Int?
+    private var entries: [TrainingStudy: [(options: StudyOptions, result: StudyResult)]] = [:]
+    private var count = 0
+
+    func result(for study: TrainingStudy, options: StudyOptions, in history: StudyHistory) -> StudyResult {
+        // New sets, a new day or another unit change every chart. A long session of searches starts over too.
+        if revision != history.revision || count > 300 {
+            entries = [:]
+            count = 0
+            revision = history.revision
+        }
+        if let saved = entries[study]?.first(where: { $0.options == options }) { return saved.result }
+        let result = history.result(for: study, options: options)
+        entries[study, default: []].append((options, result))
+        count += 1
+        return result
     }
 }

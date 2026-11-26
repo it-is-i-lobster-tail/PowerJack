@@ -24,6 +24,16 @@ struct ChartQueryTests {
         #expect(pair.lifts.map(\.exerciseKeys) == [[F.squat.key], [F.deadlift.key]])
     }
 
+    @Test("A half-typed last word completes to the logged lift it starts")
+    func typingCompletesLifts() {
+        #expect(query("ben").exerciseKeys == [F.bench.key])
+        #expect(query("squ").exerciseKeys == [F.squat.key])
+        #expect(query("How is my dead").exerciseKeys == [F.deadlift.key])
+        #expect(query("bench prog").exerciseKeys == [F.bench.key], "only lift words complete")
+        #expect(query("squat pr").intent == "pr", "two letters are too few to guess")
+        #expect(query("b").isEmpty, "a lone letter isn't a search yet")
+    }
+
     @Test("A muscle word inside a lift name stays part of the lift")
     func anatomyInsideNames() {
         let backSquat = query("back squat volume")

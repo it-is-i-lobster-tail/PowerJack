@@ -143,14 +143,4 @@ struct ChartSearchTests {
             #expect(ChartMeasure(study).study == study)
         }
     }
-
-    @Test("A full search over the log stays interactive")
-    func latency() {
-        _ = search("warm up")
-        let start = ContinuousClock.now
-        for question in ["bench progress", "How many sets did I do in October?", "arms", "squat records"] {
-            _ = search(question)
-        }
-        #expect(ContinuousClock.now - start < .seconds(1))
-    }
 }

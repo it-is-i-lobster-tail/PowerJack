@@ -53,9 +53,13 @@ struct ChartIndex {
 
     /// The top three charts, plus any others close to the best match, best first. Nil when the
     /// intent has no words to rank by, as in "arms October". Empty when nothing is close.
-    func relevant(for intent: String, limit: Int = 6) -> [TrainingStudy]? {
-        let scored = scores(for: intent)
-        guard let best = scored.first?.score else { return nil }
+    /// `include` limits the ranking to charts that can show the search, so a push-up search
+    /// ranks the bodyweight charts instead of losing its best matches to load-based ones.
+    func relevant(for intent: String, limit: Int = 6,
+                  where include: (TrainingStudy) -> Bool = { _ in true }) -> [TrainingStudy]? {
+        guard !Self.terms(intent).isEmpty else { return nil }
+        let scored = scores(for: intent).filter { include($0.study) }
+        guard let best = scored.first?.score else { return [] }
         // Without the embedding model, scores come from shared words alone and run lower.
         guard best >= (encoder == nil ? 0.1 : Self.minimumScore) else { return [] }
         return scored.enumerated()
@@ -149,7 +153,7 @@ extension TrainingStudy {
         case .missingEstimates:
             ["Why are there gaps in my strength chart?", "missing estimated maxes", "sessions without an estimate"]
         case .pushups:
-            ["Are my bodyweight exercises improving?", "bodyweight reps over time",
+            ["Are my bodyweight exercises improving?", "bodyweight reps over time", "bodyweight exercise progress",
              "best set and total reps for a bodyweight exercise"]
         case .tonnage:
             ["Why did my volume load change?", "total weight lifted", "tonnage", "weight times reps per workout"]
