@@ -44,7 +44,8 @@ struct ChartIndexTests {
         ("Show me the sets from my last workout", .sessionLedger),
     ])
     func ranksTheAnsweringChart(question: String, chart: TrainingStudy) throws {
-        #expect(try top(question).contains(chart), "\(question): \(try top(question))")
+        let ranked = try top(question)
+        #expect(ranked.contains(chart), "\(question): \(ranked)")
     }
 
     @Test("Unambiguous questions rank their chart first")
