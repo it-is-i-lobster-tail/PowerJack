@@ -17,11 +17,11 @@ private struct StudyGallery: View {
     let history: StudyHistory
     @AppStorage(SavedStudyViews.storageKey) private var storedOptions = Data()
 
-    @Query private var exercises: [Exercise]
-    @State private var index: ExerciseChartSearch.Index?
     private let journal = GallerySearchJournal.shared
+    private let model = ChartSearchModel.shared
     @State private var appliedQuery = ""
-    @State private var question: StudyQueryPlan?
+    @State private var plan: ChartSearchPlan?
+    @State private var memo = SearchMemo()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
 
@@ -33,127 +33,57 @@ private struct StudyGallery: View {
     @Namespace private var zoom
     private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14, alignment: .top), count: 2)
 
-    var body: some View {
-        let choices = SavedStudyViews(data: storedOptions)
-        let searching = !appliedQuery.isEmpty
-        let cards: [GalleryCard]
-        let missingNote: String?
-        let consultModel: Bool
-        if searching {
-            let search = StudySearch(query: appliedQuery, history: history, exercises: exercises, index: index)
-            let parsed = StudyQuestion(appliedQuery, history: history, knownNames: search.knownExerciseNames)
-            missingNote = parsed.missingHistoryNote(history)
-            if let question {
-                consultModel = false
-                cards = search.questionCards(question, query: appliedQuery, history: history,
-                                             exercises: exercises, saved: choices, parsed: parsed)
-            } else {
-                cards = search.galleryCards(history: history, saved: choices, parsed: parsed)
-                consultModel = StudySearch.needsToolReview(cards, parsed: parsed, history: history)
-            }
-        } else {
-            consultModel = false
-            missingNote = nil
-            cards = TrainingStudy.allCases.map { study in
-                GalleryCard(id: GalleryCardID(study: study, exerciseKeys: []), options: choices[study],
-                            source: nil, score: 0, variant: 0)
-            }
+    /// Search runs once per query, plan, saved controls and logged history, not on every redraw.
+    private var results: ChartSearchResults {
+        let input = SearchMemo.Input(query: appliedQuery, plan: plan, saved: storedOptions, revision: history.revision)
+        return memo.results(for: input) {
+            ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan, history: history,
+                                saved: SavedStudyViews(data: storedOptions))
         }
-        let focused = cards.count == 1 && cards.first?.source?.question != nil
+    }
+
+    var body: some View {
+        let results = results
+        let searching = !appliedQuery.isEmpty
         return NavigationStack(path: $path) {
             ScrollView {
-                if let missingNote, !cards.isEmpty {
-                    Label(missingNote, systemImage: "info.circle")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16)
-                        .accessibilityIdentifier("data.search.missingHistory")
-                }
-                LazyVGrid(columns: focused ? [GridItem(.flexible())] : columns, alignment: .leading, spacing: 20) {
-                    ForEach(cards) { card in
-                        let id = card.id.study
-                        let options = searchEdits[card.id] ?? card.options
-                        let study = (searchEdits[card.id] == nil ? card.source : nil) ?? history.result(for: id, options: options)
-                        let display = study
-                            .presented(as: options.presentation, transpose: options.transpose)
-                        NavigationLink(value: card.id) {
-                            VStack(alignment: .leading, spacing: 7) {
-                                if study.figure != nil || !focused {
-                                    StudyThumbnail(study: display)
-                                        .aspectRatio(1.65, contentMode: .fit)
-                                        .powerJackGlassCard()
-                                        .matchedTransitionSource(id: card.id, in: zoom)
-                                }
-                                if card.related {
-                                    Text("Related chart").font(.caption).foregroundStyle(.secondary)
-                                }
-                                Text(study.galleryCaption)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.horizontal, 3)
-                                if focused {
-                                    Text(study.summary).font(.subheadline).foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.leading)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(card.related ? "Related chart, " + study.galleryAccessibilityLabel : study.galleryAccessibilityLabel + (focused ? ". " + study.summary : ""))
-                        .accessibilityHint(
-                            study.figure == nil ? "No matching history. Opens chart details." : "Opens full-size chart."
-                        )
-                        .accessibilityIdentifier("data.study.\(study.id.rawValue)")
+                VStack(alignment: .leading, spacing: 20) {
+                    if let note = results.note, searching, !results.isEmpty {
+                        Label(note, systemImage: "info.circle")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("data.search.note")
+                    }
+                    if let answer = results.answer {
+                        tile(answer, expanded: true)
+                    }
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                        ForEach(results.cards) { tile($0, expanded: false) }
                     }
                 }
                 .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
             .overlay {
-                if cards.isEmpty, let missingNote {
-                    ContentUnavailableView("No matching history", systemImage: "chart.xyaxis.line", description: Text(missingNote))
-                } else if cards.isEmpty, question != nil, let reason = StudyQueryPlan.missingMeasurement(for: appliedQuery) {
-                    ContentUnavailableView("No matching chart", systemImage: "chart.xyaxis.line",
-                                           description: Text(reason))
-                } else if cards.isEmpty {
+                if results.isEmpty, let note = results.note {
+                    ContentUnavailableView("No matching history", systemImage: "chart.xyaxis.line", description: Text(note))
+                } else if results.isEmpty {
                     ContentUnavailableView.search(text: appliedQuery)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                GallerySearchField(journal: journal) { text in
+                GallerySearchField(journal: journal, onFocus: model.prewarm) { text in
                     guard text != appliedQuery else { return }
                     searchEdits.removeAll()
-                    question = nil
+                    plan = nil
                     appliedQuery = text
                 }
             }
-            .background { ExerciseSearchIndexLoader(index: $index) }
-            .task(id: appliedQuery) {
-                let input = appliedQuery
-                guard consultModel, question == nil, searchEdits.isEmpty else { return }
-                do {
-                    if let cached = journal.cached(input) {
-                        question = cached.plan
-                        if Date.now.timeIntervalSince(cached.date) < GallerySearchJournal.lifetime { return }
-                    }
-                    try await Task.sleep(for: .milliseconds(450))
-                    let search = StudySearch(query: input, history: history, exercises: exercises, index: index)
-                    let parsed = StudyQuestion(input, history: history, knownNames: search.knownExerciseNames)
-                    let tools = StudySearchTools(search: search, history: history, exercises: exercises, saved: choices, parsed: parsed)
-                    let plan = await journal.resolve(input) { query in
-                        try await StudyQuestionInterpreter.interpret(query, context: tools)
-                    }
-                    guard !Task.isCancelled, input == appliedQuery, path.isEmpty, searchEdits.isEmpty else { return }
-                    question = plan
-                } catch { /* The local search is already visible. */ }
-            }
+            .task(id: appliedQuery) { await askModel(appliedQuery) }
             .navigationTitle("Data")
             .navigationDestination(for: GalleryCardID.self) { id in
-                if let card = cards.first(where: { $0.id == id }) {
+                if let card = ([results.answer].compactMap { $0 } + results.cards).first(where: { $0.id == id }) {
                     let options = searchEdits[id] ?? card.options
-                    let source = (searchEdits[id] == nil ? card.source : nil) ?? history.result(for: id.study, options: options)
+                    let source = searchEdits[id] == nil ? card.result : history.result(for: id.study, options: options)
                     let study = source.presented(as: options.presentation, transpose: options.transpose)
                     StudyDetail(study: study, source: source, history: history, options: options,
                                 saveSearchView: searching && study.question == nil ? { save(options, for: id.study) } : nil) { updated in
@@ -164,10 +94,84 @@ private struct StudyGallery: View {
             }
         }
     }
+
+    /// Local results are already on screen. A question can add the model's chart picks a moment later.
+    private func askModel(_ input: String) async {
+        let query = ChartQuery(input, history: history)
+        guard ChartSearch.asksModel(query), model.isAvailable else { return }
+        if let saved = journal.cachedPlan(input) {
+            plan = saved
+            return
+        }
+        // Wait for a pause in typing before starting the model.
+        guard (try? await Task.sleep(for: .milliseconds(350))) != nil else { return }
+        let suggestions = results.cards.prefix(4).map(\.id.study)
+        let resolved = await journal.resolve(input) {
+            try await model.plan(for: input, suggestions: suggestions)
+        }
+        guard !Task.isCancelled, input == appliedQuery, path.isEmpty, searchEdits.isEmpty else { return }
+        plan = resolved
+    }
+
+    private func tile(_ card: GalleryCard, expanded: Bool) -> some View {
+        let options = searchEdits[card.id] ?? card.options
+        let study = searchEdits[card.id] == nil ? card.result : history.result(for: card.id.study, options: options)
+        let display = study.presented(as: options.presentation, transpose: options.transpose)
+        return NavigationLink(value: card.id) {
+            VStack(alignment: .leading, spacing: 7) {
+                if study.figure != nil {
+                    StudyThumbnail(study: display)
+                        .aspectRatio(expanded ? 2.2 : 1.65, contentMode: .fit)
+                        .powerJackGlassCard()
+                        .matchedTransitionSource(id: card.id, in: zoom)
+                }
+                Text(study.galleryCaption)
+                    .font(expanded ? .headline : .subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 3)
+                if expanded {
+                    Text(study.summary).font(.subheadline).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 3)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(study.galleryAccessibilityLabel + (expanded ? ". " + study.summary : ""))
+        .accessibilityHint(study.figure == nil ? "No matching history. Opens chart details." : "Opens full-size chart.")
+        .accessibilityIdentifier(expanded ? "data.answer" : "data.study.\(study.id.rawValue)")
+    }
+}
+
+/// Remembers the last search results, so a redraw that changes nothing doesn't search again.
+private final class SearchMemo {
+    struct Input: Equatable {
+        let query: String
+        let plan: ChartSearchPlan?
+        let saved: Data
+        let revision: Int
+    }
+
+    private var input: Input?
+    private var value = ChartSearchResults()
+
+    func results(for input: Input, make: () -> ChartSearchResults) -> ChartSearchResults {
+        if input != self.input {
+            value = make()
+            self.input = input
+        }
+        return value
+    }
 }
 
 struct GallerySearchField: View {
     let journal: GallerySearchJournal
+    var onFocus: () -> Void = {}
     let update: (String) -> Void
     @State private var query = ""
     @State private var suggestions: [String] = []
@@ -179,8 +183,11 @@ struct GallerySearchField: View {
         query = value
         pending = true
         recordedInFocus = false
-        update(value.trimmingCharacters(in: .whitespacesAndNewlines))
         suggestions = journal.suggestions(for: value)
+    }
+
+    private func apply() {
+        update(query.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private func record() {
@@ -192,6 +199,7 @@ struct GallerySearchField: View {
 
     private func submit(_ value: String) {
         if value != query { edit(value) }
+        apply()
         if !recordedInFocus { pending = true }
         record()
         typing = false
@@ -226,6 +234,7 @@ struct GallerySearchField: View {
                     Button("Clear search", systemImage: "xmark.circle.fill") {
                         record()
                         edit("")
+                        apply()
                     }
                     .labelStyle(.iconOnly).foregroundStyle(.secondary)
                 }
@@ -241,13 +250,17 @@ struct GallerySearchField: View {
             if focused {
                 recordedInFocus = false
                 suggestions = journal.suggestions(for: query)
+                onFocus()
             } else { record() }
         }
         .task(id: query) {
-            // A live search can be read without pressing Return. Do not record each keystroke.
-            guard typing, pending, !query.isEmpty else { return }
+            // Search once typing pauses, not on every keystroke. Record a search the user stayed on,
+            // since a live search can be read without pressing Return.
             do {
-                try await Task.sleep(for: .milliseconds(1500))
+                try await Task.sleep(for: .milliseconds(250))
+                apply()
+                guard typing, pending, !query.isEmpty else { return }
+                try await Task.sleep(for: .milliseconds(1250))
                 record()
             } catch { }
         }
