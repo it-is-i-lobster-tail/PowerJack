@@ -39,6 +39,10 @@ struct DataSearchQuery {
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
+    static func monthNumber(_ word: some StringProtocol) -> Int? {
+        monthNumbers[normalize(word)]
+    }
+
     private static let monthNumbers: [String: Int] = {
         var calendar = Calendar(identifier: .gregorian)
         var numbers: [String: Int] = [:]

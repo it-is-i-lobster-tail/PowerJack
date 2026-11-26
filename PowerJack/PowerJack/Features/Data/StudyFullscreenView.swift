@@ -164,7 +164,7 @@ private struct StudyFullscreenCanvas: View {
         let plotWidth: CGFloat
         switch study.figure {
         case .table(let table): plotWidth = StudyTableView.contentWidth(columns: table.columns.count)
-        case .matrix(let columns, _, _): plotWidth = 116 + CGFloat(columns.count) * 44
+        case .matrix(let columns, _, _): plotWidth = columns.reduce(116) { $0 + 3 + StudyMatrix.width(for: $1) }
         default: plotWidth = 0
         }
         return max(viewport.width, plotWidth + inset * 2)

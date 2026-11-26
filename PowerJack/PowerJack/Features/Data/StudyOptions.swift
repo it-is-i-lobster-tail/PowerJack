@@ -5,11 +5,22 @@ enum StudyPeriod: Hashable, Codable {
     case year(Int)
     case month(year: Int, month: Int)
 
+    case day(year: Int, month: Int, day: Int)
+
+    var usesDailyBuckets: Bool {
+        switch self {
+        case .month, .day: true
+        default: false
+        }
+    }
+
     var label: String {
         switch self {
         case .original: "Chart default"
         case .all: "All history"
         case .year(let year): String(year)
+        case let .day(year, month, day):
+            Calendar.current.date(from: DateComponents(year: year, month: month, day: day))?.formatted(.dateTime.month(.wide).day().year()) ?? String(year)
         case .month(let year, let month):
             Calendar.current.date(from: DateComponents(year: year, month: month))?.formatted(.dateTime.month(.wide).year())
                 ?? String(year)
@@ -55,6 +66,10 @@ struct StudyOptions: Equatable, Codable {
     var transpose = false
     var presentation: StudyPresentation = .original
     var parameters: [StudyParameter: Int] = [:]
+
+    /// Keep a search phrase only while its original selection still describes the chart.
+    var searchFocus: StudySearchFocus?
+    var showsFullSearchTitle: Bool?
 
     var horizontalLift: String { exerciseKeys.first ?? StudyHistory.squat }
 

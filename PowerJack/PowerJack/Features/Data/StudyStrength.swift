@@ -89,20 +89,28 @@ extension StudyHistory {
                 ], dates: true)
         case .repeatBench:
             let setsTarget = parameter(.sets, 3)
-            let slots = focusedLift(Self.bench).filter { s in
-                s.sets.count == setsTarget && s.sets.allSatisfy { $0.target == repsTarget && $0.targetLoad == loadTarget }
+            let slots = sessions.filter { slot in
+                slot.key == focusKey(Self.bench) && includes(slot.date)
+                    && (slot.finished || slot.sets.contains { $0.status == .complete || $0.status == .skipped })
+                    && slot.sets.count == setsTarget
+                    && slot.sets.allSatisfy { $0.target == repsTarget && $0.targetLoad == loadTarget }
             }
-            let points = slots.map { s in
-                StudyPoint(
-                    s.date.timeIntervalSince1970,
-                    Double(
-                        s.done.filter { set in set.load.map { $0 >= loadTarget } == true && (set.reps ?? 0) >= repsTarget }
-                            .count))
+            let workouts = orderedWorkouts(slots)
+            let counts = workouts.map { appearances in
+                appearances.map { slot in
+                    slot.done.filter { ($0.load ?? -1) >= loadTarget && ($0.reps ?? 0) >= repsTarget }.count
+                }.max() ?? 0
+            }
+            let made = counts.filter { $0 == setsTarget }.count
+            let points = zip(workouts, counts).map { StudyPoint($0[0].date.timeIntervalSince1970, Double($1)) }
+            let rows = zip(workouts, counts).reversed().map { appearances, count in
+                [day(appearances[0].date), appearances[0].routine, "\(count) of \(setsTarget)", count == setsTarget ? "Yes" : "No"]
             }
             return traces(
                 id, "\(benchName) · \(setsTarget) sets of \(repsTarget) at \(loadText(loadTarget))", "Workout date",
-                "Qualifying sets",
-                [.init(name: "Sets reaching target", points: points)], dates: true)
+                "Qualifying sets", [.init(name: "Sets reaching target", points: points)], dates: true,
+                summary: workouts.isEmpty ? "" : "\(made) of \(workouts.count) prescribed workouts reached every set target. Each workout counts once, using its best matching exercise slot.",
+                detail: rows.isEmpty ? nil : StudyTable(columns: ["Date", "Workout", "Sets reached", "All sets"], rows: rows))
         case .yearlyRecords:
             let keys =
                 options.exerciseKeys.isEmpty
@@ -161,39 +169,62 @@ extension StudyHistory {
                 dates: true, summary: "\(count) completed reps · \(max(0,goalReps-count)) remaining.")
         case .pushups:
             let setsTarget = parameter(.sets, 3)
-            let slots = focusedLift("catalog:push-up").filter {
-                $0.repsOnly && $0.sets.count == setsTarget && $0.done.compactMap(\.reps).count == setsTarget
-            }
-            let best = slots.map { StudyPoint($0.date.timeIntervalSince1970, Double($0.done.compactMap(\.reps).max() ?? 0)) }
-            let totals = slots.map {
-                StudyPoint($0.date.timeIntervalSince1970, Double($0.done.compactMap(\.reps).reduce(0, +)))
+            let appearances = sessions.filter { $0.key == focusKey("catalog:push-up") && includes($0.date) && $0.repsOnly }
+            let workouts = orderedWorkouts(appearances)
+            var best: [StudyPoint] = []
+            var totals: [StudyPoint] = []
+            var rows: [[String]] = []
+            for workout in workouts {
+                let sets = workout.flatMap(\.sets)
+                let reps = sets.filter { $0.status == .complete }.compactMap(\.reps)
+                guard sets.count == setsTarget, reps.count == setsTarget, let maximum = reps.max() else { continue }
+                let session = workout[0]
+                let total = reps.reduce(0, +)
+                best.append(StudyPoint(session.date.timeIntervalSince1970, Double(maximum)))
+                totals.append(StudyPoint(session.date.timeIntervalSince1970, Double(total)))
+                rows.append([day(session.date), String(maximum), String(total), session.routine])
             }
             return traces(
                 id, "\(focusName("catalog:push-up", "Push Up")) · \(setsTarget) completed working sets", "Workout date",
                 "Reps",
-                [.init(name: "Best set", points: best), .init(name: "Session total", points: totals)], dates: true)
+                [.init(name: "Best set", points: best), .init(name: "Session total", points: totals)], dates: true,
+                summary: rows.last.map { "On \($0[0]), your best set was \($0[1]) reps and your session total was \($0[2])." } ?? "",
+                detail: rows.isEmpty ? nil : StudyTable(columns: ["Date", "Best set", "Session total", "Workout"], rows: rows.reversed()))
         default:
-            let latest = squats.filter { $0.loaded && $0.done.allSatisfy { $0.load != nil && $0.reps != nil } }.suffix(2)
-            let rows = latest.map { s in
-                let reps = s.done.compactMap(\.reps).reduce(0, +)
-                let volume = s.done.reduce(0.0) { $0 + weight($1.load ?? 0) * Double($1.reps ?? 0) }
-                let loads = Set(s.done.compactMap(\.load)).sorted().map(loadText).joined(separator: " / ")
-                return [day(s.date), "\(s.done.count)", "\(reps)", loads, volume.studyNumber]
+            let eligible = orderedWorkouts(squats).compactMap { workout -> (StudySession, [StudySet])? in
+                let sets = workout.flatMap(\.done)
+                guard workout.allSatisfy(\.loaded), sets.allSatisfy({ $0.load != nil && $0.reps != nil }) else { return nil }
+                return (workout[0], sets)
+            }.suffix(2)
+            var bars: [StudyBar] = []
+            let rows = eligible.map { session, sets in
+                let reps = sets.compactMap(\.reps).reduce(0, +)
+                let volume = sets.reduce(0.0) { $0 + weight($1.load ?? 0) * Double($1.reps ?? 0) }
+                let loads = Set(sets.compactMap(\.load)).sorted().map(loadText).joined(separator: " / ")
+                bars.append(StudyBar(label: day(session.date), value: volume))
+                return [day(session.date), "\(sets.count)", "\(reps)", loads, volume.studyNumber]
             }
             var result = table(
                 id, "\(squatName) · latest two sessions", ["Session", "Sets", "Reps", "Loads", "\(unit.symbol)·reps"],
                 rows.count == 2 ? rows : [],
                 "Volume load sums external load × completed reps across working sets.")
             if rows.count == 2 {
-                result.alternateBars = latest.map { slot in
-                    StudyBar(
-                        label: day(slot.date),
-                        value: slot.done.reduce(0) { $0 + weight($1.load ?? 0) * Double($1.reps ?? 0) })
-                }
+                result.alternateBars = bars
+                let prior = result.alternateBars[0].value
+                let delta = result.alternateBars[1].value - prior
+                let change = delta > 0 ? "+\(delta.studyNumber)" : delta.studyNumber
+                let percent = prior > 0 ? " (\((100 * delta / prior).studyNumber)% change)" : ""
+                result.summary = "Volume load changed by \(change) \(unit.symbol)·reps\(percent) from \(rows[0][0]) to \(rows[1][0])."
                 result.xLabel = "Session"
                 result.yLabel = "Volume load (\(unit.symbol)·reps)"
             }
             return result
+        }
+    }
+
+    private func orderedWorkouts(_ appearances: [StudySession]) -> [[StudySession]] {
+        Dictionary(grouping: appearances, by: \.workout).values.sorted {
+            ($0[0].date, $0[0].workout) < ($1[0].date, $1[0].workout)
         }
     }
 }
