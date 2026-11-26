@@ -110,4 +110,39 @@ struct FitNotesImportTests {
         #expect(saved.first { $0.durationSeconds == 902 }?.distanceUnit == "mi")
         #expect(try context.fetchCount(FetchDescriptor<Workout>()) == 0)
     }
+
+    @Test func importedSetsFeedTheDataCharts() throws {
+        let header = FitNotesImport.columns.joined(separator: ",")
+        let document = [header,
+                        "2025-03-12,Barbell Squat,Legs,225,lbs,5,,,,",
+                        "2025-03-12,Barbell Squat,Legs,225,lbs,5,,,,",
+                        "2025-03-12,Running,Cardio,,,,2,mi,0:15:02,",
+                        "2025-03-19,Barbell Squat,Legs,235,lbs,5,,,,"].joined(separator: "\n")
+        let rows = try FitNotesImport.parse(Data(document.utf8))
+        let container = try PowerJackSchema.makeModelContainer(inMemory: true)
+        let context = container.mainContext
+        let squat = try #require(ExerciseCatalog.entries.first { $0.id == "barbell-back-squat" }).makeExercise()
+        let run = Exercise(exerciseName: "Running", exerciseEquipment: .bodyweight, primaryMuscleFocus: .quads, userCreated: true)
+        context.insert(squat)
+        context.insert(run)
+        _ = try FitNotesImport.save(rows, matches: ["Barbell Squat": squat, "Running": run], in: context)
+
+        let calendar = Calendar(identifier: .gregorian)
+        let today = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 25)))
+        let history = StudyHistory(
+            programs: [], archive: [], logs: [], imported: try context.fetch(FetchDescriptor<ImportedSet>()),
+            exercises: [squat, run], unit: .pounds, today: today, calendar: calendar)
+        // The run has no reps, so only the two squat days become sessions.
+        #expect(history.sessions.map(\.key) == [StudyHistory.squat, StudyHistory.squat])
+        #expect(history.sessions.map { $0.done.count } == [2, 1])
+        #expect(history.sessions.first?.sets.first?.load == 2250)
+        #expect(history.firstDate == calendar.date(from: DateComponents(year: 2025, month: 3, day: 12, hour: 12)))
+        #expect(history.credits.filter { $0.muscle == .quads }.map(\.sets).reduce(0, +) == 3)
+
+        var options = StudyOptions()
+        options.period = .year(2025)
+        for study in [TrainingStudy.legWork, .records, .legMax] {
+            #expect(history.result(for: study, options: options).figure != nil, "\(study.caption) should show imported sets")
+        }
+    }
 }
