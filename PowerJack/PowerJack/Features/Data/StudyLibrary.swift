@@ -99,7 +99,7 @@ extension StudyHistory {
         case .armReps:
             let matches = sessions.filter { inYear($0.date) && exerciseMatches($0) && !$0.done.isEmpty }
             let grain: Calendar.Component
-            if case .month = options.period { grain = .day } else { grain = .month }
+            if options.period.usesDailyBuckets { grain = .day } else { grain = .month }
             let bucket = { (date: Date) in calendar.dateInterval(of: grain, for: date)!.start }
             let counts = Dictionary(grouping: matches, by: { bucket($0.date) })
             let grainLabel = grain == .day ? "Day" : "Month"
@@ -192,9 +192,12 @@ extension StudyHistory {
                     Double((grouped[name] ?? []).flatMap(\.done).compactMap(\.reps).filter(band.contains).count) as Double?
                 }
             }
+            let bands = ["1–3", "4–6", "7–11", "12–15", "16+"]
+            let totals = bands.indices.map { col in Int(values.compactMap { $0[col] }.reduce(0, +)) }
+            let breakdown = zip(bands, totals).map { "\($0) reps: \($1)" }.joined(separator: " · ")
             return matrix(
-                id, "\(legName) exercises · \(recentLabel)", ["1–3", "4–6", "7–11", "12–15", "16+"], names, values,
-                "Each cell counts completed working sets in that rep range.")
+                id, "\(legName) exercises · \(recentLabel)", bands, names, values,
+                names.isEmpty ? "" : "Completed working sets by rep range. \(breakdown).")
         case .repChanges:
             let windows = comparisonWindows
             guard windows.current.duration > 0 else { return StudyResult(id: id, scope: rangeLabel) }
