@@ -16,9 +16,13 @@ enum HistoryArchive {
     /// - Returns: Whether rows were added.
     @discardableResult
     static func save(_ program: Program, as status: HistoryProgramStatus? = nil, in context: ModelContext, at date: Date = .now) throws -> Bool {
+        // Checked first: every launch passes every ended program here, and most are saved already.
+        // Finding out whether one trained walks all its sets.
+        if let programID = program.syncID, try !records(of: programID, in: context, limit: 1).isEmpty { return false }
         guard hasTrained(program) else { return false }
+        // A program without sync IDs yet can't have saved rows.
         if program.syncID == nil { program.assignSyncIDs() }
-        guard let programID = program.syncID, try records(of: programID, in: context, limit: 1).isEmpty else { return false }
+        guard let programID = program.syncID else { return false }
 
         let batchID = UUID()
         let started = HistoryExport.firstActivity(of: program)
