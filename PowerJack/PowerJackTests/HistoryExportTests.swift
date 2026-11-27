@@ -34,7 +34,7 @@ struct HistoryExportTests {
         let bench = try #require(rows.first { $0["Exercise"] == "Bench" && $0["Set Type"] == "Working" && $0["Set #"] == "1" })
 
         #expect(bench["Program #"] == "1")
-        #expect(bench["Program"] == "Custom Template 1")
+        #expect(bench["Program"] == "Push")
         #expect(bench["Program Type"] == "Hypertrophy")
         #expect(bench["Week"] == "1" && bench["Day"] == "1")
         #expect(bench["Equipment"] == "Barbell" && bench["Exercise Source"] == "Built-in")
@@ -62,24 +62,17 @@ struct HistoryExportTests {
         #expect(dip["Weight (kg)"] == "0" && dip["Exercise Source"] == "Custom")
     }
 
-    @Test("Names the lifter typed are left out, built-in names stay, and times are UTC")
-    func nothingPersonal() throws {
+    @Test("The lifter's own templates and exercises keep their names, and times are UTC")
+    func names() throws {
         let workout = try makeLoggedWorkout()
         let program = try #require(workout.programWeekValue?.programValue)
-        let csv = HistoryExport.csv(for: [program], unit: .pounds)
-        #expect(!csv.contains("Push") && !csv.contains("Dip"))
-
-        let rows = records(csv)
+        let rows = records(HistoryExport.csv(for: [program], unit: .pounds))
         let dips = rows.filter { $0["Exercise Source"] == "Custom" }
-        #expect(!dips.isEmpty && dips.allSatisfy { $0["Exercise"] == "Custom Exercise 1" })
-        #expect(rows.allSatisfy { $0["Program"] == "Custom Template 1" })
+        #expect(!dips.isEmpty && dips.allSatisfy { $0["Exercise"] == #"Dip, "Weighted""# })
+        #expect(rows.allSatisfy { $0["Program"] == "Push" })
         // Times carry no offset that hints at where the lifter is.
         let times = rows.flatMap { [$0["Workout Started"], $0["Set Logged"]] }.compactMap { $0 }.filter { !$0.isEmpty }
         #expect(!times.isEmpty && times.allSatisfy { $0.hasSuffix("Z") })
-
-        // A built-in template keeps its name.
-        program.templateNameValue = "Full Body"
-        #expect(records(HistoryExport.csv(for: [program], unit: .pounds)).allSatisfy { $0["Program"] == "Full Body" })
     }
 
     @Test("The file is written and named for today")
