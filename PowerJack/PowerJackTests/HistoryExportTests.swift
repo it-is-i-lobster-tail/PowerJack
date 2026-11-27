@@ -203,6 +203,32 @@ struct HistoryExportTests {
         #expect(rows.count == HistoryExport.rows(for: first).count + HistoryExport.rows(for: second).count)
     }
 
+    @Test("Each launch skips programs already saved, saves trained ones that aren't, and leaves untrained ones alone")
+    func launchSaveChecksSavedFirst() throws {
+        let context = container.mainContext
+        let saved = try #require(try makeLoggedWorkout().programWeekValue?.programValue)
+        saved.finishWorkout(try #require(saved.programWeeks.first?.workouts.first))
+        let batch = try HistoryArchive.records(in: context).map(\.batchID)
+        #expect(!batch.isEmpty)
+        #expect(try !HistoryArchive.save(saved, in: context), "already saved")
+        #expect(try HistoryArchive.records(in: context).map(\.batchID) == batch)
+
+        let unsaved = try #require(try makeLoggedWorkout(at: start + 86_400).programWeekValue?.programValue)
+        #expect(try HistoryArchive.save(unsaved, in: context))
+        #expect(try !HistoryArchive.save(unsaved, in: context))
+
+        // A program that never trained gets no sync IDs and no rows, as before.
+        let template = TemplateProgram(templateName: "Push", workoutsPerWeek: 1, templateMuscleFocus: [.chest])
+        _ = template.addTemplateWorkout()
+        context.insert(template)
+        let untrained = Program(programLengthWeeks: 1, templateProgram: template)
+        try context.insertAndSave(untrained)
+        let untrainedID = untrained.syncID
+        #expect(try !HistoryArchive.save(untrained, in: context))
+        #expect(untrained.syncID == untrainedID)
+        #expect(Set(try HistoryArchive.records(in: context).compactMap(\.programID)) == [saved.syncID, unsaved.syncID])
+    }
+
     @Test("When two iPhones saved the same program, the export keeps one copy")
     func duplicateBatches() throws {
         let context = container.mainContext
