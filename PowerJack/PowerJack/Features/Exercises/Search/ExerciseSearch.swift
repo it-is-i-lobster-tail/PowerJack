@@ -31,7 +31,8 @@ nonisolated enum ExerciseSearch {
             secondary = exercise.secondaryMuscles
             equipment = exercise.equipment
             style = exercise.executionStyle?.rawValue ?? entry?.profile.style.rawValue ?? ""
-            let stored = (exercise.jointActions ?? []).compactMap { action in
+            // Actions the lifter set in Advanced Data carry their weight. Other stored rows weigh 1.
+            let stored = CustomJointActions.read(exercise) ?? (exercise.jointActions ?? []).compactMap { action in
                 action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
             }
             actions = stored.map { $0.role.rawValue + " " + $0.movement }.sorted()

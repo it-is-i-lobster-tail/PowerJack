@@ -35,6 +35,11 @@ struct ExerciseDraft {
     private var savedMovesLike: String?
     /// Secondary muscles filled in from `movesLike`. Once the lifter changes them, they stay.
     private var suggestedSecondary: [Muscle] = []
+    /// Joint actions the lifter set in Advanced Data, replacing the `movesLike` lift's. Nil follows `movesLike`.
+    private(set) var customActions: [JointAction]?
+    private var savedCustomActions: [JointAction]?
+    /// A built-in's joint actions, from the catalog.
+    private var builtInActions: [JointAction] = []
 
     static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
     static let restLimits = Int(RestLength.range.lowerBound.components.seconds)
@@ -60,13 +65,40 @@ struct ExerciseDraft {
         isBuiltIn = !exercise.userCreated
         movesLike = MovesLike.key(of: exercise)
         savedMovesLike = movesLike
-        isMovesLikeChosen = movesLike != nil
+        customActions = isBuiltIn ? nil : CustomJointActions.read(exercise) ?? Self.storedActions(of: exercise, movesLike: movesLike)
+        savedCustomActions = customActions
+        isMovesLikeChosen = movesLike != nil || customActions != nil
+        builtInActions = ExerciseCatalog.entries.first { $0.id == exercise.catalogID }?.profile.actions ?? []
+    }
+
+    /// Rows an own exercise carries that match no built-in, read at full weight as search reads them.
+    private static func storedActions(of exercise: Exercise, movesLike: String?) -> [JointAction]? {
+        guard movesLike == nil else { return nil }
+        let actions = (exercise.jointActions ?? []).compactMap { action in
+            action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
+        }
+        return actions.isEmpty ? nil : actions
+    }
+
+    /// What the lift does at each joint: the catalog's for a built-in, else the lifter's own,
+    /// else the `movesLike` lift's.
+    var jointActions: [JointAction] {
+        isBuiltIn ? builtInActions : customActions ?? structure?.actions ?? []
+    }
+
+    /// Sets how an own lift uses one worked joint movement, or clears it for nil. The lift then
+    /// keeps its own joint actions instead of the `movesLike` lift's.
+    mutating func setJoint(_ movement: String, to involvement: JointInvolvement?) {
+        guard !isBuiltIn else { return }
+        isMovesLikeChosen = true
+        customActions = JointInvolvement.setting(movement, to: involvement, in: jointActions)
     }
 
     /// The pattern, style and joint actions saving copies.
     var structure: MovementCatalog.Profile? { MovesLike.entry(movesLike)?.profile }
 
-    var movesLikeName: String? { MovesLike.entry(movesLike)?.name }
+    /// "Custom" once the lifter set joint actions by hand.
+    var movesLikeName: String? { customActions != nil ? "Custom" : MovesLike.entry(movesLike)?.name }
 
     /// Whether the form should still propose a lift from the name.
     var wantsMovesLikeProposal: Bool { !isBuiltIn && !isMovesLikeChosen }
@@ -83,6 +115,8 @@ struct ExerciseDraft {
         guard !isBuiltIn else { return }
         isMovesLikeChosen = true
         movesLike = key
+        // Picking a lift, or None, replaces any joint actions set by hand.
+        customActions = nil
         if key != nil { suggestSecondaryMuscles() }
     }
 
@@ -177,11 +211,17 @@ struct ExerciseDraft {
         return true
     }
 
-    /// Writes `movesLike` onto an own exercise in a store, if it changed since the form opened.
-    /// `makeExercise()` can't, because the exercise isn't in a store yet: insert it first.
+    /// Writes the lifter's joint actions, or else `movesLike`, onto an own exercise in a store,
+    /// if either changed since the form opened. `makeExercise()` can't, because the exercise
+    /// isn't in a store yet: insert it first.
     func applyMovement(to exercise: Exercise) {
-        guard exercise.userCreated, !isBuiltIn, movesLike != savedMovesLike,
+        guard exercise.userCreated, !isBuiltIn,
+              movesLike != savedMovesLike || customActions != savedCustomActions,
               let context = exercise.modelContext else { return }
-        MovesLike.copy(movesLike, to: exercise, in: context)
+        if let customActions {
+            CustomJointActions.write(customActions, to: exercise, in: context)
+        } else {
+            MovesLike.copy(movesLike, to: exercise, in: context)
+        }
     }
 }

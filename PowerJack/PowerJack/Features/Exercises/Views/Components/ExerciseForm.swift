@@ -87,7 +87,8 @@ struct ExerciseForm: View {
             // Built-in exercises get their movement from the catalog.
             if !draft.isBuiltIn {
                 NavigationLink {
-                    MovesLikeList(selected: draft.movesLike) { draft.choose(movesLike: $0) }
+                    // Joint actions set by hand match no row, so none is checked.
+                    MovesLikeList(selected: draft.customActions == nil ? draft.movesLike : "custom") { draft.choose(movesLike: $0) }
                 } label: {
                     HStack {
                         FormFieldLabel(
@@ -121,6 +122,8 @@ struct ExerciseForm: View {
                 fatigueRestTime: draft.fatigueRestTime,
                 height: boxHeight
             )
+
+            ExerciseAdvancedDataLink(draft: $draft, height: boxHeight)
 
             ExerciseFormNote(isBuiltIn: draft.isBuiltIn)
         } footer: {
