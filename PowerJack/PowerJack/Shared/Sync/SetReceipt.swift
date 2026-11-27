@@ -49,6 +49,11 @@ extension SetReceipt {
         try context.fetch(FetchDescriptor<SetReceipt>(predicate: #Predicate { $0.completedAtValue >= date }))
     }
 
+    /// Receipts for sets logged before `date`.
+    static func written(before date: Date, in context: ModelContext) throws -> [SetReceipt] {
+        try context.fetch(FetchDescriptor<SetReceipt>(predicate: #Predicate { $0.completedAtValue < date }))
+    }
+
     /// Whether `workoutSet` was logged before `date`, so a log at `date` fixes it.
     static func wasLogged(_ workoutSet: WorkoutSet, before date: Date, in context: ModelContext?) -> Bool {
         guard let context, let setID = workoutSet.syncID else { return false }
