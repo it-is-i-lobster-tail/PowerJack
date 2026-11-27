@@ -41,11 +41,15 @@ struct ExerciseNewView: View {
     private func save() {
         guard let exercise = draft.makeExercise() else { return }
 
+        modelContext.insert(exercise)
+        draft.applyMovement(to: exercise)
         do {
-            try modelContext.insertAndSave(exercise)
+            try modelContext.save()
             onSave(exercise)
             dismiss()
         } catch {
+            // Deleting the exercise deletes the joint action rows it got.
+            modelContext.delete(exercise)
             saveErrorMessage = error.localizedDescription
         }
     }

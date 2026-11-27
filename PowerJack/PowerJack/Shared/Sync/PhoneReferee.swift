@@ -53,7 +53,7 @@ final class PhoneReferee {
         }
         try context.save()
         self.applied = applied
-        if tidiesUp { try SyncTidyUp.run(in: context, trigger: "watch changes") }
+        if tidiesUp { try SyncTidyUp.run(in: context, trigger: "watch changes", scope: .recent) }
         return try snapshot(in: context)
     }
 }

@@ -67,6 +67,8 @@ struct StudyHistory {
     let firstDate: Date
     /// Changes whenever the logged sets, the day or the weight unit change, so a search can reuse its results.
     let revision: Int
+    /// The built-in lift (its sync key) each own lift moves like, by the own lift's sync key. See `MovesLike`.
+    let movesLike: [String: String]
     let calendar: Calendar
     let unit: WeightUnit
     static let legs: [Muscle] = [.quads, .glutes, .hamstrings, .calves]
@@ -82,6 +84,10 @@ struct StudyHistory {
         self.unit = unit
         self.today = today
         self.calendar = calendar
+        movesLike = Dictionary(exercises.compactMap { exercise in
+            guard let key = exercise.syncKey, let built = MovesLike.key(of: exercise) else { return nil }
+            return (key, built)
+        }, uniquingKeysWith: { first, _ in first })
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
         for program in programs {
@@ -376,5 +382,31 @@ struct StudyHistory {
         let index = Double(sorted.count - 1) * p
         let lower = Int(index)
         return sorted[lower] + (sorted[Int(ceil(index))] - sorted[lower]) * (index - Double(lower))
+    }
+}
+
+extension StudyHistory {
+    private static let cache = HistoryCache<StudyHistory>()
+
+    /// The history last built for the Data tab, if any.
+    static var latest: StudyHistory? { cache.latest }
+
+    /// All saved history, rebuilt once per saved change, weight unit or day instead of on every redraw.
+    static func current(in context: ModelContext, unit: WeightUnit, now: Date = .now,
+                        calendar: Calendar = .current) -> StudyHistory {
+        let key = AnyHashable([AnyHashable(unit), AnyHashable(calendar.startOfDay(for: now))])
+        return cache.value(in: context, key: key) { StudyHistory(context: context, unit: unit, today: now, calendar: calendar) }
+    }
+
+    /// Everything the Data tab reads, fetched from the store.
+    init(context: ModelContext, unit: WeightUnit, today: Date = .now, calendar: Calendar = .current) {
+        func all<Model: PersistentModel>(_: Model.Type) -> [Model] {
+            (try? context.fetch(FetchDescriptor<Model>())) ?? []
+        }
+        let archive = HistoryArchive.archivedRows(
+            programs: all(HistoryProgram.self), exercises: all(HistoryExercise.self), legacy: all(HistoryRecord.self))
+        self.init(programs: all(Program.self), archive: archive, logs: all(WorkoutLog.self),
+                  imported: all(ImportedSet.self), exercises: all(Exercise.self), unit: unit, today: today,
+                  calendar: calendar)
     }
 }

@@ -173,7 +173,7 @@ final class PowerJackStore {
     /// See `SyncTidyUp`.
     func tidyUpAfterSync(trigger: String) {
         do {
-            try SyncTidyUp.run(in: container.mainContext, trigger: trigger)
+            try SyncTidyUp.run(in: container.mainContext, trigger: trigger, scope: .recent)
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }
@@ -238,6 +238,7 @@ final class PowerJackStore {
     private static func openContainer(inMemory: Bool, syncsWithICloud: Bool) throws -> ModelContainer {
         let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         seedCatalogs(in: container.mainContext)
+        if !inMemory { fillOwnExerciseMovements(in: container.mainContext) }
         saveEndedPrograms(in: container.mainContext)
         pruneOldReceipts(in: container.mainContext)
         backfillLeanHistory(in: container.mainContext)
@@ -253,6 +254,17 @@ final class PowerJackStore {
         } catch {
             context.rollback()
             Logger.persistence.error("Could not seed the built-in catalog, trying again next launch: \(error.localizedDescription)")
+        }
+    }
+
+    /// Once per device. Silent for now: `fillExisting` returns the names it filled, should a note list them.
+    /// An in-memory store skips it, so a preview never marks the device's real store as done.
+    private static func fillOwnExerciseMovements(in context: ModelContext) {
+        do {
+            try MovesLike.fillExisting(in: context)
+        } catch {
+            context.rollback()
+            Logger.persistence.error("Could not fill in own exercises' movements, trying again next launch: \(error.localizedDescription)")
         }
     }
 }

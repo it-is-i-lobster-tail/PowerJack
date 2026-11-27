@@ -50,15 +50,12 @@ struct ChartQuery: Equatable {
         words = tokens
         periods = Self.takePeriods(from: &tokens, history: history)
         parameters = Self.takeParameters(from: &tokens)
-        tokens = tokens.flatMap { SearchWords.aliases[$0] ?? [$0] }.map(SearchWords.singular)
-        let logged = LoggedLift.all(in: history)
-        Self.completeLastWord(in: &tokens, logged: logged)
-        lifts = Self.takeNamedLifts(from: &tokens, logged: logged)
-        unloggedLifts = Self.takeCatalogLifts(from: &tokens)
-        // An unlogged lift stays in scope with no sets, so its charts are empty and its totals are zero.
-        lifts += unloggedLifts.map { Subject(name: $0) }
-        lifts += Self.takeLiftFamilies(from: &tokens, logged: logged)
-        muscleGroups = Self.takeMuscles(from: &tokens)
+        tokens = tokens.map { Self.liftVerbs[$0] ?? SearchWords.singular($0) }
+        let known = ChartLifts.of(history)
+        takeLifts(from: &tokens, known)
+        let joints = Self.takeMovements(from: &tokens, known)
+        lifts += joints.lifts
+        muscleGroups = joints.muscles + Self.takeMuscles(from: &tokens)
         // A bare number, such as "at 185", has no unit to say what it measures.
         intent = tokens.filter { Double($0) == nil }.joined(separator: " ")
     }
@@ -196,105 +193,134 @@ extension ChartQuery {
 
 // MARK: - Lifts and muscles
 
-/// A logged exercise, named the way search compares names.
-private struct LoggedLift {
-    let key: String
-    let name: String
-    let words: [String]
-    /// The name without equipment words, so "bench press" finds "Barbell Bench Press".
-    let core: [String]
-    let sessions: Int
+/// The lifts a Data search can name: every logged lift by each name it was logged under, and
+/// every built-in lift, so a typed lift with no history can say so.
+private final class ChartLifts {
+    let index: ExerciseSearch.Index
+    let logged: Set<String>
+    let familiarity: ExerciseFamiliarity
 
-    static func all(in history: StudyHistory) -> [LoggedLift] {
-        var counts: [String: (name: String, count: Int)] = [:]
-        for session in history.sessions where !session.done.isEmpty {
-            counts[session.key, default: (session.name, 0)].count += 1
+    private init(_ lifts: [(key: String, names: [String], session: StudySession)], movesLike: [String: String],
+                 familiarity: ExerciseFamiliarity) {
+        let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ("catalog:\($0.id)", $0) })
+        let logged = Set(lifts.map(\.key))
+        self.logged = logged
+        var documents = lifts.map { lift in
+            if let entry = catalog[lift.key] { return ExerciseSearch.Document(entry, otherNames: lift.names) }
+            // An own lift that moves like a built-in does its joint actions, so "rear delts" finds it.
+            let profile = movesLike[lift.key].flatMap { catalog[$0] }?.profile
+            let pattern = profile?.family?.rawValue
+            return ExerciseSearch.Document(key: lift.key, names: lift.names, primary: lift.session.primary ?? .chest,
+                                           secondary: lift.session.assisting ?? [], equipment: .bodyweight, pattern: pattern,
+                                           structure: profile.map { ExerciseStructure(actions: $0.actions, pattern: pattern) })
         }
-        return counts.map { key, value in
-            let words = SearchWords.tokens(value.name).flatMap { SearchWords.aliases[$0] ?? [$0] }.map(SearchWords.singular)
-            let core = words.filter { !SearchWords.equipment.contains($0) }
-            return LoggedLift(key: key, name: value.name, words: words, core: core.isEmpty ? words : core,
-                              sessions: value.count)
+        documents += ExerciseCatalog.entries.filter { !logged.contains("catalog:\($0.id)") }.map { ExerciseSearch.Document($0) }
+        // Spans read names, not meaning, so the index skips the embedding model.
+        index = ExerciseSearch.Index(documents, encoder: nil)
+        self.familiarity = familiarity
+    }
+
+    private static var cache: [Int: ChartLifts] = [:]
+
+    /// Search runs on every pause while typing, so each set of logged names is indexed once.
+    static func of(_ history: StudyHistory) -> ChartLifts {
+        var names: [String: (names: [String], session: StudySession)] = [:]
+        var sessions: [String: Set<String>] = [:]
+        for session in history.sessions.reversed() where !session.done.isEmpty {
+            // Newest name first, so a renamed lift shows its current name.
+            if names[session.key]?.names.contains(session.name) != true {
+                names[session.key, default: ([], session)].names.append(session.name)
+            }
+            sessions[session.workout, default: []].insert(session.key)
         }
-        .sorted { ($0.sessions, $1.name) > ($1.sessions, $0.name) }
+        let lifts = names.map { (key: $0.key, names: $0.value.names, session: $0.value.session) }.sorted { $0.key < $1.key }
+        var hasher = Hasher()
+        hasher.combine(history.revision)
+        for (own, builtIn) in history.movesLike.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(own)
+            hasher.combine(builtIn)
+        }
+        for lift in lifts {
+            hasher.combine(lift.key)
+            hasher.combine(lift.names)
+        }
+        let id = hasher.finalize()
+        if let cached = cache[id] { return cached }
+        let order = history.sessions.map(\.workout).uniqued()
+        let lifted = ChartLifts(lifts, movesLike: history.movesLike, familiarity: ExerciseFamiliarity(sessions: order.compactMap { sessions[$0] }))
+        if cache.count >= 4 { cache.removeAll() }
+        cache[id] = lifted
+        return lifted
     }
 }
 
 extension ChartQuery {
-    /// A name typed in full, such as "back squat", even when "back" is also a muscle.
-    private static func takeNamedLifts(from tokens: inout [String], logged: [LoggedLift]) -> [Subject] {
-        var subjects: [Subject] = []
-        for lift in logged.sorted(by: { $0.core.count > $1.core.count }) where lift.core.count > 1 {
-            guard let range = tokens.range(of: lift.core) else { continue }
-            let named = logged.filter { $0.core == lift.core }
-            var lower = range.lowerBound
-            var matches = named
-            if lower > 0, SearchWords.equipment.contains(tokens[lower - 1]) {
-                let equipment = tokens[lower - 1]
-                let specific = named.filter { $0.words.contains(equipment) }
-                if !specific.isEmpty {
-                    matches = specific
-                    lower -= 1
-                }
-            }
-            subjects.append(Subject(name: matches.count == 1 ? matches[0].name : tokens[lower..<range.upperBound].joined(separator: " "),
-                                    exerciseKeys: matches.map(\.key)))
-            tokens.removeSubrange(lower..<range.upperBound)
-        }
-        return subjects
-    }
+    /// Words that never name a lift by themselves: chart words such as "volume", muscle groups,
+    /// and function words.
+    private static let plainWords = SearchWords.notLiftWords.union(SearchWords.muscleWords).union(ChartIndex.vocabulary)
 
-    /// A family of lifts: a run of words that each appear in logged names. "Squat" is every squat,
-    /// and "bench" prefers lifts named only bench plus equipment over "Incline Bench Press".
-    private static func takeLiftFamilies(from tokens: inout [String], logged: [LoggedLift]) -> [Subject] {
-        var subjects: [Subject] = []
-        let nameWords = Set(logged.flatMap(\.words)).subtracting(SearchWords.notLiftWords)
-            .subtracting(SearchWords.muscleWords).subtracting(ChartIndex.vocabulary)
-        var index = 0
-        while index < tokens.count {
-            guard nameWords.contains(tokens[index]) else {
-                index += 1
-                continue
-            }
-            var end = index
-            while end + 1 < tokens.count, nameWords.contains(tokens[end + 1]) { end += 1 }
-            let run = Array(tokens[index...end])
-            let candidates = logged.filter { lift in run.allSatisfy(lift.words.contains) }
-            // Prefer names with the fewest words the search didn't ask for.
-            let extra = { (lift: LoggedLift) in lift.core.filter { !run.contains($0) }.count }
-            if let fewest = candidates.map(extra).min() {
-                let matches = candidates.filter { extra($0) == fewest }
-                subjects.append(Subject(name: matches.count == 1 ? matches[0].name : run.joined(separator: " "),
-                                        exerciseKeys: matches.map(\.key)))
-                tokens.removeSubrange(index...end)
+    /// Questions say what was done: "how much have I benched".
+    private static let liftVerbs = [
+        "benched": "bench", "squatted": "squat", "deadlifted": "deadlift", "pressed": "press", "pressing": "press",
+        "curled": "curl", "curling": "curl", "rowed": "row", "rowing": "row",
+    ]
+
+    /// Lift names, as the exercise picker reads them. See `ExerciseSearch.Index.liftSpans`.
+    private mutating func takeLifts(from tokens: inout [String], _ known: ChartLifts) {
+        let query = ExerciseQuery(tokens: tokens)
+        var taken = IndexSet()
+        for span in known.index.liftSpans(in: query, context: .charting(logged: known.logged),
+                                          familiarity: known.familiarity, plainWords: Self.plainWords) {
+            let source = query.source(of: span.range)
+            if span.keys.isEmpty {
+                // A built-in lift with no logged sets stays in scope, so its charts are empty and its totals are zero.
+                unloggedLifts.append(span.name)
+                lifts.append(Subject(name: span.name))
             } else {
-                index = end + 1
+                let name = span.keys.count == 1 ? span.name : tokens[source].joined(separator: " ")
+                lifts.append(Subject(name: name, exerciseKeys: span.keys))
+            }
+            taken.insert(integersIn: source)
+        }
+        tokens = tokens.indices.filter { !taken.contains($0) }.map { tokens[$0] }
+    }
+
+    /// Joint words such as "rear delts" scope the logged lifts that do that movement, or with
+    /// none logged, the muscles that do it. A lone muscle word such as "lat" stays a muscle group.
+    private static func takeMovements(from tokens: inout [String], _ known: ChartLifts) -> (lifts: [Subject], muscles: [Subject]) {
+        let query = ExerciseQuery(tokens: tokens)
+        let words = query.words
+        var used = Array(repeating: false, count: words.count)
+        var taken = IndexSet()
+        var lifts: [Subject] = []
+        var muscles: [Subject] = []
+        for length in stride(from: min(3, words.count), through: 1, by: -1) {
+            for start in 0...(words.count - length) {
+                let range = start..<start + length
+                let term = words[range].joined(separator: " ")
+                let movements = JointAnatomy.bundled.movements(forTerm: term)
+                guard !movements.isEmpty, range.allSatisfy({ !used[$0] }),
+                      length > 1 || ExerciseQuery.muscleWords[term] == nil,
+                      // "trap bar" is a bar, not the traps.
+                      !(term == "trap" && words.indices.contains(start + 1) && words[start + 1] == "bar")
+                else { continue }
+                let source = query.source(of: range)
+                let name = tokens[source].joined(separator: " ")
+                let keys = known.index.keys(doing: movements, among: known.logged)
+                    .sorted { known.familiarity.score($0) > known.familiarity.score($1) }
+                if !keys.isEmpty {
+                    lifts.append(Subject(name: name, exerciseKeys: keys))
+                } else {
+                    let movers = movements.flatMap { JointAnatomy.bundled.muscles(for: $0) }.filter(\.isPrime).map(\.group)
+                    guard !movers.isEmpty else { continue }
+                    muscles.append(Subject(name: name, muscles: Muscle.allCases.filter(movers.contains)))
+                }
+                for index in range { used[index] = true }
+                taken.insert(integersIn: source)
             }
         }
-        return subjects
-    }
-
-    /// Search runs while typing, so "ben" is usually "bench" on its way. A last word that isn't a
-    /// word search knows becomes the logged lift word it starts, taken from the most-logged lift.
-    private static func completeLastWord(in tokens: inout [String], logged: [LoggedLift]) {
-        guard let last = tokens.last, last.count >= 3, Double(last) == nil,
-              !SearchWords.knownWords.contains(last), !ChartIndex.vocabulary.contains(last),
-              !logged.contains(where: { $0.words.contains(last) })
-        else { return }
-        let completion = logged.lazy.flatMap(\.words)
-            .first { $0.hasPrefix(last) && !SearchWords.notLiftWords.contains($0) && !SearchWords.muscleWords.contains($0) }
-        if let completion { tokens[tokens.count - 1] = completion }
-    }
-
-    /// A catalog lift typed in full that has no logged sets, so the gallery can say so.
-    private static func takeCatalogLifts(from tokens: inout [String]) -> [String] {
-        var names: [String] = []
-        for (words, name) in SearchWords.catalogNames {
-            guard let range = tokens.range(of: words) else { continue }
-            names.append(name)
-            tokens.removeSubrange(range)
-        }
-        return names
+        tokens = tokens.indices.filter { !taken.contains($0) }.map { tokens[$0] }
+        return (lifts, muscles)
     }
 
     private static func takeMuscles(from tokens: inout [String]) -> [Subject] {
@@ -340,16 +366,6 @@ enum SearchWords {
         return word
     }
 
-    /// Shorthand lifters type, expanded to the words in exercise names.
-    static let aliases: [String: [String]] = [
-        "ohp": ["overhead", "press"], "rdl": ["romanian", "deadlift"], "rdls": ["romanian", "deadlift"],
-        "pushup": ["push", "up"], "pushups": ["push", "up"], "pullup": ["pull", "up"], "pullups": ["pull", "up"],
-        "chinup": ["chin", "up"], "chinups": ["chin", "up"], "ups": ["up"], "squatted": ["squat"], "benched": ["bench"],
-        "deadlifted": ["deadlift"], "pressing": ["press"], "curling": ["curl"], "rowing": ["row"],
-    ]
-
-    static let equipment: Set<String> = ["barbell", "dumbbell", "cable", "machine", "kettlebell", "smith", "ez", "bar"]
-
     /// Function words that carry no meaning for ranking. Direction words such as "up" stay, since
     /// "going up" means progress.
     static let stopWords: Set<String> = Set("""
@@ -374,16 +390,6 @@ enum SearchWords {
     ] + Muscle.allCases.map { (phrase: singular($0.rawValue), name: $0.rawValue, muscles: [$0]) }
 
     static let muscleWords = Set(muscleAliases.flatMap { $0.phrase.split(separator: " ").map(String.init) })
-
-    /// Words search reads as themselves, so they are never completed into a lift name.
-    static let knownWords = notLiftWords.union(muscleWords).union(equipment).union(aliases.keys)
-
-    /// Catalog names without equipment words, longest first. Single words are lift families.
-    static let catalogNames: [([String], String)] = ExerciseCatalog.entries.compactMap { entry in
-        let words = tokens(entry.name).flatMap { aliases[$0] ?? [$0] }.map(singular).filter { !equipment.contains($0) }
-        return words.count > 1 ? (words, entry.name) : nil
-    }
-    .sorted { $0.0.count > $1.0.count }
 }
 
 extension Array where Element: Hashable {

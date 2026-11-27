@@ -68,7 +68,7 @@ enum ChartSearchFixture {
         Workout(date: date(11, 20), minutes: 55, slots: [Slot(squat, 3, 5, 245), Slot(curl, 2, 12, 30)]),
     ]
 
-    static func history(unit: WeightUnit = .pounds) -> StudyHistory {
+    static func history(unit: WeightUnit = .pounds, imported: [ImportedSet] = []) -> StudyHistory {
         let program = UUID()
         let batch = UUID()
         var records: [HistoryRecord] = []
@@ -100,7 +100,32 @@ enum ChartSearchFixture {
                 }
             }
         }
-        return StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: unit, today: today, calendar: calendar)
+        return StudyHistory(programs: [], archive: records.map(\.archived), logs: [], imported: imported, unit: unit, today: today,
+                            calendar: calendar)
+    }
+
+    /// FitNotes rows matched to built-in lifts the log above never has: (FitNotes name, matched key, day).
+    static let importedLifts = [
+        ("Romanian Deadlift", "catalog:barbell-romanian-deadlift", "2026-11-10"),
+        ("Hex Bar Deadlift", "catalog:trap-bar-deadlift", "2026-11-10"),
+        ("Reverse Fly", "catalog:dumbbell-reverse-fly", "2026-11-12"),
+    ]
+
+    /// Three sets of 8 at 135 for each imported lift.
+    static func imported() -> [ImportedSet] {
+        importedLifts.flatMap { name, key, day in
+            (0..<3).map { order in
+                let row = ImportedSet()
+                row.sourceExercise = name
+                row.exerciseName = name
+                row.exerciseKey = key
+                row.trainingDay = day
+                row.reps = 8
+                row.weightTenthsPounds = 1350
+                row.sourceOrder = order
+                return row
+            }
+        }
     }
 
     static let empty = StudyHistory(programs: [], archive: [], logs: [], unit: .pounds, today: today, calendar: calendar)
