@@ -33,9 +33,12 @@ struct ExercisePickerResults {
     /// With no query when replacing: everything else by name.
     let others: [Exercise]
     var isEmpty: Bool { matches.isEmpty && others.isEmpty }
+    /// A typed search found little, so the on-device model may read it (`ExerciseQueryModel.shouldAsk`).
+    let isThin: Bool
 
+    /// `filters` is the model's reading of `query`, when the lifter kept it.
     init(exercises: [Exercise], index: ExerciseSearch.Index?, familiarity: ExerciseFamiliarity = .none,
-         query: String, muscles: Set<Muscle>, mode: ExercisePickerMode) {
+         query: String, filters: ExerciseFilters? = nil, muscles: Set<Muscle>, mode: ExercisePickerMode) {
         let source = mode.source
         let eligible = exercises.filter { exercise in
             exercise !== source && (muscles.isEmpty || muscles.contains(exercise.primaryMuscleFocus)
@@ -50,15 +53,19 @@ struct ExercisePickerResults {
             return left.exerciseName.localizedStandardCompare(right.exerciseName) == .orderedAscending
         }
 
-        let searchQuery = ExerciseQuery(query)
+        let typed = ExerciseQuery(query)
+        let searchQuery = filters.map(typed.adding) ?? typed
         guard let index else {
             matches = searchQuery.isEmpty ? byName : []
             others = []
+            isThin = false
             return
         }
         let byKey = Dictionary(eligible.map { ($0.searchKey, $0) }, uniquingKeysWith: { first, _ in first })
-        let ranked = index.rank(searchQuery, context: mode.searchContext, familiarity: familiarity)
-            .compactMap { byKey[$0.key] }
+        let found = index.rank(searchQuery, context: mode.searchContext, familiarity: familiarity)
+            .filter { byKey[$0.key] != nil }
+        isThin = !searchQuery.isEmpty && ExerciseQueryModel.shouldAsk(query, matches: found)
+        let ranked = found.compactMap { byKey[$0.key] }
         let filtered = ranked.filter { !assists($0) } + ranked.filter(assists)
         guard searchQuery.isEmpty else {
             matches = filtered

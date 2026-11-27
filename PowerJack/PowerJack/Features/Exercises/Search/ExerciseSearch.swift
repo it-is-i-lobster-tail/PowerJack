@@ -147,6 +147,7 @@ nonisolated enum ExerciseSearch {
         func rank(_ query: ExerciseQuery, context: Context = .browse, familiarity: ExerciseFamiliarity = .none) -> [Match] {
             let weights = context.weights
             var candidates = entries
+            candidates.removeAll { query.excludes(equipment: $0.document.equipment, names: $0.names) }
             // What structure compares with: the lift being replaced, or the query's joint words.
             let named = query.movements.isEmpty ? nil : ExerciseStructure(actions: query.movements.map { JointAction.main($0) }, pattern: nil)
             var reference = named
@@ -217,11 +218,13 @@ nonisolated enum ExerciseSearch {
                 focus = AnatomyTopic.focus(for: phrase, topics: topics, bestLift: Float(similarity.values.max() ?? 0))
             }
             // Joint words that read like nothing else, such as "posterior chain", name the prime movers' groups.
-            if focus == nil, fullNames.isEmpty, let named {
+            // A model reading (`ExerciseQuery.adding`) ranks by what lifts work, never by the words typed.
+            let filtered = query.filters != nil
+            if focus == nil, fullNames.isEmpty || filtered, let named {
                 let movers = Set(named.muscles.filter { $0.value == 1 }.keys)
                 if !movers.isEmpty { focus = AnatomyTopic.Focus(muscles: movers, emphasis: movers) }
             }
-            var byMuscle = focus != nil && (labelled != nil || fullNames.isEmpty)
+            var byMuscle = focus != nil && (labelled != nil || fullNames.isEmpty || filtered)
             // An imported name is a lift's name: its category, or a muscle it names, adds evidence
             // but never replaces the words.
             if case .importing(let category) = context, labelled == nil {
