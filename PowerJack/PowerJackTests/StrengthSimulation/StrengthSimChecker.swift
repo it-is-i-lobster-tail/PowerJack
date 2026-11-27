@@ -171,9 +171,8 @@ struct StrengthSimChecker {
 
     /// The week that just finished, or the program that stopped partway through one, logged the lift records
     /// once (the weekly loop): every session counts toward e1RM, pain and the block clock.
-    mutating func checkClose(logsBefore: Int, logsAfter: Int, expected: Int, at here: String) {
-        expect(logsAfter - logsBefore == expected, "WEEK", here,
-               "logged the lift records \(logsAfter - logsBefore) times, expected \(expected)")
+    mutating func checkClose(logged: Int, expected: Int, at here: String) {
+        expect(logged == expected, "WEEK", here, "logged the lift records \(logged) times, expected \(expected)")
     }
 
     /// The records a week close logged: a block clock that keeps to its rules and estimates that make sense.

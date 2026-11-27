@@ -48,9 +48,10 @@ final class StrengthSimDriver {
     private var trainingDays: Set<Int> = []
     /// What really happened to each lift, by record key.
     private var truth: [String: StrengthSimTruth] = [:]
-    /// The lift records as last logged, and how many logs there are. Only a week's close changes them.
+    /// The lift records as last logged, and the logs seen so far. Only a week's close changes them. Logs are
+    /// rotated out, so a close is checked by the logs it added rather than by the count.
     private var records = StrengthState()
-    private var logCount = 0
+    private var seenLogs: Set<PersistentIdentifier> = []
 
     init(seed: UInt64, profile: StrengthSimProfile, weeks: Int, keepsTrace: Bool = false) throws {
         self.seed = seed
@@ -88,7 +89,7 @@ final class StrengthSimDriver {
         }
         try context.save()
         records = StrengthLog.latestState(in: context)
-        logCount = try context.fetchCount(FetchDescriptor<StrengthLog>())
+        seenLogs = Set(try context.fetchIdentifiers(FetchDescriptor<StrengthLog>()))
         checker.gridFor = Self.grids(settings)
     }
 
@@ -280,9 +281,9 @@ private extension StrengthSimDriver {
     /// Saving here, as the app's autosave would, keeps the planner's own fetches quick.
     func recordClose(expected: Int, closed: WeekKind?, at here: String) {
         try? context.save()
-        let count = (try? context.fetchCount(FetchDescriptor<StrengthLog>())) ?? 0
-        checker.checkClose(logsBefore: logCount, logsAfter: count, expected: expected, at: here)
-        logCount = count
+        let logs = Set((try? context.fetchIdentifiers(FetchDescriptor<StrengthLog>())) ?? [])
+        checker.checkClose(logged: logs.subtracting(seenLogs).count, expected: expected, at: here)
+        seenLogs = logs
         guard expected > 0 else { return }
         let previous = records
         records = StrengthLog.latestState(in: context)
