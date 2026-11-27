@@ -97,16 +97,17 @@ struct KeyboardLayoutTests {
         )
         defer { screen.close() }
         let initialRowBottom = probe.rowBottom
-        let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
-        try #require(initialRowBottom > keyboardTop, "The last row must start below the keyboard's eventual top edge.")
+        let shownTop = try await screen.showKeyboard { probe.focusRequested = true }
+        try #require(initialRowBottom > shownTop, "The last row must start below the keyboard's eventual top edge.")
         if keepsFocus {
             // The scroll to the focused row runs slower on CI, so give it up to 3 seconds.
-            for _ in 0..<30 where probe.rowBottom > keyboardTop {
+            for _ in 0..<30 where probe.rowBottom > screen.keyboardTop ?? shownTop {
                 try await Task.sleep(for: .milliseconds(100))
             }
         }
         #expect(probe.rowBottom > 0)
-        return (probe.rowBottom, keyboardTop)
+        // The keyboard can still change height after it shows, as when its suggestion bar appears.
+        return (probe.rowBottom, screen.keyboardTop ?? shownTop)
     }
 }
 
@@ -117,6 +118,9 @@ struct KeyboardLayoutTests {
 private final class ScreenUnderTest {
     private let window: UIWindow
     private var field: UITextField?
+    private var keyboardObserver: NSObjectProtocol?
+    /// The keyboard's top edge after its latest change.
+    private(set) var keyboardTop: CGFloat?
 
     init(_ view: some View) async throws {
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
@@ -124,6 +128,12 @@ private final class ScreenUnderTest {
         window.frame = scene.effectiveGeometry.coordinateSpace.bounds
         window.rootViewController = UIHostingController(rootView: view)
         window.makeKeyAndVisible()
+        keyboardObserver = NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardDidChangeFrameNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            MainActor.assumeIsolated { self?.keyboardTop = frame?.minY }
+        }
         try await Task.sleep(for: .seconds(1))
     }
 
@@ -167,6 +177,7 @@ private final class ScreenUnderTest {
     }
 
     func close() {
+        keyboardObserver.map(NotificationCenter.default.removeObserver)
         field?.resignFirstResponder()
         window.isHidden = true
         window.rootViewController = nil

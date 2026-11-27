@@ -37,6 +37,10 @@ enum PowerJackSchema {
     /// The user's private iCloud database. Only they can read it.
     static let cloudKitContainerID = "iCloud.com.stanleycloud.PowerJack"
 
+    /// In-memory stores back previews and tests. A closed screen can still update once more, and an
+    /// autosave can still be scheduled, so each store stays open for the life of the process.
+    private static var inMemoryStores: [ModelContainer] = []
+
     static func makeModelContainer(inMemory: Bool = false, syncsWithICloud: Bool = false) throws -> ModelContainer {
         let configuration = ModelConfiguration(
             schema: schema,
@@ -45,10 +49,12 @@ enum PowerJackSchema {
         )
 
         do {
-            return try ModelContainer(
+            let container = try ModelContainer(
                 for: schema,
                 configurations: [configuration]
             )
+            if inMemory { inMemoryStores.append(container) }
+            return container
         } catch {
             // Written straight to disk: the app usually stops right after a store fails to open.
             TraceLog.recordNow(

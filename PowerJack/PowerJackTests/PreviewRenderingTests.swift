@@ -9,16 +9,10 @@ import XCTest
 final class PreviewRenderingTests: XCTestCase {
     func testPreviewScreensRender() async throws {
         let scenario = PowerJackSeed.weekOneProgress()
-        let empty = HostedView.makeStore()
+        let empty = PowerJackSeed.makeInMemoryContainer()
         let emptyWorkout = PowerJackSeed.emptyWorkout()
         let progression = PowerJackSeed.weekTwoProgression()
         let settingsStore = PowerJackStore(inMemory: true)
-
-        // A query from a dismissed preview can still receive the next fixture's save.
-        HostedView.keep(scenario.container)
-        HostedView.keep(emptyWorkout.container)
-        HostedView.keep(progression.container)
-        HostedView.keep(settingsStore.container)
 
         func navigation<V: View>(_ view: V, emptyData: Bool = false) -> AnyView {
             AnyView(NavigationPreviewHost(modelContainer: emptyData ? empty : scenario.container) { view })

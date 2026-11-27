@@ -66,7 +66,7 @@ struct UpgradeFixture: CustomTestStringConvertible, Sendable {
 
 @MainActor
 enum UpgradeStore {
-    /// Upgraded stores stay open for the whole run, like `HostedView.makeStore()`.
+    /// Upgraded stores stay open for the whole run, like `PowerJackSeed.makeInMemoryContainer()`.
     private static var open: [ModelContainer] = []
 
     /// Opens a copy, so the fixture never changes, seeds it like the app's launch, and checks it.

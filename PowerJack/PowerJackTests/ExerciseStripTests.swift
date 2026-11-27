@@ -210,7 +210,6 @@ struct ExerciseStripTests {
 
     @Test("Long names fit in focused and neighboring cards", arguments: [DynamicTypeSize.large, .xxxLarge])
     func fullPreviewNames(size: DynamicTypeSize) async throws {
-        HostedView.keep(container)
         let (_, workout) = try makeStartedWorkout()
         let exercises = workout.workoutExercises
         exercises[0].exercise?.exerciseName = "Chest Supported Dumbbell Row"
