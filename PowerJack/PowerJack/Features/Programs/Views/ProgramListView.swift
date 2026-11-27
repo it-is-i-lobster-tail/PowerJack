@@ -49,12 +49,12 @@ struct ProgramListView: View {
                             if index == 0 {
                                 Text("Past")
                                     .font(.title2.bold())
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.primary)
                                     .padding(.top, sections.current.isEmpty ? 0 : 20)
                             }
                             Text(year.year.map { String($0) } ?? "No workouts")
                                 .font(.headline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.secondary)
                         }
                         .textCase(nil)
                     }
@@ -100,7 +100,7 @@ struct ProgramListView: View {
                     if program.status.isFinished, let start = program.startedAt {
                         Text(ProgramDateRange.text(from: start, to: program.endedAt))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.secondary)
                     }
                 }
 
