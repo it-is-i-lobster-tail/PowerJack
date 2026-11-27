@@ -67,6 +67,8 @@ struct StudyHistory {
     let firstDate: Date
     /// Changes whenever the logged sets, the day or the weight unit change, so a search can reuse its results.
     let revision: Int
+    /// The built-in lift (its sync key) each own lift moves like, by the own lift's sync key. See `MovesLike`.
+    let movesLike: [String: String]
     let calendar: Calendar
     let unit: WeightUnit
     static let legs: [Muscle] = [.quads, .glutes, .hamstrings, .calves]
@@ -82,6 +84,10 @@ struct StudyHistory {
         self.unit = unit
         self.today = today
         self.calendar = calendar
+        movesLike = Dictionary(exercises.compactMap { exercise in
+            guard let key = exercise.syncKey, let built = MovesLike.key(of: exercise) else { return nil }
+            return (key, built)
+        }, uniquingKeysWith: { first, _ in first })
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
         for program in programs {

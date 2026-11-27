@@ -35,8 +35,9 @@ nonisolated enum ExerciseSearch {
                 action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
             }
             actions = stored.map { $0.role.rawValue + " " + $0.movement }.sorted()
-            // Built-in lifts read the catalog, which knows each action's weight.
-            if let profile = entry?.profile {
+            // Built-in lifts read the catalog, which knows each action's weight, and so do own
+            // lifts that copied a built-in's movement ("Moves like").
+            if let profile = entry?.profile ?? MovesLike.entry(MovesLike.key(of: exercise))?.profile {
                 pattern = profile.family?.rawValue
                 structure = ExerciseStructure(actions: profile.actions, pattern: pattern)
             } else {
@@ -60,8 +61,10 @@ nonisolated enum ExerciseSearch {
             structure = ExerciseStructure(actions: entry.profile.actions, pattern: pattern)
         }
 
-        /// A lift known only by the names and muscles its history recorded.
-        init(key: String, names: [String], primary: Muscle, secondary: [Muscle], equipment: Equipment) {
+        /// A lift known by the names and muscles its history recorded, and the structure of the
+        /// built-in it moves like, when it has one.
+        init(key: String, names: [String], primary: Muscle, secondary: [Muscle], equipment: Equipment,
+             pattern: String? = nil, structure: ExerciseStructure? = nil) {
             self.key = key
             self.names = names
             self.primary = primary
@@ -69,8 +72,8 @@ nonisolated enum ExerciseSearch {
             self.equipment = equipment
             style = ""
             actions = []
-            pattern = nil
-            structure = ExerciseStructure(primary: primary, secondary: secondary, pattern: nil)
+            self.pattern = pattern
+            self.structure = structure ?? ExerciseStructure(primary: primary, secondary: secondary, pattern: pattern)
         }
     }
 

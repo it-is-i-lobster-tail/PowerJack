@@ -84,6 +84,26 @@ struct ExerciseForm: View {
             }
             .disabled(draft.isBuiltIn)
 
+            // Built-in exercises get their movement from the catalog.
+            if !draft.isBuiltIn {
+                NavigationLink {
+                    MovesLikeList(selected: draft.movesLike) { draft.choose(movesLike: $0) }
+                } label: {
+                    HStack {
+                        FormFieldLabel(
+                            systemImage: "figure.strengthtraining.traditional",
+                            title: "Moves Like",
+                            detail: LocalizedStringKey(draft.movesLikeName ?? "Not set")
+                        )
+                        Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, LayoutMetrics.sectionSpacing)
+                .frame(height: boxHeight)
+                .powerJackGlassCard(interactive: true)
+                .accessibilityHint("Picks the built-in exercise this one moves like")
+            }
+
             ExerciseRepRangeField(
                 minReps: $draft.minReps,
                 maxReps: $draft.maxReps,
@@ -111,10 +131,96 @@ struct ExerciseForm: View {
             )
         }
         .onChange(of: draft.primaryMuscle, handlePrimaryMuscleChange)
+        .task(id: ProposalInput(draft)) { await proposeMovesLike() }
     }
 
     private func handlePrimaryMuscleChange() {
         draft.removePrimaryFromSecondary()
+    }
+
+    /// What a "Moves like" proposal reads.
+    private struct ProposalInput: Hashable {
+        let name: String
+        let equipment: Equipment?
+        let primary: Muscle?
+
+        init(_ draft: ExerciseDraft) {
+            name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            equipment = draft.equipment
+            primary = draft.primaryMuscle
+        }
+    }
+
+    /// Proposes a built-in once typing pauses, until the lifter picks one.
+    private func proposeMovesLike() async {
+        guard draft.wantsMovesLikeProposal else { return }
+        let input = ProposalInput(draft)
+        try? await Task.sleep(for: .milliseconds(400))
+        guard !Task.isCancelled else { return }
+        let key = input.name.count < 3 ? nil
+            : await MovesLike.propose(name: input.name, equipment: input.equipment, primary: input.primary)
+        guard !Task.isCancelled else { return }
+        draft.propose(movesLike: key)
+    }
+}
+
+/// The built-in exercises, searchable, plus None. Choosing one sets what an own exercise moves like.
+private struct MovesLikeList: View {
+    let selected: String?
+    let onChoose: (String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private var shown: [ExerciseCatalog.Entry] {
+        let query = ExerciseQuery(searchText)
+        guard !query.isEmpty else {
+            return ExerciseCatalog.entries.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
+        return MovesLike.index.rank(query).compactMap { MovesLike.entry($0.key) }
+    }
+
+    var body: some View {
+        List {
+            if searchText.isEmpty {
+                row("None", detail: nil, key: nil)
+            }
+            ForEach(shown, id: \.id) { entry in
+                row(entry.name, detail: entry.equipmentName ?? entry.equipment.displayName, key: "catalog:\(entry.id)")
+            }
+        }
+        .overlay {
+            if !searchText.isEmpty && shown.isEmpty {
+                EmptyStateView(title: "No matching exercises", systemImage: "magnifyingglass")
+            }
+        }
+        .navigationTitle("Moves Like")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "Search built-in exercises")
+        .scrollEdgeEffectStyle(.soft, for: .all)
+    }
+
+    private func row(_ title: String, detail: String?, key: String?) -> some View {
+        Button {
+            onChoose(key)
+            dismiss()
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                    if let detail {
+                        Text(detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if key == selected {
+                    Image(systemName: "checkmark").foregroundStyle(.tint)
+                        .accessibilityLabel("Selected")
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

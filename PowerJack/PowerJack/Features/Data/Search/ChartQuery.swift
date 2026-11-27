@@ -200,14 +200,19 @@ private final class ChartLifts {
     let logged: Set<String>
     let familiarity: ExerciseFamiliarity
 
-    private init(_ lifts: [(key: String, names: [String], session: StudySession)], familiarity: ExerciseFamiliarity) {
+    private init(_ lifts: [(key: String, names: [String], session: StudySession)], movesLike: [String: String],
+                 familiarity: ExerciseFamiliarity) {
         let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ("catalog:\($0.id)", $0) })
         let logged = Set(lifts.map(\.key))
         self.logged = logged
         var documents = lifts.map { lift in
             if let entry = catalog[lift.key] { return ExerciseSearch.Document(entry, otherNames: lift.names) }
+            // An own lift that moves like a built-in does its joint actions, so "rear delts" finds it.
+            let profile = movesLike[lift.key].flatMap { catalog[$0] }?.profile
+            let pattern = profile?.family?.rawValue
             return ExerciseSearch.Document(key: lift.key, names: lift.names, primary: lift.session.primary ?? .chest,
-                                           secondary: lift.session.assisting ?? [], equipment: .bodyweight)
+                                           secondary: lift.session.assisting ?? [], equipment: .bodyweight, pattern: pattern,
+                                           structure: profile.map { ExerciseStructure(actions: $0.actions, pattern: pattern) })
         }
         documents += ExerciseCatalog.entries.filter { !logged.contains("catalog:\($0.id)") }.map { ExerciseSearch.Document($0) }
         // Spans read names, not meaning, so the index skips the embedding model.
@@ -231,6 +236,10 @@ private final class ChartLifts {
         let lifts = names.map { (key: $0.key, names: $0.value.names, session: $0.value.session) }.sorted { $0.key < $1.key }
         var hasher = Hasher()
         hasher.combine(history.revision)
+        for (own, builtIn) in history.movesLike.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(own)
+            hasher.combine(builtIn)
+        }
         for lift in lifts {
             hasher.combine(lift.key)
             hasher.combine(lift.names)
@@ -238,7 +247,7 @@ private final class ChartLifts {
         let id = hasher.finalize()
         if let cached = cache[id] { return cached }
         let order = history.sessions.map(\.workout).uniqued()
-        let lifted = ChartLifts(lifts, familiarity: ExerciseFamiliarity(sessions: order.compactMap { sessions[$0] }))
+        let lifted = ChartLifts(lifts, movesLike: history.movesLike, familiarity: ExerciseFamiliarity(sessions: order.compactMap { sessions[$0] }))
         if cache.count >= 4 { cache.removeAll() }
         cache[id] = lifted
         return lifted
