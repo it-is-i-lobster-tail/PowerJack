@@ -109,9 +109,11 @@ enum MovesLike {
     }
 
     /// The built-in whose stored movement an own exercise carries, the one on the same equipment
-    /// when several share it. Nil for a built-in or an own exercise with none.
+    /// when several share it. Nil for a built-in, an own exercise with none, or one whose joint
+    /// actions the lifter set in Advanced Data.
     static func key(of exercise: Exercise) -> String? {
-        guard exercise.catalogID == nil, let pattern = exercise.movementPattern else { return nil }
+        guard exercise.catalogID == nil, let pattern = exercise.movementPattern,
+              !(exercise.jointActions ?? []).contains(where: { CustomJointActions.isCustom($0.key) }) else { return nil }
         let actions = Set((exercise.jointActions ?? []).compactMap { action in
             action.movement.map { "\(action.role.rawValue) \($0.key)" }
         })

@@ -65,6 +65,16 @@ nonisolated struct JointAnatomy: Sendable {
 
     func muscles(for movementKey: String) -> [Mover] { movers[movementKey] ?? [] }
 
+    /// A movement as a lifter reads it: "horizontalAbduction" or "shoulder.horizontalAbduction"
+    /// reads "Horizontal abduction".
+    static func name(ofMovement movement: String) -> String {
+        let last = movement.split(separator: ".").last.map(String.init) ?? movement
+        let words = last.reduce(into: "") { name, letter in
+            name += letter.isUppercase ? " \(letter.lowercased())" : String(letter)
+        }
+        return words.prefix(1).uppercased() + words.dropFirst()
+    }
+
     /// The movement working against this one at the same joint: extension for flexion.
     /// Lateral flexion and rotation oppose themselves, to the other side.
     func opposite(of movementKey: String) -> String {
