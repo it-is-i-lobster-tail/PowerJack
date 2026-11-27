@@ -63,14 +63,19 @@ private struct KeepsFocusAboveKeyboard<ID: Hashable>: ViewModifier {
             content
                 .safeAreaPadding(.bottom, bottomRoom)
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottomEdge = $0 }
-                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-                    guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-                    keyboardTop = frame.minY
-                }
+                // The frame a keyboard reports as it starts to move can be short of where it settles
+                // (the number pad has come to rest 19 points higher), so read the settled frame too.
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification), perform: readKeyboardTop)
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidChangeFrameNotification), perform: readKeyboardTop)
                 // Focus changes before the keyboard reports its frame, so scroll after either one.
                 .onChange(of: focusedID) { scrollToFocus(proxy) }
                 .onChange(of: coveredHeight) { scrollToFocus(proxy) }
         }
+    }
+
+    private func readKeyboardTop(_ note: Notification) {
+        guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+        keyboardTop = frame.minY
     }
 
     private func scrollToFocus(_ proxy: ScrollViewProxy) {
