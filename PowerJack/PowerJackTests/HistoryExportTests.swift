@@ -62,16 +62,16 @@ struct HistoryExportTests {
         #expect(dip["Weight (kg)"] == "0" && dip["Exercise Source"] == "Custom")
     }
 
-    @Test("Names the lifter typed are left out, built-in names stay, and times are UTC")
-    func nothingPersonal() throws {
+    @Test("Custom exercises keep their names, custom template names are left out, and times are UTC")
+    func names() throws {
         let workout = try makeLoggedWorkout()
         let program = try #require(workout.programWeekValue?.programValue)
         let csv = HistoryExport.csv(for: [program], unit: .pounds)
-        #expect(!csv.contains("Push") && !csv.contains("Dip"))
+        #expect(!csv.contains("Push"))
 
         let rows = records(csv)
         let dips = rows.filter { $0["Exercise Source"] == "Custom" }
-        #expect(!dips.isEmpty && dips.allSatisfy { $0["Exercise"] == "Custom Exercise 1" })
+        #expect(!dips.isEmpty && dips.allSatisfy { $0["Exercise"] == #"Dip, "Weighted""# })
         #expect(rows.allSatisfy { $0["Program"] == "Custom Template 1" })
         // Times carry no offset that hints at where the lifter is.
         let times = rows.flatMap { [$0["Workout Started"], $0["Set Logged"]] }.compactMap { $0 }.filter { !$0.isEmpty }

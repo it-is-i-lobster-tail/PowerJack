@@ -29,7 +29,7 @@ enum HistoryProgramStatus: String, CaseIterable {
     }
 }
 
-/// One set as the history export shows it, before names the lifter typed are hidden and
+/// One set as the history export shows it, before the lifter's own template names are hidden and
 /// weights take the lifter's unit.
 struct HistoryRow: Equatable {
     var programID: UUID?
@@ -69,8 +69,6 @@ struct HistoryRow: Equatable {
     var setStarted: Date?
     var setLogged: Date?
     var setSeconds: Int?
-
-    var isCustomExercise: Bool { exerciseSource == "Custom" }
 }
 
 @Model

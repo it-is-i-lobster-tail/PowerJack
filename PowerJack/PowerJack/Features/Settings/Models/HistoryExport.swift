@@ -6,9 +6,10 @@
 //  spreadsheet, or rebuild it somewhere else. One row per set, in program, week, day, exercise and
 //  set order, with the program, workout and exercise it belongs to repeated on each row.
 //
-//  Nothing personal goes in. Names the lifter typed (their own templates and exercises) could say
-//  anything, so they become "Custom Template 1" or "Custom Exercise 2", numbered in the order they
-//  first appear. Built-in names stay. Times are in UTC, so they don't give away where the lifter is.
+//  Exercises keep their names, the lifter's own included, so the file reads as they logged it.
+//  Names of the lifter's own templates could say anything, so they become "Custom Template 1",
+//  numbered in the order they first appear. Times are in UTC, so they don't give away where the
+//  lifter is.
 //
 
 import Foundation
@@ -133,7 +134,7 @@ enum HistoryExport {
             date(row.workoutEnded),
             decimal(row.workoutSeconds.map { $0 / 60 }),
             "\(row.exerciseNumber)",
-            names.exercise(row),
+            row.exerciseName,
             row.equipment,
             row.primaryMuscle,
             row.exerciseSource,
@@ -210,11 +211,10 @@ enum HistoryExport {
     }
 }
 
-/// Stands in for names the lifter typed, so the file holds only names PowerJack ships with.
+/// Stands in for the names of the lifter's own templates, so the file holds only template names PowerJack ships with.
 private struct Names {
     private static let builtInTemplates = Set(TemplateCatalog.entries.map(\.name))
     private var templates: [String: String] = [:]
-    private var exercises: [String: String] = [:]
 
     /// A built-in template's name, even for a program made from an edited copy, as long as the name is unchanged.
     mutating func template(_ name: String) -> String {
@@ -222,15 +222,6 @@ private struct Names {
         if let label = templates[name] { return label }
         let label = "Custom Template \(templates.count + 1)"
         templates[name] = label
-        return label
-    }
-
-    /// Built-in exercises can't be renamed, so only the lifter's own get a stand-in.
-    mutating func exercise(_ row: HistoryRow) -> String {
-        guard row.isCustomExercise else { return row.exerciseName }
-        if let label = exercises[row.exerciseKey] { return label }
-        let label = "Custom Exercise \(exercises.count + 1)"
-        exercises[row.exerciseKey] = label
         return label
     }
 }

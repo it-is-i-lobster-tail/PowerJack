@@ -76,7 +76,7 @@ struct YourDataSettingsView: View {
             Button("Export", action: exportHistory)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The file has every workout, set, weight and time you've logged. Names you gave your own templates and exercises are left out. Anyone you send it to can read it, so only share it with people you trust.")
+            Text("The file has every workout, set, weight and time you've logged. Names you gave your own templates are left out. Anyone you send it to can read it, so only share it with people you trust.")
         }
         .alert("Couldn't Export", isPresented: $showsExportError) {
             Button("OK", role: .cancel) {}
