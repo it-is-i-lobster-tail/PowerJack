@@ -31,6 +31,8 @@ struct StudySession {
     var targetRIR: Int?
     var sets: [StudySet]
     var warmups: [StudySet] = []
+    /// Names the lift was logged under in another app, such as FitNotes' "Hex Bar Dead Lift".
+    var importedNames: [String] = []
 
     var done: [StudySet] { sets.filter { $0.status == .complete } }
     var opening: StudySet? { sets.first.flatMap { $0.status == .complete ? $0 : nil } }
@@ -67,8 +69,9 @@ struct StudyHistory {
     let firstDate: Date
     /// Changes whenever the logged sets, the day or the weight unit change, so a search can reuse its results.
     let revision: Int
-    /// The built-in lift (its sync key) each own lift moves like, by the own lift's sync key. See `MovesLike`.
-    let movesLike: [String: String]
+    /// Each own lift as search reads it, by sync key: the joint actions set in Advanced Data or
+    /// copied from the lift it moves like, its equipment and its muscles.
+    let ownLifts: [String: ExerciseSearch.Document]
     let calendar: Calendar
     let unit: WeightUnit
     static let legs: [Muscle] = [.quads, .glutes, .hamstrings, .calves]
@@ -84,9 +87,9 @@ struct StudyHistory {
         self.unit = unit
         self.today = today
         self.calendar = calendar
-        movesLike = Dictionary(exercises.compactMap { exercise in
-            guard let key = exercise.syncKey, let built = MovesLike.key(of: exercise) else { return nil }
-            return (key, built)
+        ownLifts = Dictionary(exercises.compactMap { exercise in
+            guard exercise.catalogID == nil, let key = exercise.syncKey else { return nil }
+            return (key, ExerciseSearch.Document(exercise))
         }, uniquingKeysWith: { first, _ in first })
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
@@ -248,7 +251,8 @@ struct StudyHistory {
                     name: exercise?.exerciseName ?? first.exerciseName,
                     primary: exercise?.primaryMuscleFocus ?? Muscle(rawValue: first.muscle),
                     assisting: exercise?.secondaryMuscles, loaded: loaded, repsOnly: exercise?.repsOnly ?? !loaded,
-                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) })
+                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) },
+                    importedNames: rows.map(\.sourceExercise).filter { !$0.isEmpty }.uniqued())
             }
         }
     }
@@ -286,6 +290,7 @@ struct StudyHistory {
         case .year(let year): return String(year)
         case .day: return selectedRange?.start.formatted(.dateTime.month(.wide).day().year()) ?? ""
         case .month: return selectedRange?.start.formatted(.dateTime.month(.wide).year()) ?? ""
+        case .range: return options.period.label
         }
     }
     func parameter(_ key: StudyParameter, _ fallback: Int) -> Int {

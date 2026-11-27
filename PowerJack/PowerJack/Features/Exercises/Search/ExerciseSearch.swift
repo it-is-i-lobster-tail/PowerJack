@@ -12,7 +12,8 @@ nonisolated enum ExerciseSearch {
     /// A value snapshot taken on the store's actor. Indexing never retains SwiftData objects.
     struct Document: Hashable, Sendable {
         let key: String
-        let names: [String]
+        /// The Data tab adds the names a lift was logged under.
+        var names: [String]
         let primary: Muscle
         let secondary: [Muscle]
         let equipment: Equipment
@@ -364,17 +365,57 @@ nonisolated extension ExerciseSearch {
 
     /// Equipment says which version of a lift, never which lift.
     fileprivate static let equipmentWords = Set(ExerciseQuery.equipmentWords.keys).union(["smith", "ez", "bar"])
+
+    /// Words that say which version of a lift, like equipment: "pull ups forward grip" is a pull-up,
+    /// and "grip" alone never names Close Grip Bench Press.
+    static let variantWords: Set<String> = [
+        "grip", "forward", "wide", "narrow", "close", "neutral", "flat", "standing", "seated", "bar", "single",
+    ]
+
+    /// One letter added, dropped, changed or swapped with its neighbour, for words of 4 or more
+    /// letters, also comparing plurals so "burpies" is "burpees".
+    static func isTypo(_ word: String, of target: String) -> Bool {
+        guard word.count >= 4, target.count >= 4, word != target else { return false }
+        func plural(_ word: String) -> String { word.hasSuffix("y") ? word.dropLast() + "ies" : word + "s" }
+        return editDistance(word, target, limit: 1) == 1 || editDistance(plural(word), plural(target), limit: 1) == 1
+    }
+
+    /// Letters added, dropped, changed or swapped with a neighbour (Damerau–Levenshtein), or
+    /// `limit + 1` once it is clearly more than `limit`.
+    static func editDistance(_ a: String, _ b: String, limit: Int) -> Int {
+        let a = Array(a), b = Array(b)
+        guard abs(a.count - b.count) <= limit else { return limit + 1 }
+        guard !a.isEmpty, !b.isEmpty else { return max(a.count, b.count) }
+        var previous2: [Int] = []
+        var previous = Array(0...b.count)
+        for i in 1...a.count {
+            var row = [i] + Array(repeating: 0, count: b.count)
+            for j in 1...b.count {
+                let cost = a[i - 1] == b[j - 1] ? 0 : 1
+                row[j] = min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost)
+                if i > 1, j > 1, a[i - 1] == b[j - 2], a[i - 2] == b[j - 1] {
+                    row[j] = min(row[j], previous2[j - 2] + 1)
+                }
+            }
+            if row.min()! > limit { return limit + 1 }
+            previous2 = previous
+            previous = row
+        }
+        return min(previous[b.count], limit + 1)
+    }
 }
 
 nonisolated extension ExerciseSearch.Index {
     /// The lifts a search names, read the way the picker reads names: shorthand, plurals,
-    /// one typo, joined words and a half-typed last word. Charting names only logged lifts,
-    /// except a built-in lift typed in full, which comes back with no keys.
+    /// one typo, joined words and a half-typed last word. Charting names logged lifts, and
+    /// comes back with no keys when every word counts only for built-in lifts with no history.
     /// - A full name wins: "incline bench" is Incline Barbell Bench Press.
     /// - A family word is every logged lift it fits best: "squat" is every squat, and "bench"
     ///   prefers Barbell Bench Press over Incline Barbell Bench Press.
-    /// - Muscle words and `plainWords` never name a lift alone, so "back squat" is a lift and
-    ///   "back volume" is not.
+    /// - Every word counts: with no incline bench logged, "incline bench" is the unlogged incline
+    ///   presses, never the flat bench.
+    /// - Muscle words, `plainWords` and variant words such as "grip" never name a lift alone, so
+    ///   "back squat" is a lift and "back volume" is not. A variant word beside a lift is part of it.
     func liftSpans(in query: ExerciseQuery, context: ExerciseSearch.Context,
                    familiarity: ExerciseFamiliarity = .none, plainWords: Set<String> = []) -> [ExerciseSearch.LiftSpan] {
         var logged = entries
@@ -399,20 +440,28 @@ nonisolated extension ExerciseSearch.Index {
             words[words.count - 1] = completion
         }
 
+        // A typo is a word no lift name uses, so "full" never becomes "pull".
+        let known = Set(entries.flatMap { $0.names.flatMap { $0 } })
+        func isTypo(_ word: String, of target: String) -> Bool {
+            !isPlain(word) && !known.contains(word) && ExerciseSearch.isTypo(word, of: target)
+        }
         /// How many words of the lift's name, beside equipment, the window leaves out, or nil
         /// when a window word isn't in the name.
         func missing(_ window: ArraySlice<String>, _ entry: Entry) -> Int? {
-            entry.names.compactMap { name in Self.missing(Array(window), from: name, isPlain: isPlain) }.min()
+            entry.names.compactMap { name in Self.missing(Array(window), from: name, isTypo: isTypo) }.min()
         }
-        // A window names a lift only through a word that isn't equipment, a muscle or plain.
+        // A window names a lift only through a word that isn't equipment, a variant, a muscle or plain.
         func canName(_ window: ArraySlice<String>) -> Bool {
-            window.contains { !isPlain($0) && !ExerciseSearch.equipmentWords.contains($0) }
+            window.contains {
+                !isPlain($0) && !ExerciseSearch.equipmentWords.contains($0) && !ExerciseSearch.variantWords.contains($0)
+            }
         }
 
         var taken = Array(repeating: false, count: words.count)
         var spans: [ExerciseSearch.LiftSpan] = []
         func take(_ range: Range<Int>, _ matches: [Entry], isLogged: Bool) {
-            let name = matches.count == 1 || !isLogged ? matches[0].sortName : words[range].joined(separator: " ")
+            let name = matches.count == 1 ? matches[0].sortName
+                : isLogged ? words[range].joined(separator: " ") : Self.sharedName(of: matches)
             spans.append(.init(range: range, keys: isLogged ? matches.map(\.document.key) : [], name: name))
             for index in range { taken[index] = true }
         }
@@ -430,26 +479,57 @@ nonisolated extension ExerciseSearch.Index {
             }
         }
 
-        // Families: the longest run of lift words that some logged lifts share.
+        // Families: the longest run of lift words some lifts share. Logged lifts that fit it win.
+        // A run only built-in lifts with no history fit names them when it has two words or is a
+        // whole name, as in "incline bench" or "burpees", so a lone "row" stays the logged row.
         var start = 0
         while start < words.count {
-            var best: (end: Int, matches: [Entry])?
+            var best: (end: Int, fits: [(entry: Entry, missing: Int, isLogged: Bool)])?
             var end = start
-            while end < words.count, !taken[end], !isPlain(words[end]) {
+            // A plain word can sit inside a name, as "over" in "bent over row", but never starts or ends one.
+            while end < words.count, !taken[end], end > start || !isPlain(words[start]) {
                 let window = words[start...end]
-                let fits = logged.compactMap { entry in missing(window, entry).map { (entry, $0) } }
-                guard let fewest = fits.map(\.1).min() else { break }
-                if canName(window) { best = (end, fits.filter { $0.1 == fewest }.map(\.0)) }
+                let fits = logged.compactMap { entry in missing(window, entry).map { (entry, $0, true) } }
+                    + unlogged.compactMap { entry in missing(window, entry).map { (entry, $0, false) } }
+                guard !fits.isEmpty else { break }
+                if canName(window), !isPlain(words[end]) { best = (end, fits) }
                 end += 1
             }
-            if let best {
-                take(start..<best.end + 1, best.matches, isLogged: true)
-                start = best.end + 1
-            } else {
+            guard let best else {
                 start += 1
+                continue
             }
+            let range = start..<best.end + 1
+            let logged = best.fits.filter(\.isLogged)
+            let pool = logged.isEmpty ? best.fits : logged
+            let fewest = pool.map(\.missing).min() ?? 0
+            if !logged.isEmpty || range.count > 1 || fewest == 0 {
+                take(range, pool.filter { $0.missing == fewest }.map(\.entry), isLogged: !logged.isEmpty)
+            }
+            start = best.end + 1
         }
-        return spans.sorted { $0.range.lowerBound < $1.range.lowerBound }
+
+        // A variant word beside a lift says which version, so it belongs to the lift.
+        return spans.sorted { $0.range.lowerBound < $1.range.lowerBound }.map { span in
+            var lower = span.range.lowerBound, upper = span.range.upperBound
+            while lower > 0, !taken[lower - 1], ExerciseSearch.variantWords.contains(words[lower - 1]) {
+                lower -= 1
+                taken[lower] = true
+            }
+            while upper < words.count, !taken[upper], ExerciseSearch.variantWords.contains(words[upper]) {
+                taken[upper] = true
+                upper += 1
+            }
+            return .init(range: lower..<upper, keys: span.keys, name: span.name)
+        }
+    }
+
+    /// The words every one of these lifts' names shares, as in "Incline Bench Press" for the
+    /// incline barbell and dumbbell presses.
+    private static func sharedName(of entries: [Entry]) -> String {
+        let words = entries.dropFirst().reduce(Set(entries[0].names[0])) { $0.intersection($1.names.flatMap { $0 }) }
+        let shared = entries[0].sortName.split(separator: " ").filter { words.contains(ExerciseQuery.words(String($0)).first ?? "") }
+        return shared.isEmpty ? entries[0].sortName : shared.joined(separator: " ")
     }
 
     /// Logged lifts that do every one of these joint movements, at least one as a main action.
@@ -466,12 +546,12 @@ nonisolated extension ExerciseSearch.Index {
     /// Words of `name` beside equipment that no window word matched, or nil when a window word
     /// matches nothing. A word matches when equal, one typo away, or the joined form of two
     /// neighbours ("pullup", "pull down").
-    private static func missing(_ window: [String], from name: [String], isPlain: (String) -> Bool) -> Int? {
+    private static func missing(_ window: [String], from name: [String], isTypo: (String, String) -> Bool) -> Int? {
         var used = Array(repeating: false, count: name.count)
         var index = 0
         while index < window.count {
             let word = window[index]
-            if let at = name.indices.first(where: { name[$0] == word || (!isPlain(word) && ExerciseSearch.oneTypo(word, name[$0])) }) {
+            if let at = name.firstIndex(of: word) ?? name.indices.first(where: { isTypo(word, name[$0]) }) {
                 used[at] = true
             } else if let at = name.indices.dropLast().first(where: { name[$0] + name[$0 + 1] == word }) {
                 used[at] = true

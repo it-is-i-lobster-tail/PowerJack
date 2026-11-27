@@ -21,6 +21,7 @@ extension StudyHistory {
         case .original: dates = nil
         case .all: dates = ("All history", "All history")
         case .year(let year): dates = (String(year), String(year))
+        case .range: dates = (rangeLabel, rangeLabel)
         case .day:
             dates = (rangeLabel, selectedRange?.start.formatted(.dateTime.month(.abbreviated).day().year()) ?? rangeLabel)
         case .month(let year, _):
