@@ -11,6 +11,9 @@ import SwiftData
 
 @Model
 final class WorkoutLog {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    #Index<WorkoutLog>([\.sessionIDValue], [\.dateValue])
+
     private var dateValue: Date = Date.now
     private var chestValue: Double = 0
     private var shouldersValue: Double = 0

@@ -4,6 +4,9 @@ import SwiftData
 /// A dated observation, independent of PowerJack's program and workout lifecycle.
 @Model
 final class ImportedSet {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    #Index<ImportedSet>([\.trainingDay], [\.exerciseKey])
+
     var sourceKey = ""
     var sourceExercise = ""
     var sourceCategory = ""

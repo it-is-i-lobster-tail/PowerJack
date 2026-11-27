@@ -13,6 +13,9 @@ import SwiftData
 
 @Model
 final class SetReceipt {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    #Index<SetReceipt>([\.setIDValue], [\.completedAtValue])
+
     private var setIDValue: UUID?
     // The workout's sync ID.
     private var sessionIDValue: UUID?

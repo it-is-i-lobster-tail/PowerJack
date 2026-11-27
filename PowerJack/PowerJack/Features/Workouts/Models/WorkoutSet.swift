@@ -11,6 +11,9 @@ import OSLog
 
 @Model
 final class WorkoutSet {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    #Index<WorkoutSet>([\.completedAtValue], [\.syncIDValue])
+
     private var orderValue: Int = 0
     // Stored as the raw string: SwiftData fails to cast a stored `SetType` back on read.
     private var setTypeValue: String = SetType.working.rawValue

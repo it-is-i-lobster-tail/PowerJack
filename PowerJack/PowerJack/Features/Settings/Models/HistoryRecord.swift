@@ -75,6 +75,9 @@ struct HistoryRow: Equatable {
 
 @Model
 final class HistoryRecord {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    #Index<HistoryRecord>([\.programIDValue])
+
     // Every field has a default or is optional and there are no relationships, so the rows
     // sync with iCloud and any later field can be added the same way.
     var programIDValue: UUID?
