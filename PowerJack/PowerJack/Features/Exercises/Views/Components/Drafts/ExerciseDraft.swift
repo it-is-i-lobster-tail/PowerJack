@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 struct ExerciseDraft {
     var name: String = ""
@@ -26,6 +27,14 @@ struct ExerciseDraft {
     var customRestTime: Int?
     // Built-in exercises keep their name, equipment and muscles. Only rep range, fatigue and rest change.
     private(set) var isBuiltIn = false
+    /// The built-in lift (its sync key) whose pattern, style and joint actions this one copies.
+    /// Proposed from the name until the lifter picks one, or None.
+    private(set) var movesLike: String?
+    private(set) var isMovesLikeChosen = false
+    /// What the exercise had when the form opened, so saving rewrites its movement only if it changed.
+    private var savedMovesLike: String?
+    /// Secondary muscles filled in from `movesLike`. Once the lifter changes them, they stay.
+    private var suggestedSecondary: [Muscle] = []
 
     static let repLimits = Exercise.minRepsAllowed...Exercise.maxRepsAllowed
     static let restLimits = Int(RestLength.range.lowerBound.components.seconds)
@@ -49,6 +58,40 @@ struct ExerciseDraft {
         fatigueLevel = exercise.fatigueLevel
         customRestTime = exercise.customRestTime
         isBuiltIn = !exercise.userCreated
+        movesLike = MovesLike.key(of: exercise)
+        savedMovesLike = movesLike
+        isMovesLikeChosen = movesLike != nil
+    }
+
+    /// The pattern, style and joint actions saving copies.
+    var structure: MovementCatalog.Profile? { MovesLike.entry(movesLike)?.profile }
+
+    var movesLikeName: String? { MovesLike.entry(movesLike)?.name }
+
+    /// Whether the form should still propose a lift from the name.
+    var wantsMovesLikeProposal: Bool { !isBuiltIn && !isMovesLikeChosen }
+
+    /// A proposal from the name. Ignored once the lifter has chosen.
+    mutating func propose(movesLike key: String?) {
+        guard wantsMovesLikeProposal else { return }
+        movesLike = key
+        suggestSecondaryMuscles()
+    }
+
+    /// The lifter's own pick, or nil for None, which keeps the muscles as they are.
+    mutating func choose(movesLike key: String?) {
+        guard !isBuiltIn else { return }
+        isMovesLikeChosen = true
+        movesLike = key
+        if key != nil { suggestSecondaryMuscles() }
+    }
+
+    /// Fills secondary muscles from `movesLike` while the lifter hasn't picked their own.
+    /// The primary muscle is never set for them.
+    private mutating func suggestSecondaryMuscles() {
+        guard secondaryMuscles.isEmpty || secondaryMuscles == suggestedSecondary else { return }
+        suggestedSecondary = MovesLike.secondaryMuscles(of: movesLike, primary: primaryMuscle)
+        secondaryMuscles = suggestedSecondary
     }
 
     private var trimmedName: String {
@@ -88,6 +131,7 @@ struct ExerciseDraft {
     mutating func removePrimaryFromSecondary() {
         guard let primaryMuscle else { return }
         secondaryMuscles.removeAll { $0 == primaryMuscle }
+        suggestedSecondary.removeAll { $0 == primaryMuscle }
     }
 
     func makeExercise(userCreated: Bool = true) -> Exercise? {
@@ -129,6 +173,15 @@ struct ExerciseDraft {
         exercise.maxReps = maxReps
         exercise.fatigueLevel = fatigueLevel
         exercise.customRestTime = customRestTime
+        applyMovement(to: exercise)
         return true
+    }
+
+    /// Writes `movesLike` onto an own exercise in a store, if it changed since the form opened.
+    /// `makeExercise()` can't, because the exercise isn't in a store yet: insert it first.
+    func applyMovement(to exercise: Exercise) {
+        guard exercise.userCreated, !isBuiltIn, movesLike != savedMovesLike,
+              let context = exercise.modelContext else { return }
+        MovesLike.copy(movesLike, to: exercise, in: context)
     }
 }
