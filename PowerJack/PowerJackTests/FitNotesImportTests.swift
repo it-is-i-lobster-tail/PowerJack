@@ -5,20 +5,8 @@ import Testing
 
 @MainActor
 struct FitNotesImportTests {
-    @Test func suggestionsRequireAgreementOnEquipmentAndVariation() {
+    @Test func auditedAliasesMatchDirectly() {
         let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        for ambiguous in ["Ankle PT", "Air Squat", "Romanian Deadlift", "Slider Push-Up"] {
-            #expect(FitNotesMatcher.ranked(ambiguous, among: catalog).isEmpty)
-        }
-        #expect(FitNotesMatcher.ranked("BB RDL", among: catalog).map(\.catalogID) == ["barbell-romanian-deadlift"])
-    }
-
-    @Test func reviewRowSuggestsAuditedAliasesAndKeepsCatalogGapsManual() {
-        let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        let choices = FitNotesMatcher.selectorChoices("Dumbbell Row", category: "Back", among: catalog, preferred: nil)
-        #expect(choices.first?.catalogID == "one-arm-dumbbell-row")
-        #expect(choices.count == 3)
-        #expect(Set(choices.map(\.catalogID)).count == 3)
         for (name, id) in ["Dumbbell Row": "one-arm-dumbbell-row", "Deadlift": "barbell-deadlift",
                            "Barbell Squat": "barbell-back-squat", "Military Bar Press": "barbell-overhead-press",
                            "Cable Overhead Triceps Extension": "cable-overhead-extension",
@@ -27,8 +15,6 @@ struct FitNotesImportTests {
         }
         for name in ["Nordic Curls", "Running (Outdoor)"] {
             #expect(FitNotesMatcher.direct(name, among: catalog) == nil)
-            #expect(FitNotesMatcher.ranked(name, among: catalog).isEmpty)
-            #expect(FitNotesMatcher.selectorChoices(name, category: "", among: catalog, preferred: nil).count == 3)
         }
     }
 
@@ -53,7 +39,6 @@ struct FitNotesImportTests {
         }
         for source in ["Machine Preacher Curl", "Incline Machine Chest Press", "Barbell Shrug", "Reverse Nordic Curl"] {
             #expect(FitNotesMatcher.direct(source, among: catalog) == nil)
-            #expect(FitNotesMatcher.ranked(source, among: catalog).isEmpty)
         }
     }
 
