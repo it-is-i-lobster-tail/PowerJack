@@ -4,9 +4,12 @@ name: Upgrade tests
 # installs it on a simulator, trains with it, installs the new version over it like an
 # App Store or TestFlight update, and checks the lifter's data is all there and still works.
 # See scripts/upgrade/README.md. Branch protection requires the "Upgrade tests" check on staging.
+# A draft pull request into staging waits, so each merge to main doesn't restart this.
+# Marking it "Ready for review" runs it, and every later push runs it again.
 on:
   pull_request:
     branches: [staging, main]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +25,7 @@ env:
 
 jobs:
   # PRs into main run this only when they change the upgrade tests themselves.
+  # Draft PRs into staging wait until they're marked ready.
   scope:
     name: Choose versions
     runs-on: ubuntu-latest
@@ -35,9 +39,12 @@ jobs:
       - id: scope
         env:
           BASE: ${{ github.base_ref }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           run=true
-          if [ "$BASE" = main ]; then
+          if [ "$BASE" = staging ] && [ "$DRAFT" = true ]; then
+            run=false
+          elif [ "$BASE" = main ]; then
             git diff --name-only "origin/main...$HEAD_SHA" \
               | grep -qE '^(scripts/upgrade/|PowerJack/PowerJackTests/Upgrade|\.github/workflows/upgrade-tests\.yml)' || run=false
           fi
@@ -115,13 +122,18 @@ jobs:
           SCOPE: ${{ needs.scope.result }}
           RUN: ${{ needs.scope.outputs.run }}
           UPGRADE: ${{ needs.upgrade.result }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           if [ "$SCOPE" != success ]; then
             echo "::error::Couldn't list the earlier versions."
             exit 1
           fi
           if [ "$RUN" != true ]; then
-            echo "This pull request doesn't change the upgrade tests, so they were skipped."
+            if [ "$DRAFT" = true ]; then
+              echo "This draft waits. Mark it Ready for review to run every upgrade."
+            else
+              echo "This pull request doesn't change the upgrade tests, so they were skipped."
+            fi
             exit 0
           fi
           if [ "$UPGRADE" != success ]; then
