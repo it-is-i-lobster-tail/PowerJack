@@ -15,6 +15,8 @@ struct ProgramListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var programPendingDelete: Program?
     @State private var saveErrorMessage: String?
+    /// Years the user opened or closed. Others use their default.
+    @State private var expandedYears: [Int?: Bool] = [:]
 
     private var activeProgram: Program? {
         programs.active
@@ -40,9 +42,12 @@ struct ProgramListView: View {
                 }
 
                 ForEach(Array(sections.past.enumerated()), id: \.offset) { index, year in
+                    let isExpanded = isExpanded(year)
                     Section {
-                        ForEach(year.items) { program in
-                            row(for: program)
+                        if isExpanded {
+                            ForEach(year.items) { program in
+                                row(for: program)
+                            }
                         }
                     } header: {
                         VStack(alignment: .leading, spacing: 12) {
@@ -52,9 +57,7 @@ struct ProgramListView: View {
                                     .foregroundStyle(Color.primary)
                                     .padding(.top, sections.current.isEmpty ? 0 : 20)
                             }
-                            Text(year.year.map { String($0) } ?? "No workouts")
-                                .font(.headline)
-                                .foregroundStyle(Color.secondary)
+                            yearHeader(year, isExpanded: isExpanded)
                         }
                         .textCase(nil)
                     }
@@ -85,6 +88,32 @@ struct ProgramListView: View {
             Text("Its workouts will be deleted, but your saved training history stays in Data. This can't be undone.")
         }
         .saveErrorAlert($saveErrorMessage)
+    }
+
+    private func isExpanded(_ year: ProgramListSections<Program>.Year) -> Bool {
+        expandedYears[year.year] ?? year.startsExpanded()
+    }
+
+    private func yearHeader(_ year: ProgramListSections<Program>.Year, isExpanded: Bool) -> some View {
+        Button {
+            withAnimation {
+                expandedYears[year.year] = !isExpanded
+            }
+        } label: {
+            HStack {
+                Text(year.year.map { String($0) } ?? "No workouts")
+                    .font(.headline)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .accessibilityHidden(true)
+            }
+            .foregroundStyle(Color.secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
     }
 
     private func row(for program: Program) -> some View {

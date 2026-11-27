@@ -86,6 +86,33 @@ struct ProgramListSectionsTests {
         #expect(result.past.last?.items.map(\.name) == ["Never trained"])
     }
 
+    // MARK: Expanded years
+
+    @Test("This year and last year start open; older years and no-workout programs start closed")
+    func expandedByDefault() {
+        let result = sections([
+            Item(name: "Now", status: .complete, start: Self.date(2026, 2, 1)),
+            Item(name: "Last", status: .complete, start: Self.date(2025, 6, 1)),
+            Item(name: "Old", status: .complete, start: Self.date(2024, 6, 1)),
+            Item(name: "Older", status: .complete, start: Self.date(2021, 6, 1)),
+            Item(name: "Never trained", status: .stopped, start: nil),
+        ])
+        let now = Self.date(2026, 11, 27)
+        let expanded = result.past.map { $0.startsExpanded(now: now, calendar: Self.calendar) }
+        #expect(result.past.map(\.year) == [2026, 2025, 2024, 2021, nil])
+        #expect(expanded == [true, true, false, false, false])
+    }
+
+    @Test("On New Year's Day the year just ended stays open")
+    func expandedAtNewYear() {
+        let result = sections([
+            Item(name: "Last", status: .complete, start: Self.date(2025, 6, 1)),
+            Item(name: "Old", status: .complete, start: Self.date(2024, 6, 1)),
+        ])
+        let now = Self.calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 0, minute: 5))!
+        #expect(result.past.map { $0.startsExpanded(now: now, calendar: Self.calendar) } == [true, false])
+    }
+
     // MARK: Date range
 
     private func range(_ start: Date, _ end: Date?) -> String {

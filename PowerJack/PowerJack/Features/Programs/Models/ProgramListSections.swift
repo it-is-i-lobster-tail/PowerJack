@@ -11,6 +11,12 @@ struct ProgramListSections<Item> {
         /// Nil for past programs that never started a workout.
         let year: Int?
         let items: [Item]
+
+        /// This year and last year start open; older years and "No workouts" start closed.
+        func startsExpanded(now: Date = .now, calendar: Calendar = .current) -> Bool {
+            guard let year else { return false }
+            return year >= calendar.component(.year, from: now) - 1
+        }
     }
 
     /// The active program first, then programs not started yet.
