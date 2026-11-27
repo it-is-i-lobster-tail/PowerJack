@@ -33,7 +33,7 @@ final class GallerySearchJournal {
     /// Saved plans are reused for 90 days, then asked again.
     static let lifetime: TimeInterval = 90 * 24 * 60 * 60
     /// Bump when `ChartSearchPlan` changes shape, so older plans are asked again.
-    private static let planVersion = 3
+    private static let planVersion = 4
 
     let context: ModelContext?
     private var inFlight: [String: Task<ChartSearchPlan?, Never>] = [:]
