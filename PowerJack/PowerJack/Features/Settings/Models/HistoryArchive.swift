@@ -83,6 +83,25 @@ enum HistoryArchive {
         ))
     }
 
+    /// The saved rows of programs that no longer exist, as `records(in:)` would give them. A live
+    /// program's rows only repeat its own workouts, and old rows only repeat lean rows of the same
+    /// batch, so the store leaves both out instead of loading them.
+    static func archivedRows(excluding live: Set<UUID>, in context: ModelContext) throws -> [ArchivedRow] {
+        let live: [UUID?] = live.map { $0 }
+        let programs = try context.fetch(FetchDescriptor<HistoryProgram>(predicate: #Predicate {
+            $0.programIDValue == nil || !live.contains($0.programIDValue)
+        }))
+        let batches: [UUID?] = programs.compactMap(\.batchID)
+        let exercises = batches.isEmpty ? [] : try context.fetch(FetchDescriptor<HistoryExercise>(predicate: #Predicate {
+            batches.contains($0.batchIDValue)
+        }))
+        let legacy = try context.fetch(FetchDescriptor<HistoryRecord>(predicate: #Predicate {
+            ($0.programIDValue == nil || !live.contains($0.programIDValue))
+                && ($0.batchIDValue == nil || !batches.contains($0.batchIDValue))
+        }))
+        return archivedRows(programs: programs, exercises: exercises, legacy: legacy)
+    }
+
     /// Every saved row, in order: a batch from its lean rows when it has them, else from its
     /// `HistoryRecord` rows. When two iPhones both wrote a batch's lean rows, one copy is kept,
     /// the same on every device.
@@ -165,9 +184,13 @@ enum HistoryArchive {
     @discardableResult
     static func backfillLeanHistory(in context: ModelContext) throws -> Int {
         var done = Set(try context.fetch(FetchDescriptor<HistoryProgram>()).compactMap(\.batchID))
-        var batchIDs = FetchDescriptor<HistoryRecord>()
+        // Only the rows of batches without lean rows: usually none, so nothing is loaded.
+        let doneIDs: [UUID?] = done.map { $0 }
+        var batchIDs = FetchDescriptor<HistoryRecord>(predicate: #Predicate {
+            $0.batchIDValue != nil && !doneIDs.contains($0.batchIDValue)
+        })
         batchIDs.propertiesToFetch = [\.batchIDValue]
-        let missing = Set(try context.fetch(batchIDs).compactMap(\.batchID)).subtracting(done)
+        let missing = Set(try context.fetch(batchIDs).compactMap(\.batchID))
         var written = 0
         for batchID in missing {
             let id: UUID? = batchID
