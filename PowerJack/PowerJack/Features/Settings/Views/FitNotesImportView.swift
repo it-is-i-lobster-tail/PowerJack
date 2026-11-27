@@ -124,10 +124,10 @@ struct FitNotesImportView: View {
             for name in names.dropFirst(prepared) {
                 guard !Task.isCancelled else { return }
                 let sets = groups[name] ?? []
-                var (suggestion, found) = FitNotesMatcher.review(
+                var (suggestion, found, askModel) = FitNotesMatcher.review(
                     name, sets: sets, among: exercises, index: index, familiarity: familiarity, imported: imported,
                     rememberedMatch: remembered[name], rememberedSkip: rememberedSkips[name])
-                if case .choices = suggestion,
+                if askModel,
                    let picked = await FitNotesModel.choose(name: name, category: sets.first?.category ?? "",
                                                            candidates: Array(found.prefix(FitNotesMatcher.modelCandidateCount))) {
                     suggestion = picked

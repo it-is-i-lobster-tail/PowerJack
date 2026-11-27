@@ -87,6 +87,18 @@ struct FitNotesMatchingTests {
         }
     }
 
+    @Test func theModelLeavesFullNameTiesToTheLifter() throws {
+        func asksModel(_ name: String) throws -> Bool {
+            let row = try fixture(name)
+            return FitNotesMatcher.review(row.name, sets: row.sets, among: exercises, index: index, familiarity: .none,
+                                          imported: [], rememberedMatch: nil, rememberedSkip: nil).askModel
+        }
+        #expect(try !asksModel("Romanian Deadlift"))
+        #expect(try !asksModel("Barbell Squat"))
+        #expect(try !asksModel("Running (Outdoor)"))
+        #expect(try asksModel("V Ups"))
+    }
+
     @Test func nonLiftsShowAStatedSkipReason() throws {
         let expected: [String: ImportSkipReason] = [
             "Running (Outdoor)": .cardio, "Running (Treadmill)": .cardio, "Cycling": .cardio, "MTB": .cardio,

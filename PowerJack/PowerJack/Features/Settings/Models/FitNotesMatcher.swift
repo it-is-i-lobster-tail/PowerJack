@@ -107,7 +107,7 @@ enum FitNotesMatcher {
     /// Ranked lifts for a FitNotes name, best first, with the suggestion search alone supports.
     @MainActor
     static func search(_ name: String, category: String, among exercises: [Exercise],
-                       index: ExerciseSearch.Index, familiarity: ExerciseFamiliarity) -> (suggestion: ImportSuggestion, ranked: [Exercise]) {
+                       index: ExerciseSearch.Index, familiarity: ExerciseFamiliarity) -> (suggestion: ImportSuggestion, ranked: [Exercise], askModel: Bool) {
         let byKey = Dictionary(exercises.map { ($0.searchKey, $0) }, uniquingKeysWith: { first, _ in first })
         let length = byKey.mapValues { ExerciseQuery.words($0.exerciseName).count }
         // Among equal scores the shorter name says less beyond the FitNotes name, so it goes first.
@@ -116,12 +116,15 @@ enum FitNotesMatcher {
             .sorted { $0.score != $1.score ? $0.score > $1.score : length[$0.key, default: 0] < length[$1.key, default: 0] }
         let ranked = hits.compactMap { byKey[$0.key] }
         if let direct = direct(name, among: exercises) {
-            return (.match(direct), [direct] + ranked.filter { $0 != direct })
+            return (.match(direct), [direct] + ranked.filter { $0 != direct }, false)
         }
-        guard let top = hits.first, let first = ranked.first else { return (.none, []) }
-        let next = hits.dropFirst().first?.score ?? 0
-        if top.name == 1 && top.score - next >= confidentMargin { return (.match(first), ranked) }
-        return (.choices(Array(ranked.prefix(choiceCount))), ranked)
+        guard let top = hits.first, let first = ranked.first else { return (.none, [], false) }
+        let second = hits.dropFirst().first
+        if top.name == 1 && top.score - (second?.score ?? 0) >= confidentMargin { return (.match(first), ranked, false) }
+        // Two lifts that both hold every word, such as Barbell and Dumbbell Romanian Deadlift for
+        // "Romanian Deadlift", are the lifter's call. The model only breaks looser ties.
+        let ambiguous = top.name == 1 && second?.name == 1
+        return (.choices(Array(ranked.prefix(choiceCount))), ranked, !ambiguous)
     }
 }
 
@@ -132,15 +135,15 @@ extension FitNotesMatcher {
     @MainActor
     static func review(_ name: String, sets: [FitNotesSet], among exercises: [Exercise],
                        index: ExerciseSearch.Index, familiarity: ExerciseFamiliarity, imported: Set<String>,
-                       rememberedMatch: Exercise?, rememberedSkip: ImportSkipReason?) -> (suggestion: ImportSuggestion, ranked: [Exercise]) {
+                       rememberedMatch: Exercise?, rememberedSkip: ImportSkipReason?) -> (suggestion: ImportSuggestion, ranked: [Exercise], askModel: Bool) {
         let category = sets.first?.category ?? ""
         let found = search(name, category: category, among: exercises, index: index, familiarity: familiarity)
-        if !sets.isEmpty, sets.allSatisfy({ imported.contains($0.key) }) { return (.skip(.alreadyImported), found.ranked) }
-        if let rememberedMatch { return (.match(rememberedMatch), found.ranked) }
-        if let rememberedSkip { return (.skip(rememberedSkip), found.ranked) }
+        if !sets.isEmpty, sets.allSatisfy({ imported.contains($0.key) }) { return (.skip(.alreadyImported), found.ranked, false) }
+        if let rememberedMatch { return (.match(rememberedMatch), found.ranked, false) }
+        if let rememberedSkip { return (.skip(rememberedSkip), found.ranked, false) }
         let builtIn = direct(name, among: exercises)?.catalogID != nil
         if let reason = skipReason(name: name, category: category, sets: sets, builtIn: builtIn) {
-            return (.skip(reason), found.ranked)
+            return (.skip(reason), found.ranked, false)
         }
         return found
     }
