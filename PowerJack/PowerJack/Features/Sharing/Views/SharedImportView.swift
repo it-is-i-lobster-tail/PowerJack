@@ -37,7 +37,7 @@ struct SharedImportView: View {
                             }
                         }
                     } header: {
-                        if sharedImport.template != nil { Text("New Exercises") }
+                        if sharedImport.template != nil { Text("Exercises") }
                     } footer: {
                         if sharedImport.items.contains(where: \.asks) {
                             Text("Use Mine keeps one exercise, so your history and progress stay together.")
@@ -186,7 +186,7 @@ private struct ClashRow: View {
 
     private var message: String {
         switch item.choice {
-        case .useMine: "You already have this exercise. Yours will be used."
+        case .useMine: "You have one with this name, set up differently. Yours will be used."
         case .keepBoth: "Adds the shared one as \u{201C}\(item.keepBothName)\u{201D}."
         }
     }
