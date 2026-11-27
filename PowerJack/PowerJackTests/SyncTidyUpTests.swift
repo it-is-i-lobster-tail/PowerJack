@@ -287,6 +287,38 @@ struct SyncTidyUpTests {
         #expect(try !SyncTidyUp.run(in: devices.phoneContext))
     }
 
+    // MARK: Old receipts
+
+    @Test("Old receipts of ended programs go, while the running program's and recent ones stay")
+    func oldReceiptsArePruned() throws {
+        let devices = try TwoDevices()
+        let context = devices.phoneContext
+        let longAgo = morning.addingTimeInterval(-90 * 24 * 3600)
+        let ended = try devices.phoneProgram
+        let endedWorkout = try #require(ended.nextWorkout)
+        endedWorkout.startAndCascade(at: longAgo.addingTimeInterval(-60))
+        let endedSet = try #require(endedWorkout.workoutExercises[0].workingSets.first)
+        log(endedSet, reps: 8, at: longAgo)
+        ended.stop()
+        ended.stopAndCascade()
+
+        let running = Program(programLengthWeeks: 2, templateProgram: try #require(ended.templateProgram))
+        try context.insertAndSave(running)
+        running.start()
+        let workout = try #require(running.nextWorkout)
+        workout.startAndCascade(at: longAgo.addingTimeInterval(-60))
+        let sets = workout.workoutExercises[0].workingSets
+        log(sets[0], reps: 8, at: longAgo)
+        log(sets[1], reps: 8, at: morning)
+        try context.save()
+        #expect(try context.fetchCount(FetchDescriptor<SetReceipt>()) == 3)
+
+        #expect(try SyncTidyUp.pruneOldReceipts(in: context) == 1)
+        let kept = try context.fetch(FetchDescriptor<SetReceipt>()).compactMap(\.setID)
+        #expect(Set(kept) == Set([sets[0].syncID, sets[1].syncID].compactMap { $0 }))
+        #expect(try SyncTidyUp.pruneOldReceipts(in: context) == 0)
+    }
+
     // MARK: Helpers
 
     /// The first working set of the iPhone's next workout, started.

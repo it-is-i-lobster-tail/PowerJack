@@ -1,0 +1,218 @@
+{
+  "joints": [
+    { "key": "shoulder", "name": "Shoulder", "type": "ballAndSocket", "movements": ["flexion", "extension", "abduction", "adduction", "horizontalAbduction", "horizontalAdduction", "internalRotation", "externalRotation"] },
+    { "key": "scapula", "name": "Shoulder blade", "type": "gliding", "movements": ["elevation", "depression", "protraction", "retraction", "upwardRotation", "downwardRotation"] },
+    { "key": "elbow", "name": "Elbow", "type": "hinge", "movements": ["flexion", "extension"] },
+    { "key": "forearm", "name": "Forearm", "type": "pivot", "movements": ["pronation", "supination"] },
+    { "key": "wrist", "name": "Wrist", "type": "condyloid", "movements": ["flexion", "extension", "radialDeviation", "ulnarDeviation"] },
+    { "key": "trunk", "name": "Spine", "type": "stackedGliding", "movements": ["flexion", "extension", "lateralFlexion", "rotation"] },
+    { "key": "neck", "name": "Neck", "type": "stackedGliding", "movements": ["flexion", "extension", "lateralFlexion", "rotation"] },
+    { "key": "hip", "name": "Hip", "type": "ballAndSocket", "movements": ["flexion", "extension", "abduction", "adduction", "horizontalAbduction", "horizontalAdduction", "internalRotation", "externalRotation"] },
+    { "key": "knee", "name": "Knee", "type": "hinge", "movements": ["flexion", "extension"] },
+    { "key": "ankle", "name": "Ankle", "type": "hinge", "movements": ["dorsiflexion", "plantarflexion"] }
+  ],
+  "types": {
+    "hinge": ["flexion", "extension", "dorsiflexion", "plantarflexion"],
+    "pivot": ["pronation", "supination"],
+    "condyloid": ["flexion", "extension", "radialDeviation", "ulnarDeviation"],
+    "ballAndSocket": ["flexion", "extension", "abduction", "adduction", "horizontalAbduction", "horizontalAdduction", "internalRotation", "externalRotation"],
+    "gliding": ["elevation", "depression", "protraction", "retraction", "upwardRotation", "downwardRotation"],
+    "stackedGliding": ["flexion", "extension", "lateralFlexion", "rotation"]
+  },
+  "opposites": [
+    ["flexion", "extension"],
+    ["dorsiflexion", "plantarflexion"],
+    ["pronation", "supination"],
+    ["radialDeviation", "ulnarDeviation"],
+    ["abduction", "adduction"],
+    ["horizontalAbduction", "horizontalAdduction"],
+    ["internalRotation", "externalRotation"],
+    ["elevation", "depression"],
+    ["protraction", "retraction"],
+    ["upwardRotation", "downwardRotation"]
+  ],
+  "movements": {
+    "shoulder.flexion": {
+      "prime": { "anterior deltoid": "shoulders", "clavicular pectoralis major": "chest" },
+      "synergist": { "coracobrachialis": "chest", "biceps brachii": "biceps" }
+    },
+    "shoulder.extension": {
+      "prime": { "latissimus dorsi": "back", "teres major": "back" },
+      "synergist": { "posterior deltoid": "shoulders", "long head of triceps": "triceps", "sternal pectoralis major": "chest" }
+    },
+    "shoulder.abduction": {
+      "prime": { "lateral deltoid": "shoulders" },
+      "synergist": { "supraspinatus": "shoulders", "upper trapezius": "back" }
+    },
+    "shoulder.adduction": {
+      "prime": { "latissimus dorsi": "back", "teres major": "back" },
+      "synergist": { "sternal pectoralis major": "chest" }
+    },
+    "shoulder.horizontalAbduction": {
+      "prime": { "posterior deltoid": "shoulders" },
+      "synergist": { "infraspinatus": "back", "teres minor": "back" }
+    },
+    "shoulder.horizontalAdduction": {
+      "prime": { "pectoralis major": "chest" },
+      "synergist": { "anterior deltoid": "shoulders" }
+    },
+    "shoulder.internalRotation": {
+      "prime": { "subscapularis": "back", "pectoralis major": "chest" },
+      "synergist": { "latissimus dorsi": "back", "anterior deltoid": "shoulders" }
+    },
+    "shoulder.externalRotation": {
+      "prime": { "infraspinatus": "back", "teres minor": "back" },
+      "synergist": { "posterior deltoid": "shoulders" }
+    },
+    "scapula.elevation": {
+      "prime": { "upper trapezius": "back" },
+      "synergist": { "levator scapulae": "back" }
+    },
+    "scapula.depression": {
+      "prime": { "lower trapezius": "back" },
+      "synergist": { "pectoralis minor": "chest", "latissimus dorsi": "back" }
+    },
+    "scapula.protraction": {
+      "prime": { "serratus anterior": "chest" },
+      "synergist": { "pectoralis minor": "chest" }
+    },
+    "scapula.retraction": {
+      "prime": { "middle trapezius": "back", "rhomboids": "back" },
+      "synergist": {}
+    },
+    "scapula.upwardRotation": {
+      "prime": { "serratus anterior": "chest", "upper trapezius": "back", "lower trapezius": "back" },
+      "synergist": {}
+    },
+    "scapula.downwardRotation": {
+      "prime": { "rhomboids": "back", "levator scapulae": "back" },
+      "synergist": { "pectoralis minor": "chest" }
+    },
+    "elbow.flexion": {
+      "prime": { "biceps brachii": "biceps", "brachialis": "biceps" },
+      "synergist": { "brachioradialis": "forearms" }
+    },
+    "elbow.extension": {
+      "prime": { "triceps brachii": "triceps" },
+      "synergist": { "anconeus": "triceps" }
+    },
+    "forearm.pronation": {
+      "prime": { "pronator teres": "forearms", "pronator quadratus": "forearms" },
+      "synergist": {}
+    },
+    "forearm.supination": {
+      "prime": { "supinator": "forearms" },
+      "synergist": { "biceps brachii": "biceps" }
+    },
+    "wrist.flexion": {
+      "prime": { "flexor carpi radialis": "forearms", "flexor carpi ulnaris": "forearms" },
+      "synergist": { "palmaris longus": "forearms" }
+    },
+    "wrist.extension": {
+      "prime": { "extensor carpi radialis": "forearms", "extensor carpi ulnaris": "forearms" },
+      "synergist": {}
+    },
+    "wrist.radialDeviation": {
+      "prime": { "flexor carpi radialis": "forearms", "extensor carpi radialis": "forearms" },
+      "synergist": {}
+    },
+    "wrist.ulnarDeviation": {
+      "prime": { "flexor carpi ulnaris": "forearms", "extensor carpi ulnaris": "forearms" },
+      "synergist": {}
+    },
+    "trunk.flexion": {
+      "prime": { "rectus abdominis": "abs" },
+      "synergist": { "external oblique": "obliques", "internal oblique": "obliques" }
+    },
+    "trunk.extension": {
+      "prime": { "erector spinae": "back" },
+      "synergist": { "multifidus": "back" }
+    },
+    "trunk.lateralFlexion": {
+      "prime": { "external oblique": "obliques", "internal oblique": "obliques" },
+      "synergist": { "quadratus lumborum": "back", "rectus abdominis": "abs" }
+    },
+    "trunk.rotation": {
+      "prime": { "external oblique": "obliques", "internal oblique": "obliques" },
+      "synergist": { "transversus abdominis": "abs" }
+    },
+    "neck.flexion": {
+      "prime": { "sternocleidomastoid": "back" },
+      "synergist": { "scalenes": "back" }
+    },
+    "neck.extension": {
+      "prime": { "splenius": "back", "upper trapezius": "back" },
+      "synergist": {}
+    },
+    "neck.lateralFlexion": {
+      "prime": { "scalenes": "back", "sternocleidomastoid": "back" },
+      "synergist": { "upper trapezius": "back" }
+    },
+    "neck.rotation": {
+      "prime": { "sternocleidomastoid": "back" },
+      "synergist": { "splenius": "back" }
+    },
+    "hip.flexion": {
+      "prime": { "iliopsoas": "abs" },
+      "synergist": { "rectus femoris": "quads", "tensor fasciae latae": "glutes" }
+    },
+    "hip.extension": {
+      "prime": { "gluteus maximus": "glutes", "hamstrings": "hamstrings" },
+      "synergist": { "adductor magnus": "glutes" }
+    },
+    "hip.abduction": {
+      "prime": { "gluteus medius": "glutes", "gluteus minimus": "glutes" },
+      "synergist": { "tensor fasciae latae": "glutes" }
+    },
+    "hip.adduction": {
+      "prime": { "adductor longus": "quads", "adductor brevis": "quads" },
+      "synergist": { "gracilis": "hamstrings", "pectineus": "quads" }
+    },
+    "hip.horizontalAbduction": {
+      "prime": { "gluteus medius": "glutes", "piriformis": "glutes" },
+      "synergist": { "gluteus maximus": "glutes" }
+    },
+    "hip.horizontalAdduction": {
+      "prime": { "adductor longus": "quads", "pectineus": "quads" },
+      "synergist": { "gracilis": "hamstrings" }
+    },
+    "hip.internalRotation": {
+      "prime": { "gluteus medius": "glutes", "gluteus minimus": "glutes" },
+      "synergist": { "tensor fasciae latae": "glutes" }
+    },
+    "hip.externalRotation": {
+      "prime": { "piriformis": "glutes", "gluteus maximus": "glutes" },
+      "synergist": { "sartorius": "quads" }
+    },
+    "knee.flexion": {
+      "prime": { "hamstrings": "hamstrings" },
+      "synergist": { "gastrocnemius": "calves" }
+    },
+    "knee.extension": {
+      "prime": { "quadriceps": "quads" },
+      "synergist": {}
+    },
+    "ankle.plantarflexion": {
+      "prime": { "gastrocnemius": "calves", "soleus": "calves" },
+      "synergist": {}
+    },
+    "ankle.dorsiflexion": {
+      "prime": { "tibialis anterior": "calves" },
+      "synergist": {}
+    }
+  },
+  "terms": {
+    "rear delt": ["shoulder.horizontalAbduction"],
+    "side delt": ["shoulder.abduction"],
+    "front delt": ["shoulder.flexion"],
+    "lat": ["shoulder.adduction", "shoulder.extension"],
+    "trap": ["scapula.elevation"],
+    "upper chest": ["shoulder.flexion", "shoulder.horizontalAdduction"],
+    "lower back": ["trunk.extension"],
+    "posterior chain": ["hip.extension", "knee.flexion"],
+    "push": ["elbow.extension"],
+    "pushing": ["elbow.extension"],
+    "pull": ["elbow.flexion"],
+    "pulling": ["elbow.flexion"]
+  }
+}

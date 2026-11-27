@@ -202,6 +202,18 @@ final class PowerJackStore {
         }
     }
 
+    /// Receipts only matter for a while after their set was logged. Only the iPhone prunes, and the
+    /// watch gets the deletions through iCloud. A failure only logs: the next launch tries again.
+    private static func pruneOldReceipts(in context: ModelContext) {
+        guard SyncDevice.current == SyncDevice.iPhone else { return }
+        do {
+            try SyncTidyUp.pruneOldReceipts(in: context)
+        } catch {
+            context.rollback()
+            Logger.sync.error("Could not delete old set receipts: \(error.localizedDescription)")
+        }
+    }
+
     /// Gives history saved before the lean shape its lean rows. Only the iPhone writes history.
     /// A failure never stops the app opening: reads fall back to the old rows, and the next launch tries again.
     private static func backfillLeanHistory(in context: ModelContext) {
@@ -227,6 +239,7 @@ final class PowerJackStore {
         let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         seedCatalogs(in: container.mainContext)
         saveEndedPrograms(in: container.mainContext)
+        pruneOldReceipts(in: container.mainContext)
         backfillLeanHistory(in: container.mainContext)
         if !inMemory { DeviceSchemaMark.updateAtLaunch(in: container.mainContext) }
         return container

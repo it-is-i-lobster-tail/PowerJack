@@ -36,21 +36,6 @@ final class HostedView {
         window.rootViewController = nil
     }
 
-    /// A closed screen can still update once more after its test ends. Stores made here are kept
-    /// for the whole run, so that late update never reads a model whose store was already reset.
-    static func makeStore() -> ModelContainer {
-        let container = PowerJackSeed.makeInMemoryContainer()
-        keptStores.append(container)
-        return container
-    }
-
-    /// Keeps a container the test didn't make here, such as one a store replaces, for the whole run.
-    static func keep(_ container: ModelContainer) {
-        keptStores.append(container)
-    }
-
-    private static var keptStores: [ModelContainer] = []
-
     /// Lets SwiftUI lay out, run `onAppear` and `task`, and finish short animations.
     func settle(_ duration: Duration = .milliseconds(300)) async {
         window.layoutIfNeeded()

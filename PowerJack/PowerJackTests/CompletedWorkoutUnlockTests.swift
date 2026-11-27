@@ -15,7 +15,7 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct CompletedWorkoutUnlockTests {
-    private let container = HostedView.makeStore()
+    private let container = PowerJackSeed.makeInMemoryContainer()
 
     // MARK: Model
 

@@ -71,6 +71,7 @@ struct KeyboardLayoutTests {
         )
         defer { screen.close() }
         func edge() throws -> CGFloat { measureTabBar ? try screen.tabBarTop() : probe.bottom }
+        await waitUntilSettled { probe.bottom }
         let before = try edge()
         let keyboardTop = showNumberPad ? try await screen.showNumberPad() : nil
         #expect(before > 0)
@@ -96,21 +97,34 @@ struct KeyboardLayoutTests {
             .powerJackKeyboardBehavior()
         )
         defer { screen.close() }
-        let initialRowBottom = probe.rowBottom
+        let initialRowBottom = await waitUntilSettled { probe.rowBottom }
         let keyboardTop = try await screen.showKeyboard { probe.focusRequested = true }
         try #require(initialRowBottom > keyboardTop, "The last row must start below the keyboard's eventual top edge.")
-        if keepsFocus {
-            // The scroll to the focused row runs slower on CI, so give it up to 3 seconds.
-            for _ in 0..<30 where probe.rowBottom > keyboardTop {
-                try await Task.sleep(for: .milliseconds(100))
-            }
-        }
-        #expect(probe.rowBottom > 0)
-        return (probe.rowBottom, keyboardTop)
+        // Let any scroll to the focused row finish. CI runs it slower than a Mac does.
+        let rowBottom = await waitUntilSettled { probe.rowBottom }
+        #expect(rowBottom > 0)
+        return (rowBottom, keyboardTop)
     }
 }
 
 // MARK: - Helpers
+
+/// Waits until `value` is above zero and holds still for a few frames, for up to 5 seconds,
+/// so a check reads where a layout or scroll ends up rather than a frame along the way.
+/// CI simulators can take seconds to lay out and animate.
+@MainActor
+@discardableResult
+private func waitUntilSettled(_ value: () -> CGFloat) async -> CGFloat {
+    var last = value()
+    var steadySamples = 0
+    for _ in 0..<100 where steadySamples < 5 {
+        try? await Task.sleep(for: .milliseconds(50))
+        let current = value()
+        steadySamples = current > 0 && current == last ? steadySamples + 1 : 0
+        last = current
+    }
+    return last
+}
 
 /// Shows a view full screen in the test host's window and lets it settle.
 @MainActor
@@ -146,11 +160,12 @@ private final class ScreenUnderTest {
     }
 
     /// Runs `bringUp`, waits for the software keyboard to show and settle, and returns its top edge.
+    /// The keyboard can still move after it first shows, so this keeps its last settled frame.
     @discardableResult
     func showKeyboard(_ bringUp: () -> Void) async throws -> CGFloat {
         var keyboardTop: CGFloat?
         let token = NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main
+            forName: UIResponder.keyboardDidChangeFrameNotification, object: nil, queue: .main
         ) { note in
             let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
             MainActor.assumeIsolated { keyboardTop = frame?.minY }
@@ -158,12 +173,12 @@ private final class ScreenUnderTest {
         defer { NotificationCenter.default.removeObserver(token) }
 
         bringUp()
-        for _ in 0..<30 where keyboardTop == nil {
+        for _ in 0..<50 where keyboardTop == nil {
             try await Task.sleep(for: .milliseconds(100))
         }
-        let top = try #require(keyboardTop, "The software keyboard didn't appear. Turn off Simulator > I/O > Keyboard > Connect Hardware Keyboard.")
-        try await Task.sleep(for: .milliseconds(500))
-        return top
+        _ = try #require(keyboardTop, "The software keyboard didn't appear. Turn off Simulator > I/O > Keyboard > Connect Hardware Keyboard.")
+        await waitUntilSettled { keyboardTop ?? 0 }
+        return try #require(keyboardTop)
     }
 
     func close() {

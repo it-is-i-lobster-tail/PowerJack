@@ -14,7 +14,7 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct SetFieldFocusTests {
-    private let container = HostedView.makeStore()
+    private let container = PowerJackSeed.makeInMemoryContainer()
 
     init() {
         // These read weights in pounds, whatever unit the simulator was last left in.

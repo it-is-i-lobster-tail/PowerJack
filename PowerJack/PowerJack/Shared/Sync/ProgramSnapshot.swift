@@ -85,6 +85,11 @@ extension ProgramSnapshot {
 
         if let strengthLog, try (StrengthLog.latest(in: context)?.date ?? .distantPast) < strengthLog.date {
             context.insert(StrengthLog(snapshot: strengthLog))
+            do {
+                try StrengthLog.rotate(in: context)
+            } catch {
+                Logger.sync.error("Could not rotate the strength log: \(error.localizedDescription)")
+            }
         }
         try context.save()
         Logger.sync.debug("Applied the iPhone's program")

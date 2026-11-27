@@ -257,6 +257,27 @@ struct StrengthPlannerTests {
         #expect(try context.fetchCount(FetchDescriptor<StrengthLog>()) == 1)
     }
 
+    @Test("Rotating the strength log keeps only the newest logs, and the latest records stay the same")
+    func strengthLogRotation() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let dates = (0..<12).map { start.addingTimeInterval(Double($0) * 7 * 86_400) }
+        // Inserted out of order, so the rotation has to sort by date.
+        for (week, date) in dates.enumerated().shuffled() {
+            var state = StrengthState()
+            state.clock.trainedWeeks = week + 1
+            context.insert(StrengthLog(date: date, state: state))
+        }
+        let latest = StrengthLog.latestState(in: context)
+
+        try StrengthLog.rotate(in: context)
+        try context.save()
+
+        let kept = try context.fetch(FetchDescriptor<StrengthLog>()).map(\.date).sorted()
+        #expect(kept == Array(dates.suffix(StrengthLog.keptLogs)))
+        #expect(StrengthLog.latestState(in: context) == latest)
+        #expect(latest.clock.trainedWeeks == 12)
+    }
+
     @Test("A lift whose first week was skipped before it started still loads from its e1RM (2.6)")
     func skippedFirstWeekLoadsFromRecords() throws {
         var record = StrengthLiftRecord(e1rmKg: 400 * WeightUnit.kilogramsPerPound, calibrationWeeksLeft: 0)

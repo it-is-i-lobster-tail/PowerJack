@@ -6,8 +6,8 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
     let words: [String]
     let equipment: Set<Equipment>
     let muscles: Set<Muscle>
-    /// Joint movements named in the query. Phase 2 fills this in.
-    let movements: Set<String> = []
+    /// Joint movements the query names in lifter words, such as "rear delts".
+    let movements: Set<String>
 
     var isEmpty: Bool { words.isEmpty }
 
@@ -22,6 +22,7 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         words = Self.words(text)
         equipment = Set(words.compactMap { Self.equipmentWords[$0] })
         muscles = Set(words.compactMap { Self.muscleWords[$0] })
+        movements = Self.movements(in: words)
     }
 
     /// The one reader for names and queries: folded case and accents, camel case split,
@@ -67,6 +68,17 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         "oblique": .obliques, "forearm": .forearms, "quad": .quads, "glute": .glutes, "calf": .calves,
         "hamstring": .hamstrings, "ham": .hamstrings,
     ]
+
+    /// Lifter phrases of up to 3 words that name joint movements (`JointAnatomy.movements(forTerm:)`).
+    private static func movements(in words: [String]) -> Set<String> {
+        var found = Set<String>()
+        for length in 1...3 where length <= words.count {
+            for start in 0...(words.count - length) {
+                found.formUnion(JointAnatomy.bundled.movements(forTerm: words[start..<start + length].joined(separator: " ")))
+            }
+        }
+        return found
+    }
 
     private static func expandShorthand(_ tokens: [String]) -> [String] {
         var result: [String] = []

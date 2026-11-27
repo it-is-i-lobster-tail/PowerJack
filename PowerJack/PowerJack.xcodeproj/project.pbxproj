@@ -73,6 +73,8 @@
 			membershipExceptions = (
 				Features/Exercises/Models/Exercise.swift,
 				Features/Exercises/Models/ExerciseMovement.swift,
+				Features/Exercises/Search/JointAnatomy.swift,
+				Features/Exercises/Search/MovementAnatomy.json,
 				"Features/Programs/Models/Program+ResetProgression.swift",
 				Features/Programs/Models/Program.swift,
 				Features/Programs/Models/ProgramWeek.swift,
