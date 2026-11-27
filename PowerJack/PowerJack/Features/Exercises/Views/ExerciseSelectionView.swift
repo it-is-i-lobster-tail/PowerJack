@@ -23,6 +23,9 @@ struct ExerciseSelectionView: View {
     @State private var exerciseToEdit: Exercise?
     @State private var isCreating = false
     @State private var isFiltering = false
+    /// The on-device model's reading of a long search, and the text it read.
+    @State private var reading: ExerciseFilters?
+    @State private var readText = ""
 
     init(navigationTitle: String, mode: ExercisePickerMode = .add, onSelect: ((Exercise) -> Void)? = nil) {
         self.navigationTitle = navigationTitle
@@ -31,11 +34,27 @@ struct ExerciseSelectionView: View {
     }
 
     var body: some View {
-        let results = ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
-                                            query: searchText, muscles: muscles, mode: mode)
         let typed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Typing on drops the reading, so the fast results return.
+        let filters = readText == typed ? reading : nil
+        let results = ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
+                                            query: searchText, filters: filters, muscles: muscles, mode: mode)
         NavigationStack {
             List {
+                if let filters {
+                    Section {
+                        HStack {
+                            Text("Showing: \(filters.summary)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Show All Matches", systemImage: "xmark.circle.fill") { reading = nil }
+                                .labelStyle(.iconOnly)
+                                .foregroundStyle(.secondary)
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
                 Section {
                     ForEach(results.matches) { exercise in row(exercise) }
                     if !typed.isEmpty && !mode.isSubstitution {
@@ -62,6 +81,13 @@ struct ExerciseSelectionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercises")
             .searchPresentationToolbarBehavior(.avoidHidingContent)
+            .onSubmit(of: .search) {
+                guard results.isThin else { return }
+                Task { await read(typed) }
+            }
+            .onChange(of: typed.split(separator: " ").count >= 3) { _, isLong in
+                if isLong { ExerciseQueryModel.shared.prewarm() }
+            }
             .navigationDestination(item: $exerciseToEdit) { exercise in
                 ExerciseDetailView(exercise: exercise)
             }
@@ -123,6 +149,14 @@ struct ExerciseSelectionView: View {
                         .tint(.blue)
                 }
         }
+    }
+
+    /// Fast results stay on screen while the model reads the search.
+    private func read(_ text: String) async {
+        guard let found = await ExerciseQueryModel.shared.filters(for: text),
+              searchText.trimmingCharacters(in: .whitespacesAndNewlines) == text else { return }
+        readText = text
+        reading = found
     }
 
     private func selectOrEdit(_ exercise: Exercise) {

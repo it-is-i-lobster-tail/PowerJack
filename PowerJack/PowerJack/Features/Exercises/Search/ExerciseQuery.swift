@@ -4,12 +4,36 @@ import Foundation
 /// "pullups" and "pull ups" compare as the same lift.
 nonisolated struct ExerciseQuery: Hashable, Sendable {
     let words: [String]
-    let equipment: Set<Equipment>
-    let muscles: Set<Muscle>
+    private(set) var equipment: Set<Equipment>
+    private(set) var muscles: Set<Muscle>
     /// Joint movements the query names in lifter words, such as "rear delts".
-    let movements: Set<String>
+    private(set) var movements: Set<String>
+    /// What the on-device model read a long search as, once `adding(_:)` merged it in.
+    private(set) var filters: ExerciseFilters?
 
     var isEmpty: Bool { words.isEmpty }
+
+    /// The query with the model's reading merged in. Excluded equipment and setups are left out
+    /// of the results; muscles and movements rank by what lifts work rather than by their names.
+    func adding(_ filters: ExerciseFilters) -> ExerciseQuery {
+        var query = self
+        query.muscles.formUnion(filters.muscles)
+        query.movements.formUnion(filters.movements)
+        query.equipment.formUnion(filters.includeEquipment)
+        query.equipment.subtract(filters.excludeEquipment)
+        query.filters = filters
+        return query
+    }
+
+    /// What the search was read as, for the line above the results.
+    var summary: String? { filters?.summary }
+
+    /// True when the model's reading leaves this lift out.
+    func excludes(equipment: Equipment, names: [[String]]) -> Bool {
+        guard let filters else { return false }
+        return filters.excludeEquipment.contains { $0.covers(equipment) }
+            || filters.excludeSetups.contains { setup in names.contains(where: setup.isUsed) }
+    }
 
     /// The words a lift name should contain. Equipment is a preference, not part of the name,
     /// unless the query names nothing else.
@@ -39,6 +63,7 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         equipment = Set(words.compactMap { Self.equipmentWords[$0] })
         muscles = Set(words.compactMap { Self.muscleWords[$0] })
         movements = Self.movements(in: words)
+        filters = nil
     }
 
     /// The typed words behind a run of `words`.
