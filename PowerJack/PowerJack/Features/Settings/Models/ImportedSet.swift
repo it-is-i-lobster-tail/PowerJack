@@ -5,11 +5,13 @@ import SwiftData
 @Model
 final class ImportedSet {
     // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
     #Index<ImportedSet>([\.trainingDay], [\.exerciseKey])
 
     var sourceKey = ""
     var sourceExercise = ""
     var sourceCategory = ""
+    @Attribute(hashModifier: "indexes-1")
     var trainingDay = ""
     var exerciseKey = ""
     var exerciseName = ""

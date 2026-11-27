@@ -12,6 +12,7 @@ import OSLog
 @Model
 final class WorkoutSet {
     // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
     #Index<WorkoutSet>([\.completedAtValue], [\.syncIDValue])
 
     private var orderValue: Int = 0
@@ -24,6 +25,7 @@ final class WorkoutSet {
     private var statusValue: Status = Status.planned
     private var lockedValue: Bool = false
     // Starts the rest timer. Cleared when the set is reopened.
+    @Attribute(hashModifier: "indexes-1")
     private var completedAtValue: Date? = nil
     // When the set's clock started: the set logged before it anywhere in the workout, or the workout's start.
     private var startedAtValue: Date? = nil

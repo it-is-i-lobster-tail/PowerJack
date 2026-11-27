@@ -12,8 +12,10 @@ import SwiftData
 @Model
 final class WorkoutLog {
     // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
     #Index<WorkoutLog>([\.sessionIDValue], [\.dateValue])
 
+    @Attribute(hashModifier: "indexes-1")
     private var dateValue: Date = Date.now
     private var chestValue: Double = 0
     private var shouldersValue: Double = 0
