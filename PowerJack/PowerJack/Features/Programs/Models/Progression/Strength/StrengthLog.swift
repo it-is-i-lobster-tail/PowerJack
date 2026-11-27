@@ -51,9 +51,9 @@ extension StrengthLog {
         return try context.fetch(descriptor).first
     }
 
-    /// Logs that name the week they came from. Older logs don't, and are never merged.
-    static func withSession(in context: ModelContext) throws -> [StrengthLog] {
-        try context.fetch(FetchDescriptor<StrengthLog>(predicate: #Predicate { $0.sessionIDValue != nil }))
+    /// Logs written since `date` that name the week they came from. Older logs don't, and are never merged.
+    static func withSession(since date: Date = .distantPast, in context: ModelContext) throws -> [StrengthLog] {
+        try context.fetch(FetchDescriptor<StrengthLog>(predicate: #Predicate { $0.sessionIDValue != nil && $0.dateValue >= date }))
     }
 
     @MainActor

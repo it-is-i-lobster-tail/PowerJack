@@ -543,4 +543,11 @@ extension Workout {
     static func fromSnapshot(in context: ModelContext) throws -> [Workout] {
         try context.fetch(FetchDescriptor<Workout>(predicate: #Predicate { $0.fromSnapshotValue }))
     }
+
+    /// Days planned since `date`. Days saved before plans kept a time aren't among them.
+    static func planned(since date: Date, in context: ModelContext) throws -> [Workout] {
+        try context.fetch(FetchDescriptor<Workout>(predicate: #Predicate { workout in
+            if let createdAt = workout.createdAtValue { createdAt >= date } else { false }
+        }))
+    }
 }
