@@ -82,7 +82,7 @@ struct GallerySearchJournalTests {
         journal.record("My old squat question")
         for word in ["Bench", "Rows", "Calves"] { journal.record(word) }
         var applied = ""
-        let screen = try await HostedView(GallerySearchField(journal: journal) { applied = $0 })
+        let screen = try await HostedView(GallerySearchField(journal: journal, fill: .constant(nil)) { applied = $0 })
         defer { screen.close() }
         #expect(screen.labels.contains("Recent searches"))
         #expect(!screen.labels.contains("My old squat question"))

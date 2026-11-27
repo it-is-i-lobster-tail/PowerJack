@@ -49,40 +49,57 @@ private struct StudyGallery: View {
         SearchInput(text: appliedQuery, plan: plan, saved: storedOptions, revision: history.revision)
     }
 
+    /// A search shows its best charts first. The rest wait behind a row.
+    private static let shownCharts = 6
+    @State private var showsAllCharts = false
+    @State private var fill: String?
+
     var body: some View {
         let searching = !appliedQuery.isEmpty
+        let filled = results.cards.filter { $0.result.figure != nil }
+        let empty = searching ? results.cards.filter { $0.result.figure == nil } : []
+        let shown = searching && !showsAllCharts ? Array(filled.prefix(Self.shownCharts)) : searching ? filled : results.cards
         return NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let note = results.note, searching, !results.isEmpty {
-                        Label(note, systemImage: "info.circle")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("data.search.note")
-                    }
+                    if searching { reading }
                     if let answer = results.answer {
                         tile(answer, expanded: true)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                        ForEach(results.cards) { tile($0, expanded: false) }
+                        ForEach(shown) { tile($0, expanded: false) }
+                    }
+                    if shown.count < filled.count {
+                        Button("All \(filled.count) charts for \(scopeName)") { showsAllCharts = true }
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .accessibilityIdentifier("data.search.all")
+                    }
+                    if !empty.isEmpty {
+                        DisclosureGroup("\(empty.count) \(empty.count == 1 ? "chart has" : "charts have") no data for this search") {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                                ForEach(empty) { tile($0, expanded: false) }
+                            }
+                            .padding(.top, 12)
+                        }
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("data.search.empty")
                     }
                 }
                 .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
             .overlay {
-                if !searching || !results.isEmpty {
-                    EmptyView()
-                } else if let note = results.note {
-                    ContentUnavailableView("No matching history", systemImage: "chart.xyaxis.line", description: Text(note))
-                } else {
+                if searching, results.isEmpty, results.note == nil, results.suggestion == nil, results.scope.isEmpty {
                     ContentUnavailableView.search(text: appliedQuery)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                GallerySearchField(journal: journal, onFocus: model.prewarm) { text in
+                GallerySearchField(journal: journal, fill: $fill, onFocus: model.prewarm) { text in
                     guard text != appliedQuery else { return }
                     searchEdits.removeAll()
                     plan = nil
+                    showsAllCharts = false
                     appliedQuery = text
                 }
             }
@@ -129,6 +146,55 @@ private struct StudyGallery: View {
         plan = resolved
     }
 
+    private var scopeName: String {
+        results.scope.isEmpty ? "this search" : results.scope.map(\.label).joined(separator: " · ")
+    }
+
+    /// What the search read, why nothing matched, and what to try instead.
+    @ViewBuilder private var reading: some View {
+        if !results.scope.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(results.scope) { chip in
+                        Menu {
+                            ForEach(chip.alternatives, id: \.self) { choice in
+                                Button(choice.name) { fill = choice.text }
+                            }
+                            if !chip.alternatives.isEmpty { Divider() }
+                            Button("Remove", systemImage: "xmark", role: .destructive) { fill = chip.removed }
+                        } label: {
+                            Text(chip.label).font(.subheadline).lineLimit(1)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityLabel("Search reads \(chip.label)")
+                        .accessibilityHint(chip.isLift ? "Choose another lift or remove it from the search." : "Remove it from the search.")
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("data.search.scope")
+        }
+        if let note = results.note {
+            Label(note, systemImage: "info.circle")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("data.search.note")
+        }
+        if let suggestion = results.suggestion {
+            Button { fill = suggestion.text } label: {
+                Label("Did you mean \(suggestion.name)?", systemImage: "arrow.up.left")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+            .accessibilityHint("Searches for \(suggestion.text).")
+            .accessibilityIdentifier("data.search.suggestion")
+        }
+    }
+
     private func tile(_ card: GalleryCard, expanded: Bool) -> some View {
         let options = searchEdits[card.id] ?? card.options
         let study = searchEdits[card.id] == nil ? card.result : history.result(for: card.id.study, options: options)
@@ -166,6 +232,8 @@ private struct StudyGallery: View {
 
 struct GallerySearchField: View {
     let journal: GallerySearchJournal
+    /// A search to run from outside the field, such as "Did you mean …?". Cleared once run.
+    @Binding var fill: String?
     var onFocus: () -> Void = {}
     let update: (String) -> Void
     @State private var query = ""
@@ -260,6 +328,11 @@ struct GallerySearchField: View {
             } catch { }
         }
         .onDisappear { record() }
+        .onChange(of: fill) {
+            guard let text = fill else { return }
+            fill = nil
+            submit(text)
+        }
     }
 }
 
