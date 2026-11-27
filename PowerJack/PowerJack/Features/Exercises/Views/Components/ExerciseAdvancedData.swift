@@ -36,12 +36,20 @@ struct ExerciseAdvancedDataLink: View {
 struct ExerciseAdvancedDataView: View {
     @Binding var draft: ExerciseDraft
 
+    /// Joint order, set when the screen opens so a card doesn't jump while it's being edited.
+    @State private var order: [String] = []
+
     private let anatomy = JointAnatomy.bundled
 
     private var involvement: [String: JointInvolvement] { JointInvolvement.of(draft.jointActions) }
 
-    /// Joints the lift works come first, each group in body order.
     private var joints: [JointAnatomy.Joint] {
+        let byKey = Dictionary(uniqueKeysWithValues: anatomy.joints.map { ($0.key, $0) })
+        return order.isEmpty ? anatomy.joints : order.compactMap { byKey[$0] }
+    }
+
+    /// Joints the lift works come first, each group in body order.
+    private var workedFirst: [JointAnatomy.Joint] {
         let used = involvement
         let (worked, rest) = anatomy.joints.reduce(into: ([JointAnatomy.Joint](), [JointAnatomy.Joint]())) { groups, joint in
             if joint.movementKeys.contains(where: { used[$0] != nil }) {
@@ -65,6 +73,7 @@ struct ExerciseAdvancedDataView: View {
                 .padding(LayoutMetrics.sectionSpacing)
             }
         }
+        .onAppear { if order.isEmpty { order = workedFirst.map(\.key) } }
         .navigationTitle("Advanced Data")
         .navigationBarTitleDisplayMode(.inline)
         .scrollEdgeEffectStyle(.soft, for: .all)
@@ -102,7 +111,7 @@ struct ExerciseAdvancedDataView: View {
     }
 
     private func row(for movement: String) -> some View {
-        let movers = anatomy.muscles(for: movement)
+        let movers = anatomy.muscles(for: movement).sorted { $0.name < $1.name }
         let prime = movers.filter(\.isPrime).map { Self.muscleName($0.name) }
         let helpers = movers.filter { !$0.isPrime }.map { Self.muscleName($0.name) }
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -116,7 +125,7 @@ struct ExerciseAdvancedDataView: View {
                 if !helpers.isEmpty {
                     Text("Helped by \(helpers.joined(separator: ", "))")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -131,7 +140,7 @@ struct ExerciseAdvancedDataView: View {
         if draft.isBuiltIn {
             Text(current?.name ?? "—")
                 .font(.subheadline.weight(current == nil ? .regular : .semibold))
-                .foregroundStyle(current == nil ? .tertiary : .primary)
+                .foregroundStyle(current == nil ? .secondary : .primary)
         } else {
             Menu {
                 Picker(JointAnatomy.name(ofMovement: movement), selection: Binding(
