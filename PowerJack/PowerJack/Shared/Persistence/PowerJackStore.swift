@@ -214,6 +214,18 @@ final class PowerJackStore {
         }
     }
 
+    /// Gives history saved before the lean shape its lean rows. Only the iPhone writes history.
+    /// A failure never stops the app opening: reads fall back to the old rows, and the next launch tries again.
+    private static func backfillLeanHistory(in context: ModelContext) {
+        guard SyncDevice.current == SyncDevice.iPhone else { return }
+        do {
+            try HistoryArchive.backfillLeanHistory(in: context)
+        } catch {
+            context.rollback()
+            Logger.persistence.error("Could not write the lean history: \(error.localizedDescription)")
+        }
+    }
+
     /// PowerJack can't run without its store, so only a store that won't open stops the app.
     private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
         do {
@@ -229,6 +241,8 @@ final class PowerJackStore {
         if !inMemory { fillOwnExerciseMovements(in: container.mainContext) }
         saveEndedPrograms(in: container.mainContext)
         pruneOldReceipts(in: container.mainContext)
+        backfillLeanHistory(in: container.mainContext)
+        if !inMemory { DeviceSchemaMark.updateAtLaunch(in: container.mainContext) }
         return container
     }
 

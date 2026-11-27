@@ -39,7 +39,7 @@ struct HistoryCacheTests {
         try context.save()
         let queried = StudyHistory(
             programs: try context.fetch(FetchDescriptor<Program>()),
-            archive: try context.fetch(FetchDescriptor<HistoryRecord>()),
+            archive: try context.fetch(FetchDescriptor<HistoryRecord>()).map(\.archived),
             logs: try context.fetch(FetchDescriptor<WorkoutLog>()),
             imported: try context.fetch(FetchDescriptor<ImportedSet>()),
             exercises: try context.fetch(FetchDescriptor<Exercise>()), unit: .pounds, today: today)

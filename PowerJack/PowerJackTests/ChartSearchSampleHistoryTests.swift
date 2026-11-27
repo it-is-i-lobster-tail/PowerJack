@@ -16,7 +16,7 @@ struct ChartSearchSampleHistoryTests {
         let now = ChartSearchFixture.today
         try! SimulatorTrainingHistory.populate(in: context, now: now)
         return StudyHistory(programs: try! context.fetch(FetchDescriptor<Program>()),
-                            archive: try! context.fetch(FetchDescriptor<HistoryRecord>()),
+                            archive: try! context.fetch(FetchDescriptor<HistoryRecord>()).map(\.archived),
                             logs: try! context.fetch(FetchDescriptor<WorkoutLog>()),
                             unit: .pounds, today: now)
     }()

@@ -28,8 +28,8 @@ enum HistoryExport {
     }
 
     /// The whole history as CSV text, oldest program first: the saved rows of programs that
-    /// ended (see `HistoryRecord`), then each of `programs` not among them, read as it is now.
-    static func csv(for programs: [Program], saved: [HistoryRecord] = [], unit: WeightUnit = .current) -> String {
+    /// ended (see `HistoryArchive`), then each of `programs` not among them, read as it is now.
+    static func csv(for programs: [Program], saved: [ArchivedRow] = [], unit: WeightUnit = .current) -> String {
         let savedIDs = Set(saved.compactMap(\.programID))
         let savedPrograms = Dictionary(grouping: saved) { $0.programID ?? $0.batchID }.values.map { records in
             (started: records.first?.programStarted ?? .distantFuture, rows: records.sorted { $0.order < $1.order }.map(\.row))

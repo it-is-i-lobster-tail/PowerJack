@@ -109,6 +109,23 @@ enum UpgradeCheck {
             problems.append("Saving ended programs' history twice added rows")
         }
 
+        // As the app does at launch: every old batch gets lean rows that read the same as its old ones.
+        try HistoryArchive.backfillLeanHistory(in: context)
+        let legacyBatches = Set(try context.fetch(FetchDescriptor<HistoryRecord>()).compactMap(\.batchID))
+        let leanBatches = Set(try context.fetch(FetchDescriptor<HistoryProgram>()).compactMap(\.batchID))
+        if !legacyBatches.isSubset(of: leanBatches) {
+            problems.append("\(legacyBatches.subtracting(leanBatches).count) history batches got no lean rows")
+        }
+        let fromOld = HistoryArchive.archivedRows(programs: [], exercises: [], legacy: try context.fetch(FetchDescriptor<HistoryRecord>()))
+        let fromLean = HistoryArchive.archivedRows(
+            programs: try context.fetch(FetchDescriptor<HistoryProgram>()),
+            exercises: try context.fetch(FetchDescriptor<HistoryExercise>()), legacy: []
+        )
+        let key: (ArchivedRow) -> String = { "\($0.batchID?.uuidString ?? "")/\($0.order)" }
+        if fromOld.sorted(by: { key($0) < key($1) }) != fromLean.sorted(by: { key($0) < key($1) }) {
+            problems.append("The lean history doesn't read the same as the old rows")
+        }
+
         let saved = try HistoryArchive.records(in: context)
         let savedIDs = Set(saved.compactMap(\.programID))
         let programs = try context.fetch(FetchDescriptor<Program>())

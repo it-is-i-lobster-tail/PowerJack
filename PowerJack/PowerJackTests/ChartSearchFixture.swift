@@ -100,7 +100,7 @@ enum ChartSearchFixture {
                 }
             }
         }
-        return StudyHistory(programs: [], archive: records, logs: [], imported: imported, unit: unit, today: today,
+        return StudyHistory(programs: [], archive: records.map(\.archived), logs: [], imported: imported, unit: unit, today: today,
                             calendar: calendar)
     }
 

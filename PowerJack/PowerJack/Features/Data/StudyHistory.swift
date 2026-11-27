@@ -78,7 +78,7 @@ struct StudyHistory {
     static let curl = "catalog:cable-curl"
 
     init(
-        programs: [Program], archive: [HistoryRecord], logs: [WorkoutLog], imported: [ImportedSet] = [],
+        programs: [Program], archive: [ArchivedRow], logs: [WorkoutLog], imported: [ImportedSet] = [],
         exercises: [Exercise] = [], unit: WeightUnit, today: Date = .now, calendar: Calendar = .current
     ) {
         self.unit = unit
@@ -143,8 +143,8 @@ struct StudyHistory {
                 !(record.programID.map(liveIDs.contains) ?? false)
             })
         let archivedSlots = Dictionary(grouping: saved) { record in
-            let pid = (record.programID ?? record.batchID)?.uuidString ?? record.programNameValue
-            return "\(pid)/\(record.weekValue)/\(record.dayValue)/\(record.exerciseNumberValue)"
+            let pid = (record.programID ?? record.batchID)?.uuidString ?? record.row.programName
+            return "\(pid)/\(record.row.week)/\(record.row.day)/\(record.row.exerciseNumber)"
         }
         for entry in archivedSlots.values {
             let rows = entry.sorted { $0.order < $1.order }.map(\.row)
@@ -403,7 +403,9 @@ extension StudyHistory {
         func all<Model: PersistentModel>(_: Model.Type) -> [Model] {
             (try? context.fetch(FetchDescriptor<Model>())) ?? []
         }
-        self.init(programs: all(Program.self), archive: all(HistoryRecord.self), logs: all(WorkoutLog.self),
+        let archive = HistoryArchive.archivedRows(
+            programs: all(HistoryProgram.self), exercises: all(HistoryExercise.self), legacy: all(HistoryRecord.self))
+        self.init(programs: all(Program.self), archive: archive, logs: all(WorkoutLog.self),
                   imported: all(ImportedSet.self), exercises: all(Exercise.self), unit: unit, today: today,
                   calendar: calendar)
     }
