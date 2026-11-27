@@ -20,23 +20,8 @@ struct ProgramListView: View {
         programs.active
     }
 
-    private var displayedPrograms: [Program] {
-        var result = programs
-
-        guard let activeProgram else {
-            return result
-        }
-
-        guard let activeIndex = result.firstIndex(where: {
-            $0 === activeProgram
-        }) else {
-            return result
-        }
-
-        let active = result.remove(at: activeIndex)
-        result.insert(active, at: result.startIndex)
-
-        return result
+    private var sections: ProgramListSections<Program> {
+        ProgramListSections(programs, status: \.status, startedAt: \.startedAt)
     }
 
     var body: some View {
@@ -48,41 +33,31 @@ struct ProgramListView: View {
             hint: ProgramsHint(),
             onAdd: addProgram
         ) {
-            List(displayedPrograms) { program in
-                Button {
-                    select(program)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(program.templateName)
-                            Text(statusText(for: program))
-                                .font(.caption)
-                                .foregroundStyle(program === activeProgram ? .green : .blue)
-                        }
-
-                        Spacer()
-
-                        // Gray, so it reads as a label rather than part of the tappable title.
-                        Text(program.templateType.name)
-                            .font(.caption)
-                            .foregroundStyle(Color.secondary)
-                    }
+            let sections = sections
+            List {
+                ForEach(sections.current) { program in
+                    row(for: program)
                 }
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    // No destructive role: it removes the row before the user confirms.
-                    Button {
-                        programPendingDelete = program
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+
+                ForEach(Array(sections.past.enumerated()), id: \.offset) { index, year in
+                    Section {
+                        ForEach(year.items) { program in
+                            row(for: program)
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if index == 0 {
+                                Text("Past")
+                                    .font(.title2.bold())
+                                    .foregroundStyle(.primary)
+                                    .padding(.top, sections.current.isEmpty ? 0 : 20)
+                            }
+                            Text(year.year.map { String($0) } ?? "No workouts")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .textCase(nil)
                     }
-                    .tint(program.status == .active ? .gray : .red)
-                    .disabled(program.status == .active)
                 }
             }
             .listRowSpacing(10)
@@ -110,6 +85,49 @@ struct ProgramListView: View {
             Text("Its workouts will be deleted, but your saved training history stays in Data. This can't be undone.")
         }
         .saveErrorAlert($saveErrorMessage)
+    }
+
+    private func row(for program: Program) -> some View {
+        Button {
+            select(program)
+        } label: {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(program.templateName)
+                    Text(statusText(for: program))
+                        .font(.caption)
+                        .foregroundStyle(program === activeProgram ? .green : .blue)
+                    if program.status.isFinished, let start = program.startedAt {
+                        Text(ProgramDateRange.text(from: start, to: program.endedAt))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Gray, so it reads as a label rather than part of the tappable title.
+                Text(program.templateType.name)
+                    .font(.caption)
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // No destructive role: it removes the row before the user confirms.
+            Button {
+                programPendingDelete = program
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(program.status == .active ? .gray : .red)
+            .disabled(program.status == .active)
+        }
     }
 
     private func delete(_ program: Program) {
