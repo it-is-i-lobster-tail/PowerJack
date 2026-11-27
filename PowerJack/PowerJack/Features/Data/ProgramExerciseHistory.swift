@@ -42,8 +42,7 @@ struct ProgramExerciseHistory: Identifiable {
     }
 
     static func exercises(in programs: [Program], range: VolumeRange?, dateFilter: WorkoutDateFilter? = nil,
-                          primaryMuscles: Set<Muscle> = [], search: ExerciseChartSearch? = nil,
-                          now: Date = .now, calendar: Calendar = .current) -> [Self] {
+                          primaryMuscles: Set<Muscle> = [], now: Date = .now, calendar: Calendar = .current) -> [Self] {
         let isCurrentProgram = dateFilter == nil && range == .currentProgram
         let selected = isCurrentProgram ? programs.active.map { [$0] } ?? [] : programs
         let start = dateFilter == nil ? range?.start(before: now, calendar: calendar) : nil
@@ -68,7 +67,6 @@ struct ProgramExerciseHistory: Identifiable {
         for entry in workouts {
             for slot in entry.workout.workoutExercises {
                 guard let exercise = slot.shownExercise else { continue }
-                if let search, search.ranks[exercise.persistentModelID] == nil { continue }
                 guard primaryMuscles.isEmpty || primaryMuscles.contains(exercise.primaryMuscleFocus) else { continue }
                 let completed = slot.workingSets.filter { $0.status == .complete }
                 if completed.isEmpty && !isCurrentProgram { continue }
@@ -82,12 +80,7 @@ struct ProgramExerciseHistory: Identifiable {
                             week: entry.week, programName: entry.programName, date: entry.date)
             }
         }
-        return histories.values.sorted { lhs, rhs in
-            if let search, let left = search.ranks[lhs.id], let right = search.ranks[rhs.id], left != right {
-                return left < right
-            }
-            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-        }
+        return histories.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private mutating func append(_ completed: [WorkoutSet], rating: RepsInReserve?, ratedSet: Int, from workout: Workout,

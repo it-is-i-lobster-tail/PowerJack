@@ -18,57 +18,61 @@ enum ExercisePickerMode {
         if case .substitute = self { return true }
         return false
     }
+
+    /// A substitute is usually needed because the equipment is taken, so other equipment ranks first.
+    var searchContext: ExerciseSearch.Context {
+        guard let source else { return .browse }
+        return .replacing(source: source.searchKey, sameEquipment: !isSubstitution)
+    }
 }
 
 struct ExercisePickerResults {
-    let suggested: [Exercise]
-    let named: [Exercise]
-    var isEmpty: Bool { suggested.isEmpty && named.isEmpty }
+    /// Best first. With no query: the lifts the lifter trains, then everything else by name,
+    /// or when replacing, the source's closest neighbours.
+    let matches: [Exercise]
+    /// With no query when replacing: everything else by name.
+    let others: [Exercise]
+    var isEmpty: Bool { matches.isEmpty && others.isEmpty }
 
-    init(exercises: [Exercise], index: ExerciseChartSearch.Index?, query: String,
-         muscles: Set<Muscle>, mode: ExercisePickerMode) {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    init(exercises: [Exercise], index: ExerciseSearch.Index?, familiarity: ExerciseFamiliarity = .none,
+         query: String, muscles: Set<Muscle>, mode: ExercisePickerMode) {
         let source = mode.source
         let eligible = exercises.filter { exercise in
             exercise !== source && (muscles.isEmpty || muscles.contains(exercise.primaryMuscleFocus)
                 || !muscles.isDisjoint(with: exercise.secondaryMuscles))
         }
-        func muscleTier(_ exercise: Exercise) -> Int {
-            muscles.isEmpty || muscles.contains(exercise.primaryMuscleFocus) ? 0 : 1
+        // The muscle filter lists lifts that work a chosen muscle most before those that assist.
+        func assists(_ exercise: Exercise) -> Bool {
+            !muscles.isEmpty && !muscles.contains(exercise.primaryMuscleFocus)
         }
-        let alphabetical = eligible.sorted { left, right in
-            let lhs = muscleTier(left), rhs = muscleTier(right)
-            if lhs != rhs { return lhs < rhs }
+        let byName = eligible.sorted { left, right in
+            if assists(left) != assists(right) { return !assists(left) }
             return left.exerciseName.localizedStandardCompare(right.exerciseName) == .orderedAscending
         }
 
-        let search = index?.results(for: text)
-        let ranks = search?.ranks ?? [:]
-        let ranksPerTier = search?.ranksPerTier ?? 1
-        let related = source.flatMap { index?.relatedness(to: $0.persistentModelID) } ?? [:]
-        func contextScore(_ exercise: Exercise) -> Float {
-            let similarity = related[exercise.persistentModelID] ?? 0
-            // Even when a query points away from the original movement (e.g. squat
-            // instead of bench), favor available equipment among equally good hits.
-            let equipmentPenalty: Float = mode.isSubstitution && exercise.equipment == source?.equipment ? 2 : 0
-            return similarity - equipmentPenalty
+        let searchQuery = ExerciseQuery(query)
+        guard let index else {
+            matches = searchQuery.isEmpty ? byName : []
+            others = []
+            return
         }
-        // Stable sorting keeps alphabetical order for equally good matches.
-        let candidates = alphabetical.filter { exercise in
-            let id = exercise.persistentModelID
-            return text.isEmpty ? related[id] != nil : ranks[id] != nil
+        let byKey = Dictionary(eligible.map { ($0.searchKey, $0) }, uniquingKeysWith: { first, _ in first })
+        let ranked = index.rank(searchQuery, context: mode.searchContext, familiarity: familiarity)
+            .compactMap { byKey[$0.key] }
+        let filtered = ranked.filter { !assists($0) } + ranked.filter(assists)
+        guard searchQuery.isEmpty else {
+            matches = filtered
+            others = []
+            return
         }
-        func suggestionRank(_ exercise: Exercise) -> (Int, Int, Float) {
-            let rank = ranks[exercise.persistentModelID] ?? 0
-            let distance = Float(rank % ranksPerTier) / Float(ranksPerTier)
-            // Each point of source similarity can offset 0.02 of semantic distance
-            // inside a query tier. Exact names and primary-muscle tiers take precedence.
-            return (muscleTier(exercise), rank / ranksPerTier, distance - 0.02 * contextScore(exercise))
-        }
-        suggested = Array(candidates.sorted { suggestionRank($0) < suggestionRank($1) }.prefix(3))
-        let promoted = Set(suggested.map(\.persistentModelID))
-        named = alphabetical.filter {
-            !promoted.contains($0.persistentModelID) && (text.isEmpty || $0.exerciseName.localizedStandardContains(text))
+        let shown = Set(filtered.map(\.persistentModelID))
+        let rest = byName.filter { !shown.contains($0.persistentModelID) }
+        if source == nil {
+            matches = filtered + rest
+            others = []
+        } else {
+            matches = filtered
+            others = rest
         }
     }
 }

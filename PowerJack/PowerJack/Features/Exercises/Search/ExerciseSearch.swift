@@ -1,0 +1,407 @@
+import Foundation
+import SwiftData
+
+/// Ranks exercises for a query. Every lift gets one score: the sum of its evidence,
+/// each 0 to 1, weighted for where the search runs.
+/// - Name: the share of query words found in the lift's name. An exact name sorts first.
+/// - Meaning: on-device word embeddings, or the muscles the query names.
+/// - Structure: how well the lift stands in for the one being replaced.
+/// - History: how much the lifter trains it (`ExerciseFamiliarity`).
+nonisolated enum ExerciseSearch {
+    /// A value snapshot taken on the store's actor. Indexing never retains SwiftData objects.
+    struct Document: Hashable, Sendable {
+        let key: String
+        let names: [String]
+        let primary: Muscle
+        let secondary: [Muscle]
+        let equipment: Equipment
+        let pattern: String?
+        let style: String
+        let actions: [String]
+
+        @MainActor private static let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0) })
+
+        @MainActor init(_ exercise: Exercise) {
+            let entry = exercise.catalogID.flatMap { Self.catalog[$0] }
+            key = exercise.searchKey
+            names = [exercise.exerciseName, entry?.name].compactMap { $0 }
+            primary = exercise.primaryMuscleFocus
+            secondary = exercise.secondaryMuscles
+            equipment = exercise.equipment
+            pattern = exercise.movementPattern?.rawValue ?? entry?.profile.pattern.rawValue
+            style = exercise.executionStyle?.rawValue ?? entry?.profile.style.rawValue ?? ""
+            actions = (exercise.jointActions ?? []).compactMap { action in
+                guard let key = action.movement?.key else { return nil }
+                return action.role.rawValue + " " + key
+            }.sorted()
+        }
+    }
+
+    enum Context: Hashable, Sendable {
+        case browse
+        /// Change and Substitute. Without `sameEquipment`, other equipment ranks first.
+        case replacing(source: String, sameEquipment: Bool)
+        case importing(category: Muscle?)
+        case charting(logged: Set<String>)
+
+        var weights: (name: Double, meaning: Double, structure: Double, history: Double) {
+            switch self {
+            case .browse: (1.0, 0.6, 0.3, 0.15)
+            case .replacing: (0.6, 0.3, 1.0, 0.15)
+            case .importing: (1.0, 0.5, 0.2, 0.1)
+            case .charting: (1.0, 0.4, 0.2, 0.3)
+            }
+        }
+    }
+
+    struct Match: Hashable, Sendable {
+        let key: String
+        let score: Double
+        let name: Double
+        let meaning: Double
+        let structure: Double
+        let history: Double
+    }
+
+    struct Index: Sendable {
+        private struct Entry: Sendable {
+            let document: Document
+            let sortName: String
+            let names: [[String]]
+            let fields: [[String]]
+            let vector: [Float]
+            let mechanics: [Float]
+        }
+
+        private typealias Scored = (match: Match, entry: Entry, exact: Bool)
+
+        private let entries: [Entry]
+        private let encoder: ExerciseTextEncoder?
+        private let topics: [AnatomyTopic]
+
+        init(_ documents: [Document], encoder: ExerciseTextEncoder? = .bundled) {
+            self.encoder = encoder
+            topics = AnatomyTopic.index(using: encoder)
+            entries = documents.map { document in
+                let names = document.names.map(ExerciseQuery.words)
+                let pattern = ExerciseQuery.words(document.pattern ?? "")
+                let style = ExerciseQuery.words(document.style)
+                let equipment = ExerciseQuery.words(document.equipment.displayName)
+                let actions = document.actions.map(ExerciseQuery.words)
+                let girdleActions = document.actions.filter { $0.contains("scapula.") }
+                    .map { ExerciseQuery.words($0.replacingOccurrences(of: "scapula.", with: "shoulder girdle ")) }
+                // Repeating "press" across the name, equipment and pattern would give
+                // that word extra weight solely because of how the catalog is stored.
+                var seen = Set<String>()
+                let description = (names.flatMap { $0 } + ExerciseQuery.words(document.primary.rawValue) + pattern + equipment)
+                    .filter { seen.insert($0).inserted }.joined(separator: " ")
+                let mechanics = (pattern + style + actions.flatMap { $0 }).joined(separator: " ")
+                return Entry(document: document, sortName: document.names.first ?? "", names: names,
+                             fields: [pattern, style, equipment] + actions + girdleActions,
+                             vector: encoder?.vector(for: description) ?? [], mechanics: encoder?.vector(for: mechanics) ?? [])
+            }
+        }
+
+        /// Best first. An empty query lists the lifts the lifter trains or, when replacing,
+        /// the source's closest neighbours.
+        func rank(_ query: ExerciseQuery, context: Context = .browse, familiarity: ExerciseFamiliarity = .none) -> [Match] {
+            let weights = context.weights
+            var candidates = entries
+            var related: [String: Double] = [:]
+            var avoided: Equipment?
+            switch context {
+            case .replacing(let source, let sameEquipment):
+                candidates.removeAll { $0.document.key == source }
+                let scores = relatedness(to: source)
+                let best = Double(scores.values.max() ?? 0)
+                if best > 0 { related = scores.mapValues { Double($0) / best } }
+                // Naming equipment in the query overrides the preference for something else.
+                if !sameEquipment && query.equipment.isEmpty {
+                    avoided = entries.first { $0.document.key == source }?.document.equipment
+                }
+            case .charting(let logged):
+                candidates.removeAll { !logged.contains($0.document.key) }
+            case .browse, .importing:
+                break
+            }
+
+            // Equipment the query names is a preference: other equipment still shows, after it.
+            // Closeness to the replaced lift only reorders lifts that fully match what was typed.
+            func match(_ entry: Entry, name: Double = 0, meaning: Double = 0, neighbour: Bool = true) -> Match {
+                let doc = entry.document
+                let preference = query.equipment.isEmpty || query.equipment.contains(doc.equipment) ? 1 : ExerciseSearch.otherEquipment
+                let avoid = doc.equipment == avoided ? ExerciseSearch.avoidedEquipment : 1
+                let closeness = neighbour ? related[doc.key] ?? 0 : 0
+                let (name, meaning, structure) = (preference * name, preference * meaning, preference * avoid * closeness)
+                let history = familiarity.score(doc.key)
+                let score = weights.name * name + weights.meaning * meaning + weights.structure * structure + weights.history * history
+                return Match(key: doc.key, score: score, name: name, meaning: meaning, structure: structure, history: history)
+            }
+
+            guard !query.isEmpty else {
+                let shown = candidates.filter { entry in
+                    if case .replacing = context { return related[entry.document.key] != nil }
+                    return familiarity.score(entry.document.key) > 0
+                }
+                return Self.sorted(shown.map { (match($0), $0, false) })
+            }
+
+            let evidence = candidates.map { ($0, nameEvidence($0, query)) }
+            let named = evidence.filter { $0.1.share == 1 }
+            // When every full name match is one movement, its other lifts are relevant too.
+            let patterns = Set(named.compactMap { $0.0.document.pattern })
+            let family = patterns.count == 1 ? patterns.first : nil
+
+            // Opposite joint-action roles read alike to the model but describe different work.
+            let roles = [JointActionRole.produces, .resists].flatMap { ExerciseQuery.words($0.rawValue) }
+            let phrase = encoder.flatMap { encoder in
+                query.words.contains(where: roles.contains) ? nil : SearchPhrase(terms: query.nameWords, encoder: encoder)
+            }
+            var similarity: [String: Double] = [:]
+            if let phrase {
+                for entry in candidates {
+                    let identity = phrase.similarity(to: entry.vector)
+                    let mechanics = 0.9 * phrase.similarity(to: entry.mechanics)
+                    similarity[entry.document.key] = Double(max(identity, mechanics))
+                }
+            }
+
+            // A query that names a body part, or names no lift but reads like a body part,
+            // ranks by muscles rather than by the words in names.
+            let labelled = topics.first { $0.labels.contains(query.nameWords.joined(separator: " ")) }?.focus
+            var focus = labelled ?? (query.muscles.isEmpty ? nil : AnatomyTopic.Focus(muscles: query.muscles, emphasis: query.muscles))
+            if focus == nil, case .importing(let category?) = context {
+                focus = AnatomyTopic.Focus(muscles: [category], emphasis: [category])
+            }
+            if focus == nil, named.isEmpty, let phrase {
+                focus = AnatomyTopic.focus(for: phrase, topics: topics, bestLift: Float(similarity.values.max() ?? 0))
+            }
+            let byMuscle = focus != nil && (labelled != nil || named.isEmpty)
+
+            let scored: [Scored] = evidence.map { entry, words in
+                let doc = entry.document
+                let meaningful = min(1, (similarity[doc.key] ?? 0) / ExerciseSearch.similarityCap)
+                let muscle = focus.map { ExerciseSearch.muscleEvidence(doc, $0) } ?? 0
+                var name = byMuscle ? 0 : words.share
+                if !byMuscle, let family, doc.pattern == family { name = max(name, ExerciseSearch.familyEvidence) }
+                let meaning = byMuscle ? (muscle > 0 ? muscle : ExerciseSearch.outsideFocus * meaningful) : max(muscle, meaningful)
+                let full = byMuscle ? muscle > 0 : words.share == 1
+                return (match(entry, name: name, meaning: meaning, neighbour: full), entry, words.exact)
+            }
+
+            // The cutoff reads only what the query says, never structure or history.
+            func relevance(_ match: Match) -> Double { weights.name * match.name + weights.meaning * match.meaning }
+            let best = scored.map { relevance($0.match) }.max() ?? 0
+            let cutoff = max(ExerciseSearch.minimumRelevance, best - ExerciseSearch.relevanceMargin)
+            return Self.sorted(scored.filter { $0.exact || relevance($0.match) >= cutoff })
+        }
+
+        /// How well each lift can stand in for the source. A shared muscle or movement
+        /// anchors the comparison even when a custom exercise has no mechanics profile.
+        func relatedness(to key: String) -> [String: Float] {
+            guard let source = entries.first(where: { $0.document.key == key }) else { return [:] }
+            let original = source.document
+            var scores: [String: Float] = [:]
+            for entry in entries where entry.document.key != key {
+                let candidate = entry.document
+                let sameMuscle = original.primary == candidate.primary
+                let samePattern = original.pattern != nil && original.pattern == candidate.pattern
+                let assists = candidate.secondary.contains(original.primary) || original.secondary.contains(candidate.primary)
+                guard sameMuscle || samePattern || assists else { continue }
+
+                var score: Float = sameMuscle ? 4 : 0
+                if samePattern { score += 3 }
+                score += ExerciseTextEncoder.similarity(source.mechanics, entry.mechanics)
+                score += ExerciseTextEncoder.similarity(source.vector, entry.vector)
+                scores[candidate.key] = score
+            }
+            return scores
+        }
+
+        /// Exact names first, then score, then how much the lifter trains it, then name.
+        private static func sorted(_ scored: [Scored]) -> [Match] {
+            scored.sorted { left, right in
+                if left.exact != right.exact { return left.exact }
+                if left.match.score != right.match.score { return left.match.score > right.match.score }
+                if left.match.history != right.match.history { return left.match.history > right.match.history }
+                return left.entry.sortName.localizedStandardCompare(right.entry.sortName) == .orderedAscending
+            }
+            .map(\.match)
+        }
+
+        /// The best share of query words in one of the lift's names. A description field,
+        /// such as its movement or style, that holds every word counts nearly as much.
+        private func nameEvidence(_ entry: Entry, _ query: ExerciseQuery) -> (share: Double, exact: Bool) {
+            let words = query.nameWords
+            let whole = query.words.joined()
+            if entry.names.contains(where: { $0.joined() == whole }) { return (1, true) }
+            let share = entry.names.map { ExerciseSearch.share(of: words, in: $0) }.max() ?? 0
+            let field = entry.fields.contains { ExerciseSearch.share(of: words, in: $0) == 1 } ? ExerciseSearch.fieldEvidence : 0
+            return (max(share, field), false)
+        }
+    }
+
+    // MARK: - Tuning
+
+    /// Show every match at least this relevant to the query...
+    static let minimumRelevance = 0.35
+    /// ...and within this much of the best one, so focused queries stay short.
+    static let relevanceMargin = 0.4
+    /// Cosine similarity at or above this counts as full meaning evidence.
+    static let similarityCap = 0.8
+    /// A field such as "isometric" or "produces knee extension" holds every query word.
+    static let fieldEvidence = 0.8
+    /// Lifts of the one movement every full name match shares, such as Push Up for "bench press".
+    static let familyEvidence = 0.8
+    /// Evidence kept when the lift uses other equipment than the query names.
+    static let otherEquipment = 0.85
+    /// Closeness kept by a substitute on the same equipment as the lift it replaces.
+    static let avoidedEquipment = 0.85
+    /// Meaning kept by a lift outside the muscles a body-part query names.
+    static let outsideFocus = 0.5
+
+    private static func muscleEvidence(_ document: Document, _ focus: AnatomyTopic.Focus) -> Double {
+        if focus.emphasis.contains(document.primary) { return 1 }
+        if focus.muscles.contains(document.primary) { return 0.85 }
+        if !focus.muscles.isDisjoint(with: document.secondary) { return 0.65 }
+        return 0
+    }
+
+    /// The share of query words found in a name. A word matches when it is equal, a prefix of
+    /// at least 3 letters (2 for the last word, still being typed), one typo away for words of
+    /// 5 or more letters, or the joined form of neighbouring words ("pullup", "pull down").
+    static func share(of query: [String], in name: [String]) -> Double {
+        guard !query.isEmpty, !name.isEmpty else { return 0 }
+        let joined = name.indices.dropLast().map { name[$0] + name[$0 + 1] }
+        var matched = Array(repeating: false, count: query.count)
+        for (index, word) in query.enumerated() {
+            let shortest = index == query.count - 1 ? 2 : 3
+            if name.contains(where: { $0 == word || (word.count >= shortest && $0.hasPrefix(word)) || oneTypo(word, $0) })
+                || joined.contains(where: { $0 == word || (word.count > 4 && $0.hasPrefix(word)) }) {
+                matched[index] = true
+            }
+            if index > 0, name.contains(query[index - 1] + word) {
+                matched[index - 1] = true
+                matched[index] = true
+            }
+        }
+        return Double(matched.filter { $0 }.count) / Double(query.count)
+    }
+
+    /// One letter added, dropped or changed, for words of 5 or more letters.
+    private static func oneTypo(_ word: String, _ target: String) -> Bool {
+        guard word.count >= 5, abs(word.count - target.count) <= 1, word != target else { return false }
+        let a = Array(word), b = Array(target)
+        var i = 0, j = 0, edits = 0
+        while i < a.count && j < b.count {
+            if a[i] == b[j] {
+                i += 1
+                j += 1
+                continue
+            }
+            edits += 1
+            if edits > 1 { return false }
+            if a.count > b.count {
+                i += 1
+            } else if a.count < b.count {
+                j += 1
+            } else {
+                i += 1
+                j += 1
+            }
+        }
+        return edits + (a.count - i) + (b.count - j) <= 1
+    }
+}
+
+extension Exercise {
+    /// Names the exercise in search and familiarity. An own exercise without a sync ID yet
+    /// falls back to its store identifier, which is stable while the index is in memory.
+    var searchKey: String { syncKey ?? "\(persistentModelID)" }
+}
+
+/// A short phrase inside a longer question can carry more meaning than the
+/// question as a whole. The full query wins ties with its component phrases.
+private nonisolated struct SearchPhrase {
+    let full: [Float]
+    let parts: [[Float]]
+
+    init(terms: [String], encoder: ExerciseTextEncoder) {
+        full = encoder.vector(for: terms.joined(separator: " "))
+        if (5...16).contains(terms.count) {
+            parts = terms.indices.dropFirst().map { encoder.vector(for: terms[($0 - 1)...$0].joined(separator: " ")) }
+        } else {
+            parts = []
+        }
+    }
+
+    func similarity(to vector: [Float]) -> Float {
+        parts.reduce(ExerciseTextEncoder.similarity(full, vector)) { best, part in
+            max(best, 0.97 * ExerciseTextEncoder.similarity(part, vector))
+        }
+    }
+}
+
+/// Catalog anatomy, indexed alongside exercises. Queries are embedded against
+/// these descriptions so the same region can be found using unfamiliar wording.
+private nonisolated struct AnatomyTopic: Sendable {
+    struct Focus: Sendable {
+        let muscles: Set<Muscle>
+        let emphasis: Set<Muscle>
+    }
+
+    let labels: Set<String>
+    let focus: Focus
+    let vectors: [[Float]]
+
+    /// Lifters say "leg day" for the lower body.
+    private static let aliases = ["lowerBody": ["leg"]]
+
+    static func index(using encoder: ExerciseTextEncoder?) -> [Self] {
+        guard let url = Bundle.main.url(forResource: "MuscleAnatomy", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let catalog = try? JSONDecoder().decode(Anatomy.self, from: data) else { return [] }
+        func label(_ text: String) -> String { ExerciseQuery.words(text).joined(separator: " ") }
+        let regions = catalog.regions.map { region in
+            let members = Set(catalog.muscles.filter { $0.regions.contains(region.id) }.map(\.muscle))
+            let focus = Focus(muscles: members, emphasis: region.emphasis ?? members)
+            return Self(labels: Set([label(region.name), label(region.id)] + (aliases[region.id] ?? [])), focus: focus,
+                        vectors: encoder.map { [region.name, region.description].map($0.vector) } ?? [])
+        }
+        return regions + catalog.muscles.map { entry -> Self in
+            let words = ExerciseQuery.muscleWords.filter { $0.value == entry.muscle }.map(\.key)
+            return Self(labels: Set(words + [label(entry.muscle.rawValue)]), focus: Focus(muscles: [entry.muscle], emphasis: [entry.muscle]),
+                 vectors: encoder.map { [entry.muscle.rawValue, entry.description].map($0.vector) } ?? [])
+        }
+    }
+
+    private struct Anatomy: Decodable {
+        struct Region: Decodable {
+            let id, name, description: String
+            let emphasis: Set<Muscle>?
+        }
+        struct Group: Decodable {
+            let muscle: Muscle
+            let regions: [String]
+            let description: String
+        }
+
+        let regions: [Region]
+        let muscles: [Group]
+    }
+
+    static func focus(for query: SearchPhrase, topics: [Self], bestLift: Float) -> Focus? {
+        let scores = topics.map { topic in
+            (topic, topic.vectors.map(query.similarity).max() ?? 0)
+        }
+        let best = scores.map(\.1).max() ?? 0
+        if let (region, score) = scores.filter({ $0.0.focus.muscles.count > 1 }).max(by: { $0.1 < $1.1 }),
+           score >= 0.49, score >= best - 0.12, score >= bestLift - 0.16 {
+            return region.focus
+        }
+        guard best >= 0.49, best >= bestLift - 0.08 else { return nil }
+        let matches = scores.filter { $0.0.focus.muscles.count == 1 && $0.1 >= best - 0.07 }
+        let muscles = Set(matches.flatMap { $0.0.focus.muscles })
+        return muscles.isEmpty ? nil : Focus(muscles: muscles, emphasis: muscles)
+    }
+}
