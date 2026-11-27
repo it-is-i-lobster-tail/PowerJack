@@ -83,9 +83,18 @@ struct HistoryCacheTests {
     @Test("The search journal's own saves don't count as training changes")
     func journalSavesAreIgnored() throws {
         let store = PowerJackStore(inMemory: true)
+        let context = store.container.mainContext
+        let row = importedRow("2025-06-02", in: context)
+        try context.save()
         let journal = GallerySearchJournal(inMemory: true)
-        #expect(HistoryChanges.counts(store.container.mainContext))
-        #expect(!HistoryChanges.counts(try #require(journal.context)))
+        let phrase = GallerySearchPhrase(key: "bench", text: "bench")
+        journal.context?.insert(phrase)
+        try journal.context?.save()
+
+        #expect(HistoryChanges.counts([row.persistentModelID]))
+        #expect(HistoryChanges.counts([phrase.persistentModelID, row.persistentModelID]))
+        #expect(!HistoryChanges.counts([phrase.persistentModelID]))
+        #expect(!HistoryChanges.counts([]))
     }
 
     @Test("Only the training store's iCloud imports count, not other stores like the tips store")

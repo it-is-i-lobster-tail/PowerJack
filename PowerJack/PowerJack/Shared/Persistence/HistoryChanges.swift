@@ -19,8 +19,7 @@ final class HistoryChanges {
     private init() {
         Task { [weak self] in
             for await notification in NotificationCenter.default.notifications(named: ModelContext.didSave) {
-                // The Data tab's search history lives in its own store and isn't training data.
-                guard Self.counts(notification.object as? ModelContext) else { continue }
+                guard Self.counts(Self.changed(in: notification)) else { continue }
                 self?.changed()
             }
         }
@@ -32,9 +31,19 @@ final class HistoryChanges {
         }
     }
 
-    /// Whether a save from this context changes training data.
-    static func counts(_ context: ModelContext?) -> Bool {
-        context?.container.schema.entities.contains { $0.name == "\(Workout.self)" } ?? true
+    /// The Data tab's search history lives in its own store and isn't training data.
+    private static let searchHistory: Set<String> = ["\(GallerySearchPhrase.self)", "\(GallerySearchVisit.self)"]
+
+    /// Whether a save that changed these rows changes training data.
+    static func counts(_ changed: [PersistentIdentifier]) -> Bool {
+        changed.contains { !searchHistory.contains($0.entityName) }
+    }
+
+    /// The rows a save inserted, updated or deleted. Read from the notification, not its context,
+    /// since the context's store may be closed by the time the notification is handled.
+    private static func changed(in notification: Notification) -> [PersistentIdentifier] {
+        let keys: [ModelContext.NotificationKey] = [.insertedIdentifiers, .updatedIdentifiers, .deletedIdentifiers]
+        return keys.flatMap { notification.userInfo?[$0.rawValue] as? [PersistentIdentifier] ?? [] }
     }
 
     /// Remembers a training store, so its iCloud imports count.
