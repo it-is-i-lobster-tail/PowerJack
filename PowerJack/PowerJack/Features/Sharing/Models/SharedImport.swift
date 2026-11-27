@@ -59,7 +59,7 @@ struct SharedImport: Identifiable {
             let keepBothName = Self.uniqueName(name, maxLength: maxExerciseNameLengthInput, taken: taken)
             if existing != nil && !isSame { taken.insert(Self.normalized(keepBothName)) }
             items.append(Item(id: index, shared: shared, existing: existing, isSame: isSame && lookAlike == nil,
-                              keepBothName: keepBothName, isLookAlike: lookAlike != nil))
+                              isLookAlike: lookAlike != nil, keepBothName: keepBothName))
         }
         if let template, template.days.joined().contains(where: { !items.indices.contains($0.exercise) }) {
             throw SharedFileError.unreadable
