@@ -202,6 +202,18 @@ final class PowerJackStore {
         }
     }
 
+    /// Receipts only matter for a while after their set was logged. Only the iPhone prunes, and the
+    /// watch gets the deletions through iCloud. A failure only logs: the next launch tries again.
+    private static func pruneOldReceipts(in context: ModelContext) {
+        guard SyncDevice.current == SyncDevice.iPhone else { return }
+        do {
+            try SyncTidyUp.pruneOldReceipts(in: context)
+        } catch {
+            context.rollback()
+            Logger.sync.error("Could not delete old set receipts: \(error.localizedDescription)")
+        }
+    }
+
     /// PowerJack can't run without its store, so only a store that won't open stops the app.
     private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
         do {
@@ -215,6 +227,7 @@ final class PowerJackStore {
         let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         seedCatalogs(in: container.mainContext)
         saveEndedPrograms(in: container.mainContext)
+        pruneOldReceipts(in: container.mainContext)
         return container
     }
 

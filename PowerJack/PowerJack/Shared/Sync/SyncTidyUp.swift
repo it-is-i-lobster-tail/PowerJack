@@ -18,6 +18,8 @@ import SwiftData
 enum SyncTidyUp {
     /// How far back receipts are checked. A device that syncs late is still caught up.
     static let receiptWindow: TimeInterval = 30 * 24 * 60 * 60
+    /// How long receipts are kept, well past `receiptWindow`. The running program's are kept for its referee.
+    static let receiptLifetime: TimeInterval = 60 * 24 * 60 * 60
 
     /// How much of the store a run looks through.
     enum Scope {
@@ -227,6 +229,25 @@ enum SyncTidyUp {
     }
 
     // MARK: Receipts
+
+    /// Deletes receipts older than `receiptLifetime`, except those for sets of the running program,
+    /// whose referee can still read them. Saves once when anything went.
+    /// - Returns: How many were deleted.
+    @discardableResult
+    static func pruneOldReceipts(in context: ModelContext, now: Date = .now) throws -> Int {
+        let old = try SetReceipt.written(before: now.addingTimeInterval(-receiptLifetime), in: context)
+        guard !old.isEmpty else { return 0 }
+        let running = try context.fetch(FetchDescriptor<Program>()).filter { $0.status == .active }
+        let runningSets = Set(running.flatMap { program in
+            program.programWeeks.flatMap(\.workouts).flatMap(\.workoutExercises).flatMap(\.workoutSets).compactMap(\.syncID)
+        })
+        let expired = old.filter { receipt in receipt.setID.map { !runningSets.contains($0) } ?? true }
+        guard !expired.isEmpty else { return 0 }
+        expired.forEach(context.delete)
+        try context.save()
+        Logger.sync.info("Deleted \(expired.count) old set receipts")
+        return expired.count
+    }
 
     /// An older upload can overwrite a set through iCloud. Each logged set shows its latest receipt,
     /// judged by when it was logged, so a device syncing a day late never wins over newer logs.

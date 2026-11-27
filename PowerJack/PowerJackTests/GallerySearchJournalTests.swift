@@ -22,6 +22,35 @@ struct GallerySearchJournalTests {
         #expect(journal.suggestions(for: "june b") == ["JUNE   BENCH"])
     }
 
+    @Test func keepsTheNewestVisitsAndPhrases() throws {
+        let journal = GallerySearchJournal(inMemory: true)
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        for i in 0..<205 { journal.record("Search \(i)", at: start.addingTimeInterval(Double(i))) }
+        let context = try #require(journal.context)
+        let kept = GallerySearchJournal.keptRows
+        let visits = try context.fetch(FetchDescriptor<GallerySearchVisit>(sortBy: [SortDescriptor(\.date)]))
+        #expect(visits.count == kept)
+        #expect(visits.first?.text == "Search 5")
+        #expect(visits.last?.text == "Search 204")
+        #expect(try context.fetchCount(FetchDescriptor<GallerySearchPhrase>()) == kept)
+        #expect(journal.suggestions(for: "") == ["Search 204", "Search 203", "Search 202"])
+        #expect(journal.suggestions(for: "Search 4").first == "Search 49", "Search 4 itself rotated out")
+        #expect(journal.suggestions(for: "Search 0").isEmpty)
+    }
+
+    @Test func oldSavedPlansRotateOut() async throws {
+        let journal = GallerySearchJournal(inMemory: true)
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        _ = await journal.resolve("Old question", now: start) { first }
+        for i in 0..<GallerySearchJournal.keptRows { journal.record("Search \(i)", at: start.addingTimeInterval(Double(i + 1))) }
+        #expect(journal.cachedPlan("Old question", now: start) == nil)
+        // A plan saved now counts as recent, even for a phrase searched long ago.
+        _ = await journal.resolve("Search 0", now: start.addingTimeInterval(1_000)) { next }
+        journal.record("One more", at: start.addingTimeInterval(1_001))
+        #expect(journal.cachedPlan("Search 0", now: start.addingTimeInterval(1_002)) == next)
+        #expect(journal.suggestions(for: "Search 1").first == "Search 199")
+    }
+
     @Test func reusesFreshPlansAndRefreshesStalePlans() async throws {
         let journal = GallerySearchJournal(inMemory: true)
         let day = Date(timeIntervalSince1970: 1_000_000)

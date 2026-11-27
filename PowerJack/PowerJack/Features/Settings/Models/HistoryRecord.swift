@@ -75,8 +75,13 @@ struct HistoryRow: Equatable {
 
 @Model
 final class HistoryRecord {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
+    #Index<HistoryRecord>([\.programIDValue])
+
     // Every field has a default or is optional and there are no relationships, so the rows
     // sync with iCloud and any later field can be added the same way.
+    @Attribute(hashModifier: "indexes-1")
     var programIDValue: UUID?
     /// The rows saved together for one program. Two iPhones can each save a program before
     /// iCloud brings the other's rows, and the export keeps only one batch.

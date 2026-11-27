@@ -13,6 +13,11 @@ import SwiftData
 
 @Model
 final class SetReceipt {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
+    #Index<SetReceipt>([\.setIDValue], [\.completedAtValue])
+
+    @Attribute(hashModifier: "indexes-1")
     private var setIDValue: UUID?
     // The workout's sync ID.
     private var sessionIDValue: UUID?
@@ -47,6 +52,11 @@ extension SetReceipt {
     /// Receipts for sets logged at or after `date`.
     static func written(since date: Date, in context: ModelContext) throws -> [SetReceipt] {
         try context.fetch(FetchDescriptor<SetReceipt>(predicate: #Predicate { $0.completedAtValue >= date }))
+    }
+
+    /// Receipts for sets logged before `date`.
+    static func written(before date: Date, in context: ModelContext) throws -> [SetReceipt] {
+        try context.fetch(FetchDescriptor<SetReceipt>(predicate: #Predicate { $0.completedAtValue < date }))
     }
 
     /// Whether `workoutSet` was logged before `date`, so a log at `date` fixes it.

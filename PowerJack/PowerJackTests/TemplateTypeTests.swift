@@ -60,7 +60,7 @@ struct TemplateTypeTests {
     func newTemplateDefaultsToSection() async throws {
         UserDefaults.standard.set(TemplateType.strength.rawValue, forKey: TemplateType.selectionKey)
         defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
-        let container = HostedView.makeStore()
+        let container = PowerJackSeed.makeInMemoryContainer()
         let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
         defer { screen.close() }
 
@@ -72,7 +72,7 @@ struct TemplateTypeTests {
     @Test("Picking a type in the template detail saves it and moves the Templates list to it")
     func detailChangesType() async throws {
         defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
-        let container = HostedView.makeStore()
+        let container = PowerJackSeed.makeInMemoryContainer()
         let template = TemplateProgram(templateName: "Pull Days", workoutsPerWeek: 2, templateMuscleFocus: [.back])
         try container.mainContext.insertAndSave(template)
         let screen = try await HostedView(
