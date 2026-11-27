@@ -13,6 +13,11 @@ import SwiftData
 
 @Model
 final class SetReceipt {
+    // Speeds up fetches that filter or sort by these. Local store only: iCloud records carry no indexes.
+    // Indexes alone don't change the model's hash, so the hash modifier below makes existing stores migrate and build them.
+    #Index<SetReceipt>([\.setIDValue], [\.completedAtValue])
+
+    @Attribute(hashModifier: "indexes-1")
     private var setIDValue: UUID?
     // The workout's sync ID.
     private var sessionIDValue: UUID?
