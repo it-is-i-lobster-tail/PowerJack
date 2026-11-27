@@ -2,17 +2,11 @@ import SwiftData
 import SwiftUI
 
 struct ProgramDataView: View {
-    @Query private var programs: [Program]
-    @Query private var logs: [WorkoutLog]
-    @Query private var archived: [HistoryRecord]
-    @Query private var imported: [ImportedSet]
-    @Query private var exercises: [Exercise]
+    @Environment(\.modelContext) private var context
     @AppStorage(AppSettings.Key.weightUnit) private var unit = WeightUnit.current
 
     var body: some View {
-        let history = StudyHistory(
-            programs: programs, archive: archived, logs: logs, imported: imported, exercises: exercises, unit: unit)
-        StudyGallery(history: history)
+        StudyGallery(history: StudyHistory.current(in: context, unit: unit))
     }
 }
 

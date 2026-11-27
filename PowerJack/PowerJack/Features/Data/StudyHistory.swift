@@ -378,3 +378,24 @@ struct StudyHistory {
         return sorted[lower] + (sorted[Int(ceil(index))] - sorted[lower]) * (index - Double(lower))
     }
 }
+
+extension StudyHistory {
+    private static let cache = HistoryCache<StudyHistory>()
+
+    /// All saved history, rebuilt once per saved change, weight unit or day instead of on every redraw.
+    static func current(in context: ModelContext, unit: WeightUnit, now: Date = .now,
+                        calendar: Calendar = .current) -> StudyHistory {
+        let key = AnyHashable([AnyHashable(unit), AnyHashable(calendar.startOfDay(for: now))])
+        return cache.value(in: context, key: key) { StudyHistory(context: context, unit: unit, today: now, calendar: calendar) }
+    }
+
+    /// Everything the Data tab reads, fetched from the store.
+    init(context: ModelContext, unit: WeightUnit, today: Date = .now, calendar: Calendar = .current) {
+        func all<Model: PersistentModel>(_: Model.Type) -> [Model] {
+            (try? context.fetch(FetchDescriptor<Model>())) ?? []
+        }
+        self.init(programs: all(Program.self), archive: all(HistoryRecord.self), logs: all(WorkoutLog.self),
+                  imported: all(ImportedSet.self), exercises: all(Exercise.self), unit: unit, today: today,
+                  calendar: calendar)
+    }
+}
