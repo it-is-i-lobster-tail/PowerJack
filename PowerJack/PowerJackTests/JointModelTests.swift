@@ -11,20 +11,23 @@ struct JointModelTests {
 
     @Test("Each joint does only what its type allows, and every movement names its muscles")
     func anatomyFile() {
-        #expect(anatomy.joints.map(\.key) == ["shoulder", "scapula", "elbow", "forearm", "wrist", "trunk", "neck", "hip", "knee", "ankle"])
+        #expect(anatomy.joints.map { $0.key } == ["shoulder", "scapula", "elbow", "forearm", "wrist", "trunk", "neck", "hip", "knee", "ankle"])
         for joint in anatomy.joints {
             #expect(!joint.movements.isEmpty && Set(joint.movements).isSubset(of: anatomy.movements(of: joint.type)), "\(joint.key)")
         }
         #expect(!anatomy.movements(of: .hinge).contains("abduction"))
         for key in anatomy.movementKeys {
-            #expect(anatomy.muscles(for: key).contains(where: \.isPrime), "\(key)")
+            let primeMovers = anatomy.muscles(for: key).filter { $0.isPrime }
+            #expect(!primeMovers.isEmpty, "\(key)")
             #expect(anatomy.movementKeys.contains(anatomy.opposite(of: key)), "\(key)")
         }
         #expect(anatomy.opposite(of: "elbow.flexion") == "elbow.extension")
         #expect(anatomy.opposite(of: "trunk.rotation") == "trunk.rotation")
         let curl = anatomy.muscles(for: "elbow.flexion")
-        #expect(Set(curl.filter(\.isPrime).map(\.name)) == ["biceps brachii", "brachialis"])
-        #expect(curl.first { !$0.isPrime }?.group == .forearms)
+        let curlPrimes = Set(curl.filter { $0.isPrime }.map { $0.name })
+        let curlHelper = curl.first { !$0.isPrime }
+        #expect(curlPrimes == ["biceps brachii", "brachialis"])
+        #expect(curlHelper?.group == .forearms)
     }
 
     @Test("Lifter words name joint movements", arguments: [
@@ -167,7 +170,7 @@ struct JointModelTests {
 
     @Test("Stored joint actions and patterns stay as earlier versions seeded them")
     func storedMetadataFrozen() throws {
-        #expect(Set(Self.stored.keys) == Set(ExerciseCatalog.entries.map(\.id)))
+        #expect(Set(Self.stored.keys) == Set(ExerciseCatalog.entries.map { $0.id }))
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
         try ExerciseCatalog.seed(in: container.mainContext)
         for exercise in try container.mainContext.fetch(FetchDescriptor<Exercise>()) {
