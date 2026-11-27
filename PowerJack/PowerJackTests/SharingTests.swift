@@ -65,7 +65,7 @@ struct SharingTests {
 
         let sharedImport = try received(file)
         #expect(sharedImport.itemsToShow.map(\.shared.name) == ["Low Cable Fly"])
-        #expect(!sharedImport.items.contains(where: \.asks))
+        #expect(!sharedImport.items.contains { $0.asks })
 
         let imported = try #require(try sharedImport.save(in: receiver))
         #expect(imported.templateName == "Push Pull")
@@ -111,7 +111,7 @@ struct SharingTests {
         let mine = try own("Low Cable Fly", minReps: 10, maxReps: 15, in: receiver)
 
         var sharedImport = try received(SharedFile(template: template))
-        let clash = try #require(sharedImport.items.firstIndex(where: \.asks))
+        let clash = try #require(sharedImport.items.firstIndex { $0.asks })
         #expect(sharedImport.items[clash].choice == .useMine)
         #expect(sharedImport.items[clash].keepBothName == "Low Cable Fly 2")
 
