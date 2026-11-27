@@ -165,22 +165,13 @@ final class WorkoutReminders {
         let context = store.container.mainContext
         do {
             let programs = try context.fetch(FetchDescriptor<Program>())
-            guard let program = programs.active,
-                  let workout = program.nextWorkout, workout.status == .planned,
-                  let id = workout.syncID, !sentIDs.contains(id.uuidString) else {
-                cancel()
-                return
-            }
-            let preview = WorkoutPreview(program: program, workout: workout)
-            guard !preview.lifts.isEmpty else {
+            guard let id = programs.active?.nextWorkout?.syncID, !sentIDs.contains(id.uuidString) else {
                 cancel()
                 return
             }
 
             let calendar = Calendar.current
             let history = try WorkoutPreviewHistory(programs: programs, in: context, now: now)
-            let eveningMinute = defaults.object(forKey: AppSettings.Key.workoutReminderEveningMinute) as? Int
-                ?? WorkoutReminderTiming.defaultEveningMinute
             guard let timing = WorkoutReminderTiming.next(
                 starts: history.starts, now: now, calendar: calendar, eveningMinute: eveningMinute
             ) else {
@@ -190,15 +181,15 @@ final class WorkoutReminders {
             #if DEBUG
             if let demo, timing.send > demo.deadline { return }
             #endif
-            let achievement = WorkoutAchievement.selected(
-                preview: preview, program: program, workout: workout, history: history, at: timing.workout
-            )
-            let title = timing.title(calendar: calendar)
-            let facts = WorkoutReminderCopy.Facts(
-                preview: preview, program: program, workout: workout, timingTitle: title,
-                achievement: achievement, history: history
-            )
-            let fingerprint = facts.fingerprint
+            guard let reminder = try Self.makeReminder(
+                programs: programs, history: history, timing: timing, calendar: calendar
+            ) else {
+                cancel()
+                return
+            }
+            let title = reminder.content.title
+            let content = reminder.content
+            let fingerprint = reminder.facts.fingerprint
             let matchesPending = pending.map { request in
                 request.content.title == title &&
                     request.content.userInfo["trainerCopyFacts"] as? String == fingerprint &&
@@ -206,16 +197,6 @@ final class WorkoutReminders {
                     (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() == timing.send
             } ?? false
             if matchesPending, pending?.content.body != WorkoutReminderCopy.fallback { return }
-
-            let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = WorkoutReminderCopy.fallback
-            content.sound = .default
-            content.categoryIdentifier = Self.category
-            content.userInfo = [
-                Self.workoutIDKey: id.uuidString, "trainerCopyFacts": fingerprint,
-                Self.highlightKey: try JSONEncoder().encode(Highlight(achievement: achievement))
-            ]
 
             var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: timing.send)
             components.timeZone = calendar.timeZone
@@ -233,7 +214,7 @@ final class WorkoutReminders {
                 let scheduled = try JSONEncoder().encode(Scheduled(workoutID: id, send: timing.send))
                 defaults.set(scheduled, forKey: Self.scheduledKey)
             }
-            guard let body = await WorkoutReminderCopy.generate(for: facts),
+            guard let body = await WorkoutReminderCopy.generate(for: reminder.facts),
                   !needsRefresh, Date.now < timing.send else { return }
             content.body = body
             do {
@@ -250,8 +231,102 @@ final class WorkoutReminders {
         }
     }
 
+    private var eveningMinute: Int {
+        defaults.object(forKey: AppSettings.Key.workoutReminderEveningMinute) as? Int
+            ?? WorkoutReminderTiming.defaultEveningMinute
+    }
+
     private func cancel() {
         center.removePendingNotificationRequests(withIdentifiers: [requestID])
         defaults.removeObject(forKey: Self.scheduledKey)
+    }
+
+    // MARK: - Shared content
+
+    /// The next workout's reminder, built the same way whether it is scheduled or sent now.
+    struct Reminder {
+        let workoutID: UUID
+        let facts: WorkoutReminderCopy.Facts
+        /// Carries the plain fallback body until the on-device model writes a better one.
+        let content: UNMutableNotificationContent
+    }
+
+    static func makeReminder(
+        programs: [Program], history: WorkoutPreviewHistory,
+        timing: WorkoutReminderTiming.Prediction, calendar: Calendar
+    ) throws -> Reminder? {
+        guard let program = programs.active,
+              let workout = program.nextWorkout, workout.status == .planned,
+              let id = workout.syncID else { return nil }
+        let preview = WorkoutPreview(program: program, workout: workout)
+        guard !preview.lifts.isEmpty else { return nil }
+
+        let achievement = WorkoutAchievement.selected(
+            preview: preview, program: program, workout: workout, history: history, at: timing.workout
+        )
+        let title = timing.title(calendar: calendar)
+        let facts = WorkoutReminderCopy.Facts(
+            preview: preview, program: program, workout: workout, timingTitle: title,
+            achievement: achievement, history: history
+        )
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = WorkoutReminderCopy.fallback
+        content.sound = .default
+        content.categoryIdentifier = category
+        content.userInfo = [
+            workoutIDKey: id.uuidString, "trainerCopyFacts": facts.fingerprint,
+            highlightKey: try JSONEncoder().encode(Highlight(achievement: achievement))
+        ]
+        return Reminder(workoutID: id, facts: facts, content: content)
+    }
+
+    // MARK: - Developer Tools
+
+    enum SendNowResult: Equatable {
+        case sent, noWorkout, notAllowed, failed
+    }
+
+    /// Its own identifier, so it never replaces or cancels the scheduled reminder.
+    nonisolated static let sendNowRequestID = "developer-workout-preview"
+
+    static func sendNowRequest(content: UNNotificationContent) -> UNNotificationRequest {
+        UNNotificationRequest(
+            identifier: sendNowRequestID, content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+    }
+
+    /// Sends the next workout's reminder right away, with the wording the scheduled one would have.
+    func sendNow() async -> SendNowResult {
+        await requestAuthorization()
+        let authorization = await center.notificationSettings().authorizationStatus
+        guard [.authorized, .provisional, .ephemeral].contains(authorization) else { return .notAllowed }
+        guard let store else { return .noWorkout }
+
+        let context = store.container.mainContext
+        let now = Date.now
+        let calendar = Calendar.current
+        do {
+            let programs = try context.fetch(FetchDescriptor<Program>())
+            let history = try WorkoutPreviewHistory(programs: programs, in: context, now: now)
+            // Without enough history to predict a time, treat the workout as starting now.
+            let timing = WorkoutReminderTiming.next(
+                starts: history.starts, now: now, calendar: calendar, eveningMinute: eveningMinute
+            ) ?? WorkoutReminderTiming.Prediction(workout: now, send: now, nightBefore: false)
+            guard let reminder = try Self.makeReminder(
+                programs: programs, history: history, timing: timing, calendar: calendar
+            ) else { return .noWorkout }
+
+            if let body = await WorkoutReminderCopy.generate(for: reminder.facts) {
+                reminder.content.body = body
+            }
+            try await center.add(Self.sendNowRequest(content: reminder.content))
+            return .sent
+        } catch {
+            Logger.ui.error("Could not send the workout reminder now: \(error.localizedDescription)")
+            return .failed
+        }
     }
 }
