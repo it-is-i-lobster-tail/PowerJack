@@ -52,9 +52,9 @@ extension WorkoutLog {
     var sessionID: UUID? { sessionIDValue }
     var programType: TemplateType? { programTypeValue.flatMap(TemplateType.init(rawValue:)) }
 
-    /// Logs that name the workout they came from. Older logs don't, and are never merged.
-    static func withSession(in context: ModelContext) throws -> [WorkoutLog] {
-        try context.fetch(FetchDescriptor<WorkoutLog>(predicate: #Predicate { $0.sessionIDValue != nil }))
+    /// Logs written since `date` that name the workout they came from. Older logs don't, and are never merged.
+    static func withSession(since date: Date = .distantPast, in context: ModelContext) throws -> [WorkoutLog] {
+        try context.fetch(FetchDescriptor<WorkoutLog>(predicate: #Predicate { $0.sessionIDValue != nil && $0.dateValue >= date }))
     }
 
     /// The log written closest to `date`, within a second of it. A skip writes its log as it ends the workout.

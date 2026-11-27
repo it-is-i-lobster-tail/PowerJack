@@ -173,7 +173,7 @@ final class PowerJackStore {
     /// See `SyncTidyUp`.
     func tidyUpAfterSync(trigger: String) {
         do {
-            try SyncTidyUp.run(in: container.mainContext, trigger: trigger)
+            try SyncTidyUp.run(in: container.mainContext, trigger: trigger, scope: .recent)
         } catch {
             Logger.sync.error("Could not tidy up after syncing: \(error.localizedDescription)")
         }

@@ -7,6 +7,9 @@
 //  never delete different copies. A row with a logged set is only ever folded into another copy
 //  of itself, never just deleted, and every log also lives on in its `SetReceipt`.
 //
+//  Syncing only brings copies of what was planned or logged lately, so after the first run on a store
+//  a run looks only at the running program and the last `receiptWindow`, not years of history.
+//
 
 import Foundation
 import OSLog
@@ -18,25 +21,41 @@ enum SyncTidyUp {
     /// How long receipts are kept, well past `receiptWindow`. The running program's are kept for its referee.
     static let receiptLifetime: TimeInterval = 60 * 24 * 60 * 60
 
+    /// How much of the store a run looks through.
+    enum Scope {
+        /// Every program's days and every log.
+        case everything
+        /// The running program's days, and the days and logs of the last `receiptWindow`: all that
+        /// syncing can still bring copies of. The first run on a store looks through everything.
+        case recent
+    }
+
     /// What started the current run, for the trace.
     private static var trigger = "sync"
+
+    /// The store the last run that looked through everything tidied.
+    private static weak var tidiedInFull: ModelContainer?
 
     /// - Parameter running: on the watch, the program the iPhone last said is running.
     /// - Parameter trigger: what started it, for the trace, like "iCloud import" or "watch changes".
     /// - Returns: Whether anything changed. Changes are saved.
     @discardableResult
-    static func run(in context: ModelContext, running: UUID? = nil, now: Date = .now, trigger: String = "sync") throws -> Bool {
+    static func run(in context: ModelContext, running: UUID? = nil, now: Date = .now, trigger: String = "sync", scope: Scope = .everything) throws -> Bool {
         self.trigger = trigger
+        let recent = now.addingTimeInterval(-receiptWindow)
+        let inFull = scope == .everything || tidiedInFull !== context.container
+        let since = inFull ? nil : recent
         var changed = try mergeSnapshotCopies(in: context)
         changed = try mergeOwnExercises(in: context) || changed
-        changed = try mergeDuplicateDays(in: context) || changed
-        changed = try mergeDuplicateLogs(in: context) || changed
+        changed = try mergeDuplicateDays(in: context, since: since) || changed
+        changed = try mergeDuplicateLogs(in: context, since: since ?? .distantPast) || changed
         changed = try keepOneRunningProgram(in: context, running: running) || changed
-        changed = try showLatestLogs(in: context, since: now.addingTimeInterval(-receiptWindow)) || changed
+        changed = try showLatestLogs(in: context, since: recent) || changed
         if changed {
             try context.save()
             Logger.sync.info("Tidied up after syncing")
         }
+        if inFull { tidiedInFull = context.container }
         return changed
     }
 
@@ -45,8 +64,9 @@ enum SyncTidyUp {
     /// The watch's copy of a row, made from the iPhone's snapshot, folds into the iPhone's own row
     /// once iCloud brings it. Top down, so a copied program takes its copied weeks with it.
     private static func mergeSnapshotCopies(in context: ModelContext) throws -> Bool {
-        let programs = try context.fetch(FetchDescriptor<Program>())
-        var changed = try fold(try Program.fromSnapshot(in: context), in: context) { copy in
+        let copies = try Program.fromSnapshot(in: context)
+        let programs = copies.isEmpty ? [] : try context.fetch(FetchDescriptor<Program>())
+        var changed = try fold(copies, in: context) { copy in
             programs.first { $0 !== copy && !$0.isFromSnapshot && $0.syncID == copy.syncID }
         } merge: { $0.merge($1) }
 
@@ -114,9 +134,10 @@ enum SyncTidyUp {
     /// brings both. One stays (see `ranksFirst`) and the other folds into it by place, so its logged
     /// sets move over, the later log winning where both logged the same set. Whichever copy was
     /// logged, the day keeps every log.
-    private static func mergeDuplicateDays(in context: ModelContext) throws -> Bool {
+    /// - Parameter since: when set, only the running program's weeks and weeks with a day planned since then.
+    private static func mergeDuplicateDays(in context: ModelContext, since: Date?) throws -> Bool {
         var changed = false
-        for week in try context.fetch(FetchDescriptor<ProgramWeek>()) {
+        for week in try weeks(in: context, since: since) {
             for days in Dictionary(grouping: week.workouts, by: \.order).values where days.count > 1 {
                 guard let keep = first(of: days, by: { ranksFirst($0, over: $1) }) else { continue }
                 for day in days where day !== keep {
@@ -129,6 +150,14 @@ enum SyncTidyUp {
             }
         }
         return changed
+    }
+
+    private static func weeks(in context: ModelContext, since: Date?) throws -> [ProgramWeek] {
+        guard let since else { return try context.fetch(FetchDescriptor<ProgramWeek>()) }
+        let running = try context.fetch(FetchDescriptor<Program>()).filter { $0.status == .active }.flatMap(\.programWeeks)
+        let planned = try Workout.planned(since: since, in: context).compactMap(\.programWeekValue)
+        var seen = Set<PersistentIdentifier>()
+        return (running + planned).filter { seen.insert($0.persistentModelID).inserted }
     }
 
     /// Whether day `a` stays over day `b`: the iPhone's, else the older. It's decided only from what
@@ -147,9 +176,9 @@ enum SyncTidyUp {
     /// The same workout finished on both devices apart writes two volume logs, and a week closed on
     /// both writes two strength logs. The latest stays, like the day's sets. Logs written at the very
     /// same moment can't be told apart, so both stay.
-    private static func mergeDuplicateLogs(in context: ModelContext) throws -> Bool {
+    private static func mergeDuplicateLogs(in context: ModelContext, since: Date) throws -> Bool {
         var changed = false
-        for logs in Dictionary(grouping: try WorkoutLog.withSession(in: context), by: \.sessionID).values where logs.count > 1 {
+        for logs in Dictionary(grouping: try WorkoutLog.withSession(since: since, in: context), by: \.sessionID).values where logs.count > 1 {
             let latest = logs.map(\.date).max()
             for log in logs where log.date != latest {
                 context.delete(log)
@@ -157,7 +186,7 @@ enum SyncTidyUp {
             }
             trace("kept the latest volume log of workout \(TraceLog.id(logs.first?.sessionID)), \(logs.count) in all")
         }
-        for logs in Dictionary(grouping: try StrengthLog.withSession(in: context), by: \.sessionID).values where logs.count > 1 {
+        for logs in Dictionary(grouping: try StrengthLog.withSession(since: since, in: context), by: \.sessionID).values where logs.count > 1 {
             let latest = logs.map(\.date).max()
             for log in logs where log.date != latest {
                 context.delete(log)

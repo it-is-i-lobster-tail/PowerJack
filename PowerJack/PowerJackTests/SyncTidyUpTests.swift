@@ -236,6 +236,70 @@ struct SyncTidyUpTests {
         #expect(try context.fetch(FetchDescriptor<StrengthLog>()).map(\.date) == [afternoon])
     }
 
+    // MARK: Scope
+
+    @Test("Later runs on a store only look at recent logs; the first run and a full run look at every log")
+    func recentRunsLookAtRecentLogs() throws {
+        let devices = try TwoDevices()
+        let context = devices.phoneContext
+        let longAgo = morning.addingTimeInterval(-2 * SyncTidyUp.receiptWindow)
+        let first = insertDuplicateLogs(at: longAgo, in: context)
+        try context.save()
+
+        try SyncTidyUp.run(in: context, scope: .recent)
+        #expect(try logs(of: first, in: context) == 1)
+
+        let old = insertDuplicateLogs(at: longAgo, in: context)
+        let recent = insertDuplicateLogs(at: morning, in: context)
+        try context.save()
+
+        try SyncTidyUp.run(in: context, scope: .recent)
+        #expect(try logs(of: recent, in: context) == 1)
+        #expect(try logs(of: old, in: context) == 2)
+
+        try SyncTidyUp.run(in: context)
+        #expect(try logs(of: old, in: context) == 1)
+    }
+
+    @Test("Later runs on a store still fold a day planned lately in a program that's no longer running")
+    func recentRunsFoldRecentDays() throws {
+        let devices = try TwoDevices()
+        try SyncTidyUp.run(in: devices.phoneContext, scope: .recent)
+        let program = try devices.phoneProgram
+        let week = program.programWeeks[0]
+        let count = week.workouts.count
+        stop(program)
+        _ = try addDuplicate(of: week.workouts[0], in: devices, createdOn: SyncDevice.watch)
+
+        try SyncTidyUp.run(in: devices.phoneContext, scope: .recent)
+
+        #expect(week.workouts.count == count)
+    }
+
+    @Test("Later runs on a store leave days planned long ago in a stopped program to a full run")
+    func recentRunsLeaveOldDays() throws {
+        let devices = try TwoDevices()
+        try SyncTidyUp.run(in: devices.phoneContext, scope: .recent)
+        let program = try devices.phoneProgram
+        let week = program.programWeeks[0]
+        let count = week.workouts.count
+        stop(program)
+        _ = try addDuplicate(of: week.workouts[0], in: devices, createdOn: SyncDevice.watch)
+        let longAgo = morning.addingTimeInterval(-2 * SyncTidyUp.receiptWindow)
+        for day in program.programWeeks.flatMap(\.workouts) {
+            var state = try #require(day.syncState)
+            state.createdAt = longAgo.addingTimeInterval(day.createdOn == SyncDevice.iPhone ? 0 : 60)
+            day.apply(state, exercises: [:])
+        }
+        try devices.phoneContext.save()
+
+        try SyncTidyUp.run(in: devices.phoneContext, scope: .recent)
+        #expect(week.workouts.count == count + 1)
+
+        try SyncTidyUp.run(in: devices.phoneContext)
+        #expect(week.workouts.count == count)
+    }
+
     // MARK: Running program
 
     @Test("Two running programs keep the one with logged workouts running and stop the other")
@@ -342,6 +406,30 @@ struct SyncTidyUpTests {
         workoutSet.apply(state)
         context.insert(SetReceipt(for: workoutSet, device: device))
         try? context.save()
+    }
+
+    /// A volume log and a strength log, each written twice for one session an hour apart, as two devices would.
+    private func insertDuplicateLogs(at date: Date, in context: ModelContext) -> UUID {
+        let session = UUID()
+        for offset in [0.0, 3600] {
+            context.insert(WorkoutLog(date: date.addingTimeInterval(offset), setsByMuscle: [.chest: 3], sessionID: session))
+            context.insert(StrengthLog(date: date.addingTimeInterval(offset), state: StrengthState(), sessionID: session))
+        }
+        return session
+    }
+
+    /// How many volume logs of `session` are left, checking the strength logs agree.
+    private func logs(of session: UUID, in context: ModelContext) throws -> Int {
+        let volume = try context.fetch(FetchDescriptor<WorkoutLog>()).filter { $0.sessionID == session }.count
+        let strength = try context.fetch(FetchDescriptor<StrengthLog>()).filter { $0.sessionID == session }.count
+        #expect(volume == strength)
+        return volume
+    }
+
+    private func stop(_ program: Program) {
+        program.stop()
+        program.stopAndCascade()
+        try? program.modelContext?.save()
     }
 
     /// The same day as `workout`, planned by another device: new sync IDs, in the same place.
