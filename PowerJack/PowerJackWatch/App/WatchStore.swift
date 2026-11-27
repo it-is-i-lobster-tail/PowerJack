@@ -107,6 +107,7 @@ final class WatchStore {
                 context.rollback()
                 Logger.sync.error("Could not upgrade exercise metadata: \(error.localizedDescription)")
             }
+            if !runsInPreviews { DeviceSchemaMark.updateAtLaunch(in: context) }
             return container
         } catch {
             fatalError("Could not create PowerJack's model container: \(error)")

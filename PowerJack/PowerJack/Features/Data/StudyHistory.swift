@@ -76,7 +76,7 @@ struct StudyHistory {
     static let curl = "catalog:cable-curl"
 
     init(
-        programs: [Program], archive: [HistoryRecord], logs: [WorkoutLog], imported: [ImportedSet] = [],
+        programs: [Program], archive: [ArchivedRow], logs: [WorkoutLog], imported: [ImportedSet] = [],
         exercises: [Exercise] = [], unit: WeightUnit, today: Date = .now, calendar: Calendar = .current
     ) {
         self.unit = unit
@@ -137,8 +137,8 @@ struct StudyHistory {
                 !(record.programID.map(liveIDs.contains) ?? false)
             })
         let archivedSlots = Dictionary(grouping: saved) { record in
-            let pid = (record.programID ?? record.batchID)?.uuidString ?? record.programNameValue
-            return "\(pid)/\(record.weekValue)/\(record.dayValue)/\(record.exerciseNumberValue)"
+            let pid = (record.programID ?? record.batchID)?.uuidString ?? record.row.programName
+            return "\(pid)/\(record.row.week)/\(record.row.day)/\(record.row.exerciseNumber)"
         }
         for entry in archivedSlots.values {
             let rows = entry.sorted { $0.order < $1.order }.map(\.row)

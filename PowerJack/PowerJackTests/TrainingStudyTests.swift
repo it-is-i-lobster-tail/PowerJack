@@ -129,7 +129,7 @@ struct TrainingStudyTests {
             return HistoryRecord(row, batchID: batch, savedAt: date(6, 1), programStarted: entries[0].0, order: index)
         }
         let history = StudyHistory(
-            programs: [], archive: records, logs: [], unit: .pounds, today: date(6, 1), calendar: calendar)
+            programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: date(6, 1), calendar: calendar)
         var selection = StudyOptions()
         selection.period = .month(year: 2026, month: 4)
         selection.muscles = [.quads]
@@ -217,7 +217,7 @@ struct TrainingStudyTests {
             row.weightTenthsPounds = index == 0 ? 1850 : 2050
             return HistoryRecord(row, batchID: batch, savedAt: end, programStarted: end, order: index)
         }
-        let history = StudyHistory(programs: [], archive: records, logs: [], unit: .pounds, today: end, calendar: calendar)
+        let history = StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: end, calendar: calendar)
         var options = StudyOptions()
         options.period = .month(year: 2026, month: 4)
         guard case .traces(let series, _) = history.result(for: .milestones, options: options).figure else {
@@ -255,7 +255,7 @@ struct TrainingStudyTests {
                 records.append(HistoryRecord(row, batchID: batch, savedAt: now, programStarted: now, order: index * 3 + set))
             }
         }
-        let history = StudyHistory(programs: [], archive: records, logs: [], unit: .pounds, today: now)
+        let history = StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: now)
         var options = StudyOptions()
         options.exerciseKeys = ["pull-up-0"]
         #expect(history.result(for: .pushups, options: options).figure != nil)
@@ -282,7 +282,7 @@ struct TrainingStudyTests {
             row.weightTenthsPounds = 850
             return HistoryRecord(row, batchID: batch, savedAt: now, programStarted: now, order: index)
         }
-        let history = StudyHistory(programs: [], archive: records, logs: [], unit: .pounds, today: now)
+        let history = StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: now)
         #expect(history.relationshipVerticalKey(for: StudyHistory.squat) == "eligible")
         #expect(history.relationshipVerticalKey(for: "eligible") == nil)
     }
@@ -322,7 +322,7 @@ struct TrainingStudyTests {
         let records = [1, 2].map {
             HistoryRecord(row, batchID: UUID(), savedAt: day.addingTimeInterval(Double($0)), programStarted: day, order: 0)
         }
-        let history = StudyHistory(programs: [], archive: records, logs: [], unit: .pounds, today: day)
+        let history = StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: day)
         #expect(history.sessions.count == 1)
         #expect(history.sessions.first?.assisting == nil)
         guard case .bars(let bars) = history.result(for: .armReps).figure else {

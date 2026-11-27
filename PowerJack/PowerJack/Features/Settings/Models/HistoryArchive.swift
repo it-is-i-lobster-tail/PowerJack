@@ -2,7 +2,9 @@
 //  HistoryArchive.swift
 //  PowerJack
 //
-//  Saves the sets of programs that ended as `HistoryRecord` rows, so they outlive the program.
+//  Saves the sets of programs that ended, so they outlive the program: as `HistoryRecord` rows and,
+//  in the leaner shape, as `HistoryProgram` and `HistoryExercise` rows (see HistoryShape.swift).
+//  Reads prefer the lean shape and fall back to `HistoryRecord` for a batch saved before it.
 //  Only the iPhone saves them; the watch only gets them through iCloud.
 //
 
@@ -18,13 +20,18 @@ enum HistoryArchive {
     static func save(_ program: Program, as status: HistoryProgramStatus? = nil, in context: ModelContext, at date: Date = .now) throws -> Bool {
         guard hasTrained(program) else { return false }
         if program.syncID == nil { program.assignSyncIDs() }
-        guard let programID = program.syncID, try records(of: programID, in: context, limit: 1).isEmpty else { return false }
+        guard let programID = program.syncID,
+              try records(of: programID, in: context, limit: 1).isEmpty,
+              try programs(of: programID, in: context, limit: 1).isEmpty
+        else { return false }
 
         let batchID = UUID()
         let started = HistoryExport.firstActivity(of: program)
-        for (order, row) in HistoryExport.rows(for: program, status: status).enumerated() {
+        let rows = HistoryExport.rows(for: program, status: status)
+        for (order, row) in rows.enumerated() {
             context.insert(HistoryRecord(row, batchID: batchID, savedAt: date, programStarted: started, order: order))
         }
+        insertLean(rows, batchID: batchID, savedAt: date, programStarted: started, in: context)
         Logger.persistence.info("Saved a program's history")
         return true
     }
@@ -42,8 +49,10 @@ enum HistoryArchive {
         guard program.status != .active else { return }
         if let programID = program.syncID {
             let saved = try records(of: programID, in: context)
-            if !saved.isEmpty {
+            let lean = try programs(of: programID, in: context)
+            if !saved.isEmpty || !lean.isEmpty {
                 saved.forEach { $0.markDeleted() }
+                lean.forEach { $0.markDeleted() }
                 return
             }
         }
@@ -65,12 +74,35 @@ enum HistoryArchive {
 
     /// The saved rows, one batch per program, in program order. Two iPhones can each save the
     /// same program before iCloud brings the other's rows, so the first batch saved wins.
-    static func records(in context: ModelContext) throws -> [HistoryRecord] {
-        let all = try context.fetch(FetchDescriptor<HistoryRecord>(sortBy: [SortDescriptor(\.orderValue)]))
-        return uniqueBatchRecords(all)
+    static func records(in context: ModelContext) throws -> [ArchivedRow] {
+        uniqueBatchRecords(archivedRows(
+            programs: try context.fetch(FetchDescriptor<HistoryProgram>()),
+            exercises: try context.fetch(FetchDescriptor<HistoryExercise>()),
+            legacy: try context.fetch(FetchDescriptor<HistoryRecord>())
+        ))
     }
 
-    static func uniqueBatchRecords(_ all: [HistoryRecord]) -> [HistoryRecord] {
+    /// Every saved row, in order: a batch from its lean rows when it has them, else from its
+    /// `HistoryRecord` rows. When two iPhones both wrote a batch's lean rows, one copy is kept,
+    /// the same on every device.
+    static func archivedRows(programs: [HistoryProgram], exercises: [HistoryExercise], legacy: [HistoryRecord]) -> [ArchivedRow] {
+        var copies: [UUID: HistoryProgram] = [:]
+        for program in programs {
+            guard let batchID = program.batchID else { continue }
+            if let kept = copies[batchID], (kept.copyID?.uuidString ?? "") <= (program.copyID?.uuidString ?? "") { continue }
+            copies[batchID] = program
+        }
+        let exercisesByCopy = Dictionary(grouping: exercises, by: \.copyID)
+        var rows = copies.values.flatMap { program in
+            program.archivedRows(exercisesByCopy[program.copyID] ?? [])
+        }
+        rows += legacy.filter { record in record.batchID.map { copies[$0] == nil } ?? true }.map(\.archived)
+        return rows.enumerated()
+            .sorted { ($0.element.order, $0.offset) < ($1.element.order, $1.offset) }
+            .map(\.element)
+    }
+
+    static func uniqueBatchRecords(_ all: [ArchivedRow]) -> [ArchivedRow] {
         var kept: [UUID?: (batchID: UUID?, savedAt: Date)] = [:]
         for record in all {
             let key = record.programID ?? record.batchID
@@ -80,7 +112,7 @@ enum HistoryArchive {
         return all.filter { kept[$0.programID ?? $0.batchID]?.batchID == $0.batchID }
     }
 
-    private static func isEarlier(_ record: HistoryRecord, than kept: (batchID: UUID?, savedAt: Date)) -> Bool {
+    private static func isEarlier(_ record: ArchivedRow, than kept: (batchID: UUID?, savedAt: Date)) -> Bool {
         if record.savedAt != kept.savedAt { return record.savedAt < kept.savedAt }
         return (record.batchID?.uuidString ?? "") < (kept.batchID?.uuidString ?? "")
     }
@@ -110,6 +142,67 @@ enum HistoryArchive {
         for record in try context.fetch(descriptor) where record.setTypeValue == setType {
             record.correct(reps: workoutSet.reps, weightTenthsPounds: workoutSet.weightTenthsPounds)
         }
+        let slots = FetchDescriptor<HistoryExercise>(predicate: #Predicate {
+            $0.programIDValue == id && $0.weekValue == weekNumber && $0.dayValue == day && $0.exerciseNumberValue == exerciseNumber
+        })
+        for slot in try context.fetch(slots) {
+            slot.correct(setNumber: setNumber, setType: setType, reps: workoutSet.reps, weightTenthsPounds: workoutSet.weightTenthsPounds)
+        }
+    }
+
+    // MARK: Lean shape
+
+    private static func insertLean(_ rows: [HistoryRow], batchID: UUID, savedAt: Date, programStarted: Date?, in context: ModelContext) {
+        guard let lean = HistoryProgram.make(from: rows, batchID: batchID, savedAt: savedAt, programStarted: programStarted) else { return }
+        context.insert(lean.program)
+        lean.exercises.forEach(context.insert)
+    }
+
+    /// Writes the lean rows of every `HistoryRecord` batch that has none yet, then saves. A batch whose
+    /// lean rows wouldn't read back exactly the same is left on its old rows, which reads still use.
+    /// - Returns: How many batches were written.
+    @discardableResult
+    static func backfillLeanHistory(in context: ModelContext) throws -> Int {
+        var done = Set(try context.fetch(FetchDescriptor<HistoryProgram>()).compactMap(\.batchID))
+        var batchIDs = FetchDescriptor<HistoryRecord>()
+        batchIDs.propertiesToFetch = [\.batchIDValue]
+        let missing = Set(try context.fetch(batchIDs).compactMap(\.batchID)).subtracting(done)
+        var written = 0
+        for batchID in missing {
+            let id: UUID? = batchID
+            let records = try context.fetch(FetchDescriptor<HistoryRecord>(
+                predicate: #Predicate { $0.batchIDValue == id }, sortBy: [SortDescriptor(\.orderValue)]
+            ))
+            guard let first = records.first,
+                  let lean = HistoryProgram.make(
+                      from: records.map(\.row), batchID: batchID, savedAt: first.savedAt, programStarted: first.programStartedValue
+                  )
+            else { continue }
+            let expected = records.enumerated().map { order, record in
+                ArchivedRow(row: record.row, batchID: batchID, savedAt: first.savedAt, programStarted: first.programStarted, order: order)
+            }
+            let sameBatch = records.allSatisfy { $0.savedAt == first.savedAt && $0.programStartedValue == first.programStartedValue }
+            guard sameBatch, lean.program.archivedRows(lean.exercises) == expected else {
+                Logger.persistence.error("Kept a history batch on its old rows: they don't fit the lean shape")
+                continue
+            }
+            context.insert(lean.program)
+            lean.exercises.forEach(context.insert)
+            done.insert(batchID)
+            written += 1
+        }
+        if written > 0 {
+            try context.save()
+            Logger.persistence.info("Wrote the lean history of \(written) saved programs")
+        }
+        return written
+    }
+
+    private static func programs(of programID: UUID, in context: ModelContext, limit: Int? = nil) throws -> [HistoryProgram] {
+        let id: UUID? = programID
+        var descriptor = FetchDescriptor<HistoryProgram>(predicate: #Predicate { $0.programIDValue == id })
+        descriptor.fetchLimit = limit
+        return try context.fetch(descriptor)
     }
 
     private static func records(of programID: UUID, in context: ModelContext, limit: Int? = nil) throws -> [HistoryRecord] {

@@ -5,13 +5,17 @@ struct ProgramDataView: View {
     @Query private var programs: [Program]
     @Query private var logs: [WorkoutLog]
     @Query private var archived: [HistoryRecord]
+    @Query private var archivedPrograms: [HistoryProgram]
+    @Query private var archivedExercises: [HistoryExercise]
     @Query private var imported: [ImportedSet]
     @Query private var exercises: [Exercise]
     @AppStorage(AppSettings.Key.weightUnit) private var unit = WeightUnit.current
 
     var body: some View {
         let history = StudyHistory(
-            programs: programs, archive: archived, logs: logs, imported: imported, exercises: exercises, unit: unit)
+            programs: programs,
+            archive: HistoryArchive.archivedRows(programs: archivedPrograms, exercises: archivedExercises, legacy: archived),
+            logs: logs, imported: imported, exercises: exercises, unit: unit)
         StudyGallery(history: history)
     }
 }

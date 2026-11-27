@@ -35,7 +35,7 @@ struct StudyAnswerTests {
                 }
             }
         }
-        return StudyHistory(programs: [], archive: records, logs: [], unit: .pounds, today: date)
+        return StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: .pounds, today: date)
     }
 
     @Test("A prescribed workout counts once and skipped sets still count toward its denominator")

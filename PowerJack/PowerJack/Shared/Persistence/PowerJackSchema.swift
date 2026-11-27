@@ -29,6 +29,9 @@ enum PowerJackSchema {
         StrengthLog.self,
         SetReceipt.self,
         HistoryRecord.self,
+        HistoryProgram.self,
+        HistoryExercise.self,
+        DeviceSchemaMark.self,
         ImportedSet.self,
     ]
 

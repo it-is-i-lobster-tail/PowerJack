@@ -100,7 +100,7 @@ enum ChartSearchFixture {
                 }
             }
         }
-        return StudyHistory(programs: [], archive: records, logs: [], unit: unit, today: today, calendar: calendar)
+        return StudyHistory(programs: [], archive: records.map(\.archived), logs: [], unit: unit, today: today, calendar: calendar)
     }
 
     static let empty = StudyHistory(programs: [], archive: [], logs: [], unit: .pounds, today: today, calendar: calendar)
