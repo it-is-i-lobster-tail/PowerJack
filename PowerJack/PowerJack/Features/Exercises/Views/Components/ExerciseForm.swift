@@ -175,7 +175,12 @@ private struct MovesLikeList: View {
     private var shown: [ExerciseCatalog.Entry] {
         let query = ExerciseQuery(searchText)
         guard !query.isEmpty else {
-            return ExerciseCatalog.entries.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            // The lift picked now comes first, then the rest by name.
+            return ExerciseCatalog.entries.sorted { left, right in
+                let (leftPicked, rightPicked) = ("catalog:\(left.id)" == selected, "catalog:\(right.id)" == selected)
+                if leftPicked != rightPicked { return leftPicked }
+                return left.name.localizedStandardCompare(right.name) == .orderedAscending
+            }
         }
         return MovesLike.index.rank(query).compactMap { MovesLike.entry($0.key) }
     }

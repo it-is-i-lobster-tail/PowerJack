@@ -41,7 +41,7 @@ struct MovesLikeTests {
         try context.save()
         #expect(row.movementPattern == .horizontalPull)
         #expect(Set((row.jointActions ?? []).compactMap { $0.movement?.key }) == ["shoulder.extension", "scapula.retraction", "elbow.flexion"])
-        #expect((row.jointActions ?? []).allSatisfy { $0.key.hasPrefix("\(row.syncKey!):produces:") })
+        #expect((row.jointActions ?? []).allSatisfy { $0.key.hasPrefix("\(row.syncKey!):barbell-row:produces:") })
 
         let all = try context.fetch(FetchDescriptor<Exercise>())
         let index = ExerciseSearch.Index(all.map(ExerciseSearch.Document.init))
@@ -147,6 +147,17 @@ struct MovesLikeTests {
         #expect(exercise.movementPattern == nil && exercise.executionStyle == nil)
         #expect((exercise.jointActions ?? []).isEmpty)
         #expect(try context.fetch(FetchDescriptor<ExerciseJointAction>()).allSatisfy { $0.exercise != nil })
+    }
+
+    @Test("A lift picked on other equipment reopens with that lift's name")
+    func pickedLiftKeepsItsName() throws {
+        let row = try own("Landmine Row", .barbell, .back)
+        var draft = ExerciseDraft(exercise: row)
+        draft.choose(movesLike: "catalog:seated-cable-row")
+        #expect(draft.apply(to: row))
+        try context.save()
+        // Barbell Row stores the same rows, on the exercise's own equipment, but the pick wins.
+        #expect(ExerciseDraft(exercise: row).movesLike == "catalog:seated-cable-row")
     }
 
     @Test("Built-in exercises keep the catalog's movement")

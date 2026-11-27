@@ -117,12 +117,21 @@ enum MovesLike {
         })
         let signature = Signature(pattern: pattern, style: exercise.executionStyle ?? .controlled, actions: actions)
         let same = signatures.filter { $0.signature == signature }
-        return (same.first { $0.equipment == exercise.equipment } ?? same.first)?.key
+        // The lift the lifter picked, named in its rows' keys, when it still matches the rows.
+        let picked = (exercise.jointActions ?? []).lazy.compactMap { pickedKey(in: $0.key) }.first
+        return (same.first { $0.key == picked } ?? same.first { $0.equipment == exercise.equipment } ?? same.first)?.key
+    }
+
+    /// Row keys read `own:<uuid>:<catalog id>:<role>:<movement>`, so a lift that moves like a
+    /// built-in on other equipment keeps its name. Keys without the catalog id still read.
+    private static func pickedKey(in rowKey: String) -> String? {
+        let parts = rowKey.split(separator: ":")
+        return parts.count == 5 && parts[0] == "own" ? "catalog:\(parts[2])" : nil
     }
 
     /// Copies a built-in's pattern, style and joint action rows onto an own exercise, or clears
-    /// them for nil. Rows are keyed by the exercise's own sync key, which catalog reconciliation
-    /// never touches. Stored rows carry no weight; search reads the built-in's weights back
+    /// them for nil. Rows are keyed by the exercise's own sync key and the picked built-in's ID.
+    /// Catalog reconciliation, in this and earlier versions, never touches an `own:` key. Stored rows carry no weight; search reads the built-in's weights back
     /// through `key(of:)`.
     static func copy(_ key: String?, to exercise: Exercise, in context: ModelContext) {
         guard exercise.catalogID == nil else { return }
@@ -131,7 +140,7 @@ enum MovesLike {
         let profile = entry(key)?.profile
         exercise.movementPattern = profile?.pattern
         exercise.executionStyle = profile?.style
-        guard let profile else { return }
+        guard let profile, let id = entry(key)?.id else { return }
         exercise.assignSyncID()
         guard let owner = exercise.syncKey else { return }
         let wanted = Set(profile.storedMovements)
@@ -141,7 +150,7 @@ enum MovesLike {
         )
         for movementKey in profile.storedMovements {
             guard let movement = movements[movementKey] else { continue }
-            let action = ExerciseJointAction(key: "\(owner):\(profile.role.rawValue):\(movementKey)", role: profile.role)
+            let action = ExerciseJointAction(key: "\(owner):\(id):\(profile.role.rawValue):\(movementKey)", role: profile.role)
             context.insert(action)
             action.exercise = exercise
             action.movement = movement
