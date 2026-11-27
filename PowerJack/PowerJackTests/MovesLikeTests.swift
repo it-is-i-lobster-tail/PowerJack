@@ -91,7 +91,7 @@ struct MovesLikeTests {
         empty.primaryMuscle = .back
         empty.propose(movesLike: "catalog:barbell-row")
         #expect(empty.primaryMuscle == .back)
-        #expect(empty.secondaryMuscles == [.biceps], "prime movers only: no chest for a row")
+        #expect(empty.secondaryMuscles == [.biceps, .abs], "prime movers only: no chest for a row")
         // A new proposal replaces muscles that were only proposed.
         empty.propose(movesLike: "catalog:barbell-bench-press")
         #expect(empty.secondaryMuscles == MovesLike.secondaryMuscles(of: "catalog:barbell-bench-press", primary: .back))

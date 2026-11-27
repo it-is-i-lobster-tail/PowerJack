@@ -76,16 +76,22 @@ enum MovesLike {
     static func secondaryMuscles(of key: String?, primary: Muscle?) -> [Muscle] {
         guard let profile = entry(key)?.profile else { return [] }
         let anatomy = JointAnatomy.bundled
+        var muscles: [Muscle] = []
         var weights: [Muscle: Double] = [:]
         for action in profile.actions {
             let movement = action.role == .resists ? anatomy.opposite(of: action.movement) : action.movement
             for mover in anatomy.muscles(for: movement) where mover.isPrime && mover.group != primary {
+                if weights[mover.group] == nil { muscles.append(mover.group) }
                 weights[mover.group] = max(weights[mover.group] ?? 0, action.weight)
             }
         }
-        return weights
-            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key.rawValue < $1.key.rawValue }
-            .prefix(maxSecondaryMuscles).map(\.key)
+        // Equal weights keep the profile's order, so a row's biceps come before its bracing abs.
+        return muscles.enumerated()
+            .sorted { left, right in
+                let leftWeight = weights[left.element] ?? 0, rightWeight = weights[right.element] ?? 0
+                return leftWeight != rightWeight ? leftWeight > rightWeight : left.offset < right.offset
+            }
+            .prefix(maxSecondaryMuscles).map(\.element)
     }
 
     // MARK: - Reading and writing an own exercise
