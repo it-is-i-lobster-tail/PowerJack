@@ -4,24 +4,38 @@ name: Upgrade tests
 # installs it on a simulator, trains with it, installs the new version over it like an
 # App Store or TestFlight update, and checks the lifter's data is all there and still works.
 # See scripts/upgrade/README.md. Branch protection requires the "Upgrade tests" check on staging.
+#
+# Each version is built and trained once, and its data is kept as a snapshot in the Actions
+# cache, so a check only builds the versions it hasn't seen yet. A daily run on main makes
+# snapshots for new versions. On Sundays it builds every version again from scratch and
+# upgrades the real installed app, as a full check of the snapshots.
+#
 # A draft pull request into staging waits, so each merge to main doesn't restart this.
 # Marking it "Ready for review" runs it, and every later push runs it again.
 on:
   pull_request:
     branches: [staging, main]
     types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: "0 8 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "check: upgrade from every version. snapshots: only make missing snapshots. fresh: build every version again."
+        type: choice
+        options: [check, snapshots, fresh]
+        default: check
 
 concurrency:
   group: upgrade-tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   XCODE_PATH: /Applications/Xcode_27.2.app
   SIMULATOR: iPhone 17e
   IOS_VERSION: "27.2"
-  SHARDS: 4
   HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SNAPSHOTS: upgrade-snapshots
 
 jobs:
   # PRs into main run this only when they change the upgrade tests themselves.
@@ -31,16 +45,39 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.scope.outputs.run }}
+      mode: ${{ steps.scope.outputs.mode }}
+      shards: ${{ steps.scope.outputs.shards }}
+      versions: ${{ steps.scope.outputs.versions }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      # The newest snapshots: the daily run's on main, plus parts a run of this PR made.
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-all-${{ github.run_id }}", restore-keys: upgrade-snapshots-all- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part1-${{ github.run_id }}", restore-keys: upgrade-snapshots-part1- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part2-${{ github.run_id }}", restore-keys: upgrade-snapshots-part2- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part3-${{ github.run_id }}", restore-keys: upgrade-snapshots-part3- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part4-${{ github.run_id }}", restore-keys: upgrade-snapshots-part4- }
+
       - id: scope
         env:
+          EVENT: ${{ github.event_name }}
           BASE: ${{ github.base_ref }}
           DRAFT: ${{ github.event.pull_request.draft }}
+          INPUT_MODE: ${{ inputs.mode }}
         run: |
+          case "$EVENT" in
+            pull_request) mode=check ;;
+            schedule) mode=snapshots; [ "$(date -u +%u)" = 7 ] && mode=fresh ;;
+            *) mode=${INPUT_MODE:-check} ;;
+          esac
+
           run=true
           if [ "$BASE" = staging ] && [ "$DRAFT" = true ]; then
             run=false
@@ -48,9 +85,35 @@ jobs:
             git diff --name-only "origin/main...$HEAD_SHA" \
               | grep -qE '^(scripts/upgrade/|PowerJack/PowerJackTests/Upgrade|\.github/workflows/upgrade-tests\.yml)' || run=false
           fi
+
+          # Listed once here, so the parts don't each spend minutes on it.
+          scripts/upgrade/versions.sh "$HEAD_SHA" origin/staging origin/prod > versions.txt
+          : > missing.txt
+          while read -r label commit; do
+            if [ ! -f "$SNAPSHOTS/$(scripts/upgrade/snapshot-name.sh "$label" "$commit")/container.tar" ]; then
+              echo "$label $commit" >> missing.txt
+            fi
+          done < versions.txt
+          missing=$(wc -l < missing.txt)
+          echo "$(wc -l < versions.txt) versions, $missing without a snapshot."
+
+          # Checks split every version over four runners. Making snapshots only needs
+          # runners for the missing ones, about 15 versions each.
+          if [ "$mode" = snapshots ]; then
+            cp missing.txt versions.txt
+            shards=$(( (missing + 14) / 15 ))
+            [ "$shards" -le 4 ] || shards=4
+          else
+            shards=4
+          fi
+          [ "$shards" -gt 0 ] || run=false
+
+          cat versions.txt
           echo "run=$run" >> "$GITHUB_OUTPUT"
-          echo "Run upgrade tests: $run"
-          scripts/upgrade/versions.sh "$HEAD_SHA" origin/staging origin/prod
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "shards=[$(seq -s, 1 "$(( shards > 0 ? shards : 1 ))")]" >> "$GITHUB_OUTPUT"
+          echo "versions=$(base64 -w0 versions.txt)" >> "$GITHUB_OUTPUT"
+          echo "Mode: $mode. Run: $run. Parts: $shards."
 
   upgrade:
     name: Upgrade (part ${{ matrix.shard }})
@@ -61,12 +124,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: ${{ fromJSON(needs.scope.outputs.shards) }}
 
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-all-${{ github.run_id }}", restore-keys: upgrade-snapshots-all- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part1-${{ github.run_id }}", restore-keys: upgrade-snapshots-part1- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part2-${{ github.run_id }}", restore-keys: upgrade-snapshots-part2- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part3-${{ github.run_id }}", restore-keys: upgrade-snapshots-part3- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part4-${{ github.run_id }}", restore-keys: upgrade-snapshots-part4- }
 
       - name: Select Xcode
         run: |
@@ -94,15 +168,33 @@ jobs:
 
       # Neighboring versions go to the same part, so each builds on the last one's build.
       - name: Upgrade from earlier versions
+        id: upgrade
         env:
           SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ strategy.job-total }}
+          MODE: ${{ needs.scope.outputs.mode }}
+          VERSIONS: ${{ needs.scope.outputs.versions }}
         run: |
-          scripts/upgrade/versions.sh "$HEAD_SHA" origin/staging origin/prod > "$RUNNER_TEMP/versions.txt"
+          echo "$VERSIONS" | base64 --decode > "$RUNNER_TEMP/versions.txt"
           total=$(wc -l < "$RUNNER_TEMP/versions.txt")
           per=$(( (total + SHARDS - 1) / SHARDS ))
           awk -v from=$(( (SHARD - 1) * per )) -v to=$(( SHARD * per )) 'NR > from && NR <= to' \
             "$RUNNER_TEMP/versions.txt" | tee "$RUNNER_TEMP/part.txt"
-          scripts/upgrade/upgrade-test.sh "$SIMULATOR_UDID" upgrade-results < "$RUNNER_TEMP/part.txt"
+          export UPGRADE_SNAPSHOTS="$PWD/$SNAPSHOTS"
+          [ "$MODE" != fresh ] || export UPGRADE_FRESH=1
+          [ "$MODE" != snapshots ] || export UPGRADE_SNAPSHOT_ONLY=1
+          status=0
+          scripts/upgrade/upgrade-test.sh "$SIMULATOR_UDID" upgrade-results < "$RUNNER_TEMP/part.txt" || status=$?
+          echo "new=$(cat upgrade-results/new-snapshots 2>/dev/null || echo 0)" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      # Kept even when an upgrade failed, because the old versions' data is still right.
+      - name: Keep new snapshots
+        if: ${{ !cancelled() && steps.upgrade.outputs.new != '' && steps.upgrade.outputs.new != '0' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SNAPSHOTS }}
+          key: upgrade-snapshots-part${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload stores and logs
         if: always()
@@ -110,6 +202,39 @@ jobs:
         with:
           name: upgrade-results-${{ matrix.shard }}
           path: upgrade-results
+
+  # On main, folds every part into one snapshot cache that pull requests can read.
+  # GitHub drops the older ones after a week without use.
+  collect:
+    name: Keep snapshots
+    needs: upgrade
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.upgrade.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-all-${{ github.run_id }}", restore-keys: upgrade-snapshots-all- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part1-${{ github.run_id }}", restore-keys: upgrade-snapshots-part1- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part2-${{ github.run_id }}", restore-keys: upgrade-snapshots-part2- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part3-${{ github.run_id }}", restore-keys: upgrade-snapshots-part3- }
+      - uses: actions/cache/restore@v4
+        with: { path: "${{ env.SNAPSHOTS }}", key: "upgrade-snapshots-part4-${{ github.run_id }}", restore-keys: upgrade-snapshots-part4- }
+
+      - name: Count snapshots
+        id: count
+        run: |
+          count=$(find "$SNAPSHOTS" -name container.tar 2>/dev/null | wc -l | tr -d ' ')
+          echo "$count snapshots, $(du -sh "$SNAPSHOTS" 2>/dev/null | cut -f1) in all." | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Save snapshots
+        if: steps.count.outputs.count != '0'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SNAPSHOTS }}
+          key: upgrade-snapshots-all-${{ github.run_id }}-${{ github.run_attempt }}
 
   result:
     name: Upgrade tests
@@ -129,7 +254,9 @@ jobs:
             exit 1
           fi
           if [ "$RUN" != true ]; then
-            if [ "$DRAFT" = true ]; then
+            if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+              echo "Every earlier version already has a snapshot."
+            elif [ "$DRAFT" = true ]; then
               echo "This draft waits. Mark it Ready for review to run every upgrade."
             else
               echo "This pull request doesn't change the upgrade tests, so they were skipped."
