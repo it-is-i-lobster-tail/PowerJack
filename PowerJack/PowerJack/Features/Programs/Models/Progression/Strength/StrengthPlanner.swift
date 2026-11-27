@@ -63,7 +63,14 @@ enum StrengthPlanner: WeekPlanner {
         fitBlock(&state.clock, weekIndex: week.order, in: program)
         StrengthWeekClose.close(&state, week: closedWeek(week, at: now))
         fitBlock(&state.clock, weekIndex: week.order + 1, in: program)
-        program.modelContext?.insert(StrengthLog(date: now, state: state, sessionID: week.syncID))
+        if let context = program.modelContext {
+            context.insert(StrengthLog(date: now, state: state, sessionID: week.syncID))
+            do {
+                try StrengthLog.rotate(in: context)
+            } catch {
+                Logger.program.error("Could not rotate the strength log: \(error.localizedDescription)")
+            }
+        }
         return state
     }
 
