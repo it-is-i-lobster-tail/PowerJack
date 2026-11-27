@@ -47,7 +47,9 @@ struct ImportedDataView: View {
         }
         .environment(\.editMode, $editMode)
         .searchable(text: $search, prompt: "Search exercises")
-        .navigationTitle("Imported Data")
+        // Keep Select and Select All in reach while searching, so a search can be selected and deleted.
+        .searchPresentationToolbarBehavior(.avoidHidingContent)
+        .navigationTitle(isSelecting ? selectedTitle(selected.count) : "Imported Data")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSelecting)
         .toolbar(isSelecting ? .hidden : .visible, for: .tabBar)
@@ -66,13 +68,10 @@ struct ImportedDataView: View {
                     }
                     .disabled(shown.isEmpty)
                 }
-                ToolbarItem(placement: .status) {
-                    Text(selected.isEmpty ? "Select Sets" : selected.count == 1 ? "1 Set Selected" : "\(selected.count) Sets Selected")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                ToolbarSpacer(placement: .bottomBar)
                 ToolbarItem(placement: .bottomBar) {
-                    Button("Delete", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
+                    Button("Delete", role: .destructive) { isConfirmingDelete = true }
+                        .tint(.red)
                         .disabled(selected.isEmpty)
                         .accessibilityIdentifier("importedData.delete")
                 }
@@ -111,6 +110,14 @@ struct ImportedDataView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private func selectedTitle(_ count: Int) -> String {
+        switch count {
+        case 0: "Select Sets"
+        case 1: "1 Set Selected"
+        default: "\(count) Sets Selected"
+        }
     }
 
     private func deleteTitle(_ count: Int) -> String {
