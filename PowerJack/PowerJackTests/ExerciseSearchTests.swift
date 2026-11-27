@@ -44,8 +44,8 @@ struct ExerciseSearchTests {
         let index = index(all)
         func shown(_ query: String) -> [String] { ranked(query, in: index, all) }
 
-        let squats = entries { [.squat, .splitSquatLunge].contains($0.profile.pattern) }
-        #expect(squats.count == 12)
+        let squats = entries { $0.profile.family == .squat || $0.profile.family == .splitSquatLunge }
+        #expect(squats.count == 11)
         #expect(Set(shown("squats")).isSuperset(of: squats))
 
         let primary = entries { $0.primaryMuscle == .hamstrings }

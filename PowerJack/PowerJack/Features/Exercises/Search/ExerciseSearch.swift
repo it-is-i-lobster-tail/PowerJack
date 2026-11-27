@@ -5,7 +5,8 @@ import SwiftData
 /// each 0 to 1, weighted for where the search runs.
 /// - Name: the share of query words found in the lift's name. An exact name sorts first.
 /// - Meaning: on-device word embeddings, or the muscles the query names.
-/// - Structure: how well the lift stands in for the one being replaced.
+/// - Structure: shared joint actions and muscles (`ExerciseStructure`) with the lift being replaced,
+///   or with the joint movements the query names.
 /// - History: how much the lifter trains it (`ExerciseFamiliarity`).
 nonisolated enum ExerciseSearch {
     /// A value snapshot taken on the store's actor. Indexing never retains SwiftData objects.
@@ -18,6 +19,7 @@ nonisolated enum ExerciseSearch {
         let pattern: String?
         let style: String
         let actions: [String]
+        let structure: ExerciseStructure
 
         @MainActor private static let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0) })
 
@@ -28,12 +30,21 @@ nonisolated enum ExerciseSearch {
             primary = exercise.primaryMuscleFocus
             secondary = exercise.secondaryMuscles
             equipment = exercise.equipment
-            pattern = exercise.movementPattern?.rawValue ?? entry?.profile.pattern.rawValue
             style = exercise.executionStyle?.rawValue ?? entry?.profile.style.rawValue ?? ""
-            actions = (exercise.jointActions ?? []).compactMap { action in
-                guard let key = action.movement?.key else { return nil }
-                return action.role.rawValue + " " + key
-            }.sorted()
+            let stored = (exercise.jointActions ?? []).compactMap { action in
+                action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
+            }
+            actions = stored.map { $0.role.rawValue + " " + $0.movement }.sorted()
+            // Built-in lifts read the catalog, which knows each action's weight.
+            if let profile = entry?.profile {
+                pattern = profile.family?.rawValue
+                structure = ExerciseStructure(actions: profile.actions, pattern: pattern)
+            } else {
+                pattern = exercise.movementPattern?.rawValue
+                structure = stored.isEmpty
+                    ? ExerciseStructure(primary: primary, secondary: secondary, pattern: pattern)
+                    : ExerciseStructure(actions: stored, pattern: pattern)
+            }
         }
     }
 
@@ -107,22 +118,25 @@ nonisolated enum ExerciseSearch {
         func rank(_ query: ExerciseQuery, context: Context = .browse, familiarity: ExerciseFamiliarity = .none) -> [Match] {
             let weights = context.weights
             var candidates = entries
-            var related: [String: Double] = [:]
+            // What structure compares with: the lift being replaced, or the query's joint words.
+            let named = query.movements.isEmpty ? nil : ExerciseStructure(actions: query.movements.map { JointAction.main($0) }, pattern: nil)
+            var reference = named
             var avoided: Equipment?
             switch context {
             case .replacing(let source, let sameEquipment):
                 candidates.removeAll { $0.document.key == source }
-                let scores = relatedness(to: source)
-                let best = Double(scores.values.max() ?? 0)
-                if best > 0 { related = scores.mapValues { Double($0) / best } }
+                let original = entries.first { $0.document.key == source }?.document
+                reference = original?.structure
                 // Naming equipment in the query overrides the preference for something else.
-                if !sameEquipment && query.equipment.isEmpty {
-                    avoided = entries.first { $0.document.key == source }?.document.equipment
-                }
+                if !sameEquipment && query.equipment.isEmpty { avoided = original?.equipment }
             case .charting(let logged):
                 candidates.removeAll { !logged.contains($0.document.key) }
             case .browse, .importing:
                 break
+            }
+            var related: [String: Double] = [:]
+            if let reference {
+                for entry in candidates { related[entry.document.key] = reference.similarity(to: entry.document.structure) }
             }
 
             // Equipment the query names is a preference: other equipment still shows, after it.
@@ -140,16 +154,16 @@ nonisolated enum ExerciseSearch {
 
             guard !query.isEmpty else {
                 let shown = candidates.filter { entry in
-                    if case .replacing = context { return related[entry.document.key] != nil }
+                    if case .replacing = context { return related[entry.document.key] ?? 0 >= ExerciseSearch.minimumStructure }
                     return familiarity.score(entry.document.key) > 0
                 }
                 return Self.sorted(shown.map { (match($0), $0, false) })
             }
 
             let evidence = candidates.map { ($0, nameEvidence($0, query)) }
-            let named = evidence.filter { $0.1.share == 1 }
+            let fullNames = evidence.filter { $0.1.share == 1 }
             // When every full name match is one movement, its other lifts are relevant too.
-            let patterns = Set(named.compactMap { $0.0.document.pattern })
+            let patterns = Set(fullNames.compactMap { $0.0.document.pattern })
             let family = patterns.count == 1 ? patterns.first : nil
 
             // Opposite joint-action roles read alike to the model but describe different work.
@@ -173,10 +187,15 @@ nonisolated enum ExerciseSearch {
             if focus == nil, case .importing(let category?) = context {
                 focus = AnatomyTopic.Focus(muscles: [category], emphasis: [category])
             }
-            if focus == nil, named.isEmpty, let phrase {
+            if focus == nil, fullNames.isEmpty, let phrase {
                 focus = AnatomyTopic.focus(for: phrase, topics: topics, bestLift: Float(similarity.values.max() ?? 0))
             }
-            let byMuscle = focus != nil && (labelled != nil || named.isEmpty)
+            // Joint words that read like nothing else, such as "posterior chain", name the prime movers' groups.
+            if focus == nil, fullNames.isEmpty, let named {
+                let movers = Set(named.muscles.filter { $0.value == 1 }.keys)
+                if !movers.isEmpty { focus = AnatomyTopic.Focus(muscles: movers, emphasis: movers) }
+            }
+            let byMuscle = focus != nil && (labelled != nil || fullNames.isEmpty)
 
             let scored: [Scored] = evidence.map { entry, words in
                 let doc = entry.document
@@ -194,28 +213,6 @@ nonisolated enum ExerciseSearch {
             let best = scored.map { relevance($0.match) }.max() ?? 0
             let cutoff = max(ExerciseSearch.minimumRelevance, best - ExerciseSearch.relevanceMargin)
             return Self.sorted(scored.filter { $0.exact || relevance($0.match) >= cutoff })
-        }
-
-        /// How well each lift can stand in for the source. A shared muscle or movement
-        /// anchors the comparison even when a custom exercise has no mechanics profile.
-        func relatedness(to key: String) -> [String: Float] {
-            guard let source = entries.first(where: { $0.document.key == key }) else { return [:] }
-            let original = source.document
-            var scores: [String: Float] = [:]
-            for entry in entries where entry.document.key != key {
-                let candidate = entry.document
-                let sameMuscle = original.primary == candidate.primary
-                let samePattern = original.pattern != nil && original.pattern == candidate.pattern
-                let assists = candidate.secondary.contains(original.primary) || original.secondary.contains(candidate.primary)
-                guard sameMuscle || samePattern || assists else { continue }
-
-                var score: Float = sameMuscle ? 4 : 0
-                if samePattern { score += 3 }
-                score += ExerciseTextEncoder.similarity(source.mechanics, entry.mechanics)
-                score += ExerciseTextEncoder.similarity(source.vector, entry.vector)
-                scores[candidate.key] = score
-            }
-            return scores
         }
 
         /// Exact names first, then score, then how much the lifter trains it, then name.
@@ -255,6 +252,8 @@ nonisolated enum ExerciseSearch {
     static let familyEvidence = 0.8
     /// Evidence kept when the lift uses other equipment than the query names.
     static let otherEquipment = 0.85
+    /// With no query, Change and Substitute list lifts at least this close to the one replaced.
+    static let minimumStructure = 0.2
     /// Closeness kept by a substitute on the same equipment as the lift it replaces.
     static let avoidedEquipment = 0.85
     /// Meaning kept by a lift outside the muscles a body-part query names.
