@@ -141,10 +141,11 @@ struct TemplateBuilder: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .sheet(item: $exerciseToEdit) {exercise in
-            ExerciseDetailView(
-                exercise: exercise,
-            )
+        .sheet(item: $exerciseToEdit) { exercise in
+            // Its own stack, so the form's rows (Moves Like, Advanced Data) can push.
+            NavigationStack {
+                ExerciseDetailView(exercise: exercise)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
