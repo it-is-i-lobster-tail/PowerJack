@@ -16,7 +16,8 @@ struct ExerciseSelectionView: View {
     let onSelect: ((Exercise) -> Void)?
 
     @Query private var exercises: [Exercise]
-    @State private var index: ExerciseChartSearch.Index?
+    @State private var index: ExerciseSearch.Index?
+    @State private var familiarity = ExerciseFamiliarity.none
     @State private var searchText = ""
     @State private var muscles: Set<Muscle> = []
     @State private var exerciseToEdit: Exercise?
@@ -30,19 +31,20 @@ struct ExerciseSelectionView: View {
     }
 
     var body: some View {
-        let results = ExercisePickerResults(exercises: exercises, index: index, query: searchText, muscles: muscles, mode: mode)
+        let results = ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
+                                            query: searchText, muscles: muscles, mode: mode)
+        let typed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         NavigationStack {
             List {
-                if !results.suggested.isEmpty {
-                    Section("Suggested") {
-                        ForEach(results.suggested) { exercise in row(exercise) }
+                Section {
+                    ForEach(results.matches) { exercise in row(exercise) }
+                    if !typed.isEmpty && !mode.isSubstitution {
+                        Button("Add \u{201C}\(typed)\u{201D}", systemImage: "plus") { isCreating = true }
                     }
                 }
-                if !results.named.isEmpty {
-                    Section {
-                        ForEach(results.named) { exercise in row(exercise) }
-                    } header: {
-                        if !results.suggested.isEmpty { Text("Exercises") }
+                if !results.others.isEmpty {
+                    Section("All Exercises") {
+                        ForEach(results.others) { exercise in row(exercise) }
                     }
                 }
             }
@@ -64,7 +66,7 @@ struct ExerciseSelectionView: View {
                 ExerciseDetailView(exercise: exercise)
             }
             .navigationDestination(isPresented: $isCreating) {
-                ExerciseNewView(name: results.isEmpty ? searchText : "", onSave: handleNewExercise)
+                ExerciseNewView(name: typed, onSave: handleNewExercise)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -102,7 +104,7 @@ struct ExerciseSelectionView: View {
                 }
             }
         }
-        .background { ExerciseSearchIndexLoader(index: $index) }
+        .background { ExerciseSearchIndexLoader(index: $index, familiarity: $familiarity) }
         .scrollEdgeEffectStyle(.soft, for: .all)
         .traceScreen(mode.isSubstitution ? "Substitute Picker" : "Exercise Picker")
     }
