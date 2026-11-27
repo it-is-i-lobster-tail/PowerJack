@@ -172,9 +172,20 @@ jobs:
           if git diff "$BEFORE" HEAD -- PowerJack/PowerJack.xcodeproj/project.pbxproj | grep -q '^+.*MARKETING_VERSION'; then
             echo "This push sets the version itself, so it is left as is."
           else
-            version=$(scripts/bump-patch-version.sh)
-            git commit -am "Bump version to $version"
-            git push
+            # Another merge can land on main while the tests run, so each try
+            # bumps on top of the newest main instead of failing to push.
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git reset --hard origin/main
+              version=$(scripts/bump-patch-version.sh)
+              git commit -am "Bump version to $version"
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              sleep $((attempt * 10))
+            done
+            echo "::error::Could not push the version bump to main."
+            exit 1
           fi
 
       # Includes versions set before tagging began, and any a failed run missed.

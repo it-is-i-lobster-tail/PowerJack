@@ -33,7 +33,9 @@ final class GallerySearchJournal {
     /// Saved plans are reused for 90 days, then asked again.
     static let lifetime: TimeInterval = 90 * 24 * 60 * 60
     /// Bump when `ChartSearchPlan` changes shape, so older plans are asked again.
-    private static let planVersion = 3
+    private static let planVersion = 4
+    /// Searches and phrases kept. Older ones rotate out, so the store stays small.
+    static let keptRows = 200
 
     let context: ModelContext?
     private var inFlight: [String: Task<ChartSearchPlan?, Never>] = [:]
@@ -62,6 +64,7 @@ final class GallerySearchJournal {
         phrase.text = text
         phrase.lastUsed = now
         context?.insert(GallerySearchVisit(text: text, date: now))
+        trim()
         save()
     }
 
@@ -99,6 +102,7 @@ final class GallerySearchJournal {
             let phrase = entry(input, key: key)
             phrase.planData = data
             phrase.interpretedAt = now
+            trim()
             save()
             return plan
         }
@@ -129,6 +133,23 @@ final class GallerySearchJournal {
         let new = GallerySearchPhrase(key: key, text: input)
         context?.insert(new)
         return new
+    }
+
+    /// Deletes all but the newest `keptRows` visits and phrases. A phrase counts from when it was last searched
+    /// or interpreted, whichever is later, so an old saved plan goes with it. Sorted here, so unsaved rows count.
+    private func trim() {
+        guard let context else { return }
+        let visits = (try? context.fetch(FetchDescriptor<GallerySearchVisit>())) ?? []
+        for visit in visits.sorted(by: { $0.date > $1.date }).dropFirst(Self.keptRows) {
+            context.delete(visit)
+        }
+        func latest(_ phrase: GallerySearchPhrase) -> Date {
+            max(phrase.lastUsed ?? .distantPast, phrase.interpretedAt ?? .distantPast)
+        }
+        let phrases = (try? context.fetch(FetchDescriptor<GallerySearchPhrase>())) ?? []
+        for phrase in phrases.sorted(by: { latest($0) > latest($1) }).dropFirst(Self.keptRows) {
+            context.delete(phrase)
+        }
     }
 
     private func save() {

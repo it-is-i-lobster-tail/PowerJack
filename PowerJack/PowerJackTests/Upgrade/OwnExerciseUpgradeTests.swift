@@ -76,7 +76,7 @@ struct OwnExerciseUpgradeTests {
         #expect(Set((custom.workoutExercisesValue ?? []).compactMap(\.syncIDValue)) == customRows)
     }
 
-    /// Upgraded stores stay open for the whole run, like `HostedView.makeStore()`.
+    /// Upgraded stores stay open for the whole run, like `PowerJackSeed.makeInMemoryContainer()`.
     private static var open: [ModelContainer] = []
 
     private func copyStore(of fixture: UpgradeFixture) throws -> URL {

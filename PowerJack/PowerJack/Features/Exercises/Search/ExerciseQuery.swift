@@ -6,8 +6,8 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
     let words: [String]
     let equipment: Set<Equipment>
     let muscles: Set<Muscle>
-    /// Joint movements named in the query. Phase 2 fills this in.
-    let movements: Set<String> = []
+    /// Joint movements the query names in lifter words, such as "rear delts".
+    let movements: Set<String>
 
     var isEmpty: Bool { words.isEmpty }
 
@@ -18,15 +18,42 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         return rest.isEmpty ? words : rest
     }
 
+    /// The typed words each of `words` came from, as positions in the text's words or in the
+    /// `tokens` the query was read from. Shorthand such as "hex bar" spans two.
+    let sources: [Range<Int>]
+
     init(_ text: String) {
-        words = Self.words(text)
+        self.init(read: Self.split(text).enumerated().map { (word: $0.element, source: $0.offset..<$0.offset + 1) })
+    }
+
+    /// A query read from words another reader has already split, such as the Data tab's search,
+    /// so `sources` can say which of them a lift's words came from.
+    init(tokens: [String]) {
+        self.init(read: tokens.enumerated().flatMap { index, token in Self.split(token).map { (word: $0, source: index..<index + 1) } })
+    }
+
+    private init(read tokens: [(word: String, source: Range<Int>)]) {
+        let read = Self.read(tokens)
+        words = read.map(\.word)
+        sources = read.map(\.source)
         equipment = Set(words.compactMap { Self.equipmentWords[$0] })
         muscles = Set(words.compactMap { Self.muscleWords[$0] })
+        movements = Self.movements(in: words)
+    }
+
+    /// The typed words behind a run of `words`.
+    func source(of range: Range<Int>) -> Range<Int> {
+        guard !range.isEmpty else { return 0..<0 }
+        return sources[range.lowerBound].lowerBound..<sources[range.upperBound - 1].upperBound
     }
 
     /// The one reader for names and queries: folded case and accents, camel case split,
     /// shorthand spelled out, singular words, no filler words.
     static func words(_ text: String) -> [String] {
+        read(split(text).map { (word: $0, source: 0..<0) }).map(\.word)
+    }
+
+    private static func split(_ text: String) -> [String] {
         var separated = ""
         var afterLowercase = false
         for character in text {
@@ -34,10 +61,13 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
             separated.append(character)
             afterLowercase = character.isLowercase
         }
-        let tokens = separated.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+        return separated.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
             .lowercased().replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "’", with: "")
             .split { !$0.isLetter && !$0.isNumber }.map(String.init)
-        return expandShorthand(tokens).map(singular).filter { !fillerWords.contains($0) }
+    }
+
+    private static func read(_ tokens: [(word: String, source: Range<Int>)]) -> [(word: String, source: Range<Int>)] {
+        expandShorthand(tokens).map { (word: singular($0.word), source: $0.source) }.filter { !fillerWords.contains($0.word) }
     }
 
     // MARK: - Vocabulary
@@ -56,7 +86,7 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         "exercise", "workout",
     ]
 
-    private static let equipmentWords: [String: Equipment] = [
+    static let equipmentWords: [String: Equipment] = [
         "barbell": .barbell, "dumbbell": .dumbbell, "kettlebell": .kettlebell,
         "cable": .cable, "machine": .machine, "bodyweight": .bodyweight,
     ]
@@ -68,14 +98,27 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         "hamstring": .hamstrings, "ham": .hamstrings,
     ]
 
-    private static func expandShorthand(_ tokens: [String]) -> [String] {
-        var result: [String] = []
+    /// Lifter phrases of up to 3 words that name joint movements (`JointAnatomy.movements(forTerm:)`).
+    private static func movements(in words: [String]) -> Set<String> {
+        var found = Set<String>()
+        for length in 1...3 where length <= words.count {
+            for start in 0...(words.count - length) {
+                found.formUnion(JointAnatomy.bundled.movements(forTerm: words[start..<start + length].joined(separator: " ")))
+            }
+        }
+        return found
+    }
+
+    private static func expandShorthand(_ tokens: [(word: String, source: Range<Int>)]) -> [(word: String, source: Range<Int>)] {
+        let words = tokens.map(\.word)
+        var result: [(word: String, source: Range<Int>)] = []
         var index = 0
         while index < tokens.count {
             if let rule = shorthand.first(where: { rule in
-                index + rule.from.count <= tokens.count && Array(tokens[index..<index + rule.from.count]) == rule.from
+                index + rule.from.count <= words.count && Array(words[index..<index + rule.from.count]) == rule.from
             }) {
-                result += rule.to
+                let source = tokens[index].source.lowerBound..<tokens[index + rule.from.count - 1].source.upperBound
+                result += rule.to.map { (word: $0, source: source) }
                 index += rule.from.count
             } else {
                 result.append(tokens[index])
