@@ -92,6 +92,50 @@ struct ChartQueryTests {
         #expect(front.hasScope)
     }
 
+    @Test("Lift words read as the exercise picker reads them: shorthand, typos and joined words")
+    func pickerWords() {
+        #expect(query("squatt").exerciseKeys == [F.squat.key], "one typo")
+        #expect(query("pushups").exerciseKeys == [F.pushUp.key])
+        #expect(query("military press").unloggedLifts == ["Barbell Overhead Press"])
+        #expect(query("barbell bench press").exerciseKeys == [F.bench.key], "a full name is that lift")
+    }
+
+    @Test("Imported lifts are found by their shorthand, their FitNotes name and their PowerJack name")
+    func importedLifts() {
+        let imported = ChartSearchFixture.history(imported: ChartSearchFixture.imported())
+        func query(_ text: String) -> ChartQuery { ChartQuery(text, history: imported) }
+        let rdl = query("rdl e1rm")
+        #expect(rdl.exerciseKeys == ["catalog:barbell-romanian-deadlift"])
+        #expect(rdl.unloggedLifts.isEmpty)
+        #expect(rdl.intent == "e1rm")
+        #expect(query("hex bar volume").exerciseKeys == ["catalog:trap-bar-deadlift"])
+        #expect(query("trap bar deadlift").exerciseKeys == ["catalog:trap-bar-deadlift"], "the PowerJack name")
+        #expect(query("barbell romanian deadlift").exerciseKeys == ["catalog:barbell-romanian-deadlift"])
+        #expect(query("deadlift").exerciseKeys == [F.deadlift.key], "the closest name in the family")
+        #expect(query("bench").exerciseKeys == [F.bench.key], "imported lifts leave the rest alone")
+    }
+
+    @Test("Joint words scope the logged lifts that do the movement, or else its muscles")
+    func jointWords() {
+        let imported = ChartSearchFixture.history(imported: ChartSearchFixture.imported())
+        let rearDelts = ChartQuery("rear delt sets", history: imported)
+        #expect(rearDelts.exerciseKeys == ["catalog:dumbbell-reverse-fly"])
+        #expect(rearDelts.muscles.isEmpty)
+        let unlogged = query("rear delts")
+        #expect(unlogged.lifts.isEmpty)
+        #expect(unlogged.muscles == [.shoulders])
+        #expect(query("lat volume").muscles == [.back], "a lone muscle word stays a muscle group")
+    }
+
+    @Test("A query read from typed words knows which words each lift word came from")
+    func querySources() {
+        let query = ExerciseQuery(tokens: ["hex", "bar", "volume", "rdl"])
+        #expect(query.words == ["trap", "bar", "volume", "romanian", "deadlift"])
+        #expect(query.source(of: 0..<2) == 0..<2)
+        #expect(query.source(of: 3..<5) == 3..<4)
+        #expect(ExerciseQuery.words("Hex-Bar RDLs") == ["trap", "bar", "romanian", "deadlift"])
+    }
+
     @Test("Questions ask the model. Short filters don't.")
     func questions() {
         for filter in ["", "arms", "legs strength", "upper body volume Oct", "press"] {

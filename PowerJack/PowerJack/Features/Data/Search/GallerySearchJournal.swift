@@ -33,7 +33,7 @@ final class GallerySearchJournal {
     /// Saved plans are reused for 90 days, then asked again.
     static let lifetime: TimeInterval = 90 * 24 * 60 * 60
     /// Bump when `ChartSearchPlan` changes shape, so older plans are asked again.
-    private static let planVersion = 3
+    private static let planVersion = 4
     /// Searches and phrases kept. Older ones rotate out, so the store stays small.
     static let keptRows = 200
 
