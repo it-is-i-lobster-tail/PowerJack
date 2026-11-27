@@ -36,31 +36,6 @@ struct ExerciseSearchTests {
         ExerciseCatalog.entries.first { $0.id == id }!
     }
 
-    // MARK: - Query reading
-
-    @Test("Names and queries read joined, hyphenated, plural and shorthand forms alike", arguments: [
-        ("Pull-Ups", ["pull", "up"]), ("pullups", ["pullup"]), ("pull ups", ["pull", "up"]),
-        ("DB press", ["dumbbell", "press"]), ("ohp", ["overhead", "press"]), ("military press", ["overhead", "press"]),
-        ("RDLs", ["romanian", "deadlift"]), ("hex bar", ["trap", "bar"]), ("pec deck", ["chest", "fly"]),
-        ("skullcrushers", ["skull", "crusher"]), ("chins", ["chin", "up"]), ("EZ-Bar curls", ["ez", "bar", "curl"]),
-        ("ez curl", ["ez", "bar", "curl"]), ("Crème squats", ["creme", "squat"]), ("LegPress", ["leg", "press"]),
-        ("calves for my legs", ["calf", "leg"]),
-    ])
-    func words(text: String, words: [String]) {
-        #expect(ExerciseQuery.words(text) == words)
-    }
-
-    @Test func equipmentAndMuscles() {
-        let query = ExerciseQuery("db hamstring curls")
-        #expect(query.equipment == [.dumbbell])
-        #expect(query.muscles == [.hamstrings])
-        #expect(query.nameWords == ["hamstring", "curl"])
-        #expect(ExerciseQuery("pecs").muscles == [.chest])
-        #expect(ExerciseQuery("triceps").muscles == [.triceps])
-        #expect(ExerciseQuery("barbell").nameWords == ["barbell"])
-        #expect(ExerciseQuery("  the ").isEmpty)
-    }
-
     // MARK: - Acceptance table
 
     @Test("Seeded catalog acceptance queries")
@@ -94,16 +69,6 @@ struct ExerciseSearchTests {
 
     // MARK: - Familiarity
 
-    @Test("Familiarity counts sessions, fades older ones and stays within 0...1")
-    func familiarityScores() {
-        let familiarity = ExerciseFamiliarity(sessions: [["a"], ["a"], ["a", "b"], ["b"], ["b"]])
-        #expect(familiarity.score("b") > familiarity.score("a"))
-        #expect(familiarity.score("never") == 0)
-        let always = ExerciseFamiliarity(sessions: Array(repeating: ["a"], count: 500))
-        #expect(always.score("a") <= 1)
-        #expect(always.score("a") > 0.99)
-    }
-
     @Test("A lift logged in the last 3 sessions beats an equal match")
     func familiarLiftFirst() throws {
         let first = Exercise(exerciseName: "Landmine Press", exerciseEquipment: .barbell, primaryMuscleFocus: .shoulders, userCreated: true)
@@ -125,22 +90,6 @@ struct ExerciseSearchTests {
         }
         // With no query, lifts the lifter trains are listed, most familiar first.
         #expect(index.rank(ExerciseQuery(""), familiarity: familiarity).map(\.key) == [second.searchKey, other])
-    }
-
-    @Test("Time off without sessions leaves every score unchanged")
-    func timeOffChangesNothing() {
-        func imported(_ days: [String]) -> [ImportedSet] {
-            days.enumerated().map { offset, day in
-                let row = ImportedSet()
-                row.trainingDay = day
-                row.exerciseKey = offset.isMultiple(of: 2) ? "catalog:barbell-back-squat" : "catalog:barbell-bench-press"
-                return row
-            }
-        }
-        let steady = ExerciseFamiliarity.from(workouts: [], imported: imported(["2026-01-01", "2026-01-03", "2026-01-05"]))
-        let gap = ExerciseFamiliarity.from(workouts: [], imported: imported(["2026-01-01", "2026-01-03", "2026-04-15"]))
-        #expect(steady == gap)
-        #expect(steady.score("catalog:barbell-back-squat") > steady.score("catalog:barbell-bench-press"))
     }
 
     // MARK: - Search behaviour kept from the chart search
@@ -259,6 +208,59 @@ struct ExerciseSearchTests {
         let p95 = times[times.count * 95 / 100]
         print("Exercise search: model load and catalog prep \(buildMS) ms, query median \(times[times.count / 2]) ms, p95 \(p95) ms across \(times.count) queries")
         #expect(p95 < 50)
+    }
+}
+
+/// Query reading and familiarity need no store, so they skip the seeded catalog.
+@MainActor
+struct ExerciseQueryTests {
+    @Test("Names and queries read joined, hyphenated, plural and shorthand forms alike", arguments: [
+        ("Pull-Ups", ["pull", "up"]), ("pullups", ["pullup"]), ("pull ups", ["pull", "up"]),
+        ("DB press", ["dumbbell", "press"]), ("ohp", ["overhead", "press"]), ("military press", ["overhead", "press"]),
+        ("RDLs", ["romanian", "deadlift"]), ("hex bar", ["trap", "bar"]), ("pec deck", ["chest", "fly"]),
+        ("skullcrushers", ["skull", "crusher"]), ("chins", ["chin", "up"]), ("EZ-Bar curls", ["ez", "bar", "curl"]),
+        ("ez curl", ["ez", "bar", "curl"]), ("Crème squats", ["creme", "squat"]), ("LegPress", ["leg", "press"]),
+        ("calves for my legs", ["calf", "leg"]),
+    ])
+    func words(text: String, words: [String]) {
+        #expect(ExerciseQuery.words(text) == words)
+    }
+
+    @Test func equipmentAndMuscles() {
+        let query = ExerciseQuery("db hamstring curls")
+        #expect(query.equipment == [.dumbbell])
+        #expect(query.muscles == [.hamstrings])
+        #expect(query.nameWords == ["hamstring", "curl"])
+        #expect(ExerciseQuery("pecs").muscles == [.chest])
+        #expect(ExerciseQuery("triceps").muscles == [.triceps])
+        #expect(ExerciseQuery("barbell").nameWords == ["barbell"])
+        #expect(ExerciseQuery("  the ").isEmpty)
+    }
+
+    @Test("Familiarity counts sessions, fades older ones and stays within 0...1")
+    func familiarityScores() {
+        let familiarity = ExerciseFamiliarity(sessions: [["a"], ["a"], ["a", "b"], ["b"], ["b"]])
+        #expect(familiarity.score("b") > familiarity.score("a"))
+        #expect(familiarity.score("never") == 0)
+        let always = ExerciseFamiliarity(sessions: Array(repeating: ["a"], count: 500))
+        #expect(always.score("a") <= 1)
+        #expect(always.score("a") > 0.99)
+    }
+
+    @Test("Time off without sessions leaves every score unchanged")
+    func timeOffChangesNothing() {
+        func imported(_ days: [String]) -> [ImportedSet] {
+            days.enumerated().map { offset, day in
+                let row = ImportedSet()
+                row.trainingDay = day
+                row.exerciseKey = offset.isMultiple(of: 2) ? "catalog:barbell-back-squat" : "catalog:barbell-bench-press"
+                return row
+            }
+        }
+        let steady = ExerciseFamiliarity.from(workouts: [], imported: imported(["2026-01-01", "2026-01-03", "2026-01-05"]))
+        let gap = ExerciseFamiliarity.from(workouts: [], imported: imported(["2026-01-01", "2026-01-03", "2026-04-15"]))
+        #expect(steady == gap)
+        #expect(steady.score("catalog:barbell-back-squat") > steady.score("catalog:barbell-bench-press"))
     }
 
     @Test("Data search resolves calendar dates and saves any exercise terms", arguments: [
