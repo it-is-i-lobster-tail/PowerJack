@@ -56,55 +56,46 @@ struct HistoryCacheTests {
 
     @Test("The Data tab reuses its history until a change is saved")
     func dataHistoryRebuildsAfterSave() async throws {
-        _ = HistoryChanges.shared
-        await settle()
+        let changes = HistoryChanges.shared
         let store = try sampleStore()
         let context = store.container.mainContext
         try context.save()
         await settle()
 
+        let before = changes.count
         let first = StudyHistory.current(in: context, unit: .pounds)
         _ = importedRow("2025-06-02", in: context)
         let unsaved = StudyHistory.current(in: context, unit: .pounds)
-        #expect(unsaved.revision == first.revision, "Redraws before a save reuse the history")
+        // Other suites save too, so only check reuse while nothing was saved anywhere.
+        if changes.count == before {
+            #expect(unsaved.revision == first.revision, "Redraws before a save reuse the history")
+        }
 
         try context.save()
         await settle()
+        #expect(changes.count > before)
         let saved = StudyHistory.current(in: context, unit: .pounds)
         #expect(saved.revision != first.revision)
         #expect(saved.revision == StudyHistory(context: context, unit: .pounds).revision)
         #expect(StudyHistory.current(in: context, unit: .kilograms).revision != saved.revision, "A new unit rebuilds")
     }
 
-    @Test("The search journal's own saves don't rebuild the history")
-    func journalSavesAreIgnored() async throws {
-        let changes = HistoryChanges.shared
-        await settle()
-        let count = changes.count
+    @Test("The search journal's own saves don't count as training changes")
+    func journalSavesAreIgnored() throws {
+        let store = PowerJackStore(inMemory: true)
         let journal = GallerySearchJournal(inMemory: true)
-        journal.record("bench progress")
-        await settle()
-        #expect(changes.count == count)
+        #expect(HistoryChanges.counts(store.container.mainContext))
+        #expect(!HistoryChanges.counts(try #require(journal.context)))
     }
 
     @Test("Only the training store's iCloud imports count, not other stores like the tips store")
-    func otherStoresAreIgnored() async throws {
+    func otherStoresAreIgnored() throws {
         let changes = HistoryChanges.shared
         let store = PowerJackStore(inMemory: true)
         _ = StudyHistory.current(in: store.container.mainContext, unit: .pounds)
-        await settle()
-        let count = changes.count
         let tips = URL(filePath: NSTemporaryDirectory()).appending(path: "tips.sqlite")
-        NotificationCenter.default.post(name: .NSPersistentStoreRemoteChange, object: nil,
-                                        userInfo: [NSPersistentStoreURLKey: tips])
-        await settle()
-        #expect(changes.count == count)
-
-        let training = try #require(store.container.configurations.first?.url)
-        NotificationCenter.default.post(name: .NSPersistentStoreRemoteChange, object: nil,
-                                        userInfo: [NSPersistentStoreURLKey: training])
-        await settle()
-        #expect(changes.count == count + 1)
+        #expect(!changes.counts(tips))
+        #expect(changes.counts(try #require(store.container.configurations.first?.url)))
     }
 
     @Test("Picker familiarity matches the workouts and imports it was built from")

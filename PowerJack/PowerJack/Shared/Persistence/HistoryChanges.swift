@@ -20,19 +20,20 @@ final class HistoryChanges {
         Task { [weak self] in
             for await notification in NotificationCenter.default.notifications(named: ModelContext.didSave) {
                 // The Data tab's search history lives in its own store and isn't training data.
-                guard Self.holdsTraining(notification.object as? ModelContext) else { continue }
+                guard Self.counts(notification.object as? ModelContext) else { continue }
                 self?.changed()
             }
         }
         Task { [weak self] in
             for await notification in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                guard let self, self.isTrainingStore(notification.userInfo?[NSPersistentStoreURLKey] as? URL) else { continue }
+                guard let self, self.counts(notification.userInfo?[NSPersistentStoreURLKey] as? URL) else { continue }
                 self.changed()
             }
         }
     }
 
-    private static func holdsTraining(_ context: ModelContext?) -> Bool {
+    /// Whether a save from this context changes training data.
+    static func counts(_ context: ModelContext?) -> Bool {
         context?.container.schema.entities.contains { $0.name == "\(Workout.self)" } ?? true
     }
 
@@ -41,7 +42,8 @@ final class HistoryChanges {
         trainingStores.formUnion(container.configurations.map { $0.url.resolvingSymlinksInPath() })
     }
 
-    private func isTrainingStore(_ store: URL?) -> Bool {
+    /// Whether an iCloud import into the store at this file changes training data.
+    func counts(_ store: URL?) -> Bool {
         store.map { trainingStores.contains($0.resolvingSymlinksInPath()) } ?? false
     }
 
