@@ -186,7 +186,10 @@ private struct ClashRow: View {
 
     private var message: String {
         switch item.choice {
+        case .useMine where item.isLookAlike:
+            "Looks like your \u{201C}\(item.existing?.exerciseName ?? "")\u{201D}. Yours will be used."
         case .useMine: "You have one with this name, set up differently. Yours will be used."
+        case .keepBoth where item.isLookAlike: "Adds the shared one as a new exercise."
         case .keepBoth: "Adds the shared one as \u{201C}\(item.keepBothName)\u{201D}."
         }
     }

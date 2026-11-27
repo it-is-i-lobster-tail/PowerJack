@@ -140,6 +140,54 @@ struct SharingTests {
         #expect(try exercises(named: "Landmine Press").count == 1)
     }
 
+    private func lift(_ name: String, _ equipment: Equipment, _ primary: Muscle, in context: ModelContext) throws -> Exercise {
+        let exercise = Exercise(exerciseName: name, exerciseEquipment: equipment, primaryMuscleFocus: primary, userCreated: true)
+        context.insert(exercise)
+        try context.save()
+        return exercise
+    }
+
+    @Test("A lift the receiver has under another name is offered instead of a duplicate")
+    func lookAlike() throws {
+        let shared = try lift("One Arm Single Row", .dumbbell, .back, in: sender)
+        let mine = try lift("One Arm Row", .dumbbell, .back, in: receiver)
+
+        var sharedImport = try received(SharedFile(exercise: shared))
+        let item = try #require(sharedImport.items.first)
+        #expect(item.existing === mine)
+        #expect(item.isLookAlike && item.asks)
+        #expect(item.choice == .useMine)
+        try sharedImport.save(in: receiver)
+        #expect(try exercises(named: "One Arm Single Row").isEmpty)
+
+        sharedImport.items[0].choice = .keepBoth
+        try sharedImport.save(in: receiver)
+        #expect(try exercises(named: "One Arm Single Row").count == 1)
+    }
+
+    @Test("Without one of their own, the built-in that reads the same is offered")
+    func lookAlikeBuiltIn() throws {
+        let shared = try lift("Single Arm Row", .dumbbell, .back, in: sender)
+        let sharedImport = try received(SharedFile(exercise: shared))
+        #expect(sharedImport.items.first?.existing?.catalogID == "one-arm-dumbbell-row")
+    }
+
+    @Test("Look-alikes need the same equipment, the same muscle and nearly every word")
+    func notLookAlike() throws {
+        try lift("Low Cable Fly", .cable, .chest, in: receiver)
+        try lift("Kneeling Landmine Press", .barbell, .shoulders, in: receiver)
+        let library = try receiver.fetch(FetchDescriptor<Exercise>())
+        func match(_ name: String, _ equipment: Equipment, _ primary: Muscle) -> String? {
+            let exercise = Exercise(exerciseName: name, exerciseEquipment: equipment, primaryMuscleFocus: primary, userCreated: true)
+            return SharedImport.lookAlike(for: SharedExercise(exercise), in: library)?.exerciseName
+        }
+        #expect(match("Cable Fly", .cable, .chest) == nil)                 // 2 of 3 words
+        #expect(match("Low Cable Flies", .cable, .chest) == "Low Cable Fly")  // plural
+        #expect(match("Low Cable Fly", .machine, .chest) == nil)           // other equipment
+        #expect(match("Kneeling Landmine Press", .barbell, .chest) == nil) // other muscle
+        #expect(match("Landmine Press", .barbell, .shoulders) == nil)      // 2 of 3 words
+    }
+
     @Test("Files from a newer version, or that aren't PowerJack files, are refused")
     func unreadableFiles() throws {
         #expect(throws: SharedFileError.unreadable) { try SharedFile.decode(Data("hello".utf8)) }

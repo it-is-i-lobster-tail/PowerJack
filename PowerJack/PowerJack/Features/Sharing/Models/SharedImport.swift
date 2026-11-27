@@ -30,6 +30,9 @@ struct SharedImport: Identifiable {
         let existing: Exercise?
         /// True when `existing` is the same exercise, so there's nothing to ask.
         let isSame: Bool
+        /// True when `existing` has another name that reads as the same lift, such as
+        /// "One Arm Row" for "One Arm Single Row".
+        var isLookAlike = false
         /// The name it gets if the lifter keeps both.
         let keepBothName: String
         var choice = Choice.useMine
@@ -47,13 +50,16 @@ struct SharedImport: Identifiable {
         var taken = Set(library.map { Self.normalized($0.exerciseName) })
         var items: [Item] = []
         for (index, shared) in file.exercises.enumerated() {
-            let existing = Self.existing(for: shared, in: library)
+            let exact = Self.existing(for: shared, in: library)
+            let lookAlike = exact == nil ? Self.lookAlike(for: shared, in: library) : nil
+            let existing = exact ?? lookAlike
             let isSame = existing.map { ($0.catalogID != nil && $0.catalogID == shared.catalogID) || Self.same(shared, as: $0) } ?? false
             // Only exercises the import may add need values this version can save.
             let name = isSame ? shared.name : try Self.draft(for: shared).name
             let keepBothName = Self.uniqueName(name, maxLength: maxExerciseNameLengthInput, taken: taken)
             if existing != nil && !isSame { taken.insert(Self.normalized(keepBothName)) }
-            items.append(Item(id: index, shared: shared, existing: existing, isSame: isSame, keepBothName: keepBothName))
+            items.append(Item(id: index, shared: shared, existing: existing, isSame: isSame && lookAlike == nil,
+                              keepBothName: keepBothName, isLookAlike: lookAlike != nil))
         }
         if let template, template.days.joined().contains(where: { !items.indices.contains($0.exercise) }) {
             throw SharedFileError.unreadable
@@ -82,7 +88,7 @@ struct SharedImport: Identifiable {
                     continue
                 }
                 var draft = try Self.draft(for: item.shared)
-                if item.existing != nil { draft.name = item.keepBothName }
+                if item.existing != nil && !item.isLookAlike { draft.name = item.keepBothName }
                 guard let exercise = draft.makeExercise() else { throw SharedFileError.unreadable }
                 context.insert(exercise)
                 inserted.append(exercise)
@@ -160,6 +166,41 @@ extension SharedImport {
             $0.customEquipmentName == shared.customEquipmentName
         }
         return matches.first { same(shared, as: $0) } ?? matches.first(where: \.userCreated) ?? matches.first
+    }
+
+    /// A lift the lifter already has under another name, held to a high bar so it only catches
+    /// the same lift: same equipment and primary muscle, one name holding every word of the
+    /// other, and at least 3 in 4 words shared. Words match the way search matches them
+    /// (prefixes, one typo, plurals), and "single" reads as "one". Nil when two lifts tie.
+    static func lookAlike(for shared: SharedExercise, in library: [Exercise]) -> Exercise? {
+        let words = lookAlikeWords(shared.name)
+        guard !words.isEmpty else { return nil }
+        let scored = library.compactMap { exercise -> (exercise: Exercise, share: Double)? in
+            guard exercise.equipment.rawValue == shared.equipment,
+                  exercise.customEquipmentName == shared.customEquipmentName,
+                  exercise.primaryMuscleFocus.rawValue == shared.primaryMuscle
+            else { return nil }
+            let theirs = lookAlikeWords(exercise.exerciseName)
+            let forward = ExerciseSearch.share(of: words, in: theirs)
+            let backward = ExerciseSearch.share(of: theirs, in: words)
+            guard max(forward, backward) == 1, min(forward, backward) >= lookAlikeShare else { return nil }
+            return (exercise, min(forward, backward))
+        }
+        // The lifter's own lift wins a tie with a built-in. Any other tie is too close to call.
+        .sorted { $0.share != $1.share ? $0.share > $1.share : $0.exercise.userCreated && !$1.exercise.userCreated }
+        guard let best = scored.first else { return nil }
+        if let next = scored.dropFirst().first, next.share == best.share,
+           next.exercise.userCreated == best.exercise.userCreated { return nil }
+        return best.exercise
+    }
+
+    /// The least share of words two names must have in common to read as one lift.
+    static let lookAlikeShare = 0.75
+
+    private static func lookAlikeWords(_ name: String) -> [String] {
+        let words = ExerciseQuery(name).nameWords.map { ["single", "unilateral"].contains($0) ? "one" : $0 }
+        var seen = Set<String>()
+        return words.filter { seen.insert($0).inserted }
     }
 
     /// Same name, equipment, muscles, rep range, fatigue, rest and movement.
