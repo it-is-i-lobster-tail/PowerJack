@@ -62,6 +62,12 @@ private struct PowerJackScreens: View {
     @State private var didRestore = false
     // A workout fades the bars away while it sits idle.
     @State private var idleControls = IdleControls()
+    // A shared template or exercise opened from another app.
+    @State private var sharedImport: SharedImport?
+    @State private var sharedImportError: String?
+    @AppStorage(TemplateType.selectionKey) private var listedTemplateType: TemplateType = .hypertrophy
+
+    @Environment(\.modelContext) private var modelContext
 
     private var showsWorkoutHeader: Bool {
         guard selection == .programs, case .session(let program) = router.path.last else { return false }
@@ -126,6 +132,17 @@ private struct PowerJackScreens: View {
             TraceLog.record(.screen, "Programs: \(path.isEmpty ? "My Programs" : path.map(\.traceName).joined(separator: " > "))")
         }
         .onOpenURL(perform: handleOpenURL)
+        .sheet(item: $sharedImport) { sharedImport in
+            SharedImportView(sharedImport: sharedImport, onImported: showImported)
+        }
+        .alert("Couldn't Open File", isPresented: Binding(
+            get: { sharedImportError != nil },
+            set: { if !$0 { sharedImportError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sharedImportError ?? "")
+        }
     }
 
     /// On launch, and after an iCloud Backup switch, reopen the active program's current workout.
@@ -160,8 +177,35 @@ private struct PowerJackScreens: View {
     }
 
     private func handleOpenURL(_ url: URL) {
+        if url.isFileURL {
+            openSharedFile(at: url)
+            return
+        }
         guard url == RestActivityAttributes.currentExerciseURL else { return }
         openCurrentExercise()
+    }
+
+    private func openSharedFile(at url: URL) {
+        TraceLog.record(.data, "Opened a shared file")
+        do {
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: url)
+            sharedImport = try SharedImport(file: SharedFile.decode(data), in: modelContext)
+        } catch {
+            sharedImportError = (error as? SharedFileError)?.errorDescription ?? SharedFileError.unreadable.errorDescription
+        }
+        // The system's copy in the app's Inbox is no longer needed.
+        if url.path().contains("/Inbox/") {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// A new template shows in Templates, in its own section.
+    private func showImported(_ template: TemplateProgram?) {
+        guard let template else { return }
+        listedTemplateType = template.templateType
+        selection = .templates
     }
 }
 
