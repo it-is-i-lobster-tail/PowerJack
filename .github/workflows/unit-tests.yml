@@ -50,28 +50,70 @@ jobs:
           fi
 
           udid=$(xcrun simctl create "CI $SIMULATOR" "$SIMULATOR" "$runtime")
-          echo "Created $SIMULATOR on $runtime ($udid)"
+          second=$(xcrun simctl create "CI $SIMULATOR 2" "$SIMULATOR" "$runtime")
+          echo "Created $SIMULATOR on $runtime ($udid, $second)"
           echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          echo "SECOND_SIMULATOR_UDID=$second" >> "$GITHUB_ENV"
 
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project PowerJack/PowerJack.xcodeproj \
+            -scheme PowerJack \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath DerivedData
+
+      # Two simulators each run half of the tests, one test at a time. The long progression
+      # simulations and the app screen tests go on the second one, everything else
+      # (including the CloudKit model export) on the first. Each half takes about 8 minutes.
       - name: Run unit tests
         id: unit-tests
         env:
           TEST_RUNNER_POWERJACK_EXPORT_CLOUDKIT_MODEL: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
         run: |
-          set -o pipefail
-          xcodebuild test \
-            -project PowerJack/PowerJack.xcodeproj \
-            -scheme PowerJack \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -parallel-testing-enabled NO \
-            -resultBundlePath TestResults.xcresult
+          slow=(PowerJackSimulationTests StrengthSimulationTests AppScreenTests)
+          only=() skip=()
+          for suite in "${slow[@]}"; do
+            only+=(-only-testing:"PowerJackTests/$suite")
+            skip+=(-skip-testing:"PowerJackTests/$suite")
+          done
+          xctestrun=$(ls DerivedData/Build/Products/*.xctestrun | head -1)
+          mkdir -p TestResults
+
+          run_half() { # <name> <simulator> <test filters...>
+            local name=$1 udid=$2
+            shift 2
+            xcodebuild test-without-building \
+              -xctestrun "$xctestrun" \
+              -destination "platform=iOS Simulator,id=$udid" \
+              -parallel-testing-enabled NO \
+              -resultBundlePath "TestResults/$name.xcresult" \
+              "$@" > "$RUNNER_TEMP/$name.log" 2>&1
+          }
+
+          run_half main "$SIMULATOR_UDID" "${skip[@]}" &
+          main_pid=$!
+          run_half slow "$SECOND_SIMULATOR_UDID" "${only[@]}" &
+          slow_pid=$!
+          status=0
+          wait $main_pid || status=1
+          wait $slow_pid || status=1
+
+          for name in main slow; do
+            echo "::group::Test log ($name)"
+            cat "$RUNNER_TEMP/$name.log"
+            echo "::endgroup::"
+            grep -E '✘|error:|Test run with|\*\* TEST' "$RUNNER_TEMP/$name.log" | head -40 || true
+          done
+          exit $status
 
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: TestResults
-          path: TestResults.xcresult
+          path: TestResults
 
       - name: Prepare CloudKit Development schema
         if: github.ref == 'refs/heads/main'
