@@ -382,6 +382,9 @@ struct StudyHistory {
 extension StudyHistory {
     private static let cache = HistoryCache<StudyHistory>()
 
+    /// The history last built for the Data tab, if any.
+    static var latest: StudyHistory? { cache.latest }
+
     /// All saved history, rebuilt once per saved change, weight unit or day instead of on every redraw.
     static func current(in context: ModelContext, unit: WeightUnit, now: Date = .now,
                         calendar: Calendar = .current) -> StudyHistory {

@@ -13,6 +13,8 @@ final class HistoryChanges {
 
     private(set) var count = 0
     @ObservationIgnored private var pending: Task<Void, Never>?
+    /// The training stores' files. Other stores on the device, like the tips store, change often and don't count.
+    @ObservationIgnored private var trainingStores: Set<URL> = []
 
     private init() {
         Task { [weak self] in
@@ -23,14 +25,24 @@ final class HistoryChanges {
             }
         }
         Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                self?.changed()
+            for await notification in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
+                guard let self, self.isTrainingStore(notification.userInfo?[NSPersistentStoreURLKey] as? URL) else { continue }
+                self.changed()
             }
         }
     }
 
     private static func holdsTraining(_ context: ModelContext?) -> Bool {
         context?.container.schema.entities.contains { $0.name == "\(Workout.self)" } ?? true
+    }
+
+    /// Remembers a training store, so its iCloud imports count.
+    func watch(_ container: ModelContainer) {
+        trainingStores.formUnion(container.configurations.map { $0.url.resolvingSymlinksInPath() })
+    }
+
+    private func isTrainingStore(_ store: URL?) -> Bool {
+        store.map { trainingStores.contains($0.resolvingSymlinksInPath()) } ?? false
     }
 
     private func changed() {
@@ -50,7 +62,11 @@ final class HistoryCache<Value> {
     private var value: Value?
 
     /// The kept value, or a new one built when the data, the store or `key` changed since.
+    /// The value last built, whatever has changed since.
+    var latest: Value? { value }
+
     func value(in context: ModelContext, key: AnyHashable = 0, build: () -> Value) -> Value {
+        HistoryChanges.shared.watch(context.container)
         let stamp = AnyHashable([AnyHashable(HistoryChanges.shared.count), key])
         if let value, self.context === context, self.stamp == stamp { return value }
         let built = build()

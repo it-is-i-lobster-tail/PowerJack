@@ -5,8 +5,14 @@ struct ProgramDataView: View {
     @Environment(\.modelContext) private var context
     @AppStorage(AppSettings.Key.weightUnit) private var unit = WeightUnit.current
 
+    @State private var onScreen = false
+
     var body: some View {
-        StudyGallery(history: StudyHistory.current(in: context, unit: unit))
+        // Off screen, keep showing the last history, so logging sets elsewhere doesn't rebuild it.
+        let history = onScreen ? nil : StudyHistory.latest
+        StudyGallery(history: history ?? StudyHistory.current(in: context, unit: unit))
+            .onAppear { onScreen = true }
+            .onDisappear { onScreen = false }
     }
 }
 

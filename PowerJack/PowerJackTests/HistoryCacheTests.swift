@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import SwiftData
 import Testing
@@ -84,6 +85,26 @@ struct HistoryCacheTests {
         journal.record("bench progress")
         await settle()
         #expect(changes.count == count)
+    }
+
+    @Test("Only the training store's iCloud imports count, not other stores like the tips store")
+    func otherStoresAreIgnored() async throws {
+        let changes = HistoryChanges.shared
+        let store = PowerJackStore(inMemory: true)
+        _ = StudyHistory.current(in: store.container.mainContext, unit: .pounds)
+        await settle()
+        let count = changes.count
+        let tips = URL(filePath: NSTemporaryDirectory()).appending(path: "tips.sqlite")
+        NotificationCenter.default.post(name: .NSPersistentStoreRemoteChange, object: nil,
+                                        userInfo: [NSPersistentStoreURLKey: tips])
+        await settle()
+        #expect(changes.count == count)
+
+        let training = try #require(store.container.configurations.first?.url)
+        NotificationCenter.default.post(name: .NSPersistentStoreRemoteChange, object: nil,
+                                        userInfo: [NSPersistentStoreURLKey: training])
+        await settle()
+        #expect(changes.count == count + 1)
     }
 
     @Test("Picker familiarity matches the workouts and imports it was built from")
