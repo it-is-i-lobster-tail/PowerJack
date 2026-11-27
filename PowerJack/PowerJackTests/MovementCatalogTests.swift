@@ -60,8 +60,8 @@ struct MovementCatalogTests {
             let exercise = try #require(exercises.first { $0.catalogID == entry.id })
             let actions = exercise.jointActions ?? []
             #expect(exercise.movementPattern == entry.profile.pattern && exercise.executionStyle == entry.profile.style)
-            #expect(!actions.isEmpty && actions.count == entry.profile.movements.count)
-            #expect(Set(actions.compactMap { $0.movement?.key }) == Set(entry.profile.movements))
+            #expect(!actions.isEmpty && actions.count == entry.profile.storedMovements.count)
+            #expect(Set(actions.compactMap { $0.movement?.key }) == Set(entry.profile.storedMovements))
             for action in actions {
                 #expect(action.role == entry.profile.role && action.exercise === exercise)
                 let movement = try #require(action.movement)
@@ -110,9 +110,9 @@ struct MovementCatalogTests {
 
         #expect(try ExerciseCatalog.removeDuplicates(in: context))
         try context.save()
-        #expect(try context.fetchCount(FetchDescriptor<Joint>()) == MovementCatalog.vocabulary.count)
+        #expect(try context.fetchCount(FetchDescriptor<Joint>()) == JointAnatomy.bundled.joints.count)
         #expect(try context.fetchCount(FetchDescriptor<Exercise>()) == ExerciseCatalog.entries.count)
-        #expect(try context.fetchCount(FetchDescriptor<JointMovement>()) == MovementCatalog.vocabulary.flatMap(\.movements).count)
+        #expect(try context.fetchCount(FetchDescriptor<JointMovement>()) == JointAnatomy.bundled.movementKeys.count)
         try verifyProfiles(try context.fetch(FetchDescriptor<Exercise>()))
         let total = try context.fetchCount(FetchDescriptor<ExerciseJointAction>())
         let vocabularySize = try context.fetchCount(FetchDescriptor<JointMovement>())
