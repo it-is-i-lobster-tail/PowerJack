@@ -13,6 +13,48 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>PowerJack File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.stanleycloud.powerjack.share</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>PowerJack File</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.stanleycloud.powerjack.share</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>powerjack</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/x-powerjack</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>PowerJack uses your heart rate during a workout to show live beats per minute on your Apple Watch and iPhone.</string>
 	<key>NSHealthUpdateUsageDescription</key>
