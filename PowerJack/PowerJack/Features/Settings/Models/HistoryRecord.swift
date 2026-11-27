@@ -29,8 +29,7 @@ enum HistoryProgramStatus: String, CaseIterable {
     }
 }
 
-/// One set as the history export shows it, before the lifter's own template names are hidden and
-/// weights take the lifter's unit.
+/// One set as the history export shows it, before weights take the lifter's unit.
 struct HistoryRow: Equatable {
     var programID: UUID?
     var programName = ""

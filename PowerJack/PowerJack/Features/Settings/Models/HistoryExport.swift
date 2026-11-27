@@ -6,10 +6,8 @@
 //  spreadsheet, or rebuild it somewhere else. One row per set, in program, week, day, exercise and
 //  set order, with the program, workout and exercise it belongs to repeated on each row.
 //
-//  Exercises keep their names, the lifter's own included, so the file reads as they logged it.
-//  Names of the lifter's own templates could say anything, so they become "Custom Template 1",
-//  numbered in the order they first appear. Times are in UTC, so they don't give away where the
-//  lifter is.
+//  Templates and exercises keep their names, the lifter's own included, so the file reads as
+//  they logged it. Times are in UTC, so they don't give away where the lifter is.
 //
 
 import Foundation
@@ -43,9 +41,8 @@ enum HistoryExport {
             .map(\.element.rows)
 
         var lines = [row(columns(unit: unit))]
-        var names = Names()
         for (index, rows) in ordered.enumerated() {
-            lines += rows.map { line(for: $0, number: index + 1, unit: unit, names: &names) }
+            lines += rows.map { line(for: $0, number: index + 1, unit: unit) }
         }
         return lines.joined(separator: "\r\n") + "\r\n"
     }
@@ -117,11 +114,11 @@ enum HistoryExport {
         return rows
     }
 
-    private static func line(for row: HistoryRow, number: Int, unit: WeightUnit, names: inout Names) -> String {
+    private static func line(for row: HistoryRow, number: Int, unit: WeightUnit) -> String {
         Self.row([
             "\(number)",
             row.programID?.uuidString ?? "",
-            names.template(row.programName),
+            row.programName,
             row.programType,
             "\(row.programWeeks)",
             "\(row.daysPerWeek)",
@@ -208,21 +205,6 @@ enum HistoryExport {
             return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         .joined(separator: ",")
-    }
-}
-
-/// Stands in for the names of the lifter's own templates, so the file holds only template names PowerJack ships with.
-private struct Names {
-    private static let builtInTemplates = Set(TemplateCatalog.entries.map(\.name))
-    private var templates: [String: String] = [:]
-
-    /// A built-in template's name, even for a program made from an edited copy, as long as the name is unchanged.
-    mutating func template(_ name: String) -> String {
-        if Self.builtInTemplates.contains(name) { return name }
-        if let label = templates[name] { return label }
-        let label = "Custom Template \(templates.count + 1)"
-        templates[name] = label
-        return label
     }
 }
 
