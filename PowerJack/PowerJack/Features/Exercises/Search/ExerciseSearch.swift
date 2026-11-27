@@ -184,9 +184,6 @@ nonisolated enum ExerciseSearch {
             // ranks by muscles rather than by the words in names.
             let labelled = topics.first { $0.labels.contains(query.nameWords.joined(separator: " ")) }?.focus
             var focus = labelled ?? (query.muscles.isEmpty ? nil : AnatomyTopic.Focus(muscles: query.muscles, emphasis: query.muscles))
-            if focus == nil, case .importing(let category?) = context {
-                focus = AnatomyTopic.Focus(muscles: [category], emphasis: [category])
-            }
             if focus == nil, fullNames.isEmpty, let phrase {
                 focus = AnatomyTopic.focus(for: phrase, topics: topics, bestLift: Float(similarity.values.max() ?? 0))
             }
@@ -195,7 +192,13 @@ nonisolated enum ExerciseSearch {
                 let movers = Set(named.muscles.filter { $0.value == 1 }.keys)
                 if !movers.isEmpty { focus = AnatomyTopic.Focus(muscles: movers, emphasis: movers) }
             }
-            let byMuscle = focus != nil && (labelled != nil || fullNames.isEmpty)
+            var byMuscle = focus != nil && (labelled != nil || fullNames.isEmpty)
+            // An imported name is a lift's name: its category, or a muscle it names, adds evidence
+            // but never replaces the words.
+            if case .importing(let category) = context, labelled == nil {
+                byMuscle = false
+                if let category { focus = AnatomyTopic.Focus(muscles: [category], emphasis: [category]) }
+            }
 
             let scored: [Scored] = evidence.map { entry, words in
                 let doc = entry.document

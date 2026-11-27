@@ -5,40 +5,40 @@ import Testing
 
 @MainActor
 struct FitNotesImportTests {
-    @Test func auditedAliasesMatchDirectly() {
-        let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        for (name, id) in ["Dumbbell Row": "one-arm-dumbbell-row", "Deadlift": "barbell-deadlift",
-                           "Barbell Squat": "barbell-back-squat", "Military Bar Press": "barbell-overhead-press",
-                           "Cable Overhead Triceps Extension": "cable-overhead-extension",
-                           "Dumbbell Overhead Triceps Extension": "dumbbell-triceps-extension"] {
-            #expect(FitNotesMatcher.direct(name, among: catalog)?.catalogID == id)
-        }
-        for name in ["Nordic Curls", "Running (Outdoor)"] {
-            #expect(FitNotesMatcher.direct(name, among: catalog) == nil)
-        }
+    /// The lift a FitNotes name opens matched to, through an alias or the shared search,
+    /// with the category the real export files it under.
+    private func matched(_ name: String, among catalog: [Exercise]) -> String? {
+        let index = ExerciseSearch.Index(catalog.map(ExerciseSearch.Document.init))
+        let category = FitNotesNamesFixture.names.first { $0.name == name }?.category ?? ""
+        guard case .match(let exercise) = FitNotesMatcher.search(name, category: category, among: catalog, index: index,
+                                                                 familiarity: .none).suggestion else { return nil }
+        return exercise.catalogID
     }
 
-    @Test func recommendedAdditionsMatchTheOriginalExportNames() {
+    @Test func exportNamesMatchTheirLift() {
         let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        let names = ["Sit Ups": "sit-up", "Side Lunges": "lateral-lunge", "Ab-Wheel Rollout": "ab-wheel-rollout",
+        let names = ["Dumbbell Row": "one-arm-dumbbell-row", "Deadlift": "barbell-deadlift",
+                     "Barbell Squat": "barbell-back-squat", "Military Bar Press": "barbell-overhead-press",
+                     "Cable Overhead Triceps Extension": "cable-overhead-extension",
+                     "Dumbbell Overhead Triceps Extension": "dumbbell-triceps-extension",
+                     "Sit Ups": "sit-up", "Side Lunges": "lateral-lunge", "Ab-Wheel Rollout": "ab-wheel-rollout",
                      "Single Leg Romanian Deadlift": "single-leg-romanian-deadlift", "Mountain Climbers": "mountain-climber",
                      "Split Squat": "split-squat", "Hex Bar Dead Lift": "trap-bar-deadlift", "Burpies": "burpee",
                      "Arnold Dumbbell Press": "dumbbell-arnold-press", "Arnold Shoulder Press": "dumbbell-arnold-press",
-                     "Russian Twista": "russian-twist"]
+                     "Russian Twista": "russian-twist", "Chest Press (Machine)": "machine-chest-press",
+                     "Dumbbell Shrugs": "dumbbell-shrug", "Good Morning": "barbell-good-morning",
+                     "Backward Lunges": "reverse-lunge", "Kettlebell Swings": "kettlebell-swing",
+                     "Preacher Curl (EZ-Bar)": "ez-bar-preacher-curl"]
         for (name, id) in names {
-            #expect(FitNotesMatcher.direct(name, among: catalog)?.catalogID == id)
+            #expect(matched(name, among: catalog) == id, "\(name)")
         }
     }
 
-    @Test func newStrengthExercisesMatchTheirImportNames() {
+    @Test func liftsMissingFromTheCatalogAreNeverMatched() {
         let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        for (source, target) in ["Chest Press (Machine)": "machine-chest-press", "Dumbbell Shrugs": "dumbbell-shrug",
-                                 "Good Morning": "barbell-good-morning", "Backward Lunges": "reverse-lunge",
-                                 "Kettlebell Swings": "kettlebell-swing", "Preacher Curl (EZ-Bar)": "ez-bar-preacher-curl"] {
-            #expect(FitNotesMatcher.direct(source, among: catalog)?.catalogID == target)
-        }
-        for source in ["Machine Preacher Curl", "Incline Machine Chest Press", "Barbell Shrug", "Reverse Nordic Curl"] {
-            #expect(FitNotesMatcher.direct(source, among: catalog) == nil)
+        for name in ["Nordic Curls", "Running (Outdoor)", "Machine Preacher Curl", "Incline Machine Chest Press",
+                     "Barbell Shrug", "Reverse Nordic Curl"] {
+            #expect(matched(name, among: catalog) == nil, "\(name)")
         }
     }
 

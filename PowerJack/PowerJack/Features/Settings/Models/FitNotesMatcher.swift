@@ -27,8 +27,8 @@ enum ImportSuggestion {
 
 /// Matches FitNotes exercise names to PowerJack lifts through the shared `ExerciseSearch`.
 enum FitNotesMatcher {
-    /// A top hit at least this strong, and this far ahead of the next, is suggested on its own.
-    static let confidentScore = 0.8
+    /// A top hit whose name holds every word of the FitNotes name, on the equipment it names,
+    /// and scores this far ahead of the next is suggested on its own.
     static let confidentMargin = 0.15
     /// Choices a row offers, and candidates the on-device model may pick among.
     static let choiceCount = 3
@@ -42,48 +42,24 @@ enum FitNotesMatcher {
         "leverage chest press": "machine-chest-press",
         "leverage machine chest press": "machine-chest-press",
         "chest press leverage machine": "machine-chest-press",
-        "bar good morning": "barbell-good-morning",
-        "good morning barbell": "barbell-good-morning",
-        "shrug dumbbell": "dumbbell-shrug",
-        "shrugs dumbbells": "dumbbell-shrug",
         "step back lunge": "reverse-lunge",
         "two hand kettlebell swing": "kettlebell-swing",
         "2 handed kettlebell swing": "kettlebell-swing",
         "preacher bench ez bar curl": "ez-bar-preacher-curl",
-        "chest press machine": "machine-chest-press",
-        "dumbbell shrugs": "dumbbell-shrug",
-        "db shrug": "dumbbell-shrug",
-        "db shrugs": "dumbbell-shrug",
         "good morning": "barbell-good-morning",
-        "good mornings": "barbell-good-morning",
         "backward lunge": "reverse-lunge",
         "backward lunges": "reverse-lunge",
-        "reverse lunges": "reverse-lunge",
-        "kettlebell swings": "kettlebell-swing",
-        "kb swing": "kettlebell-swing",
-        "kb swings": "kettlebell-swing",
-        "preacher curl ez bar": "ez-bar-preacher-curl",
-        "ez bar preacher curls": "ez-bar-preacher-curl",
-        "sit ups": "sit-up",
         "side lunges": "lateral-lunge",
-        "mountain climbers": "mountain-climber",
-        "hex bar deadlift": "trap-bar-deadlift",
         "burpies": "burpee",
-        "arnold dumbbell press": "dumbbell-arnold-press",
         "arnold shoulder press": "dumbbell-arnold-press",
-        "russian twista": "russian-twist",
         "dumbbell row": "one-arm-dumbbell-row",
         "barbell squat": "barbell-back-squat",
-        "deadlift": "barbell-deadlift",
-        "military bar press": "barbell-overhead-press",
         "cable overhead triceps extension": "cable-overhead-extension",
         "dumbbell overhead triceps extension": "dumbbell-triceps-extension",
         "flat barbell bench press": "barbell-bench-press",
         "flat dumbbell bench press": "dumbbell-bench-press",
-        "leg extension machine": "leg-extension",
         "pull ups reverse grip": "chin-up",
         "pull ups forward grip": "pull-up",
-        "close grip barbell bench press": "close-grip-bench-press",
         "narrow bar bell bench": "close-grip-bench-press"
     ].map { (ExerciseCatalog.matchingName($0.key), $0.value) })
 
@@ -133,15 +109,18 @@ enum FitNotesMatcher {
     static func search(_ name: String, category: String, among exercises: [Exercise],
                        index: ExerciseSearch.Index, familiarity: ExerciseFamiliarity) -> (suggestion: ImportSuggestion, ranked: [Exercise]) {
         let byKey = Dictionary(exercises.map { ($0.searchKey, $0) }, uniquingKeysWith: { first, _ in first })
+        let length = byKey.mapValues { ExerciseQuery.words($0.exerciseName).count }
+        // Among equal scores the shorter name says less beyond the FitNotes name, so it goes first.
         let hits = index.rank(ExerciseQuery(name), context: .importing(category: primaryMuscle(for: name, category: category)),
                               familiarity: familiarity)
+            .sorted { $0.score != $1.score ? $0.score > $1.score : length[$0.key, default: 0] < length[$1.key, default: 0] }
         let ranked = hits.compactMap { byKey[$0.key] }
         if let direct = direct(name, among: exercises) {
             return (.match(direct), [direct] + ranked.filter { $0 != direct })
         }
         guard let top = hits.first, let first = ranked.first else { return (.none, []) }
         let next = hits.dropFirst().first?.score ?? 0
-        if top.score >= confidentScore && top.score - next >= confidentMargin { return (.match(first), ranked) }
+        if top.name == 1 && top.score - next >= confidentMargin { return (.match(first), ranked) }
         return (.choices(Array(ranked.prefix(choiceCount))), ranked)
     }
 }
