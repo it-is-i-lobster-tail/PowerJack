@@ -202,7 +202,8 @@ private final class ChartLifts {
 
     private init(_ lifts: [(key: String, names: [String], session: StudySession)], familiarity: ExerciseFamiliarity) {
         let catalog = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ("catalog:\($0.id)", $0) })
-        logged = Set(lifts.map(\.key))
+        let logged = Set(lifts.map(\.key))
+        self.logged = logged
         var documents = lifts.map { lift in
             if let entry = catalog[lift.key] { return ExerciseSearch.Document(entry, otherNames: lift.names) }
             return ExerciseSearch.Document(key: lift.key, names: lift.names, primary: lift.session.primary ?? .chest,

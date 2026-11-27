@@ -46,7 +46,6 @@ nonisolated enum ExerciseSearch {
                     : ExerciseStructure(actions: stored, pattern: pattern)
             }
         }
-        }
 
         /// A built-in lift, also known by any other names it was logged under.
         @MainActor init(_ entry: ExerciseCatalog.Entry, otherNames: [String] = []) {
