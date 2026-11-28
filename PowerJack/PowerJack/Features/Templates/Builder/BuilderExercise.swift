@@ -18,6 +18,8 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
     let name: String
     let catalogID: String?
     let equipment: Equipment
+    /// A named piece of its equipment kind, like a trap bar or the lifter's own, that not every gym has.
+    let equipmentName: String?
     let primary: Muscle
     let secondaries: [Muscle]
     let fatigue: FatigueLevel
@@ -42,6 +44,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
         name: String,
         catalogID: String? = nil,
         equipment: Equipment,
+        equipmentName: String? = nil,
         primary: Muscle,
         secondaries: [Muscle] = [],
         fatigue: FatigueLevel,
@@ -53,6 +56,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
         self.name = name
         self.catalogID = catalogID
         self.equipment = equipment
+        self.equipmentName = equipmentName
         self.primary = primary
         self.secondaries = secondaries.sorted { $0.rawValue < $1.rawValue }
         self.fatigue = fatigue
@@ -84,6 +88,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
             name: exercise.exerciseName,
             catalogID: exercise.catalogID,
             equipment: exercise.equipment,
+            equipmentName: exercise.customEquipmentName,
             primary: exercise.primaryMuscleFocus,
             secondaries: exercise.secondaryMuscles,
             fatigue: exercise.fatigueLevel,
@@ -99,6 +104,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
             name: entry.name,
             catalogID: entry.id,
             equipment: entry.equipment,
+            equipmentName: entry.equipmentName,
             primary: entry.primaryMuscle,
             secondaries: entry.secondaryMuscles,
             fatigue: entry.fatigueLevel,

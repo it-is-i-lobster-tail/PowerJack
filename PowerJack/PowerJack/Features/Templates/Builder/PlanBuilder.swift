@@ -128,16 +128,20 @@ struct PlanBuilder: Sendable {
             for lift in mains where picked.count < 2 && !picked.contains(lift) {
                 picked.append(lift)
             }
-            // Lower and upper body take turns, so each day pairs a squat or hinge with a press or row.
-            let lower = picked.filter { $0.liftPattern == .squat || $0.liftPattern == .hinge }
-            let upper = picked.filter { !lower.contains($0) }
-            return (0..<max(lower.count, upper.count)).flatMap { index in
-                [lower.indices.contains(index) ? lower[index] : nil, upper.indices.contains(index) ? upper[index] : nil].compactMap { $0 }
-            }
+            return alternating(picked)
         case .powerJack:
-            return TemplateRules.powerJackPatterns.compactMap { pattern in
+            return alternating(TemplateRules.powerJackPatterns.compactMap { pattern in
                 candidates.ranked.first { $0.powerJackMainPattern == pattern }
-            }
+            })
+        }
+    }
+
+    /// Lower and upper body take turns, so each day pairs a squat or hinge with a press or row.
+    private func alternating(_ lifts: [BuilderExercise]) -> [BuilderExercise] {
+        let lower = lifts.filter { $0.liftPattern == .squat || $0.liftPattern == .hinge }
+        let upper = lifts.filter { !lower.contains($0) }
+        return (0..<max(lower.count, upper.count)).flatMap { index in
+            [lower.indices.contains(index) ? lower[index] : nil, upper.indices.contains(index) ? upper[index] : nil].compactMap { $0 }
         }
     }
 
@@ -175,12 +179,13 @@ struct PlanBuilder: Sendable {
         let slots = all.indices.sorted { ranks[$0] != ranks[$1] ? ranks[$0] < ranks[$1] : $0 < $1 }.map { all[$0] }
 
         let quickest = quickest(for: slots, day: index, in: plan)
-        var wanted: [Muscle: Int] = [:]
+        // A slot counts only what fits it, so a deadlift on the day doesn't stand in for a row.
+        var wanted: [TemplateSplit.Slot: Int] = [:]
         for (position, slot) in slots.enumerated() {
-            wanted[slot.muscle, default: 0] += 1
+            wanted[slot, default: 0] += 1
             guard plan.days[index].exerciseIDs.count < TemplateRules.maximumExercises else { break }
-            let have = rules.resolve(plan.days[index]).filter { $0.primary == slot.muscle }.count
-            guard have < wanted[slot.muscle, default: 0] else { continue }
+            let have = rules.resolve(plan.days[index]).filter(slot.matches).count
+            guard have < wanted[slot, default: 0] else { continue }
             let reserve = reserve(for: slots.dropFirst(position + 1), besides: slot.muscle, day: plan.days[index], quickest: quickest)
             addBest(where: slot.matches, toDay: index, in: &plan, fitting: true, reserve: reserve)
         }
@@ -282,6 +287,11 @@ struct PlanBuilder: Sendable {
                 }
             }
         }
+        // A focus muscle can also come out ahead when a spare exercise for another muscle goes.
+        if violation.rule == .g6, let removal = bestRemoval(from: plan, days: Array(plan.days.indices), muscle: nil),
+           removal.score < current {
+            return removal.plan
+        }
         return nil
     }
 
@@ -333,9 +343,10 @@ struct PlanBuilder: Sendable {
     /// most, then time and coverage, then focus, so no edit gives up a heavier rule for a lighter one.
     private func score(_ violations: [TemplateViolation]) -> Double {
         violations.reduce(0) { total, violation in
+            // Far enough apart that no number of focus misses outweighs one coverage miss.
             let weight: Double = switch violation.rule {
-            case .g1, .g2, .g4, .g9, .g10, .g11: 10
-            case .g3, .g5, .g8: 3
+            case .g1, .g2, .g4, .g9, .g10, .g11: 300
+            case .g3, .g5, .g8: 30
             case .g6, .g7: 1
             }
             return total + weight * (1 + violation.amount)

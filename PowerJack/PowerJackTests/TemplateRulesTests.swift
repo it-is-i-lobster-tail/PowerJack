@@ -12,9 +12,25 @@ import Testing
 
 @MainActor
 struct TemplateRulesTests {
+    /// The only lifts these examples know, so a new built-in never changes what a rule can find.
+    private static let fixtureIDs = [
+        "barbell-back-squat", "barbell-bench-press", "barbell-deadlift", "barbell-overhead-press",
+        "barbell-romanian-deadlift", "barbell-row", "cable-chest-fly", "cable-crunch", "cable-curl", "cable-face-pull",
+        "cable-glute-kickback", "cable-lateral-raise", "cable-triceps-pushdown", "cable-woodchop",
+        "chest-supported-dumbbell-row", "dumbbell-bench-press", "dumbbell-curl", "dumbbell-lateral-raise", "hack-squat",
+        "incline-dumbbell-bench-press", "incline-dumbbell-curl", "lat-pulldown", "leg-extension", "leg-press",
+        "lying-leg-curl", "machine-chest-press", "pull-up", "seated-cable-row", "seated-leg-curl", "standing-calf-raise",
+    ]
+    private static let fixture = BuilderExercise.catalog.filter { fixtureIDs.contains($0.id) }
+
     private func rules(_ request: TemplateRequest = TemplateRequest(workoutsPerWeek: 3)) -> TemplateRules {
-        // Every allowed exercise, so the examples needn't care which six of a muscle rank first.
-        TemplateRules(request: request, candidates: BuilderCandidates(BuilderExercise.catalog, for: request, perMuscle: 100))
+        // Every allowed lift, so the examples needn't care which six of a muscle rank first.
+        TemplateRules(request: request, candidates: BuilderCandidates(Self.fixture, for: request, perMuscle: 100))
+    }
+
+    @Test("Every lift the examples use is a built-in")
+    func fixtureIsComplete() {
+        #expect(Self.fixture.count == Self.fixtureIDs.count)
     }
 
     private func plan(_ days: [[String]], supersets: [[TemplatePlan.Superset]] = []) -> TemplatePlan {
@@ -195,12 +211,23 @@ struct TemplateRulesTests {
     @Test("Candidates leave out what the lifter can't do and keep 6 per muscle, focus ranked up")
     func candidates() {
         let request = TemplateRequest(focus: [.biceps], equipment: [.dumbbell, .cable], setups: [], lean: .machines)
-        let candidates = BuilderCandidates(BuilderExercise.catalog, for: request)
+        let candidates = BuilderCandidates(Self.fixture, for: request)
         #expect(candidates.ranked.allSatisfy { [.dumbbell, .cable].contains($0.equipment) && $0.setups.isEmpty })
         #expect(Dictionary(grouping: candidates.ranked, by: \.primary).values.allSatisfy { $0.count <= 6 })
         #expect(candidates.ranked.first?.primary == .biceps)
         #expect(candidates.ranked.first?.equipment == .cable)
         #expect(!candidates.contains("incline-dumbbell-curl"))
+    }
+
+    @Test("A named piece the lifter doesn't have leaves its lifts out, while the rest of its kind stays")
+    func missingNamedEquipment() {
+        let trapBar = BuilderExercise(id: "trap", name: "Trap Bar Deadlift", equipment: .barbell, equipmentName: "Trap Bar",
+                                      primary: .quads, secondaries: [.glutes, .hamstrings], fatigue: .high, pattern: .hipHinge)
+        let squat = BuilderExercise(id: "squat", name: "Barbell Back Squat", equipment: .barbell, primary: .quads,
+                                    secondaries: [.glutes, .abs], fatigue: .high, pattern: .squat)
+        let request = TemplateRequest(equipment: [.barbell], missingEquipmentNames: ["Trap Bar"])
+        #expect(BuilderCandidates([trapBar, squat], for: request).ranked.map(\.id) == ["squat"])
+        #expect(BuilderCandidates([trapBar, squat], for: TemplateRequest(equipment: [.barbell])).ranked.count == 2)
     }
 
     @Test("The snapshot reads catalog exercises the way the engines do")

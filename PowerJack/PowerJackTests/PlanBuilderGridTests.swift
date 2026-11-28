@@ -16,6 +16,8 @@ struct PlanBuilderGridTests {
         let name: String
         let equipment: Set<Equipment>
         let setups: Set<ExerciseFilters.Setup>
+        /// Named pieces like the trap bar that the gym doesn't have.
+        var missing: Set<String> = []
         /// Whether a thin result is expected to be possible.
         var canBeThin = false
     }
@@ -23,11 +25,12 @@ struct PlanBuilderGridTests {
     static let presets: [Preset] = [
         Preset(name: "full gym", equipment: TemplateRequest.allEquipment, setups: TemplateRequest.allSetups),
         Preset(name: "home dumbbells and bench", equipment: [.dumbbell, .bodyweight], setups: [.bench]),
-        Preset(name: "bodyweight only", equipment: [.bodyweight], setups: [], canBeThin: true),
+        Preset(name: "bodyweight only", equipment: [.bodyweight], setups: [], missing: TemplateRequest.catalogEquipmentNames, canBeThin: true),
         Preset(name: "machines only", equipment: [.machine], setups: [], canBeThin: true),
-        Preset(name: "barbell and bench", equipment: [.barbell], setups: [.bench], canBeThin: true),
+        Preset(name: "barbell and bench", equipment: [.barbell], setups: [.bench], missing: TemplateRequest.catalogEquipmentNames, canBeThin: true),
         Preset(name: "cables and dumbbells", equipment: [.cable, .dumbbell], setups: [.bench]),
-        Preset(name: "kettlebell and bodyweight", equipment: [.kettlebell, .bodyweight], setups: [.pullUpBar], canBeThin: true),
+        Preset(name: "kettlebell and bodyweight", equipment: [.kettlebell, .bodyweight], setups: [.pullUpBar],
+               missing: TemplateRequest.catalogEquipmentNames, canBeThin: true),
         Preset(name: "no bench or pull-up bar", equipment: TemplateRequest.allEquipment, setups: []),
     ]
 
@@ -50,7 +53,7 @@ struct PlanBuilderGridTests {
                             index += 1
                             requests.append(TemplateRequest(
                                 type: type, workoutsPerWeek: days, focus: focus, equipment: preset.equipment,
-                                setups: preset.setups, sessionMinutes: minutes,
+                                missingEquipmentNames: preset.missing, setups: preset.setups, sessionMinutes: minutes,
                                 lean: TemplateRequest.Lean.allCases[index % 3], supersets: index % 2 == 0
                             ))
                         }
@@ -62,7 +65,7 @@ struct PlanBuilderGridTests {
     }
 
     static func label(_ request: TemplateRequest) -> String {
-        let preset = presets.first { $0.equipment == request.equipment && $0.setups == request.setups }?.name ?? "?"
+        let preset = presets.first { $0.equipment == request.equipment && $0.setups == request.setups && $0.missing == request.missingEquipmentNames }?.name ?? "?"
         return "\(request.type) \(request.workoutsPerWeek)x \(preset) \(request.sessionMinutes)min focus \(request.focus.map(\.rawValue)) \(request.lean) supersets \(request.supersets)"
     }
 
@@ -78,7 +81,7 @@ struct PlanBuilderGridTests {
                     failures.append("\(Self.label(request)): \(violations.map(\.description).joined(separator: "; "))")
                 }
             case .notEnoughEquipment:
-                let preset = Self.presets.first { $0.equipment == request.equipment && $0.setups == request.setups }
+                let preset = Self.presets.first { $0.equipment == request.equipment && $0.setups == request.setups && $0.missing == request.missingEquipmentNames }
                 if preset?.canBeThin != true { failures.append("\(Self.label(request)): not enough equipment") }
             }
         }
@@ -95,9 +98,13 @@ struct PlanBuilderGridTests {
 
     @Test("A gym with only two exercises isn't enough")
     func tooFewExercises() {
-        let request = TemplateRequest(equipment: [.legPress], setups: [])
-        let exercises = BuilderExercise.catalog.filter { $0.equipment == .legPress } + [BuilderExercise.catalog[0]]
-        #expect(PlanBuilder(request: request, exercises: exercises).build() == .notEnoughEquipment)
+        let exercises = [
+            BuilderExercise(id: "press", name: "Leg Press", equipment: .legPress, primary: .quads,
+                            secondaries: [.glutes, .hamstrings], fatigue: .high, pattern: .legPress),
+            BuilderExercise(id: "curl", name: "Seated Leg Curl", equipment: .machine, primary: .hamstrings,
+                            fatigue: .low, pattern: .kneeFlexion),
+        ]
+        #expect(PlanBuilder(request: TemplateRequest(), exercises: exercises).build() == .notEnoughEquipment)
     }
 
     @Test("Repair turns thousands of junk plans into plans that pass every rule")
@@ -166,3 +173,4 @@ struct SeededGenerator: RandomNumberGenerator {
         return z ^ (z >> 31)
     }
 }
+
