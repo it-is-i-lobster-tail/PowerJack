@@ -1,12 +1,15 @@
 import Foundation
 import SwiftData
 
-/// The built-in lift one of the lifter's own exercises moves like. Its movement pattern, style
-/// and joint actions are copied onto the own exercise, so Change, Substitute and joint words
-/// such as "rear delts" treat it like that lift.
+/// The built-in lifts, up to three, one of the lifter's own exercises moves like. The first
+/// pick's movement pattern and style, and every pick's joint actions, are copied onto the own
+/// exercise, so Change, Substitute and joint words such as "rear delts" treat it like them.
 ///
 /// A built-in is named by its sync key, such as "catalog:barbell-row".
 enum MovesLike {
+    /// The most built-ins one exercise moves like.
+    static let maxPicks = 3
+
     /// Built-ins only, read by name alone so the same name always finds the same lifts.
     static let index = ExerciseSearch.Index(ExerciseCatalog.entries.map { ExerciseSearch.Document($0) }, encoder: nil)
 
@@ -19,12 +22,13 @@ enum MovesLike {
 
     // MARK: - Proposing
 
-    /// A clear match, else the on-device model's pick among the closest built-ins, else none.
-    static func propose(name: String, equipment: Equipment?, primary: Muscle?) async -> String? {
-        if let key = clearMatch(name: name, equipment: equipment, primary: primary) { return key }
+    /// A clear match alone, else the on-device model's picks, up to three, among the closest
+    /// built-ins, else none.
+    static func propose(name: String, equipment: Equipment?, primary: Muscle?) async -> [String] {
+        if let key = clearMatch(name: name, equipment: equipment, primary: primary) { return [key] }
         let choices = candidates(name: name, equipment: equipment, primary: primary)
         return await ExerciseProfileModel.choose(name: name, equipment: equipment, primary: primary, among: choices)
-            .map { "catalog:\($0.id)" }
+            .prefix(maxPicks).map { "catalog:\($0.id)" }
     }
 
     /// The built-in to copy when the name leaves no doubt about how the lift moves: at least half
@@ -70,15 +74,28 @@ enum MovesLike {
         .map { (entry: $0.0, share: $0.1) }
     }
 
-    /// Secondary muscles that follow from a built-in's joint actions: the prime movers of each
+    /// The picks' joint actions together. A movement more than one pick works keeps its
+    /// strongest use, in the order the picks list it.
+    static func actions(of keys: [String]) -> [JointAction] {
+        var merged: [JointAction] = []
+        for action in keys.compactMap({ entry($0)?.profile.actions }).joined() {
+            if let index = merged.firstIndex(where: { $0.movement == action.movement }) {
+                if action.weight > merged[index].weight { merged[index] = action }
+            } else {
+                merged.append(action)
+            }
+        }
+        return merged
+    }
+
+    /// Secondary muscles that follow from the picks' joint actions: the prime movers of each
     /// action, main actions first, without the primary. Synergists are left out, so a row
     /// suggests biceps but not chest.
-    static func secondaryMuscles(of key: String?, primary: Muscle?) -> [Muscle] {
-        guard let profile = entry(key)?.profile else { return [] }
+    static func secondaryMuscles(of keys: [String], primary: Muscle?) -> [Muscle] {
         let anatomy = JointAnatomy.bundled
         var muscles: [Muscle] = []
         var weights: [Muscle: Double] = [:]
-        for action in profile.actions {
+        for action in actions(of: keys) {
             let movement = action.role == .resists ? anatomy.opposite(of: action.movement) : action.movement
             for mover in anatomy.muscles(for: movement) where mover.isPrime && mover.group != primary {
                 if weights[mover.group] == nil { muscles.append(mover.group) }
@@ -108,54 +125,73 @@ enum MovesLike {
         return ("catalog:\(entry.id)", Signature(pattern: profile.pattern, style: profile.style, actions: actions), entry.equipment)
     }
 
-    /// The built-in whose stored movement an own exercise carries, the one on the same equipment
-    /// when several share it. Nil for a built-in, an own exercise with none, or one whose joint
-    /// actions the lifter set in Advanced Data.
-    static func key(of exercise: Exercise) -> String? {
+    /// The built-ins whose stored movement an own exercise carries, in pick order. Each pick's
+    /// rows name it; one whose rows no longer match it reads as the built-in they match, the one
+    /// on the same equipment when several do. Empty for a built-in, an own exercise with none,
+    /// or one whose joint actions the lifter set in Advanced Data.
+    static func keys(of exercise: Exercise) -> [String] {
+        let rows = exercise.jointActions ?? []
         guard exercise.catalogID == nil, let pattern = exercise.movementPattern,
-              !(exercise.jointActions ?? []).contains(where: { CustomJointActions.isCustom($0.key) }) else { return nil }
-        let actions = Set((exercise.jointActions ?? []).compactMap { action in
-            action.movement.map { "\(action.role.rawValue) \($0.key)" }
-        })
-        let signature = Signature(pattern: pattern, style: exercise.executionStyle ?? .controlled, actions: actions)
-        let same = signatures.filter { $0.signature == signature }
-        // The lift the lifter picked, named in its rows' keys, when it still matches the rows.
-        let picked = (exercise.jointActions ?? []).lazy.compactMap { pickedKey(in: $0.key) }.first
-        return (same.first { $0.key == picked } ?? same.first { $0.equipment == exercise.equipment } ?? same.first)?.key
+              !rows.contains(where: { CustomJointActions.isCustom($0.key) }) else { return [] }
+        var picks: [Int: (id: String?, actions: Set<String>)] = [:]
+        for row in rows {
+            guard let movement = row.movement else { continue }
+            let pick = self.pick(in: row.key)
+            picks[pick.index, default: (pick.id, [])].actions.insert("\(row.role.rawValue) \(movement.key)")
+        }
+        let keys = picks.sorted { $0.key < $1.key }.compactMap { index, pick -> String? in
+            // The first pick's pattern and style are stored too, so they must match as well.
+            let same = signatures.filter { candidate in
+                candidate.signature.actions == pick.actions && (index > 0 ||
+                    (candidate.signature.pattern == pattern && candidate.signature.style == exercise.executionStyle ?? .controlled))
+            }
+            let picked = pick.id.map { "catalog:\($0)" }
+            return (same.first { $0.key == picked } ?? same.first { $0.equipment == exercise.equipment } ?? same.first)?.key
+        }
+        return Array(keys.uniqued().prefix(maxPicks))
     }
 
-    /// Row keys read `own:<uuid>:<catalog id>:<role>:<movement>`, so a lift that moves like a
-    /// built-in on other equipment keeps its name. Keys without the catalog id still read.
-    private static func pickedKey(in rowKey: String) -> String? {
-        let parts = rowKey.split(separator: ":")
-        return parts.count == 5 && parts[0] == "own" ? "catalog:\(parts[2])" : nil
+    /// Row keys read `own:<uuid>:<catalog id>:<role>:<movement>` for the first pick and
+    /// `own:<uuid>:<catalog id>:<index>:<role>:<movement>` for later ones, so a lift that moves
+    /// like a built-in on other equipment keeps its name, and versions that knew only one pick
+    /// still read the first. Keys without the catalog id read as the first pick.
+    private static func pick(in rowKey: String) -> (index: Int, id: String?) {
+        let parts = rowKey.split(separator: ":").map(String.init)
+        guard parts.first == "own" else { return (0, nil) }
+        if parts.count == 6, let index = Int(parts[3]) { return (index, parts[2]) }
+        return parts.count == 5 ? (0, parts[2]) : (0, nil)
     }
 
-    /// Copies a built-in's pattern, style and joint action rows onto an own exercise, or clears
-    /// them for nil. Rows are keyed by the exercise's own sync key and the picked built-in's ID.
-    /// Catalog reconciliation, in this and earlier versions, never touches an `own:` key. Stored rows carry no weight; search reads the built-in's weights back
-    /// through `key(of:)`.
-    static func copy(_ key: String?, to exercise: Exercise, in context: ModelContext) {
+    /// Copies the picks' joint action rows, and the first pick's pattern and style, onto an own
+    /// exercise, or clears them for none. Rows are keyed by the exercise's own sync key, the
+    /// picked built-in's ID and, after the first, its place. Catalog reconciliation, in this and
+    /// earlier versions, never touches an `own:` key. Stored rows carry no weight; search reads
+    /// the built-ins' weights back through `keys(of:)`.
+    static func copy(_ keys: [String], to exercise: Exercise, in context: ModelContext) {
         guard exercise.catalogID == nil else { return }
         for action in exercise.jointActions ?? [] { context.delete(action) }
         exercise.jointActions = []
-        let profile = entry(key)?.profile
-        exercise.movementPattern = profile?.pattern
-        exercise.executionStyle = profile?.style
-        guard let profile, let id = entry(key)?.id else { return }
+        let picks = keys.uniqued().compactMap(entry).prefix(maxPicks)
+        exercise.movementPattern = picks.first?.profile.pattern
+        exercise.executionStyle = picks.first?.profile.style
+        guard !picks.isEmpty else { return }
         exercise.assignSyncID()
         guard let owner = exercise.syncKey else { return }
-        let wanted = Set(profile.storedMovements)
+        let wanted = Set(picks.flatMap(\.profile.storedMovements))
         let movements = Dictionary(
             ((try? context.fetch(FetchDescriptor<JointMovement>())) ?? []).filter { wanted.contains($0.key) }.map { ($0.key, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        for movementKey in profile.storedMovements {
-            guard let movement = movements[movementKey] else { continue }
-            let action = ExerciseJointAction(key: "\(owner):\(id):\(profile.role.rawValue):\(movementKey)", role: profile.role)
-            context.insert(action)
-            action.exercise = exercise
-            action.movement = movement
+        for (index, pick) in picks.enumerated() {
+            let profile = pick.profile
+            let prefix = index == 0 ? "\(owner):\(pick.id)" : "\(owner):\(pick.id):\(index)"
+            for movementKey in profile.storedMovements {
+                guard let movement = movements[movementKey] else { continue }
+                let action = ExerciseJointAction(key: "\(prefix):\(profile.role.rawValue):\(movementKey)", role: profile.role)
+                context.insert(action)
+                action.exercise = exercise
+                action.movement = movement
+            }
         }
     }
 
@@ -180,7 +216,7 @@ enum MovesLike {
         for exercise in unset {
             guard let key = clearMatch(name: exercise.exerciseName, equipment: exercise.equipment,
                                        primary: exercise.primaryMuscleFocus, strict: true) else { continue }
-            copy(key, to: exercise, in: context)
+            copy([key], to: exercise, in: context)
             filled.append(exercise.exerciseName)
         }
         if !filled.isEmpty { try context.save() }

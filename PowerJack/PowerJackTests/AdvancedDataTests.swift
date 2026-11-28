@@ -64,10 +64,10 @@ struct AdvancedDataTests {
     func ownJointsSave() throws {
         let row = try own("Landmine Row", .barbell, .back)
         var draft = ExerciseDraft(exercise: row)
-        draft.choose(movesLike: "catalog:barbell-row")
+        draft.choose(movesLike: ["catalog:barbell-row"])
         #expect(draft.apply(to: row))
         try context.save()
-        #expect(MovesLike.key(of: row) == "catalog:barbell-row")
+        #expect(MovesLike.keys(of: row) == ["catalog:barbell-row"])
 
         // Starts from the Moves Like lift's actions, then the lifter makes the elbow a main action.
         draft = ExerciseDraft(exercise: row)
@@ -81,7 +81,7 @@ struct AdvancedDataTests {
         let saved = try #require(CustomJointActions.read(row))
         #expect(Set(saved) == [.main("shoulder.extension"), .main("scapula.retraction"), .main("elbow.flexion"),
                                .assisting("trunk.extension", .resists), .main("trunk.flexion", .resists)])
-        #expect(MovesLike.key(of: row) == nil)
+        #expect(MovesLike.keys(of: row).isEmpty)
         #expect(row.movementPattern == .horizontalPull)
         #expect((row.jointActions ?? []).allSatisfy { $0.key.hasPrefix("\(row.syncKey!):custom:") && $0.movement != nil })
 
@@ -99,11 +99,11 @@ struct AdvancedDataTests {
         #expect(Set((row.jointActions ?? []).map(\.key)) == keys)
 
         // Picking a Moves Like lift again replaces them.
-        reopened.choose(movesLike: "catalog:barbell-row")
+        reopened.choose(movesLike: ["catalog:barbell-row"])
         #expect(reopened.apply(to: row))
         try context.save()
         #expect(CustomJointActions.read(row) == nil)
-        #expect(MovesLike.key(of: row) == "catalog:barbell-row")
+        #expect(MovesLike.keys(of: row) == ["catalog:barbell-row"])
     }
 
     @Test("A new exercise saves the joints set before it was created")
@@ -132,5 +132,65 @@ struct AdvancedDataTests {
         try MovementCatalog.reconcile(try context.fetch(FetchDescriptor<Exercise>()), in: context)
         try context.save()
         #expect(Set(try #require(CustomJointActions.read(curl))) == [.main("elbow.flexion"), .assisting("forearm.supination")])
+    }
+
+    @Test("A new exercise gets its Moves Like pick and secondaries from the name alone, and saves")
+    func autoPickWithoutOpeningAdvancedData() async throws {
+        var draft = ExerciseDraft(name: "Cable Lateral Raise")
+        draft.equipment = .cable
+        draft.primaryMuscle = .shoulders
+        #expect(draft.wantsMovesLikeProposal)
+        let keys = await MovesLike.propose(name: draft.name, equipment: draft.equipment, primary: draft.primaryMuscle)
+        #expect(keys == ["catalog:cable-lateral-raise"])
+        draft.propose(movesLike: keys)
+        #expect(draft.movesLikeName == "Cable Lateral Raise")
+        #expect(draft.secondaryMuscles == MovesLike.secondaryMuscles(of: keys, primary: .shoulders))
+        let exercise = try #require(draft.makeExercise())
+        context.insert(exercise)
+        draft.applyMovement(to: exercise)
+        try context.save()
+        #expect(MovesLike.keys(of: exercise) == keys)
+
+        // A pick with prime movers besides the primary fills the empty secondaries.
+        var bench = ExerciseDraft(name: "Paused Bench")
+        bench.equipment = .barbell
+        bench.primaryMuscle = .chest
+        bench.propose(movesLike: await MovesLike.propose(name: bench.name, equipment: .barbell, primary: .chest))
+        #expect(bench.movesLike == ["catalog:barbell-bench-press"])
+        #expect(!bench.secondaryMuscles.isEmpty)
+        #expect(bench.secondaryMuscles == MovesLike.secondaryMuscles(of: bench.movesLike, primary: .chest))
+    }
+
+    @Test("The Advanced Data row names the Moves Like picks, else the joints worked")
+    func linkDetail() throws {
+        var draft = ExerciseDraft(name: "Lean-away Raise")
+        #expect(ExerciseAdvancedDataLink.detail(for: draft) == "No joints set")
+        draft.choose(movesLike: ["catalog:dumbbell-lateral-raise"])
+        #expect(ExerciseAdvancedDataLink.detail(for: draft) == "Moves like Dumbbell Lateral Raise")
+        draft.choose(movesLike: ["catalog:dumbbell-lateral-raise", "catalog:barbell-row"])
+        #expect(ExerciseAdvancedDataLink.detail(for: draft) == "Moves like Dumbbell Lateral Raise, Barbell Row")
+        // Joints set by hand show the joints instead of "Moves like Custom".
+        draft.setJoint("knee.extension", to: .main)
+        #expect(draft.movesLikeName == "Custom")
+        let detail = ExerciseAdvancedDataLink.detail(for: draft)
+        #expect(detail == ExerciseJointsView.summary(of: draft) && detail.contains("Knee"))
+    }
+
+    @Test("Only the joints a lift works start open, and a new Moves Like pick opens its joints")
+    func jointsStartExpanded() throws {
+        let bench = ExerciseDraft(exercise: try builtIn("barbell-bench-press"))
+        let anatomy = JointAnatomy.bundled
+        let benchJoints = ExerciseJointsView.workedJoints(in: bench.jointActions)
+        let expected = Set(JointInvolvement.of(MovementCatalog.Profile.bench.actions).keys.compactMap { $0.split(separator: ".").first.map(String.init) })
+        #expect(benchJoints == expected)
+        #expect(!benchJoints.isEmpty && benchJoints.count < anatomy.joints.count)
+
+        var draft = ExerciseDraft(name: "Mystery Lift")
+        #expect(ExerciseJointsView.workedJoints(in: draft.jointActions).isEmpty)
+        draft.choose(movesLike: ["catalog:barbell-back-squat"])
+        let squat = ExerciseJointsView.workedJoints(in: draft.jointActions)
+        #expect(squat.contains("knee") && squat.contains("hip") && !squat.contains("elbow"))
+        draft.choose(movesLike: ["catalog:barbell-back-squat", "catalog:barbell-curl"])
+        #expect(ExerciseJointsView.workedJoints(in: draft.jointActions) == squat.union(["elbow"]))
     }
 }
