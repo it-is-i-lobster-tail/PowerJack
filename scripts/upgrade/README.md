@@ -25,6 +25,8 @@ Then one run of `InstalledUpgradeTests` checks every upgraded store with the sam
 
 Versions are split over four runners. PRs into main run it only when they change the upgrade tests.
 
+A release PR into staging waits while it's a draft, so merges to main don't keep restarting it. Mark it **Ready for review** when you want to release: that runs every upgrade, and any later push to the PR runs them again. The Unit tests check waits the same way.
+
 `UpgradeFixtureWriter.swift` has to compile against every version back to 1.0, so it only uses APIs that 1.0 already had.
 
 A version that no longer builds with CI's Xcode gets the smallest fix that makes it build in `patches/<version>.patch`. A patch must never change how data is saved. 1.0 was built with a newer Xcode than CI's, so `patches/1.0.patch` adds the TipKit defaults and the widget bundle ID that 0.1.0 has.
