@@ -68,6 +68,7 @@ enum MovementCatalog {
         static let pushUp = bench.adding(.assisting("scapula.protraction")).braced
         static let closeGripBench = Self(pattern: .horizontalPress, actions: [.main("elbow.extension"), .main("shoulder.horizontalAdduction")])
         static let fly = Self(pattern: .chestFly, actions: [.main("shoulder.horizontalAdduction")])
+        static let inclineFly = fly.adding(.assisting("shoulder.flexion"))
         /// Pulling the body up draws the shoulder blades down.
         static let pullUp = Self(pattern: .verticalPull, actions: [.main("shoulder.adduction"), .assisting("elbow.flexion")])
             .adding(.assisting("scapula.depression"))
@@ -78,6 +79,8 @@ enum MovementCatalog {
         static let bentOverRow = row.backHeld.braced
         /// One arm pulling twists the trunk, which holds still against it.
         static let oneArmRow = row.adding(.assisting("trunk.rotation", .resists))
+        /// Hanging under the bar, the body holds a plank: abs braced, glutes holding the hips straight.
+        static let invertedRow = row.braced.adding(.assisting("hip.flexion", .resists))
         static let deadlift = Self(pattern: .hipHinge, actions: [.main("hip.extension"), .assisting("knee.extension"), .main("trunk.flexion", .resists)])
         static let trapBarDeadlift = Self(pattern: .hipHinge, actions: [.main("knee.extension"), .main("hip.extension"), .assisting("trunk.flexion", .resists)])
         static let overhead = Self(pattern: .overheadPress, actions: [
@@ -89,6 +92,8 @@ enum MovementCatalog {
         ).braced
         /// Starts with the palms in and the elbows in front, then turns the arms out as it presses.
         static let arnoldPress = overhead.adding(.assisting("shoulder.flexion"), .assisting("shoulder.externalRotation"))
+        /// A load on one side overhead tips the trunk, which holds against bending sideways.
+        static let singleArmPress = overhead.braced.adding(.assisting("trunk.lateralFlexion", .resists))
         /// Past the first part of the raise, the shoulder blade turns up with the arm.
         static let lateralRaise = Self(pattern: .lateralRaise, actions: [.main("shoulder.abduction")])
             .adding(.assisting("scapula.upwardRotation"))
@@ -116,14 +121,16 @@ enum MovementCatalog {
         /// With the bar on the back, the spinal erectors hold as hard as the hips work.
         static let goodMorning = hinge.actions(.main("hip.extension"), .main("trunk.flexion", .resists)).braced
         static let legCurl = Self(pattern: .kneeFlexion, actions: [.main("knee.flexion")])
-        /// Done with the hips held up in a bridge.
-        static let slidingLegCurl = legCurl.adding(.assisting("hip.flexion", .resists))
+        /// The hips stay straight while the knees bend, as in a sliding or Nordic curl.
+        static let hipsHeldLegCurl = legCurl.adding(.assisting("hip.flexion", .resists))
         static let bridge = Self(pattern: .hipThrustBridge, actions: [.main("hip.extension")])
+        /// On one leg, its glutes also hold the pelvis level.
+        static let singleLegBridge = bridge.adding(.assisting("hip.adduction", .resists))
         static let kickback = Self(pattern: .hipExtension, actions: [.main("hip.extension")])
         static let calf = Self(pattern: .calfRaise, actions: [.main("ankle.plantarflexion")])
         static let crunch = Self(pattern: .trunkFlexion, actions: [.main("trunk.flexion")])
-        /// Past the curl, the hip flexors lift the trunk the rest of the way.
-        static let sitUp = crunch.adding(.assisting("hip.flexion"))
+        /// The hip flexors join in: lifting the trunk past the curl in a sit-up, or the legs in a reverse crunch.
+        static let trunkAndHipFlexion = crunch.adding(.assisting("hip.flexion"))
         /// The abs curl the pelvis up as the legs rise.
         static let legRaise = Self(pattern: .hipFlexion, actions: [.main("hip.flexion")])
             .adding(.assisting("trunk.flexion"))

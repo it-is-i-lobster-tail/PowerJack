@@ -135,7 +135,7 @@ enum ExerciseCatalog {
         Entry("dumbbell-reverse-wrist-curl", "Dumbbell Reverse Wrist Curl", .dumbbell, .forearms, .low, .reverseWristCurl),
         // Added for the home and small gym templates. Smith machine lifts use `.machine`.
         Entry("dumbbell-goblet-squat", "Dumbbell Goblet Squat", .dumbbell, .quads, .moderate, .squat, [.glutes, .abs]),
-        Entry("sliding-leg-curl", "Sliding Leg Curl", .bodyweight, .hamstrings, .low, .slidingLegCurl),
+        Entry("sliding-leg-curl", "Sliding Leg Curl", .bodyweight, .hamstrings, .low, .hipsHeldLegCurl),
         Entry("smith-machine-squat", "Smith Machine Squat", .machine, .quads, .high, .squat, [.glutes, .abs]),
         Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .high, .bridge.braced, [.abs]),
         Entry("cable-hip-abduction", "Cable Hip Abduction", .cable, .glutes, .low, .hipAbduction),
@@ -149,7 +149,7 @@ enum ExerciseCatalog {
         // Loadable bodyweight: a weight of 0 is bodyweight alone. See `adoptOwnCopies`.
         Entry("weighted-pull-up", "Weighted Pull-Ups", .loadableBodyweight, .back, .moderate, .pullUp.braced, [.biceps, .forearms, .abs]),
         Entry("weighted-dip", "Weighted Dips", .loadableBodyweight, .chest, .moderate, .dip, [.triceps, .shoulders]),
-        Entry("sit-up", "Sit-Up", .loadableBodyweight, .abs, .low, .sitUp, [.obliques]),
+        Entry("sit-up", "Sit-Up", .loadableBodyweight, .abs, .low, .trunkAndHipFlexion, [.obliques]),
         Entry("lateral-lunge", "Lateral Lunge", .loadableBodyweight, .quads, .moderate, .lateralLunge, [.glutes, .hamstrings]),
         Entry("ab-wheel-rollout", "Ab Wheel Rollout", .bodyweight, .abs, .low, .rollout, [.obliques, .shoulders], equipmentName: "Ab Wheel"),
         Entry("single-leg-romanian-deadlift", "Single-Leg Romanian Deadlift", .loadableBodyweight, .hamstrings, .moderate, .singleLegHinge, [.glutes, .back]),
