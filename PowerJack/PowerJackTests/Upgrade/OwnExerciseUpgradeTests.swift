@@ -40,6 +40,49 @@ struct OwnExerciseUpgradeTests {
         #expect(try UpgradeManifest(context: context) == saved, "\(fixture.version)")
     }
 
+    @Test("An own exercise named like a built-in and seeded machines upgrade to named built-ins with every set", arguments: UpgradeFixture.bundled)
+    func sameNameCopyAndMachineNames(from fixture: UpgradeFixture) throws {
+        let url = try copyStore(of: fixture)
+        try execute("UPDATE ZEXERCISE SET ZEXERCISENAME = 'Smith Machine Squat' WHERE ZUSERCREATEDVALUE = 1", on: url)
+
+        let configuration = ModelConfiguration(schema: PowerJackSchema.schema, url: url, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: PowerJackSchema.schema, configurations: [configuration])
+        Self.open.append(container)
+        let context = container.mainContext
+        let mine = try #require(try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.userCreatedValue })).first)
+        let ownRows = Set((mine.workoutExercisesValue ?? []).map(\.persistentModelID))
+        let ownSets = (mine.workoutExercisesValue ?? []).flatMap(\.workoutSets).filter { $0.status == .complete }
+            .map { [$0.weightTenthsPounds, $0.reps] }.sorted { "\($0)" < "\($1)" }
+        #expect(!ownRows.isEmpty, "\(fixture.version)")
+
+        // What the app runs at launch.
+        try ExerciseCatalog.adoptSameNameCopies(in: context, defaults: try #require(UserDefaults(suiteName: UUID().uuidString)))
+        try ExerciseCatalog.seed(in: context)
+        try TemplateCatalog.seed(in: context)
+
+        let squats = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID == "smith-machine-squat" }
+        #expect(squats.count == 1, "\(fixture.version)")
+        let squat = try #require(squats.first)
+        #expect(!squat.userCreated && squat.equipment == .machine && squat.customEquipmentName == "Smith Machine", "\(fixture.version)")
+        let rows = squat.workoutExercisesValue ?? []
+        #expect(ownRows.isSubset(of: Set(rows.map(\.persistentModelID))), "\(fixture.version)")
+        let sets = rows.filter { ownRows.contains($0.persistentModelID) }.flatMap(\.workoutSets).filter { $0.status == .complete }
+            .map { [$0.weightTenthsPounds, $0.reps] }.sorted { "\($0)" < "\($1)" }
+        #expect(sets == ownSets, "\(fixture.version)")
+        #expect(try context.fetch(FetchDescriptor<WorkoutExercise>()).allSatisfy { $0.exercise != nil }, "\(fixture.version)")
+
+        // Every untouched built-in machine shows its name.
+        for exercise in try context.fetch(FetchDescriptor<Exercise>()) {
+            guard let entry = exercise.catalogID.flatMap({ ExerciseCatalog.entriesByID[$0] }), exercise.equipment == entry.equipment else { continue }
+            #expect(exercise.customEquipmentName == entry.equipmentName, "\(fixture.version) \(entry.id)")
+        }
+
+        // Everything else the lifter saved is still there.
+        var saved = try JSONDecoder().decode(UpgradeManifest.self, from: Data(contentsOf: fixture.manifest))
+        saved.userExercises = []
+        #expect(try UpgradeManifest(context: context) == saved, "\(fixture.version)")
+    }
+
     @Test("Movement upgrade preserves a renamed bench and a custom exercise with its original catalog name")
     func renamedBuiltInAndSameNameCustom() throws {
         let fixture = try #require(UpgradeFixture.bundled.first { $0.version == "1.0.51" })

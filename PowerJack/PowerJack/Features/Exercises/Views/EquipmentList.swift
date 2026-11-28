@@ -32,9 +32,11 @@ struct EquipmentList: View {
                     }
                 }
             }
-            Section("Built-in equipment") {
-                ForEach(ExerciseCatalog.equipmentOptions, id: \.self) { option in
-                    builtInRow(option)
+            ForEach(ExerciseCatalog.equipmentOptionsByType, id: \.base) { group in
+                Section(group.base.displayName) {
+                    ForEach(group.options, id: \.self) { option in
+                        builtInRow(option)
+                    }
                 }
             }
         }

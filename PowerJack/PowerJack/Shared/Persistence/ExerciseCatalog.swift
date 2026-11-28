@@ -155,15 +155,15 @@ enum ExerciseCatalog {
               movesLike: ["reverse-lunge", "split-squat", "dumbbell-bulgarian-split-squat"]),
         Entry("leg-press", "Leg Press", .legPress, .quads, .high, .legPress, [.glutes, .hamstrings],
               movesLike: ["hack-squat", "smith-machine-squat", "barbell-back-squat"]),
-        Entry("leg-extension", "Leg Extension", .machine, .quads, .low, .legExtension),
+        Entry("leg-extension", "Leg Extension", .machine, .quads, .low, .legExtension, equipmentName: "Leg Extension"),
         Entry("barbell-romanian-deadlift", "Barbell Romanian Deadlift", .barbell, .hamstrings, .high, .hinge, [.glutes, .back, .forearms],
               movesLike: ["dumbbell-romanian-deadlift", "barbell-good-morning", "cable-pull-through"]),
         Entry("dumbbell-romanian-deadlift", "Dumbbell Romanian Deadlift", .dumbbell, .hamstrings, .moderate, .hinge, [.glutes, .back, .forearms],
               movesLike: ["barbell-romanian-deadlift", "single-leg-romanian-deadlift", "cable-pull-through"]),
         Entry("seated-leg-curl", "Seated Leg Curl", .machine, .hamstrings, .low, .legCurl,
-              movesLike: ["lying-leg-curl", "sliding-leg-curl"]),
+              equipmentName: "Seated Leg Curl", movesLike: ["lying-leg-curl", "sliding-leg-curl"]),
         Entry("lying-leg-curl", "Lying Leg Curl", .machine, .hamstrings, .low, .legCurl,
-              movesLike: ["seated-leg-curl", "sliding-leg-curl"]),
+              equipmentName: "Lying Leg Curl", movesLike: ["seated-leg-curl", "sliding-leg-curl"]),
         Entry("barbell-hip-thrust", "Barbell Hip Thrust", .barbell, .glutes, .high, .bridge.braced, [.hamstrings, .abs],
               movesLike: ["smith-machine-hip-thrust", "glute-bridge", "cable-glute-kickback"]),
         Entry("glute-bridge", "Glute Bridge", .bodyweight, .glutes, .low, .bridge, [.hamstrings],
@@ -173,9 +173,9 @@ enum ExerciseCatalog {
         Entry("cable-pull-through", "Cable Pull Through", .cable, .glutes, .low, .hinge, [.hamstrings],
               movesLike: ["kettlebell-swing", "barbell-romanian-deadlift", "dumbbell-romanian-deadlift"]),
         Entry("standing-calf-raise", "Standing Calf Raise", .machine, .calves, .low, .calf,
-              movesLike: ["seated-calf-raise", "dumbbell-calf-raise"]),
+              equipmentName: "Calf Raise", movesLike: ["seated-calf-raise", "dumbbell-calf-raise"]),
         Entry("seated-calf-raise", "Seated Calf Raise", .machine, .calves, .low, .calf,
-              movesLike: ["standing-calf-raise", "dumbbell-calf-raise"]),
+              equipmentName: "Seated Calf", movesLike: ["standing-calf-raise", "dumbbell-calf-raise"]),
         Entry("dumbbell-calf-raise", "Dumbbell Calf Raise", .dumbbell, .calves, .low, .calf,
               movesLike: ["standing-calf-raise", "seated-calf-raise"]),
         Entry("crunch", "Crunch", .bodyweight, .abs, .low, .crunch,
@@ -197,14 +197,14 @@ enum ExerciseCatalog {
         Entry("sliding-leg-curl", "Sliding Leg Curl", .bodyweight, .hamstrings, .low, .hipsHeldLegCurl,
               movesLike: ["nordic-hamstring-curl", "lying-leg-curl", "seated-leg-curl"]),
         Entry("smith-machine-squat", "Smith Machine Squat", .machine, .quads, .high, .squat, [.glutes, .abs],
-              movesLike: ["barbell-back-squat", "hack-squat", "barbell-front-squat"]),
+              equipmentName: "Smith Machine", movesLike: ["barbell-back-squat", "hack-squat", "barbell-front-squat"]),
         Entry("smith-machine-hip-thrust", "Smith Machine Hip Thrust", .machine, .glutes, .high, .bridge.braced, [.abs],
-              movesLike: ["barbell-hip-thrust", "glute-bridge", "cable-glute-kickback"]),
+              equipmentName: "Smith Machine", movesLike: ["barbell-hip-thrust", "glute-bridge", "cable-glute-kickback"]),
         Entry("cable-hip-abduction", "Cable Hip Abduction", .cable, .glutes, .low, .hipAbduction,
               movesLike: ["machine-hip-abduction"]),
         // Added for the second set of built-in templates.
         Entry("hack-squat", "Hack Squat", .machine, .quads, .high, .hackSquat, [.glutes],
-              movesLike: ["leg-press", "smith-machine-squat", "barbell-back-squat"]),
+              equipmentName: "Hack Squat", movesLike: ["leg-press", "smith-machine-squat", "barbell-back-squat"]),
         Entry("chest-supported-dumbbell-row", "Chest Supported Dumbbell Row", .dumbbell, .back, .moderate, .row, [.biceps, .forearms],
               movesLike: ["seated-cable-row", "one-arm-dumbbell-row", "barbell-row"]),
         Entry("dip", "Dip", .bodyweight, .chest, .moderate, .dip, [.triceps, .shoulders],
@@ -262,7 +262,7 @@ enum ExerciseCatalog {
         Entry("incline-dumbbell-fly", "Incline Dumbbell Fly", .dumbbell, .chest, .low, .inclineFly, [.shoulders],
               movesLike: ["dumbbell-fly", "cable-chest-fly", "pec-deck"]),
         Entry("pec-deck", "Pec Deck", .machine, .chest, .low, .fly, [.shoulders],
-              movesLike: ["cable-chest-fly", "dumbbell-fly", "incline-dumbbell-fly"]),
+              equipmentName: "Pec Deck", movesLike: ["cable-chest-fly", "dumbbell-fly", "incline-dumbbell-fly"]),
         Entry("incline-push-up", "Incline Push Up", .bodyweight, .chest, .moderate, .pushUp, [.triceps, .shoulders, .abs],
               movesLike: ["push-up", "dumbbell-bench-press", "machine-chest-press"]),
 
@@ -314,7 +314,7 @@ enum ExerciseCatalog {
         Entry("single-leg-glute-bridge", "Single-Leg Glute Bridge", .bodyweight, .glutes, .low, .singleLegBridge, [.hamstrings],
               movesLike: ["glute-bridge", "barbell-hip-thrust", "cable-glute-kickback"]),
         Entry("machine-hip-abduction", "Machine Hip Abduction", .machine, .glutes, .low, .hipAbduction,
-              movesLike: ["cable-hip-abduction"]),
+              equipmentName: "Hip Abduction", movesLike: ["cable-hip-abduction"]),
         Entry("nordic-hamstring-curl", "Nordic Hamstring Curl", .bodyweight, .hamstrings, .moderate, .hipsHeldLegCurl,
               movesLike: ["sliding-leg-curl", "lying-leg-curl", "seated-leg-curl"]),
         Entry("standing-single-leg-calf-raise", "Standing Single-Leg Calf Raise", .loadableBodyweight, .calves, .low, .calf,
@@ -343,6 +343,12 @@ enum ExerciseCatalog {
         }
         return Set(bases + named).sorted { $0.displayName < $1.displayName }
     }()
+
+    /// Built-in equipment by type, in the type's order: the plain type first, then its named equipment.
+    static let equipmentOptionsByType: [(base: Equipment, options: [EquipmentOption])] = Equipment.allCases.map { base in
+        let options = equipmentOptions.filter { $0.base == base }
+        return (base, options.filter { $0.name == nil } + options.filter { $0.name != nil })
+    }
 
     /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
     static let replacedOwnNames: [String: Set<String>] = [
@@ -413,7 +419,7 @@ enum ExerciseCatalog {
         let catalogExercises = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID != nil }
 
         for copies in Dictionary(grouping: catalogExercises, by: \.catalogID).values where copies.count > 1 {
-            let oldestFirst = copies.sorted { $0.createdAtValue < $1.createdAtValue }
+            let oldestFirst = copies.sorted(by: survivesBefore)
             let survivor = oldestFirst[0]
             for duplicate in oldestFirst.dropFirst() {
                 survivor.takeOverRows(of: duplicate)
@@ -422,8 +428,48 @@ enum ExerciseCatalog {
             TraceLog.record(.data, "Catalog dedupe: kept the oldest \(survivor.catalogID ?? "?"), deleted \(oldestFirst.count - 1) copies")
             changed = true
         }
+        // Only the iPhone fills names, so an older iPhone's snapshot never fights a newer watch over them.
+        if SyncDevice.current == SyncDevice.iPhone {
+            changed = try fillEquipmentNames(in: context) || changed
+        }
         return changed
     }
+
+    /// The copy every device keeps: the oldest. Rows saved before `createdAtValue` existed all read as
+    /// the oldest, so ties go to the row seeded as built-in (no sync ID), then the lowest sync ID.
+    /// Every field read here syncs, so every device keeps the same row.
+    static func survivesBefore(_ a: Exercise, _ b: Exercise) -> Bool {
+        if a.createdAtValue != b.createdAtValue { return a.createdAtValue < b.createdAtValue }
+        switch (a.syncIDValue, b.syncIDValue) {
+        case (nil, nil): return false
+        case (nil, _): return true
+        case (_, nil): return false
+        case let (a?, b?): return a.uuidString < b.uuidString
+        }
+    }
+
+    /// Gives built-in rows seeded before their equipment had a name that name, such as "Smith Machine".
+    /// Display only. A row whose equipment type the lifter changed keeps what it shows.
+    /// - Returns: Whether anything changed. The caller saves.
+    @MainActor
+    static func fillEquipmentNames(in context: ModelContext) throws -> Bool {
+        let rows = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID != nil && $0.customEquipmentName == nil }))
+        var changed = false
+        for exercise in rows where !exercise.userCreated {
+            guard let entry = exercise.catalogID.flatMap({ entriesByID[$0] }),
+                  let name = entry.equipmentName,
+                  exercise.equipment == entry.equipment
+            else { continue }
+            exercise.customEquipmentName = name
+            changed = true
+        }
+        return changed
+    }
+
+    static let entriesByID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+    /// Built-in entries by `matchingName`, so an own "smith machine squat" finds Smith Machine Squat.
+    static let entriesByMatchingName = Dictionary(entries.map { (matchingName($0.name), $0) }, uniquingKeysWith: { first, _ in first })
 
     /// Turns the lifter's own exercise named like a newer built-in one (see `replacedOwnNames`) into that
     /// built-in exercise, in place, so every template, program and logged set that used it stays with it.

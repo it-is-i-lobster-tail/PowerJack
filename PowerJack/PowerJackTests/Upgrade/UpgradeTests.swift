@@ -79,6 +79,7 @@ enum UpgradeStore {
         let configuration = ModelConfiguration(schema: PowerJackSchema.schema, url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: PowerJackSchema.schema, configurations: [configuration])
         open.append(container)
+        try ExerciseCatalog.adoptSameNameCopies(in: container.mainContext, defaults: UserDefaults(suiteName: UUID().uuidString)!)
         try ExerciseCatalog.seed(in: container.mainContext)
         try TemplateCatalog.seed(in: container.mainContext)
 

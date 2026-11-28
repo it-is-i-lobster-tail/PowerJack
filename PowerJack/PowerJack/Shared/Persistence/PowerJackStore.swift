@@ -249,6 +249,7 @@ final class PowerJackStore {
     /// A seed that fails is undone and tried again next launch, so it never keeps the app from opening.
     private static func seedCatalogs(in context: ModelContext) {
         do {
+            try ExerciseCatalog.adoptSameNameCopies(in: context)
             try ExerciseCatalog.seed(in: context)
             try TemplateCatalog.seed(in: context)
         } catch {

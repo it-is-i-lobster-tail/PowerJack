@@ -298,7 +298,7 @@ struct ExerciseRemovalTests {
     }
 
     private func settle() async throws {
-        try await Task.sleep(for: HistoryChanges.settle * 3)
+        await HistoryChangesWait.counted()
     }
 
     private func expectMatchesFullBuild(_ summary: HistorySummary, in context: ModelContext,

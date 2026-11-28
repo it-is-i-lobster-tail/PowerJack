@@ -16,7 +16,7 @@ struct HistoryCacheTests {
 
     /// Lets the save notifications arrive and the burst settle.
     private func settle() async {
-        try? await Task.sleep(for: HistoryChanges.settle * 3)
+        await HistoryChangesWait.counted()
     }
 
     private func importedRow(_ day: String, in context: ModelContext) -> ImportedSet {
@@ -60,7 +60,8 @@ struct HistoryCacheTests {
         let store = try sampleStore()
         let context = store.container.mainContext
         try context.save()
-        await settle()
+        // Lets the store's own seeding saves be counted; this save may change nothing to wait for.
+        try? await Task.sleep(for: HistoryChanges.settle * 3)
 
         let before = changes.count
         let first = StudyHistory.current(in: context, unit: .pounds)
