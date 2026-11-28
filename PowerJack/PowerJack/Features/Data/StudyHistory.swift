@@ -31,6 +31,8 @@ struct StudySession: Codable, Equatable {
     var targetRIR: Int?
     var sets: [StudySet]
     var warmups: [StudySet] = []
+    /// Names the lift was logged under in another app, such as FitNotes' "Hex Bar Dead Lift".
+    var importedNames: [String] = []
 
     var done: [StudySet] { sets.filter { $0.status == .complete } }
     var opening: StudySet? { sets.first.flatMap { $0.status == .complete ? $0 : nil } }
@@ -67,8 +69,9 @@ struct StudyHistory {
     let firstDate: Date
     /// Changes whenever the logged sets, the day or the weight unit change, so a search can reuse its results.
     let revision: Int
-    /// The built-in lift (its sync key) each own lift moves like, by the own lift's sync key. See `MovesLike`.
-    let movesLike: [String: String]
+    /// Each own lift as search reads it, by sync key: the joint actions set in Advanced Data or
+    /// copied from the lift it moves like, its equipment and its muscles.
+    let ownLifts: [String: ExerciseSearch.Document]
     let calendar: Calendar
     let unit: WeightUnit
     static let legs: [Muscle] = [.quads, .glutes, .hamstrings, .calves]
@@ -91,7 +94,7 @@ struct StudyHistory {
         self.unit = unit
         self.today = today
         self.calendar = calendar
-        movesLike = parts.movesLike
+        ownLifts = parts.ownLifts
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
         for part in parts.workouts.values {
@@ -175,6 +178,7 @@ struct StudyHistory {
         case .year(let year): return String(year)
         case .day: return selectedRange?.start.formatted(.dateTime.month(.wide).day().year()) ?? ""
         case .month: return selectedRange?.start.formatted(.dateTime.month(.wide).year()) ?? ""
+        case .range: return options.period.label
         }
     }
     func parameter(_ key: StudyParameter, _ fallback: Int) -> Int {

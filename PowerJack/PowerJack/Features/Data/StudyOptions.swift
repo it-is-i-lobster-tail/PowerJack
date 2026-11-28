@@ -6,10 +6,13 @@ enum StudyPeriod: Hashable, Codable {
     case month(year: Int, month: Int)
 
     case day(year: Int, month: Int, day: Int)
+    /// Any span of days, as search reads "last 3 months" or "since September". `end` is excluded.
+    case range(start: Date, end: Date)
 
     var usesDailyBuckets: Bool {
         switch self {
         case .month, .day: true
+        case let .range(start, end): end.timeIntervalSince(start) <= 62 * 24 * 60 * 60
         default: false
         }
     }
@@ -24,6 +27,8 @@ enum StudyPeriod: Hashable, Codable {
         case .month(let year, let month):
             Calendar.current.date(from: DateComponents(year: year, month: month))?.formatted(.dateTime.month(.wide).year())
                 ?? String(year)
+        case let .range(start, end):
+            (start..<max(start, end.addingTimeInterval(-1))).formatted(.interval.month(.abbreviated).day().year())
         }
     }
 }
