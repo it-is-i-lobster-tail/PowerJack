@@ -31,8 +31,8 @@ struct ExercisePickerTests {
         let mode = ExercisePickerMode.substitute(WorkoutExercise(exercise: bench, order: 0))
         let suggestions = results("", mode)
         let top = suggestions.matches.prefix(3).compactMap(\.catalogID)
-        #expect(top.contains("dumbbell-bench-press"))
-        #expect(top.contains("incline-dumbbell-bench-press"))
+        // Flat presses on other equipment move exactly like it. An incline also raises the arms forward.
+        #expect(Set(top) == ["dumbbell-bench-press", "dumbbell-floor-press", "machine-chest-press"])
         let barbellVariants: Set<String> = ["decline-barbell-bench-press", "incline-barbell-bench-press"]
         #expect(barbellVariants.isDisjoint(with: top))
         let changes = results("", .change(bench)).matches.prefix(3).compactMap(\.catalogID)
