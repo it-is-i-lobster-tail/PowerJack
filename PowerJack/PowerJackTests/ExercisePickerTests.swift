@@ -31,10 +31,12 @@ struct ExercisePickerTests {
         let mode = ExercisePickerMode.substitute(WorkoutExercise(exercise: bench, order: 0))
         let suggestions = results("", mode)
         let top = suggestions.matches.prefix(3).compactMap(\.catalogID)
-        #expect(top.contains("dumbbell-bench-press"))
-        #expect(top.contains("incline-dumbbell-bench-press"))
-        #expect(!top.contains("incline-barbell-bench-press"))
-        #expect(results("", .change(bench)).matches.prefix(3).contains { $0.catalogID == "incline-barbell-bench-press" })
+        // Flat presses on other equipment move exactly like it. An incline also raises the arms forward.
+        #expect(Set(top) == ["dumbbell-bench-press", "dumbbell-floor-press", "machine-chest-press"])
+        let barbellVariants: Set<String> = ["decline-barbell-bench-press", "incline-barbell-bench-press"]
+        #expect(barbellVariants.isDisjoint(with: top))
+        let changes = results("", .change(bench)).matches.prefix(3).compactMap(\.catalogID)
+        #expect(!barbellVariants.isDisjoint(with: changes))
         // Neighbours first, then every other lift under "All Exercises".
         #expect(!suggestions.others.isEmpty)
         let options = suggestions.matches + suggestions.others
@@ -49,9 +51,26 @@ struct ExercisePickerTests {
         #expect(squat.others.isEmpty)
         #expect(squat.matches.prefix(3).allSatisfy { $0.exerciseName.lowercased().contains("squat") })
         let barbell = results("barbell bench", mode)
-        #expect(barbell.matches.first?.catalogID == "incline-barbell-bench-press")
+        #expect(Set(barbell.matches.prefix(2).compactMap(\.catalogID)) == barbellVariants)
         // Named equipment ranks first but no longer hides the rest.
         #expect(barbell.matches.contains { $0.catalogID == "dumbbell-bench-press" })
+    }
+
+    /// Changing one of the newer built-ins offers its own family first.
+    @Test(arguments: [
+        ("sumo-deadlift", "barbell-deadlift"),
+        ("pendlay-row", "barbell-row"),
+        ("barbell-shrug", "dumbbell-shrug"),
+        ("pec-deck", "cable-chest-fly"),
+        ("nordic-hamstring-curl", "sliding-leg-curl"),
+        ("incline-push-up", "push-up"),
+        ("neutral-grip-lat-pulldown", "lat-pulldown"),
+        ("ez-bar-skull-crusher", "barbell-skull-crusher"),
+    ])
+    func newerLiftsFindTheirFamily(id: String, sibling: String) throws {
+        let lift = try #require(exercises.first { $0.catalogID == id })
+        let top = results("", .change(lift)).matches.prefix(3).compactMap(\.catalogID)
+        #expect(top.contains(sibling), "\(id) → \(top)")
     }
 
     @Test func addSearchAndMuscleFilters() {

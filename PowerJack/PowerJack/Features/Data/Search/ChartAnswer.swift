@@ -261,7 +261,7 @@ enum UnrecordedMeasure {
 
 extension StudyPeriod {
     /// The calendar span this period covers, or nil for a chart's default or all history.
-    func interval(in calendar: Calendar) -> DateInterval? {
+    func interval(in calendar: Calendar, today: Date = .now) -> DateInterval? {
         switch self {
         case .original, .all: nil
         case .year(let year):
@@ -272,6 +272,8 @@ extension StudyPeriod {
             calendar.date(from: DateComponents(year: year, month: month, day: day)).flatMap { calendar.dateInterval(of: .day, for: $0) }
         case let .range(start, end):
             DateInterval(start: start, end: max(start, end))
+        case .recent(let span):
+            span.interval(today: today, calendar: calendar)
         }
     }
 }

@@ -59,9 +59,15 @@ struct CustomExerciseList: View {
     @State private var editing: Exercise?
 
     var body: some View {
-        let shown = CustomExerciseOrigin.shown(exercises, origin: origin, importedKeys: importedKeys, query: search,
-                                               index: index, familiarity: familiarity)
+        // A misspelt search retries with the closest exercise names, like the exercise picker.
+        let (shown, correction) = SpellingCorrection.results(
+            for: search, vocabulary: { exercises.map(\.exerciseName) }, isEmpty: \.isEmpty
+        ) { text in
+            CustomExerciseOrigin.shown(exercises, origin: origin, importedKeys: importedKeys, query: text,
+                                       index: index, familiarity: familiarity)
+        }
         List {
+            if let correction { SpellingCorrectionNote(correction: correction) }
             ForEach(shown) { exercise in
                 ExerciseSelectionRow(
                     exercise: exercise,
@@ -85,6 +91,7 @@ struct CustomExerciseList: View {
         // Always shown: the filter bar below would otherwise tuck the search field away.
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .searchPresentationToolbarBehavior(.avoidHidingContent)
+        .searchAutocorrects()
         .navigationTitle("My Custom Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $editing) { exercise in

@@ -5,10 +5,24 @@ extension StudyHistory {
         let history = configured(for: options)
         var result = history.makeResult(for: id)
         result.title = history.chartTitle(for: id)
+        result.xRange = history.chartRange
+        if let timeline = result.timeline, timeline.unit == .month || timeline.unit == .quarter,
+           [.legWork, .frequency, .missingEstimates].contains(id) {
+            result.title = Self.grouped(result.title ?? StudyTitle(full: id.genericName, caption: id.genericName), timeline)
+        }
         if !history.originalPeriod && !result.scope.contains(history.rangeLabel) {
             result.scope += " · " + history.rangeLabel
         }
         return result
+    }
+
+    /// Long ranges group by month or quarter, and the title says so.
+    private static func grouped(_ title: StudyTitle, _ timeline: StudyTimeline) -> StudyTitle {
+        let word = timeline.adjective.capitalized
+        func rename(_ text: String) -> String {
+            text.hasPrefix("Weekly ") ? word + text.dropFirst("Weekly".count) : text + " · " + timeline.adjective
+        }
+        return StudyTitle(full: rename(title.full), caption: rename(title.caption))
     }
 
     private func makeResult(for id: TrainingStudy) -> StudyResult {
@@ -69,10 +83,6 @@ extension StudyHistory {
         }.sorted { $0.x < $1.x }
     }
 
-    func scopeDate(_ date: Date) -> String {
-        if case .all = options.period { return day(date) }
-        return date.formatted(.dateTime.month(.abbreviated).day())
-    }
 }
 
 extension StudyHistory {
@@ -82,44 +92,41 @@ extension StudyHistory {
         let legName = muscleLabel(Self.legs, "Leg")
         let armName = muscleLabel(Self.arms, "Arms")
         let legSessions = sessions.filter { includes($0.date) && isLeg($0) }
-        let weeks = recentWeeks
         let labels = legMuscles.map { $0.rawValue.capitalized }
         switch id {
         case .legWork:
-            let byWeek = Dictionary(grouping: credits.filter { includes($0.date) }, by: { week($0.date) })
+            let timeline = weeklyTimeline(series: legMuscles.count)
+            let byBucket = Dictionary(grouping: credits.filter { includes($0.date) }) {
+                timeline.bucket(containing: $0.date)?.label
+            }
             let values = legMuscles.map { muscle in
-                weeks.map { date in
-                    byWeek[date].map { $0.filter { $0.muscle == muscle }.reduce(0) { $0 + $1.sets } }
+                timeline.buckets.map { bucket in
+                    byBucket[bucket.label].map { $0.filter { $0.muscle == muscle }.reduce(0) { $0 + $1.sets } }
                 }
             }
-            return matrix(
-                id, "\(legName) muscles · \(weeksLabel)", weeks.map(scopeDate), labels, values,
+            var result = matrix(
+                id, "\(legName) muscles · \(weeksLabel)", timeline.buckets.map(\.label), labels,
+                values,
                 "Completed working sets earn one credit for the primary muscle and half for each assisting muscle. A dash means no workout log."
             )
+            result.timeline = timeline
+            return result
         case .armReps:
             let matches = sessions.filter { inYear($0.date) && exerciseMatches($0) && !$0.done.isEmpty }
-            let grain: Calendar.Component
-            if options.period.usesDailyBuckets { grain = .day } else { grain = .month }
-            let bucket = { (date: Date) in calendar.dateInterval(of: grain, for: date)!.start }
-            let counts = Dictionary(grouping: matches, by: { bucket($0.date) })
+            let grain: Calendar.Component = options.period.usesDailyBuckets ? .day : .month
+            let timeline = StudyTimeline(
+                range: DateInterval(start: yearStart, end: max(yearStart, min(yearEnd, endOfToday))), unit: grain,
+                calendar: calendar)
+            let counts = Dictionary(grouping: matches) { timeline.bucket(containing: $0.date)?.label }
             let grainLabel = grain == .day ? "Day" : "Month"
             var data: [StudyBar] = []
             var rows: [[String]] = []
             var allDirect = 0
             var allAssisting = 0
             var partial = false
-            var date = bucket(yearStart)
-            while date < yearEnd, date <= today {
-                let label: String
-                if grain == .day {
-                    label = date.formatted(.dateTime.month(.abbreviated).day())
-                } else if case .all = options.period {
-                    label = date.formatted(.dateTime.month(.abbreviated).year(.twoDigits))
-                } else {
-                    label = date.formatted(.dateTime.month(.abbreviated))
-                }
-                let month = counts[date] ?? []
-                date = calendar.date(byAdding: grain, value: 1, to: date)!
+            for bucket in timeline.buckets {
+                let label = bucket.label
+                let month = counts[label] ?? []
                 for muscle in armMuscles {
                     let total = month.filter { $0.primary == muscle }.flatMap(\.done).compactMap(\.reps).reduce(0, +)
                     allDirect += total
@@ -140,12 +147,14 @@ extension StudyHistory {
                     }
                 }
             }
-            return bars(
+            var result = bars(
                 id, "\(armName) · \(originalPeriod ? "January–December 2026" : rangeLabel)", grainLabel, "Direct reps",
                 matches.isEmpty ? [] : data,
                 summary: "\(allDirect) direct reps and \(allAssisting) known assisting reps. Each set is counted once."
                     + (partial ? " Some archived sessions lack assisting-muscle tags." : ""),
                 detail: StudyTable(columns: [grainLabel, "Exercise", "Role", "Reps"], rows: rows))
+            result.timeline = timeline
+            return result
         case .gluteSources:
             let groups = muscles([.glutes])
             let slots = sessions.filter {
@@ -169,20 +178,24 @@ extension StudyHistory {
             result.yLabel = "Set credits"
             return result
         case .frequency:
-            let byDay = Dictionary(
-                grouping: sessions.filter { includes($0.date) && !$0.done.isEmpty },
-                by: { calendar.startOfDay(for: $0.date) })
-            let cols = (0..<7).map {
-                offset(weeks.first ?? week(today), days: $0).formatted(.dateTime.weekday(.abbreviated))
+            let timeline = weeklyTimeline(series: 7)
+            let byBucket = Dictionary(grouping: sessions.filter { includes($0.date) && !$0.done.isEmpty }) {
+                timeline.bucket(containing: $0.date)?.label
             }
-            let values = weeks.map { w in
-                (0..<7).map { d in
-                    byDay[offset(w, days: d)].map { Double($0.filter(isLeg).flatMap(\.done).count) }
+            let weekdays = (0..<7).map { (calendar.firstWeekday - 1 + $0) % 7 + 1 }
+            let cols = weekdays.map { calendar.shortWeekdaySymbols[$0 - 1] }
+            let values = timeline.buckets.map { bucket in
+                let byDay = Dictionary(grouping: byBucket[bucket.label] ?? []) { calendar.component(.weekday, from: $0.date) }
+                return weekdays.map { day in
+                    byDay[day].map { Double($0.filter(isLeg).flatMap(\.done).count) }
                 }
             }
-            return matrix(
-                id, "\(legName) working sets · \(weeksLabel)", cols, weeks.map(scopeDate), values,
+            var result = matrix(
+                id, "\(legName) working sets · \(weeksLabel)", cols,
+                timeline.buckets.map(\.label), values,
                 "A zero means other work was logged that day. A dash means no logged workout.")
+            result.timeline = timeline
+            return result
         case .repRanges:
             let grouped = Dictionary(grouping: legSessions.filter { recent($0.date) && !$0.done.isEmpty }, by: \.name)
             let names = grouped.keys.sorted()
@@ -236,7 +249,7 @@ extension StudyHistory {
                 return StudyBar(label: muscle.rawValue.capitalized, value: Double(days(s.date, asOf)))
             }.sorted { $0.value > $1.value }
             return bars(
-                id, "\(legName) · primary working sets through \(scopeDate(asOf))", "Muscle", "Days since training", data,
+                id, "\(legName) · primary working sets through \(day(asOf))", "Muscle", "Days since training", data,
                 summary:
                     "Measured from the latest logged direct work. Muscles without a recorded exposure have no numerical age."
             )

@@ -28,7 +28,8 @@ struct FitNotesImportTests {
                      "Russian Twista": "russian-twist", "Chest Press (Machine)": "machine-chest-press",
                      "Dumbbell Shrugs": "dumbbell-shrug", "Good Morning": "barbell-good-morning",
                      "Backward Lunges": "reverse-lunge", "Kettlebell Swings": "kettlebell-swing",
-                     "Preacher Curl (EZ-Bar)": "ez-bar-preacher-curl"]
+                     "Preacher Curl (EZ-Bar)": "ez-bar-preacher-curl", "Nordic Curls": "nordic-hamstring-curl",
+                     "Barbell Shrug": "barbell-shrug"]
         for (name, id) in names {
             #expect(matched(name, among: catalog) == id, "\(name)")
         }
@@ -36,8 +37,7 @@ struct FitNotesImportTests {
 
     @Test func liftsMissingFromTheCatalogAreNeverMatched() {
         let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        for name in ["Nordic Curls", "Running (Outdoor)", "Machine Preacher Curl", "Incline Machine Chest Press",
-                     "Barbell Shrug", "Reverse Nordic Curl"] {
+        for name in ["Running (Outdoor)", "Machine Preacher Curl", "Incline Machine Chest Press", "Reverse Nordic Curl"] {
             #expect(matched(name, among: catalog) == nil, "\(name)")
         }
     }

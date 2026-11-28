@@ -82,60 +82,6 @@ private extension EnvironmentValues {
     @Entry var expandedCapture: ChartCapture? = nil
 }
 
-extension View {
-    /// Magnify only the plot. Outside it, the legend and vertical scrolling stay interactive.
-    func zoomableExpandedPlot() -> some View { modifier(ExpandedPlotZoom()) }
-}
-
-private struct ExpandedPlotZoom: ViewModifier {
-    @Environment(\.expandedCapture) var capture
-    @State private var scale: CGFloat = 1
-    @State private var origin = CGSize.zero
-    @State private var initialScale: CGFloat?
-    @State private var initialOrigin = CGSize.zero
-
-    func body(content: Content) -> some View {
-        if capture == nil { content } else {
-            GeometryReader { geometry in
-                let size = geometry.size
-                content.frame(width: size.width, height: size.height)
-                    .scrollDisabled(scale > 1)
-                    .scaleEffect(scale)
-                    .offset(bounded(origin, size, scale))
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .contentShape(Rectangle())
-                    .simultaneousGesture(MagnifyGesture().onChanged { value in
-                        if initialScale == nil { initialScale = scale; initialOrigin = origin }
-                        let start = initialScale ?? scale
-                        let next = min(6, max(1, start * value.magnification))
-                        let ratio = next / start
-                        let anchor = value.startAnchor
-                        origin = bounded(CGSize(width: initialOrigin.width * ratio + (anchor.x - 0.5) * size.width * (1 - ratio),
-                                                height: initialOrigin.height * ratio + (anchor.y - 0.5) * size.height * (1 - ratio)), size, next)
-                        scale = next
-                    }.onEnded { _ in initialScale = nil })
-                    .highPriorityGesture(DragGesture(coordinateSpace: .global).onChanged { drag in
-                        guard initialScale == nil else { return }
-                        if panStart == nil { panStart = bounded(origin, size, scale) }
-                        let start = panStart ?? origin
-                        origin = bounded(CGSize(width: start.width + drag.translation.width,
-                                                height: start.height + drag.translation.height), size, scale)
-                    }.onEnded { _ in panStart = nil }, isEnabled: scale > 1)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("Expanded zoom plot")
-            }
-        }
-    }
-
-    @State private var panStart: CGSize?
-    private func bounded(_ offset: CGSize, _ size: CGSize, _ scale: CGFloat) -> CGSize {
-        let x = size.width * (scale - 1) / 2
-        let y = size.height * (scale - 1) / 2
-        return CGSize(width: min(x, max(-x, offset.width)), height: min(y, max(-y, offset.height)))
-    }
-}
-
 struct ExportableChart: ViewModifier {
     @Environment(\.expandedCapture) private var capture
     func body(content: Content) -> some View {
@@ -155,39 +101,32 @@ struct ExpandedChartPresentation<Accessory: View, Content: View>: View {
     @State private var captureFailed = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text(title).font(.title3.bold())
-                Spacer()
-                accessory()
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        chartButton("Share chart", symbol: "square.and.arrow.up") {
-                            if let image = capture.image(title: title) { share = ChartShare(image: image) }
-                            else { captureFailed = true }
-                        }
-                        chartButton("Close", symbol: "xmark", action: close)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    accessory()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .simultaneousGesture(swipeDownToClose)
+                content().environment(\.expandedCapture, capture)
+            }
+            .padding([.horizontal, .bottom])
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(uiColor: .systemBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button("Share chart", systemImage: "square.and.arrow.up") {
+                        if let image = capture.image(title: title) { share = ChartShare(image: image) }
+                        else { captureFailed = true }
                     }
+                    Button("Close", systemImage: "xmark", action: close)
                 }
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 10, coordinateSpace: .global)
-                    .updating($offset) { drag, offset, _ in
-                        let delta = drag.translation
-                        offset = delta.height > abs(delta.width) ? delta.height : 0
-                    }
-                    .onEnded { drag in
-                        let delta = drag.translation
-                        guard delta.height > abs(delta.width) else { return }
-                        if delta.height >= 90 || drag.predictedEndTranslation.height >= 180 { close() }
-                    }
-            )
-            content().environment(\.expandedCapture, capture)
         }
-        .padding()
-        .background(Color(uiColor: .systemBackground))
         .offset(y: offset)
         .presentationBackground(.clear)
         .sheet(item: $share) { item in item }
@@ -195,26 +134,45 @@ struct ExpandedChartPresentation<Accessory: View, Content: View>: View {
             Button("OK", role: .cancel) {}
         }
     }
-    private func chartButton(_ label: LocalizedStringKey, symbol: String, action: @escaping () -> Void) -> some View {
+
+    private var swipeDownToClose: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .updating($offset) { drag, offset, _ in
+                let delta = drag.translation
+                offset = delta.height > abs(delta.width) ? delta.height : 0
+            }
+            .onEnded { drag in
+                let delta = drag.translation
+                guard delta.height > abs(delta.width) else { return }
+                if delta.height >= 90 || drag.predictedEndTranslation.height >= 180 { close() }
+            }
+    }
+}
+
+/// The expand control at a graph's title row. It opens that graph alone in full screen.
+struct ExpandChartButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.body.weight(.medium))
-                .frame(width: 38, height: 38)
-                .glassEffect(.regular.interactive(), in: .circle)
-                .frame(width: 44, height: 44)
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        .accessibilityLabel("Expand \(title)")
     }
-
 }
 
 /// Shares the chart content and its selection between inline and expanded presentations.
+/// The content gets its inline height, or nil in full screen, where it fills the space with the graph alone.
 struct FullScreenTrendChart<Content: View>: View {
     let title: String
     let inlineHeight: CGFloat
-    @ViewBuilder let content: (CGFloat) -> Content
+    @ViewBuilder let content: (CGFloat?) -> Content
     @State private var expanded = false
 
     var body: some View {
@@ -222,33 +180,22 @@ struct FullScreenTrendChart<Content: View>: View {
             HStack {
                 Text(title).font(.headline)
                 Spacer()
-                Button { expanded = true } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Expand \(title)")
+                ExpandChartButton(title: title) { expanded = true }
             }
             content(inlineHeight)
         }
         .fullScreenCover(isPresented: $expanded) {
             ExpandedChartPresentation(title: title, close: { expanded = false }, accessory: { EmptyView() }) {
-                GeometryReader { geometry in
-                    ScrollView {
-                        content(max(inlineHeight, geometry.size.height * 0.65))
-                            .modifier(ExportableChart())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+                content(nil)
+                    .modifier(ExportableChart())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
     }
 }
 
 /// A chart's horizontal window is a fraction of its full data domain. Both presentations share it.
-struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: View {
+struct ExpandableDataChart<HeaderAccessory: View, Plot: View>: View {
     let title: String
     let height: CGFloat
     let minimumSpan: Double
@@ -257,14 +204,10 @@ struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: Vi
     let headerAccessory: () -> HeaderAccessory
     let plot: (ClosedRange<Double>) -> Plot
 
-    let details: (ClosedRange<Double>) -> Details
-    @Environment(\.verticalSizeClass) private var verticalSize
-
     init(title: String, height: CGFloat, minimumSpan: Double, maximumSpan: Double = 1,
          select: ((Double, ClosedRange<Double>) -> Void)? = nil,
          @ViewBuilder headerAccessory: @escaping () -> HeaderAccessory = { EmptyView() },
-         @ViewBuilder plot: @escaping (ClosedRange<Double>) -> Plot,
-         @ViewBuilder details: @escaping (ClosedRange<Double>) -> Details = { _ in EmptyView() }) {
+         @ViewBuilder plot: @escaping (ClosedRange<Double>) -> Plot) {
         self.title = title
         self.height = height
         self.minimumSpan = minimumSpan
@@ -272,7 +215,6 @@ struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: Vi
         self.select = select
         self.headerAccessory = headerAccessory
         self.plot = plot
-        self.details = details
     }
 
     @State private var window: ClosedRange<Double>?
@@ -301,32 +243,7 @@ struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: Vi
         }
         .fullScreenCover(isPresented: $expanded) {
             ExpandedChartPresentation(title: title, close: { expanded = false }, accessory: headerAccessory) {
-                if Details.self == EmptyView.self {
-                    interactivePlot.modifier(ExportableChart())
-                } else {
-                    GeometryReader { geometry in
-                        if verticalSize == .compact && geometry.size.width >= 640 {
-                            HStack(alignment: .top, spacing: 16) {
-                                interactivePlot.modifier(ExportableChart())
-                                Divider()
-                                ScrollView {
-                                    details(visibleWindow)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .frame(width: geometry.size.width * 0.38)
-                            }
-                        } else {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 24) {
-                                    interactivePlot.modifier(ExportableChart())
-                                        .frame(height: min(geometry.size.height, max(240, geometry.size.height * 0.62)))
-                                    details(visibleWindow)
-                                }
-                                .padding(.bottom)
-                            }
-                        }
-                    }
-                }
+                interactivePlot.modifier(ExportableChart())
             }
         }
     }
@@ -355,7 +272,6 @@ struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: Vi
     private var interactivePlot: some View {
         if minimumSpan == maximumSpan {
             plot(visibleWindow)
-                .zoomableExpandedPlot()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .simultaneousGesture(TapGesture().onEnded {
@@ -404,16 +320,31 @@ struct ExpandableDataChart<HeaderAccessory: View, Plot: View, Details: View>: Vi
 }
 
 /// Direction locking lets vertical drags reach the page even when a finger starts inside a plot.
-private struct ChartGestures: UIViewRepresentable {
+struct ChartGestures: UIViewRepresentable {
     let window: ClosedRange<Double>
     let minimumSpan: Double
     let maximumSpan: Double
+    /// Leave sideways swipes to the page until the chart is zoomed in.
+    var pansOnlyWhenZoomed = false
     let change: (ClosedRange<Double>) -> Void
     let tap: (CGPoint) -> Void
 
     static func bounded(start: Double, span: Double) -> ClosedRange<Double> {
         let lower = min(max(0, start), 1 - span)
         return lower...min(1, lower + span)
+    }
+
+    /// Move the window by `delta` of its own width. Positive moves earlier, like a finger dragging right.
+    static func panned(_ window: ClosedRange<Double>, by delta: Double) -> ClosedRange<Double> {
+        let span = window.upperBound - window.lowerBound
+        return bounded(start: window.lowerBound - delta * span, span: span)
+    }
+
+    /// Scale the window while `anchor` (a share of the full domain) stays at `position` (a share of the plot).
+    static func zoomed(_ window: ClosedRange<Double>, scale: Double, anchor: Double, at position: Double,
+                       spans: ClosedRange<Double>) -> ClosedRange<Double> {
+        let span = min(spans.upperBound, max(spans.lowerBound, (window.upperBound - window.lowerBound) / scale))
+        return bounded(start: anchor - position * span, span: span)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -444,6 +375,8 @@ private struct ChartGestures: UIViewRepresentable {
 
         func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
             guard let pan = recognizer as? UIPanGestureRecognizer else { return true }
+            let window = owner.window
+            if owner.pansOnlyWhenZoomed, window.upperBound - window.lowerBound >= owner.maximumSpan { return false }
             let velocity = pan.velocity(in: pan.view)
             return abs(velocity.x) > abs(velocity.y)
         }
@@ -458,9 +391,7 @@ private struct ChartGestures: UIViewRepresentable {
         @objc func pan(_ pan: UIPanGestureRecognizer) {
             guard let view = pan.view, view.bounds.width > 0 else { return }
             if pan.state == .began { initial = owner.window }
-            let span = initial.upperBound - initial.lowerBound
-            let delta = pan.translation(in: view).x / view.bounds.width
-            owner.change(ChartGestures.bounded(start: initial.lowerBound - delta * span, span: span))
+            owner.change(ChartGestures.panned(initial, by: pan.translation(in: view).x / view.bounds.width))
         }
 
         @objc func pinch(_ pinch: UIPinchGestureRecognizer) {
@@ -471,8 +402,8 @@ private struct ChartGestures: UIViewRepresentable {
                 anchor = initial.lowerBound + position * (initial.upperBound - initial.lowerBound)
             }
             guard pinch.state == .began || pinch.state == .changed else { return }
-            let span = min(owner.maximumSpan, max(owner.minimumSpan, (initial.upperBound - initial.lowerBound) / pinch.scale))
-            owner.change(ChartGestures.bounded(start: anchor - position * span, span: span))
+            owner.change(ChartGestures.zoomed(initial, scale: pinch.scale, anchor: anchor, at: position,
+                                              spans: owner.minimumSpan...owner.maximumSpan))
         }
     }
 }
