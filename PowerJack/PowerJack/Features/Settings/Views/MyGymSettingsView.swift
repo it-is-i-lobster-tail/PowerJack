@@ -2,7 +2,8 @@
 //  MyGymSettingsView.swift
 //  PowerJack
 //
-//  What your gym's weights look like: the unit they're in and the smallest jumps you can make.
+//  What your gym's weights look like: the unit they're in and the smallest jumps you can make,
+//  plus the exercises you added.
 //
 
 import SwiftUI
@@ -51,6 +52,13 @@ struct MyGymSettingsView: View {
                         title: "Load Steps",
                         detail: "The smallest weight jump for each kind of equipment in Strength programs."
                     )
+                }
+
+                NavigationLink {
+                    CustomExerciseList()
+                } label: {
+                    SettingsRowLabel(systemImage: "figure.strengthtraining.traditional", title: "My Custom Exercises",
+                                     detail: "See and edit the exercises you added or imported.")
                 }
             }
         }
