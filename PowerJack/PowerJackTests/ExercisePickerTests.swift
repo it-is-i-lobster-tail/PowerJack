@@ -33,8 +33,10 @@ struct ExercisePickerTests {
         let top = suggestions.matches.prefix(3).compactMap(\.catalogID)
         #expect(top.contains("dumbbell-bench-press"))
         #expect(top.contains("incline-dumbbell-bench-press"))
-        #expect(!top.contains("incline-barbell-bench-press"))
-        #expect(results("", .change(bench)).matches.prefix(3).contains { $0.catalogID == "incline-barbell-bench-press" })
+        let barbellVariants: Set<String> = ["decline-barbell-bench-press", "incline-barbell-bench-press"]
+        #expect(barbellVariants.isDisjoint(with: top))
+        let changes = results("", .change(bench)).matches.prefix(3).compactMap(\.catalogID)
+        #expect(!barbellVariants.isDisjoint(with: changes))
         // Neighbours first, then every other lift under "All Exercises".
         #expect(!suggestions.others.isEmpty)
         let options = suggestions.matches + suggestions.others
@@ -49,7 +51,7 @@ struct ExercisePickerTests {
         #expect(squat.others.isEmpty)
         #expect(squat.matches.prefix(3).allSatisfy { $0.exerciseName.lowercased().contains("squat") })
         let barbell = results("barbell bench", mode)
-        #expect(barbell.matches.first?.catalogID == "incline-barbell-bench-press")
+        #expect(Set(barbell.matches.prefix(2).compactMap(\.catalogID)) == barbellVariants)
         // Named equipment ranks first but no longer hides the rest.
         #expect(barbell.matches.contains { $0.catalogID == "dumbbell-bench-press" })
     }

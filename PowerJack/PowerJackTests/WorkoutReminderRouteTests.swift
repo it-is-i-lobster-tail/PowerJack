@@ -55,6 +55,57 @@ struct WorkoutReminderRouteTests {
         #expect(!trigger.repeats)
     }
 
+    @Test func pausedWorkoutGetsAReminderForTheSetsLeft() throws {
+        let store = PowerJackStore(inMemory: true)
+        let context = store.container.mainContext
+        let now = Date.now
+        let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false, context: context, now: now)
+        let workout = try #require(program.nextWorkout)
+        let history = try WorkoutPreviewHistory(programs: [program], in: context, now: now)
+        let timing = WorkoutReminderTiming.Prediction(workout: now, send: now, nightBefore: false)
+        func reminder() throws -> WorkoutReminders.Reminder? {
+            try WorkoutReminders.makeReminder(programs: [program], history: history, timing: timing, calendar: .current)
+        }
+
+        workout.startAndCascade(at: now - 600)
+        let first = try #require(workout.workoutExercises.first)
+        let logged = try #require(first.workingSets.first)
+        first.completeSet(logged, at: now - 300)
+        // A workout in progress gets no reminder.
+        #expect(try reminder() == nil)
+
+        workout.pause(at: now - 200)
+        let paused = try #require(try reminder())
+        #expect(paused.workoutID == workout.syncID)
+        #expect(paused.content.body == WorkoutReminderCopy.fallback)
+        // The logged set is left out; only the sets still to do are listed.
+        let left = first.workingSets.filter { !$0.isDone }.count
+        #expect(left == first.workingSets.count - 1)
+        let lift = try #require(paused.facts.exercises.first)
+        #expect(lift.workingSetCount == left)
+    }
+
+    @Test func pausedWorkoutWithNoSetsLeftGetsNoReminder() throws {
+        let store = PowerJackStore(inMemory: true)
+        let context = store.container.mainContext
+        let now = Date.now
+        let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false, context: context, now: now)
+        let workout = try #require(program.nextWorkout)
+        let history = try WorkoutPreviewHistory(programs: [program], in: context, now: now)
+        let timing = WorkoutReminderTiming.Prediction(workout: now, send: now, nightBefore: false)
+
+        workout.startAndCascade(at: now - 600)
+        for entry in workout.workoutExercises {
+            for set in entry.workingSets { set.skip() }
+        }
+        workout.pause(at: now - 200)
+        #expect(program.nextWorkout === workout)
+        #expect(workout.isPaused)
+        #expect(try WorkoutReminders.makeReminder(
+            programs: [program], history: history, timing: timing, calendar: .current
+        ) == nil)
+    }
+
     @Test func noReminderWithoutAnActiveProgram() throws {
         let store = PowerJackStore(inMemory: true)
         let history = try WorkoutPreviewHistory(programs: [], in: store.container.mainContext, now: .now)

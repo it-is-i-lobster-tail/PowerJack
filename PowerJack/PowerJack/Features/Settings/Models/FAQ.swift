@@ -197,7 +197,7 @@ extension FAQ {
                 question: "What does the Data tab show?",
                 answer: [
                     "Hypertrophy shows your average weekly working sets by muscle. Pick Current Program, 30 days, or 90 days.",
-                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a chart to expand it, pinch to zoom, or drag sideways to move along its axis.",
+                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a graph’s expand button to see it on its own. Pinch a graph to zoom in on fewer days, and drag sideways to move along time.",
                 ]
             ),
             Entry(

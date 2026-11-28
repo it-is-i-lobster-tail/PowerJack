@@ -59,7 +59,8 @@ struct WorkoutPreview: Equatable {
             muscle = exercise.primaryMuscleFocus
             allowsPR = entry.checkIn != .pending
             var groups: [SetGroup] = []
-            for set in entry.workingSets where set.status == .planned {
+            // Sets still to do: planned, or active once the workout has started.
+            for set in entry.workingSets where set.status == .planned || set.status == .active {
                 let role: SetRole = entry.isTopSet(set) ? .top : (entry.topSets > 0 ? .backOff : .working)
                 let group = SetGroup(
                     role: role, reps: set.repsPlanned, weight: set.weightTenthsPlannedPounds,
