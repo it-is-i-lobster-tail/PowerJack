@@ -77,19 +77,30 @@ struct GallerySearchJournalTests {
         #expect(journal.suggestions(for: "").isEmpty, "a saved plan is not a recent search")
     }
 
-    @Test func focusOffersRecentsAndSelectingAMatchFillsTheField() async throws {
+    @Test func clearingForgetsRecentSearchesButKeepsSavedPlans() async throws {
         let journal = GallerySearchJournal(inMemory: true)
-        journal.record("My old squat question")
-        for word in ["Bench", "Rows", "Calves"] { journal.record(word) }
-        var applied = ""
-        let screen = try await HostedView(GallerySearchField(journal: journal, fill: .constant(nil)) { applied = $0 })
+        for word in ["Bench", "Rows"] { journal.record(word) }
+        let plan = ChartSearchPlan(charts: [.estimatedMaxTrend], total: nil)
+        _ = await journal.resolve("Bench") { plan }
+        journal.clearRecent()
+        #expect(journal.suggestions(for: "").isEmpty)
+        #expect(journal.cachedPlan("Bench") == plan)
+    }
+
+    @Test func emptySearchOffersRecentsAndIdeasAndRunsTheTappedOne() async throws {
+        var ran = ""
+        var cleared = false
+        let screen = try await HostedView(DataSearchStart(recent: ["My old squat question"], ideas: ["Workouts this year"],
+                                                          run: { ran = $0 }, clear: { cleared = true }))
         defer { screen.close() }
         #expect(screen.labels.contains("Recent searches"))
-        #expect(!screen.labels.contains("My old squat question"))
-        try #require(await screen.focusAndType("old squat", into: "Search charts"))
+        #expect(screen.labels.contains("Try a search"))
         try #require(await screen.tap("My old squat question"))
-        #expect(applied == "My old squat question")
-        #expect(journal.suggestions(for: "").first == applied)
+        #expect(ran == "My old squat question")
+        try #require(await screen.tap("Workouts this year"))
+        #expect(ran == "Workouts this year")
+        try #require(await screen.tap("Clear"))
+        #expect(cleared)
     }
 
 }
