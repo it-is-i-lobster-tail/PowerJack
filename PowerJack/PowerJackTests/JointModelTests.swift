@@ -53,10 +53,8 @@ struct JointModelTests {
 
     /// Listed muscles that no joint action explains. Forearms grip any held load, so they never need one.
     private static let unexplained: [String: Set<Muscle>] = [
-        // The push-up part, which earlier versions never stored.
-        "burpee": [.chest, .shoulders],
         // Shoulders steady the arms.
-        "ab-wheel-rollout": [.shoulders], "mountain-climber": [.shoulders],
+        "mountain-climber": [.shoulders],
         "cable-overhead-extension": [.shoulders], "dumbbell-triceps-extension": [.shoulders], "barbell-skull-crusher": [.shoulders],
     ]
 
@@ -80,6 +78,21 @@ struct JointModelTests {
             #expect(explained.isSubset(of: muscles.keys), "\(entry.id) \(muscles)")
             #expect(Self.unexplained[entry.id]?.isDisjoint(with: muscles.keys) ?? true, "\(entry.id) no longer needs its exception")
         }
+    }
+
+    @Test("Joint work found in the catalog audit is read by search, without touching stored rows")
+    func auditedActions() throws {
+        func worked(_ id: String) throws -> [String: Double] {
+            let entry = try #require(ExerciseCatalog.entries.first { $0.id == id })
+            return ExerciseStructure(actions: entry.profile.actions, pattern: nil).actions
+        }
+        // The spinal erectors hold a free squat's back straight. A hack squat's pad does it instead.
+        #expect(try worked("barbell-back-squat")["trunk.extension"] == 0.5)
+        #expect(try worked("hack-squat")["trunk.extension"] == nil)
+        // A bar pressed from the front raises the arms forward.
+        #expect(try worked("barbell-overhead-press")["shoulder.flexion"] == 1)
+        #expect(try worked("pull-up")["scapula.depression"] == 0.5)
+        #expect(try worked("side-plank")["hip.abduction"] == 0.5)
     }
 
     /// What earlier versions stored for each built-in: pattern, role, then movements.

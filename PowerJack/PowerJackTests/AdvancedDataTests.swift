@@ -35,7 +35,7 @@ struct AdvancedDataTests {
     @Test("A held action shows on the movement whose muscles hold it")
     func involvement() {
         let squat = JointInvolvement.of(MovementCatalog.Profile.squat.actions)
-        #expect(squat == ["knee.extension": .main, "hip.extension": .main, "trunk.flexion": .holds])
+        #expect(squat == ["knee.extension": .main, "hip.extension": .main, "trunk.flexion": .holds, "trunk.extension": .holds])
         let row = JointInvolvement.of(MovementCatalog.Profile.row.braced.actions)
         #expect(row == ["shoulder.extension": .main, "scapula.retraction": .main, "elbow.flexion": .assisting, "trunk.flexion": .holds])
 
@@ -43,7 +43,7 @@ struct AdvancedDataTests {
         let changed = JointInvolvement.setting("elbow.flexion", to: .main, in: MovementCatalog.Profile.squat.actions)
         #expect(Set(changed) == Set(MovementCatalog.Profile.squat.actions + [.main("elbow.flexion")]))
         let cleared = JointInvolvement.setting("trunk.flexion", to: nil, in: MovementCatalog.Profile.squat.actions)
-        #expect(cleared == [.main("knee.extension"), .main("hip.extension")])
+        #expect(cleared == [.main("knee.extension"), .main("hip.extension"), .assisting("trunk.flexion", .resists)])
         let held = JointInvolvement.setting("trunk.extension", to: .holds, in: [])
         #expect(held == [.main("trunk.flexion", .resists)])
     }
@@ -71,7 +71,7 @@ struct AdvancedDataTests {
 
         // Starts from the Moves Like lift's actions, then the lifter makes the elbow a main action.
         draft = ExerciseDraft(exercise: row)
-        #expect(draft.jointActions == MovementCatalog.Profile.row.braced.actions)
+        #expect(draft.jointActions == MovementCatalog.Profile.bentOverRow.actions)
         draft.setJoint("elbow.flexion", to: .main)
         draft.setJoint("trunk.extension", to: .holds)
         #expect(draft.movesLikeName == "Custom")
