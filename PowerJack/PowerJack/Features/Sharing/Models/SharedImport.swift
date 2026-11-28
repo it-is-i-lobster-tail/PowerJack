@@ -217,7 +217,7 @@ extension SharedImport {
             mine.maxReps == shared.maxReps &&
             mine.fatigueLevel == shared.fatigueLevel &&
             mine.customRestTime == shared.customRestTime &&
-            mine.movesLike == shared.movesLike
+            mine.movesLikeKeys == shared.movesLikeKeys
     }
 
     /// `name`, or `name 2`, `name 3`… when it's taken, shortened to fit `maxLength`.
@@ -252,8 +252,9 @@ extension SharedImport {
         draft.primaryMuscle = primary
         draft.fatigueLevel = fatigue
         // Before the muscles, since a pick fills secondaries that are still empty.
-        if let key = shared.movesLike, MovesLike.entry(key) != nil {
-            draft.choose(movesLike: key)
+        let keys = shared.movesLikeKeys.filter { MovesLike.entry($0) != nil }
+        if !keys.isEmpty {
+            draft.choose(movesLike: keys)
         }
         draft.secondaryMuscles = Array(shared.secondaryMuscles.compactMap(Muscle.init(rawValue:))
             .filter { $0 != primary }.prefix(maxSecondaryMuscles))

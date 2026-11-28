@@ -223,12 +223,32 @@ struct StudyHistory {
     func days(_ start: Date, _ end: Date) -> Int {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
     }
-    var recentWeeks: [Date] {
-        let last = week(asOf)
-        let count = parameter(.weeks, 6)
-        let start = originalPeriod ? offset(last, days: -(count - 1) * 7) : week(selectedRange?.start ?? firstDate)
-        guard start <= last else { return [] }
-        return (0...max(0, days(start, last) / 7)).map { offset(start, days: $0 * 7) }
+    /// The selected dates trimmed to the logged history, so an axis never runs past today or before the first log.
+    /// Nil for a chart's own default dates.
+    var chartRange: DateInterval? {
+        guard let selectedRange else {
+            if case .all = options.period { return DateInterval(start: calendar.startOfDay(for: firstDate), end: endOfToday) }
+            return nil
+        }
+        let start = max(selectedRange.start, calendar.startOfDay(for: firstDate))
+        let end = min(selectedRange.end, endOfToday)
+        return start < end ? DateInterval(start: start, end: end) : selectedRange
+    }
+    var endOfToday: Date { offset(calendar.startOfDay(for: today), days: 1) }
+
+    /// Weeks for the weekly charts: the last few by default, otherwise the chosen range cut into
+    /// calendar weeks, or months and quarters over long spans.
+    func weeklyTimeline(series: Int = 1) -> StudyTimeline {
+        let end = offset(calendar.startOfDay(for: asOf), days: 1)
+        let range: DateInterval
+        if originalPeriod || chartRange == nil {
+            let first = offset(week(asOf), days: -(parameter(.weeks, 6) - 1) * 7)
+            range = DateInterval(start: first, end: end)
+        } else {
+            range = chartRange!
+        }
+        let unit = originalPeriod ? .weekOfYear : StudyTimeline.unit(forWeekly: range, series: series)
+        return StudyTimeline(range: range, unit: unit, calendar: calendar)
     }
     var yearStart: Date {
         selectedRange?.start

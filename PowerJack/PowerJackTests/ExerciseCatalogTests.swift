@@ -170,11 +170,11 @@ struct ExerciseCatalogTests {
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
         let context = container.mainContext
         let entry = ExerciseCatalog.entries[0]
-        // A catalog row the user renamed and tuned, with stale secondary muscles.
+        // A catalog row the user renamed and tuned, with stale muscles.
         let tuned = Exercise(
             exerciseName: "Renamed Bench",
             exerciseEquipment: entry.equipment,
-            primaryMuscleFocus: entry.primaryMuscle,
+            primaryMuscleFocus: .back,
             minReps: 8,
             maxReps: 12,
             fatigueLevel: .low
@@ -185,6 +185,7 @@ struct ExerciseCatalogTests {
 
         try ExerciseCatalog.seed(in: context)
 
+        #expect(tuned.primaryMuscleFocus == entry.primaryMuscle)
         #expect(Set(tuned.secondaryMuscles) == Set(entry.secondaryMuscles))
         #expect(tuned.exerciseName == "Renamed Bench")
         #expect(tuned.repRange == 8...12)

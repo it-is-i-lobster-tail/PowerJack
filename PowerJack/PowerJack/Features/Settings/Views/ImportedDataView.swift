@@ -21,16 +21,25 @@ struct ImportedDataView: View {
     @State private var isConfirmingDelete = false
     @State private var showsDeleteError = false
 
-    private var shown: [ImportedSet] { ImportedData.matching(search, in: sets, index: index) }
+    /// The sets the search finds, or those its spelling fix finds when it finds none.
+    private var found: (results: [ImportedSet], correction: String?) {
+        SpellingCorrection.results(for: search, vocabulary: { sets.map(\.exerciseName) }, isEmpty: \.isEmpty) {
+            ImportedData.matching($0, in: sets, index: index)
+        }
+    }
+    private var shown: [ImportedSet] { found.results }
     private var isSelecting: Bool { editMode.isEditing }
 
     /// Only sets the lifter can see are deleted, so a search never deletes rows it hides.
     private var selected: [ImportedSet] { shown.filter { selection.contains($0.persistentModelID) } }
 
     var body: some View {
-        let shown = shown
+        let (shown, correction) = found
         let selected = selected
         List(selection: $selection) {
+            if let correction {
+                Section { } header: { SpellingCorrectionNote(correction: correction) }
+            }
             ForEach(ImportedData.days(shown)) { day in
                 Section(day.title) {
                     ForEach(day.sets) { set in row(set) }
@@ -47,6 +56,7 @@ struct ImportedDataView: View {
         }
         .environment(\.editMode, $editMode)
         .searchable(text: $search, prompt: "Search exercises")
+        .searchAutocorrects()
         // Keep Select and Select All in reach while searching, so a search can be selected and deleted.
         .searchPresentationToolbarBehavior(.avoidHidingContent)
         .navigationTitle(isSelecting ? selectedTitle(selected.count) : "Imported Data")

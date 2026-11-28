@@ -2,6 +2,7 @@ import Charts
 import SwiftUI
 
 /// Both the preview image and the full-size view use these marks and this palette.
+/// Every axis comes from `StudyAxisPlan`, so charts share one set of tick, label and range rules.
 struct StudyFigureView: View {
     let study: StudyResult
     let compact: Bool
@@ -11,52 +12,27 @@ struct StudyFigureView: View {
     var expandPanel: ((StudyResult, String) -> Void)?
 
     @Environment(\.colorScheme) private var scheme
+    @ScaledMetric(relativeTo: .caption) private var panelHeight: CGFloat = 145
     private func ink(_ index: Int) -> Color { WorkoutChartPalette.color(at: index, scheme: scheme) }
 
     @ViewBuilder var body: some View {
         switch study.figure {
-        case .traces(let series, let dates):
-            Chart {
-                ForEach(Array(series.enumerated()), id: \.offset) { i, trace in
-                    ForEach(Array(trace.points.enumerated()), id: \.offset) { _, point in
-                        let x = PlottableValue.value(study.xLabel, point.x)
-                        let y = PlottableValue.value(study.yLabel, point.y)
-                        if trace.style == .bars {
-                            BarMark(x: x, y: y)
-                                .position(by: .value("Series", trace.name))
-                                .foregroundStyle(ink(i))
-                        } else if trace.style == .dots || trace.points.count == 1 {
-                            if study.id == .effort, trace.name == "Target" {
-                                PointMark(x: x, y: y)
-                                    .symbol {
-                                        Circle().strokeBorder(ink(i), lineWidth: compact ? 1 : 2)
-                                            .frame(width: compact ? 7 : 13, height: compact ? 7 : 13)
-                                    }
-                            } else {
-                                PointMark(x: x, y: y)
-                                    .symbol(i.isMultiple(of: 2) ? BasicChartSymbolShape.circle : .diamond)
-                                    .symbolSize(compact ? 14 : 36)
-                                    .foregroundStyle(ink(i))
-                            }
-                        } else {
-                            LineMark(x: x, y: y, series: .value("Series", trace.name))
-                                .interpolationMethod(trace.style == .step ? .stepEnd : .linear)
-                                .lineStyle(
-                                    StrokeStyle(
-                                        lineWidth: compact ? 1.8 : 2.3, lineCap: .round,
-                                        dash: trace.style == .fit ? [5, 4] : [])
-                                )
-                                .foregroundStyle(ink(i))
-                        }
-                    }
+        case .traces(let all, let dates):
+            let series = dates ? all.map { $0.inside(study.dateDomain(for: all)) } : all
+            let values = study.valueAxis(series.flatMap { $0.points.map(\.y) }, bars: series.contains { $0.style == .bars })
+            Group {
+                if dates {
+                    Chart { traceMarks(series) { .value(study.xLabel, Date(timeIntervalSince1970: $0.x)) } }
+                } else {
+                    Chart { traceMarks(series) { .value(study.xLabel, $0.x) } }
                 }
             }
-            .chartYScale(domain: .automatic(includesZero: series.contains { $0.style == .bars }))
-            .modifier(StudyAxes(compact: compact, x: study.xLabel, y: study.yLabel))
-            .modifier(StudyXAxis(series: series, study: study, compact: compact, dates: dates, plotsDates: false))
-        case .liftPanels(let series):
+            .modifier(StudyAxes(compact: compact, x: study.xLabel, y: study.yLabel, values: values))
+            .modifier(StudyXAxis(series: series, study: study, compact: compact, dates: dates))
+        case .liftPanels(let all):
             VStack(alignment: .leading, spacing: compact ? 3 : 18) {
-                ForEach(Array(series.prefix(compact ? 3 : series.count).enumerated()), id: \.offset) { index, trace in
+                ForEach(Array(all.prefix(compact ? 3 : all.count).enumerated()), id: \.offset) { index, whole in
+                    let trace = whole.inside(study.dateDomain(for: all))
                     if !compact && !fillsScreen {
                         let title = "\(trace.name) · \(study.yLabel)"
                         HStack {
@@ -65,16 +41,18 @@ struct StudyFigureView: View {
                             if let expandPanel {
                                 ExpandChartButton(title: title) {
                                     var panel = study
-                                    panel.figure = .liftPanels([trace])
+                                    panel.figure = .liftPanels([whole])
                                     expandPanel(panel, title)
                                 }
                             }
                         }
                     }
+                    let values = study.valueAxis(trace.points.map(\.y), bars: trace.style == .bars)
                     Chart(Array(trace.points.enumerated()), id: \.offset) { _, point in
                         let date = Date(timeIntervalSince1970: point.x)
                         if trace.style == .bars {
-                            BarMark(x: .value("Date", date), y: .value(study.yLabel, point.y))
+                            BarMark(x: .value("Date", date), y: .value(study.yLabel, point.y),
+                                    width: .fixed(StudyFigureView.barWidth(trace.points.count)))
                                 .foregroundStyle(ink(index))
                         } else if trace.style == .dots || trace.points.count == 1 {
                             PointMark(x: .value("Date", date), y: .value(study.yLabel, point.y)).foregroundStyle(ink(index))
@@ -82,17 +60,17 @@ struct StudyFigureView: View {
                             LineMark(x: .value("Date", date), y: .value(study.yLabel, point.y)).foregroundStyle(ink(index))
                         }
                     }
-                    .chartYScale(domain: .automatic(includesZero: trace.style == .bars))
-                    .chartYAxis(compact ? .hidden : .visible)
-                    .frame(height: compact || fillsScreen ? nil : 145)
+                    .modifier(StudyValueAxis(compact: compact, values: values))
+                    .frame(height: compact || fillsScreen ? nil : panelHeight)
                     .frame(maxHeight: fillsScreen ? .infinity : nil)
-                    .modifier(StudyXAxis(series: [trace], study: study, compact: compact, dates: true, plotsDates: true))
+                    .modifier(StudyXAxis(series: [trace], study: study, compact: compact, dates: true))
                     if compact { Divider() }
                 }
             }
         case .comparison(let points, let connected):
-            let categories = points.map(\.category).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-            let groups = points.map(\.series).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            let categories = points.map(\.category).studyUnique
+            let groups = points.map(\.series).studyUnique
+            let values = study.valueAxis(points.map(\.value), bars: false)
             Chart {
                 ForEach(categories, id: \.self) { label in
                     let values = points.filter { $0.category == label }.map(\.value)
@@ -111,9 +89,36 @@ struct StudyFigureView: View {
                         .foregroundStyle(ink(index))
                 }
             }
-            .chartXScale(domain: .automatic(includesZero: false))
-            .chartXAxis(compact ? .hidden : .visible)
-            .chartYAxis(compact ? .hidden : .visible)
+            .chartXScale(domain: values.domain)
+            .chartXAxis {
+                if !compact {
+                    AxisMarks(values: values.ticks) { tick in
+                        AxisGridLine()
+                        AxisValueLabel { if let value = tick.as(Double.self) { Text(value.studyNumber) } }
+                    }
+                }
+            }
+            .chartYAxis {
+                if !compact { AxisMarks(values: categories) { AxisGridLine() } }
+            }
+            .chartOverlay { proxy in
+                // Each lift's name sits level with the middle of its own row of dots.
+                GeometryReader { geometry in
+                    if !compact, let anchor = proxy.plotFrame {
+                        let frame = geometry[anchor]
+                        ForEach(categories, id: \.self) { name in
+                            if let y = proxy.position(forY: name) {
+                                Text(name).font(.caption).foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.trailing).lineLimit(2)
+                                    .frame(width: Self.rowNameWidth - 8, alignment: .trailing)
+                                    .position(x: frame.minX - Self.rowNameWidth / 2, y: frame.minY + y)
+                            }
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+            .padding(.leading, compact ? 0 : Self.rowNameWidth)
             .chartXAxisLabel(compact ? "" : study.xLabel)
         case .attempts(let counts):
             VStack(alignment: .leading, spacing: compact ? 5 : 16) {
@@ -153,31 +158,127 @@ struct StudyFigureView: View {
             }
         }
     }
+
+    /// Room for lift names beside rows of dots.
+    static let rowNameWidth: CGFloat = 112
+
+    /// Date bars keep a visible width however many there are.
+    static func barWidth(_ count: Int) -> CGFloat { max(2, min(14, 220 / CGFloat(max(1, count)))) }
+
+    @ChartContentBuilder
+    private func traceMarks<X: Plottable>(_ series: [StudySeries], x: @escaping (StudyPoint) -> PlottableValue<X>)
+        -> some ChartContent
+    {
+        ForEach(Array(series.enumerated()), id: \.offset) { i, trace in
+            ForEach(Array(trace.points.enumerated()), id: \.offset) { _, point in
+                let y = PlottableValue.value(study.yLabel, point.y)
+                if trace.style == .bars {
+                    BarMark(x: x(point), y: y, width: .fixed(Self.barWidth(trace.points.count)))
+                        .position(by: .value("Series", trace.name))
+                        .foregroundStyle(ink(i))
+                } else if trace.style == .dots || trace.points.count == 1 {
+                    if study.id == .effort, trace.name == "Target" {
+                        PointMark(x: x(point), y: y)
+                            .symbol {
+                                Circle().strokeBorder(ink(i), lineWidth: compact ? 1 : 2)
+                                    .frame(width: compact ? 7 : 13, height: compact ? 7 : 13)
+                            }
+                    } else {
+                        PointMark(x: x(point), y: y)
+                            .symbol(i.isMultiple(of: 2) ? BasicChartSymbolShape.circle : .diamond)
+                            .symbolSize(compact ? 14 : 36)
+                            .foregroundStyle(ink(i))
+                    }
+                } else {
+                    LineMark(x: x(point), y: y, series: .value("Series", trace.name))
+                        .interpolationMethod(trace.style == .step ? .stepEnd : .linear)
+                        .lineStyle(
+                            StrokeStyle(
+                                lineWidth: compact ? 1.8 : 2.3, lineCap: .round,
+                                dash: trace.style == .fit ? [5, 4] : [])
+                        )
+                        .foregroundStyle(ink(i))
+                }
+            }
+        }
+    }
 }
 
-/// Date charts get the pinch time-axis zoom and tap inspection in full size. Other x axes keep plain numbers.
+extension StudyResult {
+    /// The range a date axis spans: the chosen dates trimmed to the history, or whole days around the data.
+    func dateDomain(for series: [StudySeries], calendar: Calendar = .current) -> DateInterval {
+        if let xRange { return xRange }
+        let times = series.flatMap { $0.points.map(\.x) }
+        let first = calendar.startOfDay(for: Date(timeIntervalSince1970: times.min() ?? 0))
+        let last = calendar.startOfDay(for: Date(timeIntervalSince1970: times.max() ?? 0))
+        return DateInterval(start: first, end: calendar.date(byAdding: .day, value: 1, to: last) ?? last)
+    }
+
+    /// Whole counts get whole ticks. Bars stand on zero.
+    func valueAxis(_ values: [Double], bars: Bool, axis: String? = nil) -> StudyAxisPlan.ValueAxis {
+        let label = axis ?? yLabel
+        let kind: StudyAxisPlan.YKind = values.allSatisfy { $0 == $0.rounded() } && !label.contains("(")
+            ? .count : .measure(unit: label)
+        return StudyAxisPlan.valueAxis(values: values, kind: kind, includesZero: bars)
+    }
+}
+
+extension StudySeries {
+    /// Only the points inside the axis range. Reference lines are trimmed to its ends.
+    func inside(_ range: DateInterval) -> StudySeries {
+        let start = range.start.timeIntervalSince1970
+        let end = range.end.timeIntervalSince1970
+        var trimmed = self
+        if style == .fit, let first = points.first, let last = points.last, points.count == 2, first.y == last.y {
+            let a = max(start, first.x)
+            let b = min(end, last.x)
+            trimmed.points = a <= b ? [StudyPoint(a, first.y), StudyPoint(b, last.y)] : []
+        } else {
+            trimmed.points = points.filter { $0.x >= start && $0.x < end }
+        }
+        return trimmed
+    }
+}
+
+/// Date charts get the pinch time-axis zoom and tap inspection in full size. Other x axes are whole set
+/// positions or measured changes, padded so end bars stay whole.
 private struct StudyXAxis: ViewModifier {
     let series: [StudySeries]
     let study: StudyResult
     let compact: Bool
     let dates: Bool
-    let plotsDates: Bool
 
     @ViewBuilder func body(content: Content) -> some View {
+        let domain = study.dateDomain(for: series)
         if compact {
-            content.chartXAxis(.hidden)
+            if dates {
+                content.chartXScale(domain: domain.start...domain.end).chartXAxis(.hidden)
+            } else {
+                content.chartXScale(domain: numeric.domain).chartXAxis(.hidden)
+            }
         } else if dates {
-            content.modifier(StudyDateInspection(series: series, study: study, plotsDates: plotsDates))
+            content.modifier(StudyDateInspection(series: series, study: study, domain: domain))
         } else {
+            let axis = numeric
             content
-                .chartXScale(domain: .automatic(includesZero: false))
+                .chartXScale(domain: axis.domain)
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { tick in
+                    AxisMarks(values: axis.ticks) { tick in
                         AxisGridLine()
                         if let value = tick.as(Double.self) { AxisValueLabel { Text(value.studyNumber) } }
                     }
                 }
         }
+    }
+
+    /// Whole positions such as set numbers get a tick each and half a step either side.
+    private var numeric: StudyAxisPlan.ValueAxis {
+        let xs = series.flatMap { $0.points.map(\.x) }
+        guard let low = xs.min(), let high = xs.max() else { return .init(domain: 0...1, ticks: [0, 1]) }
+        if xs.allSatisfy({ $0 == $0.rounded() }), high - low <= 12 {
+            return .init(domain: (low - 0.5)...(high + 0.5), ticks: Array(stride(from: low, through: high, by: 1)))
+        }
+        return StudyAxisPlan.valueAxis(values: xs, kind: .measure(unit: study.xLabel), includesZero: false)
     }
 }
 
@@ -185,24 +286,26 @@ private struct StudyXAxis: ViewModifier {
 private struct StudyDateInspection: ViewModifier {
     let series: [StudySeries]
     let study: StudyResult
-    let plotsDates: Bool
+    let domain: DateInterval
     @State private var selection: Double?
     @State private var zoom: ClosedRange<Double>?
 
     @ViewBuilder func body(content: Content) -> some View {
         let dates = Set(series.flatMap { $0.points.map(\.x) }).sorted()
+        let bounds = domain.start.timeIntervalSince1970...domain.end.timeIntervalSince1970
         if let latest = dates.last {
             let selected = selection.flatMap { dates.contains($0) ? $0 : nil } ?? latest
             VStack(alignment: .leading, spacing: 5) {
                 content
-                    .modifier(TimeAxisZoom(times: dates, plotsDates: plotsDates, fraction: $zoom) { time in
-                        let visible = TimeAxisWindow(times: dates, fraction: zoom).visible
+                    .modifier(TimeAxisZoom(times: dates, domain: bounds, fraction: $zoom) { time in
+                        let visible = TimeAxisWindow(times: dates, domain: bounds, fraction: zoom).visible
                         let candidates = dates.filter(visible.contains)
                         selection = (candidates.isEmpty ? dates : candidates).min { abs($0 - time) < abs($1 - time) }
                     })
                     .chartOverlay { proxy in
                         GeometryReader { geometry in
-                            if let plot = proxy.plotFrame, let x = position(selected, in: proxy),
+                            if let plot = proxy.plotFrame,
+                               let x = proxy.position(forX: Date(timeIntervalSince1970: selected)),
                                (0...geometry[plot].width).contains(x) {
                                 let frame = geometry[plot]
                                 Rectangle().fill(.secondary.opacity(0.5))
@@ -227,11 +330,15 @@ private struct StudyDateInspection: ViewModifier {
             }
         } else {
             content
+                .chartXScale(domain: domain.start...domain.end)
+                .chartXAxis {
+                    let ticks = StudyAxisPlan.timeTicks(in: domain)
+                    AxisMarks(values: ticks.map(\.date)) { tick in
+                        AxisGridLine()
+                        AxisValueLabel { if ticks.indices.contains(tick.index) { StudyTimeTickLabel(tick: ticks[tick.index]) } }
+                    }
+                }
         }
-    }
-
-    private func position(_ time: Double, in proxy: ChartProxy) -> CGFloat? {
-        plotsDates ? proxy.position(forX: Date(timeIntervalSince1970: time)) : proxy.position(forX: time)
     }
 
     private func readout(_ x: Double) -> String {
@@ -251,44 +358,190 @@ private struct StudyDateInspection: ViewModifier {
 }
 
 /// Category order is taken from the query. Only an ordered category can offer a line.
-/// Horizontal bars put each name on its own line above its bar, so long exercise names never sit on the plot.
+/// Calendar buckets plot on a date axis. Horizontal bars put each name on its own line above its bar,
+/// so long exercise names never sit on the plot.
 struct StudyCategoryPlot: View {
-    /// Room for a two-line name above a bar.
-    static let rowHeight: CGFloat = 60
-    private static let barThickness: CGFloat = 16
-    private static let barDrop: CGFloat = 12
+    /// The bar band of a horizontal row. Its name sits above it.
+    static let barBand: CGFloat = 28
+    /// Past this many rows a horizontal chart scrolls inside its card.
+    static let visibleRows = 12
+    private static let nameLine: CGFloat = 17
+
+    /// Room for a name (one or two lines) above a bar.
+    static func rowHeight(labels: [String]) -> CGFloat {
+        let lines: CGFloat = labels.contains { $0.count > 34 } ? 2 : 1
+        return barBand + lines * nameLine + 4
+    }
 
     /// The full-size height that gives every horizontal category its own row.
-    static func height(categories: Int) -> CGFloat { CGFloat(categories) * rowHeight + 44 }
+    static func height(labels: [String]) -> CGFloat {
+        let rows = labels.studyUnique
+        return CGFloat(rows.count) * rowHeight(labels: rows) + 44
+    }
 
     let study: StudyResult
     let bars: [StudyBar]
     let compact: Bool
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        let groups = bars.map(\.group).studyUnique
-        let categories = bars.map(\.label).studyUnique
-        let limit = study.horizontalCategories ? 6 : (categories.contains { $0.count > 10 } ? 3 : 5)
-        let ticks = Set(
-            categories.count <= limit
-                ? categories : (0..<limit).map { categories[$0 * (categories.count - 1) / (limit - 1)] })
-        let plot = Chart(Array(bars.enumerated()), id: \.offset) { _, bar in
-            let color = WorkoutChartPalette.color(at: groups.firstIndex(of: bar.group) ?? 0, scheme: scheme)
-            if study.horizontalCategories {
-                mark(x: .value(study.xLabel, bar.value), y: .value(study.yLabel, bar.label), group: bar.group)
-                    .foregroundStyle(color)
-                    .offset(y: compact ? 0 : Self.barDrop)
+        if !study.horizontalCategories, let timeline = study.timeline,
+           bars.allSatisfy({ timeline.interval(for: $0.label) != nil }) {
+            timePlot(timeline)
+        } else if study.horizontalCategories {
+            horizontalPlot
+        } else {
+            GeometryReader { geometry in categoryPlot(width: geometry.size.width) }
+        }
+    }
+
+    private var groups: [String] { bars.map(\.group).studyUnique }
+    private var categories: [String] { bars.map(\.label).studyUnique }
+    private func color(_ group: String) -> Color {
+        WorkoutChartPalette.color(at: groups.firstIndex(of: group) ?? 0, scheme: scheme)
+    }
+
+    /// Stacked totals when bars stack, otherwise the values themselves.
+    private var valueAxis: StudyAxisPlan.ValueAxis {
+        let stacks = study.presentation == .original
+        let values = stacks
+            ? categories.map { label in bars.filter { $0.label == label }.reduce(0) { $0 + $1.value } }
+            : bars.map(\.value)
+        return study.valueAxis(values, bars: study.presentation != .line && study.presentation != .scatter,
+                               axis: study.horizontalCategories ? study.xLabel : study.yLabel)
+    }
+
+    // MARK: Calendar buckets
+
+    private func timePlot(_ timeline: StudyTimeline) -> some View {
+        let values = valueAxis
+        let ticks = StudyAxisPlan.timeTicks(in: timeline.range)
+        let side = study.presentation == .bar ? groups.count : 1
+        var stacked: [String: Double] = [:]
+        let marks = bars.map { bar in
+            let interval = timeline.interval(for: bar.label)!
+            let base = side > 1 ? 0 : stacked[bar.label, default: 0]
+            if study.presentation == .original { stacked[bar.label] = base + bar.value }
+            // Each bar fills most of its own trimmed bucket, side by side or stacked.
+            let inner = interval.duration * 0.8 / Double(side)
+            let index = side > 1 ? Double(groups.firstIndex(of: bar.group) ?? 0) : 0
+            let start = interval.start.addingTimeInterval(interval.duration * 0.1 + inner * index)
+            return StudyBucketMark(
+                bar: bar, middle: interval.start.addingTimeInterval(interval.duration / 2), start: start,
+                end: start.addingTimeInterval(inner), base: base)
+        }
+        let plot = Chart(Array(marks.enumerated()), id: \.offset) { _, mark in bucketMark(mark) }
+        .chartXScale(domain: timeline.range.start...timeline.range.end)
+        return Group {
+            if compact {
+                plot.chartXAxis(.hidden).chartYScale(domain: values.domain).chartYAxis(.hidden).chartLegend(.hidden)
             } else {
-                mark(x: .value(study.xLabel, bar.label), y: .value(study.yLabel, bar.value), group: bar.group)
-                    .foregroundStyle(color)
+                plot.chartXAxis {
+                    AxisMarks(values: ticks.map(\.date)) { tick in
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel { if ticks.indices.contains(tick.index) { StudyTimeTickLabel(tick: ticks[tick.index]) } }
+                    }
+                }
+                .modifier(StudyAxes(compact: false, x: timeline.noun, y: study.yLabel, values: values))
             }
         }
+    }
+
+    @ChartContentBuilder
+    private func bucketMark(_ mark: StudyBucketMark) -> some ChartContent {
+        switch study.presentation {
+        case .scatter:
+            PointMark(x: .value(study.xLabel, mark.middle), y: .value(study.yLabel, mark.bar.value))
+                .symbolSize(compact ? 14 : 38)
+                .foregroundStyle(color(mark.bar.group))
+        case .line:
+            LineMark(x: .value(study.xLabel, mark.middle), y: .value(study.yLabel, mark.bar.value),
+                     series: .value("Series", mark.bar.group))
+                .symbol(.circle)
+                .symbolSize(compact ? 5 : 14)
+                .foregroundStyle(color(mark.bar.group))
+        default:
+            RectangleMark(
+                xStart: .value(study.xLabel, mark.start), xEnd: .value(study.xLabel, mark.end),
+                yStart: .value(study.yLabel, mark.base), yEnd: .value(study.yLabel, mark.base + mark.bar.value))
+                .foregroundStyle(color(mark.bar.group))
+        }
+    }
+
+    // MARK: Names along x
+
+    private func categoryPlot(width: CGFloat) -> some View {
+        let values = valueAxis
+        let metrics = StudyCategoryPlot.metrics(typeSize)
+        let labels = StudyAxisPlan.categoryLabels(
+            categories.map(categoryCaption), slot: max(1, width - 44) / CGFloat(max(1, categories.count)),
+            metrics: metrics, maximumHeight: max(110, metrics.lineHeight * 7))
+        let slot = max(1, width - 44) / CGFloat(max(1, categories.count))
+        let plot = Chart(Array(bars.enumerated()), id: \.offset) { _, bar in
+            mark(x: .value(study.xLabel, bar.label), y: .value(study.yLabel, bar.value), group: bar.group)
+                .foregroundStyle(color(bar.group))
+        }
+        return Group {
+            if compact {
+                plot.chartXAxis(.hidden).chartYScale(domain: values.domain).chartYAxis(.hidden).chartLegend(.hidden)
+            } else {
+                plot.chartXAxis {
+                    AxisMarks(values: categories) { tick in
+                        if let label = tick.as(String.self), let text = labels.shown[categoryCaption(label)] {
+                            AxisTick()
+                            AxisValueLabel(anchor: labels.style == .diagonal ? .topTrailing : .top,
+                                           collisionResolution: .disabled) {
+                                StudyCategoryLabel(text: text, style: labels.style, slot: slot, metrics: metrics)
+                            }
+                        }
+                    }
+                }
+                .modifier(StudyAxes(compact: false, x: study.xLabel, y: study.yLabel, values: values))
+                .padding(.leading, leadingRoom(labels, slot: slot, metrics: metrics))
+                .accessibilityChartDescriptor(self)
+            }
+        }
+    }
+
+    /// A tilted first name reaches left past its bar. Make room so it isn't cut at the card's edge.
+    private func leadingRoom(_ labels: StudyAxisPlan.CategoryLabels, slot: CGFloat,
+                             metrics: StudyAxisPlan.TextMetrics) -> CGFloat {
+        guard labels.style == .diagonal, let first = categories.first.map(categoryCaption),
+              let text = labels.shown[first] else { return 0 }
+        let reach = (metrics.width(text) + metrics.lineHeight) * sqrt(0.5)
+        return max(0, reach - slot / 2 - 30)
+    }
+
+    static func metrics(_ size: DynamicTypeSize) -> StudyAxisPlan.TextMetrics {
+        let font = UIFont.preferredFont(
+            forTextStyle: .caption2, compatibleWith: UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size)))
+        return StudyAxisPlan.TextMetrics(lineHeight: ceil(font.lineHeight)) {
+            ceil(($0 as NSString).size(withAttributes: [.font: font]).width)
+        }
+    }
+
+    // MARK: Horizontal rows
+
+    @ViewBuilder private var horizontalPlot: some View {
+        let values = valueAxis
+        let row = Self.rowHeight(labels: categories)
+        let nameHeight = row - Self.barBand
+        let plot = Chart(Array(bars.enumerated()), id: \.offset) { _, bar in
+            mark(x: .value(study.xLabel, bar.value), y: .value(study.yLabel, bar.label), group: bar.group)
+                .foregroundStyle(color(bar.group))
+                .offset(y: compact ? 0 : nameHeight / 2)
+        }
+        .chartXScale(domain: values.domain)
         if compact {
             plot.chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
-        } else if study.horizontalCategories {
+        } else {
             plot.chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 5))
+                AxisMarks(values: values.ticks) { tick in
+                    AxisGridLine()
+                    AxisValueLabel { if let value = tick.as(Double.self) { Text(value.studyNumber) } }
+                }
                 AxisMarks(values: [0]) { AxisGridLine(stroke: StrokeStyle(lineWidth: 1)).foregroundStyle(Color.secondary) }
             }
             .chartYAxis(.hidden)
@@ -296,16 +549,13 @@ struct StudyCategoryPlot: View {
                 GeometryReader { geometry in
                     if let anchor = proxy.plotFrame {
                         let frame = geometry[anchor]
-                        let labelHeight = Self.rowHeight / 2 + Self.barDrop - Self.barThickness / 2 - 4
                         ForEach(categories, id: \.self) { label in
                             if let center = proxy.position(forY: label) {
                                 Text(categoryCaption(label))
                                     .font(.caption)
                                     .lineLimit(2)
-                                    .frame(width: frame.width, height: labelHeight, alignment: .bottomLeading)
-                                    .position(
-                                        x: frame.midX,
-                                        y: frame.minY + center + Self.barDrop - Self.barThickness / 2 - 2 - labelHeight / 2)
+                                    .frame(width: frame.width, height: nameHeight, alignment: .bottomLeading)
+                                    .position(x: frame.midX, y: frame.minY + center - row / 2 + nameHeight / 2)
                             }
                         }
                     }
@@ -314,28 +564,12 @@ struct StudyCategoryPlot: View {
             }
             .chartXAxisLabel(study.xLabel)
             .chartLegend(.hidden)
-        } else {
-            plot.chartXAxis {
-                // Categorical axes can enumerate the entire scale even when given explicit tick values.
-                AxisMarks(values: categories) { tick in
-                    if let label = tick.as(String.self), ticks.contains(label) {
-                        AxisTick()
-                        AxisValueLabel {
-                            Text(categoryCaption(label)).lineLimit(2)
-                                .fixedSize(horizontal: categoryCaption(label).count <= 8, vertical: true)
-                        }
-                    }
-                }
-            }
-            .chartYAxis { AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) }
-            .chartXAxisLabel(study.xLabel)
-            .chartYAxisLabel(study.yLabel)
-            .chartLegend(.hidden)
+            .overlay { if let note = values.note { StudyEmptyNote(text: note) } }
         }
     }
 
     private var barSpan: MarkDimension {
-        study.horizontalCategories && !compact ? .fixed(Self.barThickness) : .automatic
+        study.horizontalCategories && !compact ? .fixed(Self.barBand - 6) : .automatic
     }
 
     private func categoryCaption(_ label: String) -> String {
@@ -365,7 +599,7 @@ struct StudyCategoryPlot: View {
         default:
             // Native monthly totals are stacked. The explicit bar style compares groups side by side.
             if study.horizontalCategories && !compact {
-                BarMark(x: x, y: y, height: .fixed(Self.barThickness)).cornerRadius(3)
+                BarMark(x: x, y: y, height: .fixed(Self.barBand - 8)).cornerRadius(3)
             } else {
                 BarMark(x: x, y: y)
                     .cornerRadius(compact ? 1.5 : 3)
@@ -374,24 +608,99 @@ struct StudyCategoryPlot: View {
     }
 }
 
+extension StudyCategoryPlot: AXChartDescriptorRepresentable {
+    /// VoiceOver reads every full name, even one the axis had to shorten.
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let names = categories
+        let x = AXCategoricalDataAxisDescriptor(title: study.xLabel, categoryOrder: names)
+        let values = bars.map(\.value)
+        let y = AXNumericDataAxisDescriptor(
+            title: study.yLabel, range: (values.min() ?? 0)...(values.max() ?? 1), gridlinePositions: []
+        ) { $0.studyNumber }
+        let series = groups.map { group in
+            AXDataSeriesDescriptor(
+                name: group, isContinuous: false,
+                dataPoints: bars.filter { $0.group == group }.map { .init(x: $0.label, y: $0.value) })
+        }
+        return AXChartDescriptor(title: study.displayTitle, summary: nil, xAxis: x, yAxis: y, series: series)
+    }
+}
+
+private struct StudyBucketMark {
+    let bar: StudyBar
+    let middle: Date
+    let start: Date
+    let end: Date
+    let base: Double
+}
+
+/// A category name level, tilted 45° or upright, in a box the size it actually covers.
+private struct StudyCategoryLabel: View {
+    let text: String
+    let style: StudyAxisPlan.LabelStyle
+    let slot: CGFloat
+    let metrics: StudyAxisPlan.TextMetrics
+
+    var body: some View {
+        let width = metrics.width(text)
+        let line = metrics.lineHeight
+        switch style {
+        case .horizontal:
+            Text(text).multilineTextAlignment(.center).lineLimit(2)
+                .frame(width: max(1, slot - 4)).fixedSize(horizontal: false, vertical: true)
+        case .diagonal:
+            let side = (width + line) * sqrt(0.5)
+            Text(text).lineLimit(1).fixedSize()
+                .rotationEffect(.degrees(-45))
+                .frame(width: side, height: side)
+        case .vertical:
+            Text(text).lineLimit(1).fixedSize()
+                .rotationEffect(.degrees(-90))
+                .frame(width: line, height: width)
+        }
+    }
+}
+
+/// The value axis every chart shares: nice bounds and ticks, and a note when nothing rose above zero.
 private struct StudyAxes: ViewModifier {
     let compact: Bool
     let x: String
     let y: String
+    let values: StudyAxisPlan.ValueAxis
     func body(content: Content) -> some View {
         if compact {
-            content.chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
+            content.chartYScale(domain: values.domain).chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
         } else {
-            content.chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) {
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    AxisValueLabel()
+            content.modifier(StudyValueAxis(compact: false, values: values))
+                .chartXAxisLabel(x)
+                .chartYAxisLabel(y)
+                .chartLegend(.hidden)
+        }
+    }
+}
+
+private struct StudyValueAxis: ViewModifier {
+    let compact: Bool
+    let values: StudyAxisPlan.ValueAxis
+    func body(content: Content) -> some View {
+        content
+            .chartYScale(domain: values.domain)
+            .chartYAxis {
+                if !compact {
+                    AxisMarks(position: .leading, values: values.ticks) { tick in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        AxisValueLabel { if let value = tick.as(Double.self) { Text(value.studyNumber) } }
+                    }
                 }
             }
-            .chartXAxisLabel(x)
-            .chartYAxisLabel(y)
-            .chartLegend(.hidden)
-        }
+            .overlay { if !compact, let note = values.note { StudyEmptyNote(text: note) } }
+    }
+}
+
+private struct StudyEmptyNote: View {
+    let text: String
+    var body: some View {
+        Text(text).font(.footnote).foregroundStyle(.secondary).allowsHitTesting(false)
     }
 }
 
