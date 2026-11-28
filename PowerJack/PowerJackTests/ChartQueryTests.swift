@@ -87,8 +87,7 @@ struct ChartQueryTests {
     @Test("A catalog lift with no logged sets is named, and stays in scope with nothing logged")
     func unloggedLift() {
         let front = query("front squat progress")
-        // Barbell and Smith front squats both fit, so the words name them.
-        #expect(front.unloggedLifts == ["Front Squat"])
+        #expect(front.unloggedLifts == ["Barbell Front Squat"])
         #expect(front.exerciseKeys.isEmpty)
         #expect(front.hasScope)
     }
@@ -114,6 +113,37 @@ struct ChartQueryTests {
         #expect(query("barbell romanian deadlift").exerciseKeys == ["catalog:barbell-romanian-deadlift"])
         #expect(query("deadlift").exerciseKeys == [F.deadlift.key], "the closest name in the family")
         #expect(query("bench").exerciseKeys == [F.bench.key], "imported lifts leave the rest alone")
+    }
+
+    /// Three imported sets of one lift, under its PowerJack key.
+    private func importedSets(_ name: String, key: String) -> [ImportedSet] {
+        (0..<3).map { order in
+            let row = ImportedSet()
+            row.sourceExercise = name
+            row.exerciseName = name
+            row.exerciseKey = key
+            row.trainingDay = "2026-11-10"
+            row.reps = 5
+            row.weightTenthsPounds = 1850
+            row.sourceOrder = order
+            return row
+        }
+    }
+
+    @Test("Front squat is the logged one when only the barbell front squat has sets")
+    func frontSquatLoggedOnBarbell() {
+        let history = ChartSearchFixture.history(imported: importedSets("Front Squat", key: "catalog:barbell-front-squat"))
+        let front = ChartQuery("front squat progress", history: history)
+        #expect(front.exerciseKeys == ["catalog:barbell-front-squat"])
+        #expect(front.unloggedLifts.isEmpty)
+    }
+
+    @Test("Front squat is the logged one when only the Smith front squat has sets")
+    func frontSquatLoggedOnSmith() {
+        let history = ChartSearchFixture.history(imported: importedSets("Smith Front Squat", key: "catalog:smith-machine-front-squat"))
+        let front = ChartQuery("front squat progress", history: history)
+        #expect(front.exerciseKeys == ["catalog:smith-machine-front-squat"])
+        #expect(front.unloggedLifts.isEmpty)
     }
 
     @Test("Joint words scope the logged lifts that do the movement, or else its muscles")
