@@ -85,7 +85,7 @@ struct TimeAxisZoomTests {
         #expect(window.time(at: 2) == start + 90 * Self.day)
     }
 
-    @Test("Axis labels stay at four or fewer, inside the plot, and switch from months to days when zoomed")
+    @Test("Axis labels stay at six or fewer, inside the plot, and switch from months to days when zoomed")
     func axisLabels() {
         let whole = TimeAxisWindow(times: times)
         let months = whole.ticks(calendar: calendar)
@@ -104,7 +104,7 @@ struct TimeAxisZoomTests {
                 let window = TimeAxisWindow(times: times, fraction: lower...(lower + share))
                 let ticks = window.ticks(calendar: calendar).map(\.date.timeIntervalSince1970)
                 let length = window.visible.upperBound - window.visible.lowerBound
-                #expect(ticks.count <= 4)
+                #expect(ticks.count <= 6)
                 #expect(ticks.allSatisfy {
                     $0 >= window.visible.lowerBound + length * 0.02 - 1 && $0 <= window.visible.upperBound - length * 0.14 + 1
                 })

@@ -24,7 +24,9 @@ struct StudyFullscreenView: View {
         switch study.figure {
         case .table(let table):
             ScrollView { StudyTableView(table: table) }
-        case .matrix, .attempts:
+        case .matrix:
+            ScrollView { view }
+        case .attempts:
             ScrollView([.horizontal, .vertical]) { view }
         case .bars(let bars) where study.horizontalCategories:
             ScrollView {
