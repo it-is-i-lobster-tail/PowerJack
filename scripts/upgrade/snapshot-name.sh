@@ -8,5 +8,7 @@ set -euo pipefail
 
 dir=$(cd "$(dirname "$0")" && pwd)
 name=${1//\//-}
-hash=$(cat "$dir/UpgradeFixtureWriter.swift" "$dir/patches/$name.patch" 2>/dev/null | shasum | cut -c1-12)
+files=("$dir/UpgradeFixtureWriter.swift")
+[ ! -f "$dir/patches/$name.patch" ] || files+=("$dir/patches/$name.patch")
+hash=$(cat "${files[@]}" | shasum | cut -c1-12)
 echo "$2-$hash"

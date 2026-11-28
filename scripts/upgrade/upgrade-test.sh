@@ -162,7 +162,11 @@ while read -r label commit <&3; do
   failure=""
   snap=""
   if [ -n "$snapshots" ]; then
-    snap="$snapshots/$("$root/scripts/upgrade/snapshot-name.sh" "$label" "$commit")"
+    if ! snap_name=$("$root/scripts/upgrade/snapshot-name.sh" "$label" "$commit") || [ -z "$snap_name" ]; then
+      echo "::error::Couldn't name the snapshot for $label."
+      exit 1
+    fi
+    snap="$snapshots/$snap_name"
   fi
 
   if [ -n "$snap" ] && [ "$fresh" != 1 ] && [ -f "$snap/container.tar" ]; then
