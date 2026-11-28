@@ -419,6 +419,23 @@ struct WorkoutFlowTests {
         #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).count == 1)
     }
 
+    @Test("Restoring a skip takes back only its own history, not another workout's logged the same second")
+    func restoreWorkoutKeepsOtherLogs() throws {
+        let program = try makeStartedProgram(weeks: 1, workouts: 2)
+        let workout = try #require(program.nextWorkout)
+        workout.startAndCascade()
+        log(workout, reps: 8, weightTenthsPounds: 1000)
+        program.skipWorkout(workout)
+        let endedAt = try #require(workout.endedAt)
+        // A workout from the other device, finished at the very moment this one was skipped.
+        let other = WorkoutLog(date: endedAt, setsByMuscle: [.chest: 3], sessionID: UUID())
+        container.mainContext.insert(other)
+
+        program.restoreWorkout(workout)
+
+        #expect(try container.mainContext.fetch(FetchDescriptor<WorkoutLog>()).map(\.sessionID) == [other.sessionID])
+    }
+
     @Test("Restoring a workout skipped before it started puts it back up next, not started")
     func restoreWorkoutSkippedBeforeStart() throws {
         let program = try makeStartedProgram(weeks: 1, workouts: 2)

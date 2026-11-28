@@ -5,6 +5,7 @@
 //  Created on 6/26/26.
 //
 
+import SwiftData
 import SwiftUI
 
 /// The active scroller publishes a fractional exercise index for both scrollers and the header.
@@ -67,8 +68,8 @@ struct ExercisePreviewStrip: View {
 
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: spacing) {
-                ForEach(workoutExercises.indices, id: \.self) { index in
-                    let exercise = workoutExercises[index]
+                // Cards keep their state with their exercise; they scroll by offset, so order still places them.
+                ForEach(Array(workoutExercises.enumerated()), id: \.element.persistentModelID) { index, exercise in
                     card(exercise.shownExercise?.exerciseName ?? "Exercise", index: index,
                          isDone: exercise.isDone, width: cardWidth)
                         .accessibilityHint(exercise.supersetPartners.isEmpty ? "" : "Superset")
@@ -160,7 +161,6 @@ struct ExercisePreviewStrip: View {
         // Keep the snap targets equally spaced as the visible cards grow and shrink.
         .frame(width: width)
         .accessibilityValue(isDone ? "Done" : "")
-        .id(index)
     }
 
     /// How selected a card looks: 1 while its page fills the screen, down to 0 a page away.

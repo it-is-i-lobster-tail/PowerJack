@@ -52,7 +52,9 @@ enum HistoryExport {
         try HistoryArchive.saveEndedPrograms(in: context)
         let saved = try HistoryArchive.records(in: context)
         let programs = try context.fetch(FetchDescriptor<Program>())
-        let url = URL.temporaryDirectory.appending(path: "PowerJack History \(Date.now.formatted(Self.day)).csv")
+        // Earlier exports were already shared or abandoned.
+        FileManager.default.removeTemporaryFiles(prefix: Self.filePrefix, suffix: ".csv")
+        let url = URL.temporaryDirectory.appending(path: "\(Self.filePrefix)\(Date.now.formatted(Self.day)).csv")
         try csv(for: programs, saved: saved, unit: unit).write(to: url, atomically: true, encoding: .utf8)
         return url
     }
@@ -184,6 +186,7 @@ enum HistoryExport {
 
     // Fixed formats, so the file reads the same in any region: "2026-11-15T02:03:22Z", "102.5".
     private static let time = Date.ISO8601FormatStyle()
+    private static let filePrefix = "PowerJack History "
     private static let day = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
 
     private static func date(_ date: Date?) -> String {

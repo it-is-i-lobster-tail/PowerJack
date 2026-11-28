@@ -29,23 +29,23 @@ struct WorkoutExercisePager: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 0) {
-                ForEach(workoutExercises.indices, id: \.self) { index in
+                // Pages keep their state with their exercise when one is added or removed.
+                // They scroll by offset, so their order still sets where each one sits.
+                ForEach(workoutExercises, id: \.persistentModelID) { workoutExercise in
                     WorkoutExerciseView(
                         onSetsDone: onExerciseSetsDone,
                         screenWidth: screenWidth,
                         focusedSetField: focusedSetField,
-                        workoutExercise: workoutExercises[index]
+                        workoutExercise: workoutExercise
                     )
                         .safeAreaPadding(.top, topInset)
                         .containerRelativeFrame(.horizontal)
-                        .id(index)
                 }
 
                 if let review {
                     review
                         .safeAreaPadding(.top, topInset + LayoutMetrics.compactSpacing)
                         .containerRelativeFrame(.horizontal)
-                        .id(workoutExercises.count)
                 }
             }
             .scrollTargetLayout(isEnabled: !pageScroll.isDrivenByStrip)

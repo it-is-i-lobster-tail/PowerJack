@@ -31,8 +31,11 @@ final class PhoneSync {
         WorkoutMirroring.shared.start()
         DeviceLink.shared.start()
         Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: ModelContext.didSave) {
-                self?.scheduleSend()
+            for await notification in NotificationCenter.default.notifications(named: ModelContext.didSave) {
+                // Only saves of the training data, not of other stores such as the gallery search journal.
+                guard let self, let context = notification.object as? ModelContext,
+                      context.container === self.store?.container else { continue }
+                scheduleSend()
             }
         }
         scheduleSend()

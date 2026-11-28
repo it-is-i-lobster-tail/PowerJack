@@ -57,8 +57,22 @@ extension WorkoutLog {
         try context.fetch(FetchDescriptor<WorkoutLog>(predicate: #Predicate { $0.sessionIDValue != nil && $0.dateValue >= date }))
     }
 
+    /// The log `workout` wrote as it ended: the one carrying its sync ID, or, for a log from before logs
+    /// named their workout, the closest one within a second of its end, unless that one names another workout.
+    static func written(by workout: Workout, in context: ModelContext?) -> WorkoutLog? {
+        if let sessionID = workout.syncID {
+            let descriptor = FetchDescriptor<WorkoutLog>(predicate: #Predicate { $0.sessionIDValue == sessionID })
+            if let log = try? context?.fetch(descriptor).first { return log }
+        }
+        guard let endedAt = workout.endedAt,
+              let log = written(near: endedAt, in: context),
+              log.sessionID == nil
+        else { return nil }
+        return log
+    }
+
     /// The log written closest to `date`, within a second of it. A skip writes its log as it ends the workout.
-    static func written(near date: Date, in context: ModelContext?) -> WorkoutLog? {
+    private static func written(near date: Date, in context: ModelContext?) -> WorkoutLog? {
         let earliest = date.addingTimeInterval(-1)
         let latest = date.addingTimeInterval(1)
         let descriptor = FetchDescriptor<WorkoutLog>(
