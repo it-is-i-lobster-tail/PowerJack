@@ -34,6 +34,8 @@ final class PhoneReferee {
     /// Applies every change not applied yet, in order, tidies up, and answers with the program.
     /// `tidiesUp` false leaves the tidy-up to the caller, which can run it less often.
     func receive(_ changes: [WatchChange], in context: ModelContext, tidiesUp: Bool = true) throws -> ProgramSnapshot {
+        // The iPhone's own edits are saved first, so undoing a failed save below never takes them with it.
+        if context.hasChanges { try context.save() }
         var applied = self.applied
         let programs = try context.fetch(FetchDescriptor<Program>())
         for change in changes.sorted(by: { $0.id < $1.id }) {
@@ -51,7 +53,13 @@ final class PhoneReferee {
             }
             applied[install] = change.id
         }
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            // Half-applied changes would be applied again on top of themselves when the watch resends.
+            context.rollback()
+            throw error
+        }
         self.applied = applied
         if tidiesUp { try SyncTidyUp.run(in: context, trigger: "watch changes", scope: .recent) }
         return try snapshot(in: context)

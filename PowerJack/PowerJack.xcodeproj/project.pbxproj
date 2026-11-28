@@ -139,6 +139,7 @@
 				Shared/LiveActivity/RestActivityAttributes.swift,
 				Shared/LiveActivity/RestPeriod.swift,
 				"Shared/Logging/Logger+PowerJack.swift",
+				Shared/Logging/SaveHealth.swift,
 				Shared/Logging/TraceDescriptions.swift,
 				Shared/Logging/TraceErrors.swift,
 				Shared/Logging/TraceLog.swift,
