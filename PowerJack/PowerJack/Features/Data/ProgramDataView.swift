@@ -530,8 +530,19 @@ private struct StudyDetail: View {
             view.frame(height: 290)
             legend(series.map(\.name))
         case .bars(let bars):
-            view.frame(height: study.horizontalCategories
-                       ? StudyCategoryPlot.height(categories: Set(bars.map(\.label)).count) : 270)
+            if study.horizontalCategories {
+                // Every row keeps its height. Past twelve the chart scrolls inside the card.
+                let rows = bars.map(\.label).studyUnique
+                let row = StudyCategoryPlot.rowHeight(labels: rows)
+                if rows.count > StudyCategoryPlot.visibleRows {
+                    ScrollView { view.frame(height: StudyCategoryPlot.height(labels: rows)) }
+                        .frame(height: CGFloat(StudyCategoryPlot.visibleRows) * row + 44)
+                } else {
+                    view.frame(height: StudyCategoryPlot.height(labels: rows))
+                }
+            } else {
+                view.frame(height: 270)
+            }
             let labels = bars.reduce(into: [String]()) {
                 if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }
             }

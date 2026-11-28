@@ -96,9 +96,30 @@ extension StudyResult {
             let axis = matrixAxes(transposed: transpose)
             result.xLabel = axis.column
             result.yLabel = axis.value
-            let bars = columns.indices.flatMap { col in
-                rows.indices.compactMap { row in
-                    values[row][col].map { StudyBar(label: columns[col], value: $0, group: rows[row]) }
+            let timeIsRows = timeline.map { $0.buckets.map(\.label) == rows } ?? false
+            var bars: [StudyBar]
+            if timeIsRows && id == .frequency {
+                // One series per weekday: the weekday totals, or one dot for each week.
+                bars = columns.indices.flatMap { col in
+                    let cells = rows.indices.compactMap { values[$0][col] }
+                    return style == .bar ? [StudyBar(label: columns[col], value: cells.reduce(0, +))]
+                        : cells.map { StudyBar(label: columns[col], value: $0) }
+                }
+            } else if timeIsRows {
+                // Time stays on its own axis and the other dimension names the series, so a legend never lists weeks.
+                bars = rows.indices.flatMap { row in
+                    columns.indices.compactMap { col in
+                        values[row][col].map { StudyBar(label: rows[row], value: $0, group: columns[col]) }
+                    }
+                }
+                result.horizontalCategories = true
+                result.xLabel = axis.value
+                result.yLabel = axis.row
+            } else {
+                bars = columns.indices.flatMap { col in
+                    rows.indices.compactMap { row in
+                        values[row][col].map { StudyBar(label: columns[col], value: $0, group: rows[row]) }
+                    }
                 }
             }
             result.figure = .bars(bars)
@@ -129,7 +150,31 @@ extension StudyResult {
         default:
             break
         }
+        if case .bars(let bars) = result.figure { result.figure = .bars(Self.limitingSeries(bars, sums: style != .scatter)) }
         return result
+    }
+
+    /// More than six series keep the five largest and fold the rest into "Other".
+    static func limitingSeries(_ bars: [StudyBar], sums: Bool) -> [StudyBar] {
+        let groups = bars.map(\.group).studyUnique
+        guard groups.count > StudyAxisPlan.maximumSeries else { return bars }
+        let totals = groups.map { group in (group, bars.filter { $0.group == group }.reduce(0) { $0 + abs($1.value) }) }
+        let kept = Set(StudyAxisPlan.keptSeries(totals.map { (name: $0.0, total: $0.1) }))
+        guard sums else {
+            return bars.filter { kept.contains($0.group) }
+                + bars.filter { !kept.contains($0.group) }.map { StudyBar(label: $0.label, value: $0.value, group: "Other") }
+        }
+        var merged = bars.filter { kept.contains($0.group) }
+        var other: [(label: String, value: Double)] = []
+        for bar in bars where !kept.contains(bar.group) {
+            if let index = other.firstIndex(where: { $0.label == bar.label }) {
+                other[index].value += bar.value
+            } else {
+                other.append((bar.label, bar.value))
+            }
+        }
+        merged += other.map { StudyBar(label: $0.label, value: $0.value, group: "Other") }
+        return merged
     }
 
     var legendLabels: [String] {
@@ -193,9 +238,10 @@ extension StudyResult {
     }
 
     private func matrixAxes(transposed: Bool) -> (column: String, row: String, value: String) {
-        switch id {
-        case .legWork: (transposed ? "Muscle" : "Week", transposed ? "Week" : "Muscle", "Credited sets")
-        case .frequency: (transposed ? "Week" : "Weekday", transposed ? "Weekday" : "Week", "Working sets")
+        let week = timeline?.noun ?? "Week"
+        return switch id {
+        case .legWork: (transposed ? "Muscle" : week, transposed ? week : "Muscle", "Credited sets")
+        case .frequency: (transposed ? week : "Weekday", transposed ? "Weekday" : week, "Working sets")
         default: (transposed ? "Exercise" : "Rep range", transposed ? "Rep range" : "Exercise", "Working sets")
         }
     }
