@@ -202,22 +202,29 @@ private struct StudyChoiceList: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let (shown, correction) = SpellingCorrection.results(
+            for: search, vocabulary: { choices.map(\.name) }, isEmpty: \.isEmpty
+        ) { text in choices.filter { text.isEmpty || $0.name.localizedCaseInsensitiveContains(text) } }
         List {
-            row("Default · \(fallback)", selected: keys.isEmpty) {
-                keys = []
-                if !multiple { dismiss() }
-            }
-            ForEach(choices.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { item in
-                row(item.name, selected: keys.contains(item.key)) {
-                    if !multiple {
-                        keys = [item.key]
-                        dismiss()
-                    } else if keys.contains(item.key) {
-                        keys.removeAll { $0 == item.key }
-                    } else {
-                        keys.append(item.key)
+            Section {
+                row("Default · \(fallback)", selected: keys.isEmpty) {
+                    keys = []
+                    if !multiple { dismiss() }
+                }
+                ForEach(shown) { item in
+                    row(item.name, selected: keys.contains(item.key)) {
+                        if !multiple {
+                            keys = [item.key]
+                            dismiss()
+                        } else if keys.contains(item.key) {
+                            keys.removeAll { $0 == item.key }
+                        } else {
+                            keys.append(item.key)
+                        }
                     }
                 }
+            } header: {
+                if let correction { SpellingCorrectionNote(correction: correction) }
             }
         }
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)

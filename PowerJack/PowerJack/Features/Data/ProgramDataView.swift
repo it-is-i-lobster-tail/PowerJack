@@ -25,6 +25,8 @@ private struct StudyGallery: View {
     @State private var appliedQuery = ""
     @State private var plan: ChartSearchPlan?
     @State private var results = ChartSearchResults()
+    /// The spelling fix the results are for, when the search as typed found nothing.
+    @State private var correction: String?
     @State private var cache = ChartResultCache()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
@@ -54,6 +56,9 @@ private struct StudyGallery: View {
         return NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if let correction, searching {
+                        SpellingCorrectionNote(correction: correction)
+                    }
                     if let note = results.note, searching, !results.isEmpty {
                         Label(note, systemImage: "info.circle")
                             .font(.subheadline).foregroundStyle(.secondary)
@@ -87,9 +92,13 @@ private struct StudyGallery: View {
                 }
             }
             .onChange(of: searchInput, initial: true) {
-                results = ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan,
-                                              history: history, saved: SavedStudyViews(data: storedOptions),
-                                              cache: cache)
+                let saved = SavedStudyViews(data: storedOptions)
+                (results, correction) = SpellingCorrection.results(
+                    for: appliedQuery, vocabulary: { Array(Set(history.sessions.map(\.name))) }, isEmpty: \.isEmpty
+                ) { text in
+                    ChartSearch.results(for: ChartQuery(text, history: history), plan: plan,
+                                        history: history, saved: saved, cache: cache)
+                }
             }
             .task {
                 // Load the embedding model off the main thread, so the first search doesn't wait for it.
@@ -221,7 +230,6 @@ struct GallerySearchField: View {
                 TextField("Search charts", text: Binding(get: { query }, set: edit))
                     .focused($typing)
                     .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
                     .submitLabel(.search)
                     .onSubmit { submit(query) }
                     .accessibilityIdentifier("data.search")

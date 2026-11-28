@@ -175,8 +175,8 @@ private struct MovesLikeList: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
 
-    private var shown: [ExerciseCatalog.Entry] {
-        let query = ExerciseQuery(searchText)
+    private func entries(for text: String) -> [ExerciseCatalog.Entry] {
+        let query = ExerciseQuery(text)
         guard !query.isEmpty else {
             // The lift picked now comes first, then the rest by name.
             return ExerciseCatalog.entries.sorted { left, right in
@@ -189,12 +189,19 @@ private struct MovesLikeList: View {
     }
 
     var body: some View {
+        let (shown, correction) = SpellingCorrection.results(
+            for: searchText, vocabulary: { ExerciseCatalog.entries.map(\.name) }, isEmpty: \.isEmpty, search: entries(for:)
+        )
         List {
-            if searchText.isEmpty {
-                row("None", detail: nil, key: nil)
-            }
-            ForEach(shown, id: \.id) { entry in
-                row(entry.name, detail: entry.equipmentName ?? entry.equipment.displayName, key: "catalog:\(entry.id)")
+            Section {
+                if searchText.isEmpty {
+                    row("None", detail: nil, key: nil)
+                }
+                ForEach(shown, id: \.id) { entry in
+                    row(entry.name, detail: entry.equipmentName ?? entry.equipment.displayName, key: "catalog:\(entry.id)")
+                }
+            } header: {
+                if let correction { SpellingCorrectionNote(correction: correction) }
             }
         }
         .overlay {
