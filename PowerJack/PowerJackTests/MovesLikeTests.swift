@@ -279,4 +279,18 @@ struct MovesLikeTests {
         #expect(movements.isSuperset(of: MovementCatalog.Profile.curl.storedMovements + MovementCatalog.Profile.bench.storedMovements))
         #expect(document.actions == document.actions.uniqued())
     }
+
+    @Test("Every built-in names up to three other built-ins it moves like")
+    func catalogPicks() {
+        let ids = Set(ExerciseCatalog.entries.map(\.id))
+        for entry in ExerciseCatalog.entries {
+            #expect(entry.movesLike.count <= 3, "\(entry.id)")
+            #expect(entry.movesLike == entry.movesLike.uniqued(), "\(entry.id)")
+            #expect(!entry.movesLike.contains(entry.id), "\(entry.id)")
+            #expect(Set(entry.movesLike).isSubset(of: ids), "\(entry.id)")
+        }
+        // Nothing else in the catalog moves like these.
+        let alone = ExerciseCatalog.entries.filter(\.movesLike.isEmpty).map(\.id)
+        #expect(Set(alone) == ["burpee", "leg-extension", "side-plank"])
+    }
 }
