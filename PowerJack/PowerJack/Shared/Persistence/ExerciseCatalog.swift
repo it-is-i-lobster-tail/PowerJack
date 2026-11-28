@@ -59,11 +59,14 @@ enum ExerciseCatalog {
             return exercise
         }
 
-        /// Refreshes secondary muscles on an already-seeded catalog exercise.
+        /// Refreshes the muscles on an already-seeded catalog exercise.
         /// Display fields are left alone so renamed rows stay renamed, and rep range
         /// and fatigue are left alone because the user can edit them.
         func backfill(_ exercise: Exercise) -> Bool {
-            guard exercise.secondaryMusclesValue != secondaryMuscles else { return false }
+            guard exercise.secondaryMusclesValue != secondaryMuscles || exercise.primaryMuscleFocus != primaryMuscle else {
+                return false
+            }
+            exercise.primaryMuscleFocus = primaryMuscle
             exercise.secondaryMuscles = secondaryMuscles
             return true
         }
@@ -300,8 +303,8 @@ enum ExerciseCatalog {
               movesLike: ["dumbbell-reverse-wrist-curl"]),
 
         // Legs and glutes.
-        Entry("sumo-deadlift", "Sumo Deadlift", .barbell, .quads, .high, .trapBarDeadlift, [.glutes, .hamstrings, .back, .forearms],
-              movesLike: ["barbell-deadlift", "trap-bar-deadlift", "barbell-back-squat"]),
+        Entry("sumo-deadlift", "Sumo Deadlift", .barbell, .glutes, .high, .sumoDeadlift, [.quads, .hamstrings, .back, .forearms],
+              movesLike: ["barbell-deadlift", "trap-bar-deadlift", "kettlebell-deadlift"]),
         Entry("barbell-box-squat", "Barbell Box Squat", .barbell, .quads, .high, .squat, [.glutes, .abs],
               movesLike: ["barbell-back-squat", "barbell-front-squat", "smith-machine-squat"]),
         Entry("dumbbell-step-up", "Dumbbell Step Up", .dumbbell, .quads, .moderate, .lunge, [.glutes, .hamstrings],
