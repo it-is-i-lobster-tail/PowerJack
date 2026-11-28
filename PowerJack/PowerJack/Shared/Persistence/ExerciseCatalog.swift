@@ -165,7 +165,65 @@ enum ExerciseCatalog {
         Entry("kettlebell-swing", "Kettlebell Swing", .kettlebell, .glutes, .moderate, .swing, [.hamstrings, .back, .abs]),
         Entry("ez-bar-preacher-curl", "EZ-Bar Preacher Curl", .barbell, .biceps, .low, .curl, [.forearms], equipmentName: "EZ Bar"),
         Entry("russian-twist", "Russian Twist", .loadableBodyweight, .obliques, .low, .chop, [.abs]),
+
+        // Chest.
+        Entry("decline-barbell-bench-press", "Decline Barbell Bench Press", .barbell, .chest, .moderate, .bench, [.triceps, .shoulders]),
+        Entry("dumbbell-floor-press", "Dumbbell Floor Press", .dumbbell, .chest, .moderate, .bench, [.triceps, .shoulders]),
+        Entry("dumbbell-fly", "Dumbbell Fly", .dumbbell, .chest, .low, .fly, [.shoulders]),
+        Entry("incline-dumbbell-fly", "Incline Dumbbell Fly", .dumbbell, .chest, .low, .fly, [.shoulders]),
+        Entry("pec-deck", "Pec Deck", .machine, .chest, .low, .fly, [.shoulders]),
+        Entry("incline-push-up", "Incline Push Up", .bodyweight, .chest, .moderate, .bench.braced, [.triceps, .shoulders, .abs]),
+
+        // Back and shoulders.
+        Entry("inverted-row", "Inverted Row", .loadableBodyweight, .back, .moderate, .row.braced, [.biceps, .forearms, .abs]),
+        Entry("pendlay-row", "Pendlay Row", .barbell, .back, .moderate, .row.braced, [.biceps, .forearms, .abs]),
+        Entry("machine-high-row", "Machine High Row", .machine, .back, .moderate, .row, [.biceps, .forearms]),
+        Entry("neutral-grip-lat-pulldown", "Neutral Grip Lat Pulldown", .cable, .back, .moderate, .pullUp, [.biceps, .forearms]),
+        Entry("barbell-shrug", "Barbell Shrug", .barbell, .back, .low, .shrug, [.forearms]),
+        Entry("trap-bar-shrug", "Trap Bar Shrug", .barbell, .back, .low, .shrug, [.forearms], equipmentName: "Trap Bar"),
+        Entry("machine-shoulder-press", "Machine Shoulder Press", .machine, .shoulders, .moderate, .overhead, [.triceps]),
+        Entry("single-arm-kettlebell-press", "Single-Arm Kettlebell Press", .kettlebell, .shoulders, .moderate, .overhead.braced, [.triceps, .abs]),
+
+        // Arms and forearms.
+        Entry("ez-bar-curl", "EZ-Bar Curl", .barbell, .biceps, .low, .curl, [.forearms], equipmentName: "EZ Bar"),
+        Entry("ez-bar-reverse-curl", "EZ-Bar Reverse Curl", .barbell, .biceps, .low, .curl, [.forearms], equipmentName: "EZ Bar"),
+        Entry("ez-bar-skull-crusher", "EZ-Bar Skull Crusher", .barbell, .triceps, .low, .triceps, equipmentName: "EZ Bar"),
+        Entry("dumbbell-concentration-curl", "Dumbbell Concentration Curl", .dumbbell, .biceps, .low, .curl, [.forearms]),
+        Entry("cable-rope-hammer-curl", "Cable Rope Hammer Curl", .cable, .biceps, .low, .curl, [.forearms]),
+        Entry("dumbbell-triceps-kickback", "Dumbbell Triceps Kickback", .dumbbell, .triceps, .low, .triceps),
+        Entry("barbell-wrist-curl", "Barbell Wrist Curl", .barbell, .forearms, .low, .wristCurl),
+        Entry("barbell-reverse-wrist-curl", "Barbell Reverse Wrist Curl", .barbell, .forearms, .low, .reverseWristCurl),
+
+        // Legs and glutes.
+        Entry("sumo-deadlift", "Sumo Deadlift", .barbell, .quads, .high, .trapBarDeadlift, [.glutes, .hamstrings, .back, .forearms]),
+        Entry("barbell-box-squat", "Barbell Box Squat", .barbell, .quads, .high, .squat, [.glutes, .abs]),
+        Entry("dumbbell-step-up", "Dumbbell Step Up", .dumbbell, .quads, .moderate, .lunge, [.glutes, .hamstrings]),
+        Entry("kettlebell-deadlift", "Kettlebell Deadlift", .kettlebell, .glutes, .moderate, .hinge, [.hamstrings, .back, .forearms]),
+        Entry("single-leg-glute-bridge", "Single-Leg Glute Bridge", .bodyweight, .glutes, .low, .bridge, [.hamstrings]),
+        Entry("machine-hip-abduction", "Machine Hip Abduction", .machine, .glutes, .low, .hipAbduction),
+        Entry("nordic-hamstring-curl", "Nordic Hamstring Curl", .bodyweight, .hamstrings, .moderate, .legCurl),
+        Entry("standing-single-leg-calf-raise", "Standing Single-Leg Calf Raise", .loadableBodyweight, .calves, .low, .calf),
+
+        // Core.
+        Entry("reverse-crunch", "Reverse Crunch", .bodyweight, .abs, .low, .crunch),
+        Entry("machine-ab-crunch", "Machine Ab Crunch", .machine, .abs, .low, .crunch),
+        Entry("lying-leg-raise", "Lying Leg Raise", .bodyweight, .abs, .low, .legRaise),
     ]
+
+    /// Named equipment uses its base type for loading and its existing label for storage and sync.
+    struct EquipmentOption: Hashable {
+        let base: Equipment
+        var name: String? = nil
+        var displayName: String { name ?? base.displayName }
+    }
+
+    static let equipmentOptions: [EquipmentOption] = {
+        let bases = Equipment.allCases.map { EquipmentOption(base: $0) }
+        let named = entries.compactMap { entry in
+            entry.equipmentName.map { EquipmentOption(base: entry.equipment, name: $0) }
+        }
+        return Set(bases + named).sorted { $0.displayName < $1.displayName }
+    }()
 
     /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
     static let replacedOwnNames: [String: Set<String>] = [

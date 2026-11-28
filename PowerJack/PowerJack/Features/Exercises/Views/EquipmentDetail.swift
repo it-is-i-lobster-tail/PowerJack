@@ -17,8 +17,9 @@ struct EquipmentDetail: View {
     private let base: Equipment
     private let custom: CustomEquipment?
 
-    init(base: Equipment) {
-        name = base.displayName
+    /// Built-in equipment. Named kinds like EZ Bar use their base type's load step.
+    init(base: Equipment, name: String? = nil) {
+        self.name = name ?? base.displayName
         self.base = base
         custom = nil
     }
@@ -58,7 +59,7 @@ struct EquipmentDetail: View {
     private var footer: String {
         var lines = ["The smallest weight jump for this equipment. Used in Strength programs."]
         if base == .dumbbell || base == .kettlebell { lines.append("It's per hand.") }
-        if custom != nil { lines.append("Shared by all \(base.displayName) equipment.") }
+        if name != base.displayName { lines.append("Shared by all \(base.displayName) equipment.") }
         return lines.joined(separator: " ")
     }
 }

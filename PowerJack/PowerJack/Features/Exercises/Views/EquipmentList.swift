@@ -14,7 +14,13 @@ struct EquipmentList: View {
     @State private var created: CustomEquipment?
     @State private var deleting: CustomEquipment?
 
-    private var custom: [CustomEquipment] { allCustom.filter { $0.name != excluding } }
+    /// Own equipment, minus any that matches a built-in option.
+    private var custom: [CustomEquipment] {
+        allCustom.filter { item in
+            item.name != excluding
+                && !ExerciseCatalog.equipmentOptions.contains(.init(base: item.base, name: item.name))
+        }
+    }
 
     var body: some View {
         List {
@@ -27,8 +33,8 @@ struct EquipmentList: View {
                 }
             }
             Section("Built-in equipment") {
-                ForEach(Equipment.allCases.sorted { $0.displayName < $1.displayName }) { base in
-                    builtInRow(base)
+                ForEach(ExerciseCatalog.equipmentOptions, id: \.self) { option in
+                    builtInRow(option)
                 }
             }
         }
@@ -59,14 +65,14 @@ struct EquipmentList: View {
     }
 
     @ViewBuilder
-    private func builtInRow(_ base: Equipment) -> some View {
+    private func builtInRow(_ option: ExerciseCatalog.EquipmentOption) -> some View {
         if onSelect != nil {
-            Button(base.displayName) { select(base, name: nil) }
-        } else if base.hasLoadStep {
-            NavigationLink(base.displayName) { EquipmentDetail(base: base) }
+            Button(option.displayName) { select(option.base, name: option.name) }
+        } else if option.base.hasLoadStep {
+            NavigationLink(option.displayName) { EquipmentDetail(base: option.base, name: option.name) }
         } else {
-            // Bodyweight has nothing to set.
-            Text(base.displayName)
+            // Bodyweight types have nothing to set.
+            Text(option.displayName)
         }
     }
 
@@ -88,7 +94,7 @@ private struct NewEquipmentView: View {
 
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var nameTaken: Bool {
-        let names = Equipment.allCases.map(\.displayName) + existing.map(\.name)
+        let names = ExerciseCatalog.equipmentOptions.map(\.displayName) + existing.map(\.name)
         return names.contains { $0.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }
     }
 

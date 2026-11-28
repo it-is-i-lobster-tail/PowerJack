@@ -57,6 +57,7 @@ enum FitNotesMatcher {
         "two hand kettlebell swing": "kettlebell-swing",
         "2 handed kettlebell swing": "kettlebell-swing",
         "preacher bench ez bar curl": "ez-bar-preacher-curl",
+        "nordic curls": "nordic-hamstring-curl",
         "good morning": "barbell-good-morning",
         "backward lunge": "reverse-lunge",
         "backward lunges": "reverse-lunge",

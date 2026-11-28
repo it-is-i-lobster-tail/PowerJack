@@ -39,9 +39,7 @@ struct StudyReadingGuide: View {
                 .contentShape(.rect)
         }
         .controlGroupStyle(ReadingGuideStyle(isExpanded: $isExpanded))
-        .padding(.horizontal, 16)
         .padding(.vertical, 4)
-        .padding(.bottom, 12)
         .overlay(alignment: .top) { Divider() }
     }
 }
