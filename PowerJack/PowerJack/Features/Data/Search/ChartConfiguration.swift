@@ -5,6 +5,8 @@ struct GalleryCardID: Hashable {
     let exerciseKeys: [String]
     /// A direct answer can use the same chart as a ranked card below it.
     var isAnswer = false
+    /// A starred chart opens with its own saved choices.
+    var favorite: UUID?
 }
 
 /// One tile in the gallery: a chart, configured for the search, with its computed result.
