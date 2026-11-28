@@ -3,11 +3,18 @@ import SwiftUI
 
 struct EquipmentList: View {
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \CustomEquipment.name) private var custom: [CustomEquipment]
+    @Query(sort: \CustomEquipment.name) private var allCustom: [CustomEquipment]
+    var title = "Equipment"
+    /// Custom equipment to leave out, by name, like the equipment being replaced.
+    var excluding: String? = nil
+    /// Picks equipment instead of opening it. Without it, rows open their details.
     var onSelect: ((Equipment, String?) -> Void)? = nil
 
     @State private var creating = false
     @State private var created: CustomEquipment?
+    @State private var deleting: CustomEquipment?
+
+    private var custom: [CustomEquipment] { allCustom.filter { $0.name != excluding } }
 
     var body: some View {
         List {
@@ -15,17 +22,17 @@ struct EquipmentList: View {
             if !custom.isEmpty {
                 Section("Your equipment") {
                     ForEach(custom) { item in
-                        row(item.name, base: item.base, customName: item.name)
+                        customRow(item)
                     }
                 }
             }
             Section("Built-in equipment") {
                 ForEach(Equipment.allCases.sorted { $0.displayName < $1.displayName }) { base in
-                    row(base.displayName, base: base, customName: nil)
+                    builtInRow(base)
                 }
             }
         }
-        .navigationTitle("Equipment")
+        .navigationTitle(title)
         .sheet(isPresented: $creating, onDismiss: {
             if let created {
                 self.created = nil
@@ -34,14 +41,32 @@ struct EquipmentList: View {
         }) {
             NewEquipmentView { created = $0 }
         }
+        .equipmentDeletion($deleting)
     }
 
     @ViewBuilder
-    private func row(_ title: String, base: Equipment, customName: String?) -> some View {
+    private func customRow(_ item: CustomEquipment) -> some View {
         if onSelect != nil {
-            Button(title) { select(base, name: customName) }
+            Button(item.name) { select(item.base, name: item.name) }
         } else {
-            Text(title)
+            NavigationLink(item.name) { EquipmentDetail(custom: item) }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    // No destructive role: it removes the row before the user confirms.
+                    Button("Delete", systemImage: "trash") { deleting = item }
+                        .tint(.red)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func builtInRow(_ base: Equipment) -> some View {
+        if onSelect != nil {
+            Button(base.displayName) { select(base, name: nil) }
+        } else if base.hasLoadStep {
+            NavigationLink(base.displayName) { EquipmentDetail(base: base) }
+        } else {
+            // Bodyweight has nothing to set.
+            Text(base.displayName)
         }
     }
 
