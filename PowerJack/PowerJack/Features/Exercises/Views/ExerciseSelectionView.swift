@@ -86,6 +86,7 @@ struct ExerciseSelectionView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercises")
+            .searchAutocorrects()
             .searchPresentationToolbarBehavior(.avoidHidingContent)
             .onSubmit(of: .search) {
                 guard results.isThin else { return }

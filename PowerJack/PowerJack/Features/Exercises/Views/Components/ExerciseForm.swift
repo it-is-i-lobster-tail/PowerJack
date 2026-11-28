@@ -212,6 +212,7 @@ private struct MovesLikeList: View {
         .navigationTitle("Moves Like")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search built-in exercises")
+        .searchAutocorrects()
         .scrollEdgeEffectStyle(.soft, for: .all)
     }
 

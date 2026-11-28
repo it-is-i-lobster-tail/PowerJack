@@ -56,6 +56,7 @@ struct ImportedDataView: View {
         }
         .environment(\.editMode, $editMode)
         .searchable(text: $search, prompt: "Search exercises")
+        .searchAutocorrects()
         // Keep Select and Select All in reach while searching, so a search can be selected and deleted.
         .searchPresentationToolbarBehavior(.avoidHidingContent)
         .navigationTitle(isSelecting ? selectedTitle(selected.count) : "Imported Data")

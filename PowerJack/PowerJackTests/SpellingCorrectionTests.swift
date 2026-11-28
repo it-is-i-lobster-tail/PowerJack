@@ -63,15 +63,18 @@ struct SpellingCorrectionTests {
         #expect(!found.results.isEmpty)
     }
 
-    @Test("The chart search field leaves autocorrect and spell checking on")
-    func chartSearchFieldAutocorrects() async throws {
+    /// UIKit search bars turn autocorrect off by default, so each search screen has to turn it back on.
+    @Test("Search bars keep autocorrect and spell checking on", arguments: ["Lift, muscle, date, or chart", "Search exercises"])
+    func searchBarsAutocorrect(_ prompt: String) async throws {
         let container = try PowerJackSchema.makeModelContainer(inMemory: true)
-        let screen = try await HostedView(ProgramDataView().modelContainer(container))
+        let screen = prompt == "Search exercises"
+            ? try await HostedView(ExerciseSelectionView(navigationTitle: "Exercises").modelContainer(container))
+            : try await HostedView(ProgramDataView().modelContainer(container))
         defer { screen.close() }
         func fields(in view: UIView) -> [UITextField] {
             ((view as? UITextField).map { [$0] } ?? []) + view.subviews.flatMap(fields)
         }
-        let field = try #require(fields(in: screen.window).first { $0.placeholder == "Lift, muscle, date, or chart" })
+        let field = try #require(fields(in: screen.window).first { $0.placeholder == prompt })
         #expect(field.autocorrectionType != .no)
         #expect(field.spellCheckingType != .no)
     }

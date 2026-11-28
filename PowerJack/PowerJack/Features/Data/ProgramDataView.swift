@@ -125,6 +125,7 @@ private struct StudyGallery: View {
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Lift, muscle, date, or chart")
+            .searchAutocorrects()
             .searchFocused($searchFocused)
             .textInputAutocapitalization(.never)
             .onSubmit(of: .search) { run(query) }

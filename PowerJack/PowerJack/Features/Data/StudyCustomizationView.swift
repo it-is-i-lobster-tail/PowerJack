@@ -229,6 +229,7 @@ private struct StudyChoiceList: View {
         }
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "Find \(title.lowercased())")
+        .searchAutocorrects()
     }
 
     private func row(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {

@@ -352,6 +352,7 @@ private struct FitNotesChoice: View {
             }
         }
         .searchable(text: $search)
+        .searchAutocorrects()
         .sheet(isPresented: $creating) {
             NavigationStack {
                 ExerciseNewView(name: name, primaryMuscle: FitNotesMatcher.primaryMuscle(for: name, category: category)) { exercise in
