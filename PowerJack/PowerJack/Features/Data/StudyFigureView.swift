@@ -757,10 +757,12 @@ struct StudyMatrix: View {
                 ForEach(columns.indices, id: \.self) { i in
                     Text(columns[i]).font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true).frame(width: Self.width(for: columns[i]))
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                            headerHeight = max(headerHeight, $0)
+                        }
                         .id(i)
                 }
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
             ForEach(rows.indices, id: \.self) { r in
                 GridRow {
                     ForEach(columns.indices, id: \.self) { c in
