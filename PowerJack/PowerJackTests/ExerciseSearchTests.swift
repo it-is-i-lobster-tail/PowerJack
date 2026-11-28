@@ -102,17 +102,16 @@ struct ExerciseSearchTests {
         bench.exerciseName = "Competition Lift"
         let index = index(all)
         let presses = entries { $0.profile.pattern == .horizontalPress }
-        for query in ["bench press", "BENCH pr", "benchpress"] {
+        for query in ["bench press", "benchpress"] {
             let result = ranked(query, in: index, all)
-            if query == "BENCH pr" {
-                let benchVariants = entries { $0.name.contains("Bench Press") }
-                #expect(benchVariants.isSubset(of: Set(result)))
-                #expect(Set(result).isSubset(of: presses))
-            } else {
-                #expect(Set(result) == presses, "\(query)")
-            }
+            #expect(Set(result) == presses, "\(query)")
             #expect(try #require(result.firstIndex(of: "barbell-bench-press")) < #require(result.firstIndex(of: "push-up")))
         }
+        // A half-typed word still finds every bench variant, and nothing but presses.
+        let partial = ranked("BENCH pr", in: index, all)
+        #expect(entries { $0.name.contains("Bench Press") }.isSubset(of: Set(partial)))
+        #expect(Set(partial).isSubset(of: presses))
+        #expect(try #require(partial.firstIndex(of: "barbell-bench-press")) < #require(partial.firstIndex(of: "push-up")))
         #expect(ranked("  ", in: index, all).isEmpty)
         #expect(ranked("no such movement", in: index, all).isEmpty)
     }
