@@ -9,19 +9,25 @@ struct EquipmentList: View {
     @State private var creating = false
     @State private var created: CustomEquipment?
 
+    private var customOptions: [CustomEquipment] {
+        custom.filter { item in
+            !ExerciseCatalog.equipmentOptions.contains(.init(base: item.base, name: item.name))
+        }
+    }
+
     var body: some View {
         List {
             Button("Create equipment", systemImage: "plus") { creating = true }
-            if !custom.isEmpty {
+            if !customOptions.isEmpty {
                 Section("Your equipment") {
-                    ForEach(custom) { item in
+                    ForEach(customOptions) { item in
                         row(item.name, base: item.base, customName: item.name)
                     }
                 }
             }
             Section("Built-in equipment") {
-                ForEach(Equipment.allCases.sorted { $0.displayName < $1.displayName }) { base in
-                    row(base.displayName, base: base, customName: nil)
+                ForEach(ExerciseCatalog.equipmentOptions, id: \.self) { option in
+                    row(option.displayName, base: option.base, customName: option.name)
                 }
             }
         }
@@ -63,7 +69,7 @@ private struct NewEquipmentView: View {
 
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var nameTaken: Bool {
-        let names = Equipment.allCases.map(\.displayName) + existing.map(\.name)
+        let names = ExerciseCatalog.equipmentOptions.map(\.displayName) + existing.map(\.name)
         return names.contains { $0.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }
     }
 

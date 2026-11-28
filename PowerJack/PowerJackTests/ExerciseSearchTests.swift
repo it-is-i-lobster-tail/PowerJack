@@ -45,12 +45,12 @@ struct ExerciseSearchTests {
         func shown(_ query: String) -> [String] { ranked(query, in: index, all) }
 
         let squats = entries { $0.profile.family == .squat || $0.profile.family == .splitSquatLunge }
-        #expect(squats.count == 11)
+        #expect(squats.count == 13)
         #expect(Set(shown("squats")).isSuperset(of: squats))
 
         let primary = entries { $0.primaryMuscle == .hamstrings }
         let hamstrings = entries { $0.primaryMuscle == .hamstrings || $0.secondaryMuscles.contains(.hamstrings) }
-        #expect(hamstrings.count == 21)
+        #expect(hamstrings.count == 26)
         let hamstring = shown("hamstring")
         #expect(Set(hamstring).isSuperset(of: hamstrings))
         #expect(Set(hamstring.prefix(primary.count)) == primary)
@@ -62,7 +62,8 @@ struct ExerciseSearchTests {
         #expect(Set(shown("db press").prefix(dumbbellPresses.count)) == dumbbellPresses)
         #expect(shown("pullups").first == "pull-up")
         #expect(shown("barbell shrug").contains("dumbbell-shrug"))
-        #expect(shown("hex bar").first == "trap-bar-deadlift")
+        #expect(Set(shown("hex bar").prefix(2)) == ["trap-bar-deadlift", "trap-bar-shrug"])
+        #expect(shown("hex bar shrug").first == "trap-bar-shrug")
         #expect(shown("knee extension").prefix(3).contains("leg-extension"))
         #expect(shown("peanut butter").isEmpty)
     }
