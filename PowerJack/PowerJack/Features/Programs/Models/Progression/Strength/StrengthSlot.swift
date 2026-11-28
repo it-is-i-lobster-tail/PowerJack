@@ -106,7 +106,7 @@ struct StrengthSlotPlan: Equatable {
     func scaled(by share: Double, grid: LoadGrid?, dropping: Int = 0) -> [StrengthPlannedSet] {
         let kept = topSets > 0 ? Array(sets.prefix(max(topSets + 1, sets.count - dropping))) : Array(sets.prefix(max(1, sets.count - dropping)))
         return kept.map { set in
-            StrengthPlannedSet(reps: set.reps, loadKg: set.loadKg.map { grid?.nearest($0 * share) ?? $0 * share })
+            StrengthPlannedSet(reps: set.reps, loadKg: set.loadKg.map { grid?.share($0 * share) ?? $0 * share })
         }
     }
 }

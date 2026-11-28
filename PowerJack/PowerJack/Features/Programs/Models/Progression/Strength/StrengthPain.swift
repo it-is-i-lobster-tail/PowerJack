@@ -70,7 +70,7 @@ enum StrengthPain {
                 loadKg: topLoad,
                 backSets: max(0, count - plan.topSets),
                 backReps: backs.first?.reps ?? plan.reps,
-                backLoadKg: topLoad.map { grid?.nearest($0 * share) ?? $0 * share }
+                backLoadKg: topLoad.map { grid?.share($0 * share) ?? $0 * share }
             )
         }
 

@@ -95,8 +95,9 @@ enum PowerJackPlanner: WeekPlanner {
     }
 
     private static func write(_ entry: PowerJackEntryPlan, in header: PowerJackWeekPlanHeader, to workoutExercise: WorkoutExercise) {
-        workoutExercise.replacePlannedWarmups(entry.warmups.map { tenths($0) })
-        workoutExercise.replacePlannedWorkingSets(entry.sets.map { tenths($0) })
+        let snapped = snappedToOwnedWeights(entry, deload: header.type == .deload, equipment: workoutExercise.exercise?.equipment)
+        workoutExercise.replacePlannedWarmups(snapped.warmups.map { tenths($0) })
+        workoutExercise.replacePlannedWorkingSets(snapped.sets.map { tenths($0) })
         workoutExercise.setProgression(
             // A deload aims at reps left on every set (R6.3).
             rirTarget: header.type == .deload ? PowerJackRules.deloadRIR : entry.target,
@@ -107,6 +108,38 @@ enum PowerJackPlanner: WeekPlanner {
         if let pain = entry.checkInPain {
             workoutExercise.requireCheckIn(sourcePain: pain)
         }
+    }
+
+    /// With only owned weights listed, the planned loads move onto them: working sets to the nearest weight,
+    /// and back-off sets, deloads and warm-ups down to one at or under the plan (or the lightest). Warm-ups that
+    /// land on the same weight, or on the first working set's, are dropped. Even steps keep the engine's loads.
+    static func snappedToOwnedWeights(_ entry: PowerJackEntryPlan, deload: Bool, equipment: Equipment?) -> PowerJackEntryPlan {
+        guard let equipment, let grid = LoadGrid(equipment: equipment), grid.owned != nil else { return entry }
+        func snap(_ pounds: Double?, down: Bool) -> Double? {
+            pounds.map { pounds in
+                let kilograms = pounds * WeightUnit.kilogramsPerPound
+                let load = down ? grid.share(kilograms) : grid.nearest(kilograms)
+                return Double(WeightUnit.tenthsPounds(fromKilograms: load)) / 10
+            }
+        }
+        var snapped = entry
+        for index in snapped.sets.indices {
+            let backOff = entry.topSets > 0 && index >= entry.topSets
+            snapped.sets[index].load = snap(entry.sets[index].load, down: deload || backOff)
+        }
+        let firstLoad = snapped.sets.first?.load
+        var warmups: [PowerJackSetPlan] = []
+        for warmup in entry.warmups {
+            var set = warmup
+            set.load = snap(warmup.load, down: true)
+            if let load = set.load {
+                if let firstLoad, load >= firstLoad { continue }
+                if warmups.last?.load == load { continue }
+            }
+            warmups.append(set)
+        }
+        snapped.warmups = warmups
+        return snapped
     }
 
     private static func tenths(_ set: PowerJackSetPlan) -> (reps: Int?, weightTenthsPounds: Int?) {
