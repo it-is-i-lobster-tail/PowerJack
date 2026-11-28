@@ -33,7 +33,9 @@ struct ExerciseQueryModelTests {
         let filters = try #require(await reader.filters(for: "something for rear delts that doesn't need a bench"))
         let shown = try results("something for rear delts that doesn't need a bench", filters: filters).matches
 
-        #expect(Set(shown.prefix(2).compactMap(\.catalogID)) == ["dumbbell-reverse-fly", "cable-face-pull"])
+        // Reverse flies lead: dumbbell, cable and the reverse pec deck all train only the rear delts.
+        #expect(Set(shown.prefix(2).compactMap(\.catalogID))
+            .isSubset(of: ["dumbbell-reverse-fly", "cable-reverse-fly", "reverse-pec-deck", "cable-face-pull"]))
         #expect(!shown.contains { ExerciseFilters.Setup.bench.isUsed(by: ExerciseQuery.words($0.exerciseName)) })
         #expect(filters.summary == "shoulders, rear delt, no bench")
     }

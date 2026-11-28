@@ -124,6 +124,8 @@ nonisolated enum ExerciseSearch {
         private let entries: [Entry]
         private let encoder: ExerciseTextEncoder?
         private let topics: [AnatomyTopic]
+        /// Every word of every name, so reading lift words never rebuilds it per search.
+        fileprivate let allNameWords: Set<String>
 
         init(_ documents: [Document], encoder: ExerciseTextEncoder? = .bundled) {
             self.encoder = encoder
@@ -146,6 +148,7 @@ nonisolated enum ExerciseSearch {
                              fields: [pattern, style, equipment] + actions + girdleActions,
                              vector: encoder?.vector(for: description) ?? [], mechanics: encoder?.vector(for: mechanics) ?? [])
             }
+            allNameWords = Set(entries.flatMap { $0.names.flatMap { $0 } })
         }
 
         /// Best first. An empty query lists the lifts the lifter trains or, when replacing,
@@ -444,10 +447,14 @@ nonisolated extension ExerciseSearch.Index {
             words[words.count - 1] = completion
         }
 
-        // A typo is a word no lift name uses, so "full" never becomes "pull".
-        let known = Set(entries.flatMap { $0.names.flatMap { $0 } })
+        // A typo is a word no lift name uses, so "full" never becomes "pull". Each typed word is
+        // compared with the name words once: every window and lift then reads the answer.
+        var typos: [String: Set<String>] = [:]
+        for word in Set(words) where !isPlain(word) && !allNameWords.contains(word) {
+            typos[word] = allNameWords.filter { ExerciseSearch.isTypo(word, of: $0) }
+        }
         func isTypo(_ word: String, of target: String) -> Bool {
-            !isPlain(word) && !known.contains(word) && ExerciseSearch.isTypo(word, of: target)
+            typos[word]?.contains(target) ?? false
         }
         /// How many words of the lift's name, beside equipment, the window leaves out, or nil
         /// when a window word isn't in the name.

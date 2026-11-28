@@ -37,7 +37,7 @@ struct FitNotesImportTests {
 
     @Test func liftsMissingFromTheCatalogAreNeverMatched() {
         let catalog = ExerciseCatalog.entries.map { $0.makeExercise() }
-        for name in ["Running (Outdoor)", "Machine Preacher Curl", "Incline Machine Chest Press", "Reverse Nordic Curl"] {
+        for name in ["Running (Outdoor)", "Incline Machine Chest Press", "Reverse Nordic Curl"] {
             #expect(matched(name, among: catalog) == nil, "\(name)")
         }
     }

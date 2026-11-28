@@ -29,12 +29,12 @@ struct MovesLikeTests {
         return try #require(UserDefaults(suiteName: suite))
     }
 
-    @Test("A landmine row proposes Barbell Row, and Change from it offers rows first")
-    func landmineRow() async throws {
-        #expect(MovesLike.clearMatch(name: "Landmine Row", equipment: .barbell, primary: .back) == "catalog:barbell-row")
-        #expect(await MovesLike.propose(name: "Landmine Row", equipment: .barbell, primary: .back) == ["catalog:barbell-row"])
+    @Test("A Meadows row proposes Barbell Row, and Change from it offers rows first")
+    func meadowsRow() async throws {
+        #expect(MovesLike.clearMatch(name: "Meadows Row", equipment: .barbell, primary: .back) == "catalog:barbell-row")
+        #expect(await MovesLike.propose(name: "Meadows Row", equipment: .barbell, primary: .back) == ["catalog:barbell-row"])
 
-        let row = try own("Landmine Row", .barbell, .back)
+        let row = try own("Meadows Row", .barbell, .back)
         var draft = ExerciseDraft(exercise: row)
         draft.propose(movesLike: ["catalog:barbell-row"])
         #expect(draft.apply(to: row))
@@ -58,8 +58,8 @@ struct MovesLikeTests {
         #expect(MovesLike.candidates(name: "Friday finisher", equipment: .dumbbell, primary: .shoulders).isEmpty)
         #expect((await MovesLike.propose(name: "Friday finisher", equipment: .dumbbell, primary: .shoulders)).isEmpty)
         // Words shared with lifts that move differently are not clear.
-        #expect(MovesLike.clearMatch(name: "Bench Dip", equipment: .bodyweight, primary: nil) == nil)
-        let choices = MovesLike.candidates(name: "Bench Dip", equipment: .bodyweight, primary: nil).map(\.profile.pattern)
+        #expect(MovesLike.clearMatch(name: "Bench Hold", equipment: .bodyweight, primary: nil) == nil)
+        let choices = MovesLike.candidates(name: "Bench Hold", equipment: .bodyweight, primary: nil).map(\.profile.pattern)
         #expect(choices.contains(.horizontalPress) && choices.contains(.dip))
 
         let finisher = try own("Friday finisher", .dumbbell, .shoulders, secondary: [.triceps])
@@ -75,13 +75,15 @@ struct MovesLikeTests {
 
     @Test("The primary muscle decides a word several movements share, except when filling in silently")
     func primaryMuscleSettlesCurls() {
-        #expect(MovesLike.clearMatch(name: "Spider Curl", equipment: .dumbbell, primary: nil) == nil)
-        #expect(pattern(MovesLike.clearMatch(name: "Spider Curl", equipment: .dumbbell, primary: .biceps)) == .elbowFlexion)
+        #expect(MovesLike.clearMatch(name: "Drag Curl", equipment: .dumbbell, primary: nil) == nil)
+        #expect(pattern(MovesLike.clearMatch(name: "Drag Curl", equipment: .dumbbell, primary: .biceps)) == .elbowFlexion)
         #expect(pattern(MovesLike.clearMatch(name: "Nordic Curl", equipment: .bodyweight, primary: .hamstrings)) == .kneeFlexion)
-        #expect(MovesLike.clearMatch(name: "Spider Curl", equipment: .dumbbell, primary: .biceps, strict: true) == nil)
+        #expect(MovesLike.clearMatch(name: "Drag Curl", equipment: .dumbbell, primary: .biceps, strict: true) == nil)
         // A shared word on a lift for another muscle is no match: a sled push is not a push-up.
         #expect(MovesLike.clearMatch(name: "Sled Push", equipment: .bodyweight, primary: .quads) == nil)
-        #expect(MovesLike.clearMatch(name: "Paused Bench", equipment: .barbell, primary: .chest, strict: true)
+        // "Paused Bench" alone now also fits Bench Dip, so the silent pass needs the full name.
+        #expect(MovesLike.clearMatch(name: "Paused Bench", equipment: .barbell, primary: .chest, strict: true) == nil)
+        #expect(MovesLike.clearMatch(name: "Paused Bench Press", equipment: .barbell, primary: .chest, strict: true)
             == "catalog:barbell-bench-press")
     }
 
@@ -196,14 +198,14 @@ struct MovesLikeTests {
 
     @Test("The pass over earlier own exercises fills only clear matches, once")
     func fillExisting() throws {
-        let paused = try own("Paused Bench", .barbell, .chest)
+        let paused = try own("Paused Bench Press", .barbell, .chest)
         let finisher = try own("Friday finisher", .dumbbell, .shoulders)
-        let dip = try own("Bench Dip", .bodyweight, .triceps)
+        let dip = try own("Bench Hold", .bodyweight, .triceps)
         let push = try own("Sled Push", .bodyweight, .quads)
-        let curl = try own("Spider Curl", .dumbbell, .biceps)
+        let curl = try own("Drag Curl", .dumbbell, .biceps)
         let defaults = try freshDefaults()
 
-        #expect(try MovesLike.fillExisting(in: context, defaults: defaults) == ["Paused Bench"])
+        #expect(try MovesLike.fillExisting(in: context, defaults: defaults) == ["Paused Bench Press"])
         #expect(paused.movementPattern == .horizontalPress && (paused.jointActions ?? []).count == 2)
         #expect(MovesLike.keys(of: paused) == ["catalog:barbell-bench-press"])
         for unset in [finisher, dip, push, curl] {

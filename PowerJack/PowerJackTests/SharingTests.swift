@@ -132,12 +132,12 @@ struct SharingTests {
 
     @Test("A single shared exercise is added under its own name")
     func singleExercise() throws {
-        let press = try own("Landmine Press", in: sender)
+        let press = try own("Landmine Squeeze Press", in: sender)
         let sharedImport = try received(SharedFile(exercise: press))
         #expect(sharedImport.template == nil)
         #expect(!sharedImport.hasNothingToAdd)
         #expect(try sharedImport.save(in: receiver) == nil)
-        #expect(try exercises(named: "Landmine Press").count == 1)
+        #expect(try exercises(named: "Landmine Squeeze Press").count == 1)
     }
 
     private func lift(_ name: String, _ equipment: Equipment, _ primary: Muscle, in context: ModelContext) throws -> Exercise {
@@ -193,7 +193,7 @@ struct SharingTests {
         #expect(throws: SharedFileError.unreadable) { try SharedFile.decode(Data("hello".utf8)) }
         #expect(throws: SharedFileError.newerVersion) { try SharedFile.decode(Data(#"{"version": 99}"#.utf8)) }
 
-        let press = try own("Landmine Press", in: sender)
+        let press = try own("Landmine Squeeze Press", in: sender)
         var file = SharedFile(exercise: press)
         file.exercises[0].equipment = "hoverboard"
         #expect(throws: SharedFileError.newerVersion) { try received(file) }
