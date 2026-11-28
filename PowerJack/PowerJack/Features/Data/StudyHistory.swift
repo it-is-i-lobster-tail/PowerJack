@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct StudySet {
+struct StudySet: Codable, Equatable {
     var reps: Int?
     var load: Int?
     var target: Int?
@@ -11,7 +11,7 @@ struct StudySet {
     var rating: RepsInReserve?
 }
 
-struct StudySession {
+struct StudySession: Codable, Equatable {
     var date: Date
     var workout: String
     var routine: String
@@ -47,7 +47,7 @@ struct StudySession {
 }
 
 /// One planned or logged workout, for answers that count workouts or their minutes.
-struct StudyWorkout {
+struct StudyWorkout: Codable, Equatable {
     let key: String
     let status: Status
     let began: Date?
@@ -81,110 +81,30 @@ struct StudyHistory {
         programs: [Program], archive: [ArchivedRow], logs: [WorkoutLog], imported: [ImportedSet] = [],
         exercises: [Exercise] = [], unit: WeightUnit, today: Date = .now, calendar: Calendar = .current
     ) {
+        let parts = HistoryParts(programs: programs, archive: archive, logs: logs, imported: imported,
+                                 exercises: exercises, calendar: calendar)
+        self.init(parts: parts, unit: unit, today: today, calendar: calendar)
+    }
+
+    /// The history as of `today`, from pieces built for any day.
+    init(parts: HistoryParts, unit: WeightUnit, today: Date = .now, calendar: Calendar = .current) {
         self.unit = unit
         self.today = today
         self.calendar = calendar
-        movesLike = Dictionary(exercises.compactMap { exercise in
-            guard let key = exercise.syncKey, let built = MovesLike.key(of: exercise) else { return nil }
-            return (key, built)
-        }, uniquingKeysWith: { first, _ in first })
+        movesLike = parts.movesLike
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
-        for program in programs {
-            let pid = program.syncID?.uuidString ?? String(describing: program.persistentModelID)
-            for week in program.programWeeks {
-                for workout in week.workouts {
-                    let key = "\(pid)/\(week.order)/\(workout.order)"
-                    if let date = workout.startedAt ?? workout.endedAt, date > today { continue }
-                    workouts[key] = StudyWorkout(key: key, status: workout.status, began: workout.startedAt,
-                        ended: workout.endedAt, seconds: workout.endedAt == nil ? nil : workout.duration())
-                    guard workout.status != .planned else { continue }
-                    guard let date = workout.endedAt ?? workout.startedAt, date <= today else { continue }
-                    for slot in workout.workoutExercises {
-                        guard let exercise = slot.shownExercise else { continue }
-                        let working = slot.workingSets
-                        let feedback = slot.feedback
-                        let rated = feedback?.completedSets ?? working.filter { $0.status == .complete }.count
-                        var completed = 0
-                        let sets = working.map { set in
-                            if set.status == .complete { completed += 1 }
-                            return StudySet(
-                                reps: set.reps, load: set.weightTenthsPounds, target: set.repsPlanned,
-                                targetLoad: set.weightTenthsPlannedPounds, status: set.status, logged: set.completedAt,
-                                rating: set.status == .complete && completed == rated ? feedback?.repsInReserve : nil)
-                        }
-                        sessions.append(
-                            StudySession(
-                                date: date, workout: "\(pid)/\(week.order)/\(workout.order)",
-                                routine: "\(program.templateName) · day \(workout.order + 1)",
-                                block: week.blockWeek > 0 ? "\(pid)/\(week.order + 1 - week.blockWeek)" : nil,
-                                blockWeek: week.blockWeek > 0 ? week.blockWeek : nil,
-                                seconds: workout.endedAt == nil ? nil : workout.duration(),
-                                finished: workout.status == .complete,
-                                slot: slot.order, superset: slot.supersetID != nil,
-                                key: exercise.syncKey ?? exercise.exerciseName,
-                                name: exercise.exerciseName, planned: slot.exercise.map { $0.syncKey ?? $0.exerciseName },
-                                primary: exercise.primaryMuscleFocus, assisting: exercise.secondaryMuscles,
-                                loaded: !exercise.repsOnly && !exercise.addsToBodyweight,
-                                repsOnly: exercise.repsOnly, targetRIR: slot.rirTarget,
-                                sets: sets, warmups: slot.warmupSets.map { set in
-                                    StudySet(reps: set.reps, load: set.weightTenthsPounds, target: set.repsPlanned,
-                                        targetLoad: set.weightTenthsPlannedPounds, status: set.status, logged: set.completedAt)
-                                }))
-                    }
-                }
-            }
+        for part in parts.workouts.values {
+            if let date = part.workout.date, date > today { continue }
+            workouts[part.workout.key] = part.workout
+            sessions += part.sessions.filter { $0.date <= today }
         }
-
-        // Prefer retained program objects for richer fields. Only recover archived programs once.
-        let liveIDs = Set(programs.compactMap(\.syncID))
-        let saved = HistoryArchive.uniqueBatchRecords(
-            archive.filter { record in
-                !(record.programID.map(liveIDs.contains) ?? false)
-            })
-        let archivedSlots = Dictionary(grouping: saved) { record in
-            let pid = (record.programID ?? record.batchID)?.uuidString ?? record.row.programName
-            return "\(pid)/\(record.row.week)/\(record.row.day)/\(record.row.exerciseNumber)"
+        for part in parts.archived {
+            if let date = part.workout.date, date > today { continue }
+            workouts[part.workout.key] = part.workout
+            if let session = part.session, session.date <= today { sessions.append(session) }
         }
-        for entry in archivedSlots.values {
-            let rows = entry.sorted { $0.order < $1.order }.map(\.row)
-            guard let first = rows.first else { continue }
-            if let date = first.workoutStarted ?? first.workoutEnded, date > today { continue }
-            let pid = (entry.first?.programID ?? entry.first?.batchID)?.uuidString ?? first.programName
-            let key = "\(pid)/\(first.week)/\(first.day)"
-            workouts[key] = StudyWorkout(key: key, status: Status(rawValue: first.workoutStatus.lowercased()) ?? .planned,
-                began: first.workoutStarted, ended: first.workoutEnded, seconds: first.workoutSeconds)
-            guard let date = first.workoutEnded ?? first.workoutStarted, date <= today else { continue }
-            let working = rows.filter { $0.setType != "Warmup" }
-            var sets = working.map { row in
-                StudySet(
-                    reps: row.reps, load: row.weightTenthsPounds, target: row.targetReps,
-                    targetLoad: row.targetWeightTenthsPounds,
-                    status: Status(rawValue: row.setStatus.lowercased()) ?? .planned,
-                    logged: row.setLogged)
-            }
-            if let last = sets.lastIndex(where: { $0.status == .complete }) {
-                sets[last].rating = RepsInReserve.allCases.first { $0.label == first.effort }
-            }
-            sessions.append(
-                StudySession(
-                    date: date, workout: "\(pid)/\(first.week)/\(first.day)",
-                    routine: "\(first.programName) · day \(first.day)",
-                    seconds: first.workoutSeconds, finished: first.workoutStatus == "Complete",
-                    slot: first.exerciseNumber - 1, superset: !first.superset.isEmpty,
-                    key: first.exerciseKey.isEmpty ? first.exerciseName : first.exerciseKey, name: first.exerciseName,
-                    primary: Muscle(rawValue: first.primaryMuscle.lowercased()),
-                    loaded: ![Equipment.bodyweight.displayName, Equipment.loadableBodyweight.displayName, ""].contains(
-                        first.equipment),
-                    repsOnly: first.equipment == Equipment.bodyweight.displayName,
-                    targetRIR: Int(first.rirTarget), sets: sets,
-                    warmups: rows.filter { $0.setType == "Warmup" }.map { row in
-                        StudySet(reps: row.reps, load: row.weightTenthsPounds, target: row.targetReps,
-                            targetLoad: row.targetWeightTenthsPounds, status: Status(rawValue: row.setStatus.lowercased()) ?? .planned,
-                            logged: row.setLogged)
-                    }))
-        }
-        let importedSessions = Self.sessions(from: imported, exercises: exercises, today: today, calendar: calendar)
+        let importedSessions = parts.imported.filter { $0.date <= today }
         sessions += importedSessions
         for session in importedSessions where workouts[session.workout] == nil {
             workouts[session.workout] = StudyWorkout(
@@ -192,10 +112,10 @@ struct StudyHistory {
         }
         self.workouts = workouts.values.sorted { ($0.date ?? .distantFuture, $0.key) < ($1.date ?? .distantFuture, $1.key) }
         self.sessions = sessions.sorted { ($0.date, $0.workout, $0.slot) < ($1.date, $1.workout, $1.slot) }
-        let recordedLogs = logs.filter { $0.date <= today }
+        let recordedLogs = parts.logs.filter { $0.date <= today }
         self.firstDate = min(self.sessions.first?.date ?? today, recordedLogs.map(\.date).min() ?? today)
         self.credits = recordedLogs.flatMap { log in
-            Muscle.allCases.map { muscle in (log.date, muscle, log.sets(for: muscle)) }
+            zip(Muscle.allCases, log.sets).map { muscle, sets in (log.date, muscle, sets) }
         } + importedSessions.flatMap(Self.credits)
         var hasher = Hasher()
         hasher.combine(calendar.startOfDay(for: today))
@@ -220,37 +140,6 @@ struct StudyHistory {
             hasher.combine(credit.sets)
         }
         self.revision = hasher.finalize()
-    }
-
-    /// Imported sets grouped into one session per exercise per training day, dated at local noon.
-    /// Rows without reps (cardio, timed holds) aren't strength sets, so they are left out.
-    private static func sessions(
-        from imported: [ImportedSet], exercises: [Exercise], today: Date, calendar: Calendar
-    ) -> [StudySession] {
-        let byKey = Dictionary(exercises.compactMap { e in e.syncKey.map { ($0, e) } }, uniquingKeysWith: { a, _ in a })
-        let days = Dictionary(grouping: imported.filter { $0.reps != nil }, by: \.trainingDay)
-        return days.flatMap { day, rows -> [StudySession] in
-            let parts = day.split(separator: "-").compactMap { Int($0) }
-            guard parts.count == 3,
-                  let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12)),
-                  date <= today else { return [] }
-            let slots = Dictionary(grouping: rows, by: \.exerciseKey).values
-                .map { $0.sorted { $0.sourceOrder < $1.sourceOrder } }
-                .sorted { $0[0].sourceOrder < $1[0].sourceOrder }
-            return slots.enumerated().map { slot, rows in
-                let first = rows[0]
-                let exercise = byKey[first.exerciseKey]
-                let loaded = exercise.map { !$0.repsOnly && !$0.addsToBodyweight }
-                    ?? rows.contains { ($0.weightTenthsPounds ?? 0) > 0 }
-                return StudySession(
-                    date: date, workout: "imported/\(day)", routine: "Imported", seconds: nil, finished: true,
-                    slot: slot, superset: false, key: first.exerciseKey.isEmpty ? first.exerciseName : first.exerciseKey,
-                    name: exercise?.exerciseName ?? first.exerciseName,
-                    primary: exercise?.primaryMuscleFocus ?? Muscle(rawValue: first.muscle),
-                    assisting: exercise?.secondaryMuscles, loaded: loaded, repsOnly: exercise?.repsOnly ?? !loaded,
-                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) })
-            }
-        }
     }
 
     /// Same credit as a finished workout's log: 1 per set for the primary muscle, 0.5 for each secondary.
@@ -386,27 +275,29 @@ struct StudyHistory {
 }
 
 extension StudyHistory {
-    private static let cache = HistoryCache<StudyHistory>()
+    private static var kept: (stamp: [AnyHashable], history: StudyHistory)?
 
     /// The history last built for the Data tab, if any.
-    static var latest: StudyHistory? { cache.latest }
+    static var latest: StudyHistory? { kept?.history }
 
-    /// All saved history, rebuilt once per saved change, weight unit or day instead of on every redraw.
+    /// All saved history. Only what changed since the last call is rebuilt, and nothing at all
+    /// when the store, the weight unit and the day are the same.
     static func current(in context: ModelContext, unit: WeightUnit, now: Date = .now,
                         calendar: Calendar = .current) -> StudyHistory {
-        let key = AnyHashable([AnyHashable(unit), AnyHashable(calendar.startOfDay(for: now))])
-        return cache.value(in: context, key: key) { StudyHistory(context: context, unit: unit, today: now, calendar: calendar) }
+        let summary = HistorySummary.shared
+        let parts = summary.parts(in: context, calendar: calendar)
+        let stamp: [AnyHashable] = [summary.revision, unit, calendar.startOfDay(for: now)]
+        if let kept, kept.stamp == stamp { return kept.history }
+        let history = StudyHistory(parts: parts, unit: unit, today: now, calendar: calendar)
+        kept = (stamp, history)
+        return history
     }
+
+    /// Forgets the kept history, as when the local cache is cleared.
+    static func forget() { kept = nil }
 
     /// Everything the Data tab reads, fetched from the store.
     init(context: ModelContext, unit: WeightUnit, today: Date = .now, calendar: Calendar = .current) {
-        func all<Model: PersistentModel>(_: Model.Type) -> [Model] {
-            (try? context.fetch(FetchDescriptor<Model>())) ?? []
-        }
-        let archive = HistoryArchive.archivedRows(
-            programs: all(HistoryProgram.self), exercises: all(HistoryExercise.self), legacy: all(HistoryRecord.self))
-        self.init(programs: all(Program.self), archive: archive, logs: all(WorkoutLog.self),
-                  imported: all(ImportedSet.self), exercises: all(Exercise.self), unit: unit, today: today,
-                  calendar: calendar)
+        self.init(parts: HistoryParts(context: context, calendar: calendar), unit: unit, today: today, calendar: calendar)
     }
 }

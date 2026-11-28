@@ -449,6 +449,16 @@ extension Program {
 
     var lastLoggedAt: Date? { allWorkouts.compactMap(\.lastLoggedAt).max() }
 
+    /// When its first workout started, or nil before any did.
+    var startedAt: Date? {
+        allWorkouts.compactMap { $0.startedAt ?? $0.lastLoggedAt }.min()
+    }
+
+    /// When its last workout ended or its last set was logged, or nil before either.
+    var endedAt: Date? {
+        allWorkouts.flatMap { [$0.endedAt, $0.lastLoggedAt] }.compactMap { $0 }.max()
+    }
+
     static func fromSnapshot(in context: ModelContext) throws -> [Program] {
         try context.fetch(FetchDescriptor<Program>(predicate: #Predicate { $0.fromSnapshotValue }))
     }
