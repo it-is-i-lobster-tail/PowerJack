@@ -40,4 +40,4 @@ Xcode Cloud builds every release. Merging a pull request into a branch is all it
 - **main** builds for the internal testers ("Alpha" workflow).
 - **staging** builds for the external TestFlight group ("Beta" workflow). It only takes pull requests from main.
 
-Each merge into main raises the patch version and tags it `v<version>`, so a TestFlight build's version shows which main commit it came from. Xcode Cloud sets the build number. To ship to the App Store, submit a tested Beta build in App Store Connect.
+Each merge into main raises the patch version and tags it `v<version>`, so a TestFlight build's version shows which main commit it came from. Xcode Cloud sets the build number. Each build's TestFlight "What to Test" notes list the changes it brings in; `PowerJack/ci_scripts/ci_post_xcodebuild.sh` writes them from the commit titles. To ship to the App Store, submit a tested Beta build in App Store Connect.
