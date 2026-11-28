@@ -12,8 +12,9 @@ import SwiftData
 
 extension ExerciseCatalog {
     /// Bumped when built-in exercises are added, so each device moves its own copies of them once.
+    /// 2: the Smith machine lifts.
     /// An own exercise made later under a built-in name keeps its own identity, as it always has.
-    static let sameNameRevision = 1
+    static let sameNameRevision = 2
     static let sameNameRevisionKey = "catalog.sameNameRevision"
 
     /// Turns each own exercise named exactly like a built-in one (as `matchingName` reads both) into

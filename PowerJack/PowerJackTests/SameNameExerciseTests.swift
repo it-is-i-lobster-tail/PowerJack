@@ -176,6 +176,35 @@ struct SameNameExerciseTests {
         #expect(own.map(\.exerciseName) == ["Pec Deck Reverse"])
     }
 
+    @Test("An own Smith Machine Row from before the Smith lifts were built in becomes the new built-in")
+    func newSmithBuiltInAbsorbsOwnCopy() throws {
+        let context = memoryContext()
+        let defaults = try freshDefaults()
+        // The device already ran the first pass, before the Smith lifts shipped.
+        defaults.set(1, forKey: ExerciseCatalog.sameNameRevisionKey)
+        let mine = own("Smith Machine Row", in: context)
+        let sets = try logSets(3, of: mine, in: context)
+
+        #expect(try ExerciseCatalog.adoptSameNameCopies(in: context, defaults: defaults) == ["Smith Machine Row"])
+        try ExerciseCatalog.seed(in: context)
+
+        let rows = try catalog("smith-machine-row", in: context)
+        #expect(rows.count == 1 && rows.first === mine)
+        #expect(mine.customEquipmentName == "Smith Machine" && mine.equipment == .machine && mine.repRange == 7...11)
+        #expect(sets.allSatisfy { $0.workoutExerciseValue?.exercise === mine && $0.status == .complete })
+    }
+
+    @Test("Searching smith bench finds the Smith bench press first")
+    func smithBenchSearch() throws {
+        let context = memoryContext()
+        try ExerciseCatalog.seed(in: context)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        let index = ExerciseSearch.Index(exercises.map(ExerciseSearch.Document.init))
+        let results = ExercisePickerResults(exercises: exercises, index: index, query: "smith bench", muscles: [], mode: .add)
+        #expect(results.matches.first?.catalogID == "smith-machine-bench-press")
+        #expect(Set(results.matches.prefix(4).compactMap(\.catalogID)).isSuperset(of: ["smith-machine-bench-press", "smith-machine-incline-bench-press"]))
+    }
+
     @Test("A built-in the lifter renamed keeps their own lift under its old name apart")
     func renamedBuiltInStaysApart() throws {
         let context = memoryContext()

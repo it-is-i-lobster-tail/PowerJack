@@ -104,6 +104,16 @@ extension PowerJackExercise {
         "chin-up": (.verticalPull, true),
         "weighted-pull-up": (.verticalPull, true),
         "lat-pulldown": (.verticalPull, true),
+        "smith-machine-bench-press": (.horizontalPush, true),
+        "smith-machine-incline-bench-press": (.horizontalPush, true),
+        "smith-machine-close-grip-bench-press": (.horizontalPush, true),
+        "smith-machine-shoulder-press": (.verticalPush, true),
+        "smith-machine-row": (.horizontalPull, true),
+        "smith-machine-romanian-deadlift": (.hinge, true),
+        "smith-machine-front-squat": (.squat, true),
+        "smith-machine-split-squat": (.squat, true),
+        "smith-machine-bulgarian-split-squat": (.squat, true),
+        "smith-machine-reverse-lunge": (.squat, true),
     ]
 
     private static let catalogIDs = Set(ExerciseCatalog.entries.map(\.id))

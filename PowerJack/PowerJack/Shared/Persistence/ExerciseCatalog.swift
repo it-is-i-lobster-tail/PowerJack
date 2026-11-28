@@ -327,6 +327,32 @@ enum ExerciseCatalog {
               movesLike: ["cable-crunch", "crunch", "sit-up"]),
         Entry("lying-leg-raise", "Lying Leg Raise", .bodyweight, .abs, .low, .legRaise,
               movesLike: ["hanging-leg-raise", "hanging-knee-raise", "reverse-crunch"]),
+
+        // Smith machine.
+        Entry("smith-machine-bench-press", "Smith Machine Bench Press", .machine, .chest, .moderate, .bench, [.triceps, .shoulders], equipmentName: "Smith Machine",
+              movesLike: ["barbell-bench-press", "dumbbell-bench-press", "machine-chest-press"]),
+        Entry("smith-machine-incline-bench-press", "Smith Machine Incline Bench Press", .machine, .chest, .moderate, .inclineBench, [.triceps, .shoulders], equipmentName: "Smith Machine",
+              movesLike: ["incline-barbell-bench-press", "incline-dumbbell-bench-press", "smith-machine-bench-press"]),
+        Entry("smith-machine-close-grip-bench-press", "Smith Machine Close Grip Bench Press", .machine, .triceps, .moderate, .closeGripBench, [.chest, .shoulders], equipmentName: "Smith Machine",
+              movesLike: ["close-grip-bench-press", "smith-machine-bench-press", "dip"]),
+        Entry("smith-machine-shoulder-press", "Smith Machine Shoulder Press", .machine, .shoulders, .moderate, .frontPress, [.triceps], equipmentName: "Smith Machine",
+              movesLike: ["barbell-overhead-press", "machine-shoulder-press", "dumbbell-shoulder-press"]),
+        Entry("smith-machine-row", "Smith Machine Row", .machine, .back, .moderate, .bentOverRow, [.biceps, .forearms], equipmentName: "Smith Machine",
+              movesLike: ["barbell-row", "pendlay-row", "seated-cable-row"]),
+        Entry("smith-machine-shrug", "Smith Machine Shrug", .machine, .back, .low, .shrug, [.forearms], equipmentName: "Smith Machine",
+              movesLike: ["barbell-shrug", "dumbbell-shrug", "trap-bar-shrug"]),
+        Entry("smith-machine-romanian-deadlift", "Smith Machine Romanian Deadlift", .machine, .hamstrings, .high, .hinge, [.glutes, .back], equipmentName: "Smith Machine",
+              movesLike: ["barbell-romanian-deadlift", "dumbbell-romanian-deadlift", "barbell-good-morning"]),
+        Entry("smith-machine-front-squat", "Smith Machine Front Squat", .machine, .quads, .high, .squat, [.glutes, .abs], equipmentName: "Smith Machine",
+              movesLike: ["barbell-front-squat", "smith-machine-squat", "barbell-back-squat"]),
+        Entry("smith-machine-split-squat", "Smith Machine Split Squat", .machine, .quads, .moderate, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine",
+              movesLike: ["split-squat", "dumbbell-bulgarian-split-squat", "reverse-lunge"]),
+        Entry("smith-machine-bulgarian-split-squat", "Smith Machine Bulgarian Split Squat", .machine, .quads, .high, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine",
+              movesLike: ["dumbbell-bulgarian-split-squat", "split-squat", "smith-machine-split-squat"]),
+        Entry("smith-machine-reverse-lunge", "Smith Machine Reverse Lunge", .machine, .quads, .moderate, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine",
+              movesLike: ["reverse-lunge", "split-squat", "dumbbell-walking-lunge"]),
+        Entry("smith-machine-calf-raise", "Smith Machine Calf Raise", .machine, .calves, .low, .calf, equipmentName: "Smith Machine",
+              movesLike: ["standing-calf-raise", "dumbbell-calf-raise", "seated-calf-raise"]),
     ]
 
     /// Named equipment uses its base type for loading and its existing label for storage and sync.

@@ -464,6 +464,10 @@ nonisolated extension ExerciseSearch.Index {
         var taken = Array(repeating: false, count: words.count)
         var spans: [ExerciseSearch.LiftSpan] = []
         func take(_ range: Range<Int>, _ matches: [Entry], isLogged: Bool) {
+            // Lifts with no history are only named, so name the closest: every typed word in the
+            // name, then the fewest words beside them. "front squat" is Barbell Front Squat, not
+            // Smith Machine Front Squat, and "smith front squat" is the Smith one.
+            let matches = isLogged || matches.count < 2 ? matches : Self.closest(matches, to: Set(words[range]))
             let name = matches.count == 1 ? matches[0].sortName
                 : isLogged ? words[range].joined(separator: " ") : Self.sharedName(of: matches)
             spans.append(.init(range: range, keys: isLogged ? matches.map(\.document.key) : [], name: name))
@@ -526,6 +530,18 @@ nonisolated extension ExerciseSearch.Index {
             }
             return .init(range: lower..<upper, keys: span.keys, name: span.name)
         }
+    }
+
+    /// The lifts whose names hold the most of `words`, then the fewest words beside them.
+    private static func closest(_ entries: [Entry], to words: Set<String>) -> [Entry] {
+        func distance(_ entry: Entry) -> (Int, Int) {
+            entry.names.map { name in
+                let name = Set(name)
+                return (words.subtracting(name).count, name.subtracting(words).count)
+            }.min { $0 < $1 } ?? (0, 0)
+        }
+        let best = entries.map(distance).min { $0 < $1 }
+        return entries.filter { distance($0) == best! }
     }
 
     /// The words every one of these lifts' names shares, as in "Incline Bench Press" for the

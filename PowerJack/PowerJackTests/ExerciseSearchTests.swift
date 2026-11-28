@@ -45,12 +45,12 @@ struct ExerciseSearchTests {
         func shown(_ query: String) -> [String] { ranked(query, in: index, all) }
 
         let squats = entries { $0.profile.family == .squat || $0.profile.family == .splitSquatLunge }
-        #expect(squats.count == 13)
+        #expect(squats.count == 17)
         #expect(Set(shown("squats")).isSuperset(of: squats))
 
         let primary = entries { $0.primaryMuscle == .hamstrings }
         let hamstrings = entries { $0.primaryMuscle == .hamstrings || $0.secondaryMuscles.contains(.hamstrings) }
-        #expect(hamstrings.count == 26)
+        #expect(hamstrings.count == 30)
         let hamstring = shown("hamstring")
         #expect(Set(hamstring).isSuperset(of: hamstrings))
         #expect(Set(hamstring.prefix(primary.count)) == primary)
@@ -102,16 +102,19 @@ struct ExerciseSearchTests {
         bench.exerciseName = "Competition Lift"
         let index = index(all)
         let presses = entries { $0.profile.pattern == .horizontalPress }
+        let benches = entries { $0.name.contains("Bench Press") }
         for query in ["bench press", "benchpress"] {
             let result = ranked(query, in: index, all)
-            #expect(Set(result) == presses, "\(query)")
-            #expect(try #require(result.firstIndex(of: "barbell-bench-press")) < #require(result.firstIndex(of: "push-up")))
+            // Every bench press, then other presses until the cutoff: with the Smith presses, the
+            // floor press and incline push-up fall past it.
+            #expect(benches.isSubset(of: Set(result)) && Set(result).isSubset(of: presses), "\(query)")
+            #expect(try #require(result.firstIndex(of: "barbell-bench-press")) < (result.firstIndex(of: "push-up") ?? result.count))
         }
         // A half-typed word still finds every bench variant, and nothing but presses.
         let partial = ranked("BENCH pr", in: index, all)
-        #expect(entries { $0.name.contains("Bench Press") }.isSubset(of: Set(partial)))
+        #expect(benches.isSubset(of: Set(partial)))
         #expect(Set(partial).isSubset(of: presses))
-        #expect(try #require(partial.firstIndex(of: "barbell-bench-press")) < #require(partial.firstIndex(of: "push-up")))
+        #expect(try #require(partial.firstIndex(of: "barbell-bench-press")) < (partial.firstIndex(of: "push-up") ?? partial.count))
         #expect(ranked("  ", in: index, all).isEmpty)
         #expect(ranked("no such movement", in: index, all).isEmpty)
     }

@@ -8,7 +8,7 @@ struct ExerciseCatalogTests {
     @Test("Catalog entries have unique stable IDs and valid exercise fields")
     func catalogValidity() {
         let entries = ExerciseCatalog.entries
-        #expect(entries.count == 114)
+        #expect(entries.count == 126)
         #expect(Set(entries.map(\.id)).count == entries.count)
         let ids = Set(entries.map(\.id))
         for id in ["dumbbell-goblet-squat", "sliding-leg-curl", "smith-machine-squat", "smith-machine-hip-thrust", "cable-hip-abduction",
@@ -55,6 +55,7 @@ struct ExerciseCatalogTests {
             "leg-press", "trap-bar-deadlift", "barbell-deadlift", "barbell-romanian-deadlift",
             "dumbbell-bulgarian-split-squat", "dumbbell-walking-lunge", "barbell-hip-thrust", "smith-machine-hip-thrust",
             "sumo-deadlift", "barbell-box-squat",
+            "smith-machine-romanian-deadlift", "smith-machine-front-squat", "smith-machine-bulgarian-split-squat",
         ])
         #expect(fatigueByID["barbell-bench-press"] == .moderate)
         #expect(fatigueByID["barbell-overhead-press"] == .moderate)
@@ -66,7 +67,7 @@ struct ExerciseCatalogTests {
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 14, .moderate: 42, .low: 58])
+        #expect(counts == [.high: 17, .moderate: 49, .low: 60])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
