@@ -61,10 +61,11 @@ struct TemplateTypeTests {
         UserDefaults.standard.set(TemplateType.strength.rawValue, forKey: TemplateType.selectionKey)
         defer { UserDefaults.standard.removeObject(forKey: TemplateType.selectionKey) }
         let container = PowerJackSeed.makeInMemoryContainer()
-        let screen = try await HostedView(TemplateProgramListView().modelContainer(container))
+        // New Template is a + menu item, which a hosted test can't tap, so the list opens it directly.
+        let screen = try await HostedView(TemplateProgramListView(creation: .newTemplate).modelContainer(container))
         defer { screen.close() }
 
-        #expect(await screen.tap("Add", settleFor: .milliseconds(800)), "\(screen.labels)")
+        #expect(await screen.waitUntil { screen.label(startingWith: "Type") != nil }, "\(screen.labels)")
         let type = try #require(screen.label(startingWith: "Type"), "\(screen.labels)")
         #expect(screen.value(of: type) == TemplateType.strength.name, "\(type): \(screen.value(of: type) ?? "no value")")
     }

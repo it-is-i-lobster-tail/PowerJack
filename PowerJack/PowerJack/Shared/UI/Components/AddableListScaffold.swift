@@ -17,6 +17,8 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
     private let content: () -> Content
     private let createDestination: () -> CreateDestination
     private let onAdd: (() -> Void)?
+    /// When set, the add button opens this menu instead.
+    private let addMenu: (() -> AnyView)?
 
     @State private var isCreating = false
 
@@ -37,6 +39,7 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
         self.content = content
         self.createDestination = createDestination
         self.onAdd = nil
+        self.addMenu = nil
     }
 
     var body: some View {
@@ -63,10 +66,19 @@ struct AddableListScaffold<Content: View, CreateDestination: View>: View {
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: presentCreateDestination) {
-                        Image(systemName: "plus")
+                    if let addMenu {
+                        Menu {
+                            addMenu()
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Add")
+                    } else {
+                        Button(action: presentCreateDestination) {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Add")
                     }
-                    .accessibilityLabel("Add")
                 }
             }
     }
@@ -99,5 +111,27 @@ extension AddableListScaffold where CreateDestination == EmptyView {
         self.content = content
         self.createDestination = { EmptyView() }
         self.onAdd = onAdd
+        self.addMenu = nil
+    }
+
+    /// The add button opens `addMenu`, whose items handle their own navigation.
+    init<AddMenu: View>(
+        navigationTitle: LocalizedStringKey,
+        isEmpty: Bool,
+        emptyTitle: LocalizedStringKey,
+        emptySystemImage: String,
+        hint: (any Hint)? = nil,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder addMenu: @escaping () -> AddMenu
+    ) {
+        self.navigationTitle = navigationTitle
+        self.isEmpty = isEmpty
+        self.emptyTitle = emptyTitle
+        self.emptySystemImage = emptySystemImage
+        self.hint = hint
+        self.content = content
+        self.createDestination = { EmptyView() }
+        self.onAdd = nil
+        self.addMenu = { AnyView(addMenu()) }
     }
 }

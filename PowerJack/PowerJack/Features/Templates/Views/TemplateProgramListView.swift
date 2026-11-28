@@ -13,6 +13,11 @@ struct TemplateProgramListView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    /// The two ways to add a template, from the + menu.
+    enum Creation {
+        case newTemplate, buildForMe
+    }
+
     let onSelect: ((TemplateProgram) -> Void)?
 
     @Query(
@@ -24,11 +29,15 @@ struct TemplateProgramListView: View {
     @State private var selectedTemplate: TemplateProgram?
     @State private var templatePendingDelete: TemplateProgram?
     @State private var saveErrorMessage: String?
+    @State private var creation: Creation?
 
+    /// `creation` opens one of the + menu's screens right away, for tests: hosted menus don't take taps.
     init(
-        onSelect: ((TemplateProgram) -> Void)? = nil
+        onSelect: ((TemplateProgram) -> Void)? = nil,
+        creation: Creation? = nil
     ) {
         self.onSelect = onSelect
+        _creation = State(initialValue: creation)
     }
 
     var body: some View {
@@ -87,8 +96,15 @@ struct TemplateProgramListView: View {
                 }
                 .listRowSpacing(10)
                 .scrollContentBackground(.hidden)
-            } createDestination: {
+            } addMenu: {
+                Button("New Template", systemImage: "square.and.pencil") { creation = .newTemplate }
+                Button("Build for Me", systemImage: "wand.and.sparkles") { creation = .buildForMe }
+            }
+            .navigationDestination(isPresented: isCreating(.newTemplate)) {
                 TemplateProgramNew(templateType: templateType)
+            }
+            .navigationDestination(isPresented: isCreating(.buildForMe)) {
+                BuildForMeView(type: templateType) { creation = nil }
             }
             // Outside the scaffold, so the switcher sits above its hint.
             .safeAreaBar(edge: .top, spacing: 0) {
@@ -122,6 +138,10 @@ struct TemplateProgramListView: View {
             .saveErrorAlert($saveErrorMessage)
         }
         .scrollEdgeEffectStyle(.soft, for: .all)
+    }
+
+    private func isCreating(_ kind: Creation) -> Binding<Bool> {
+        Binding(get: { creation == kind }, set: { if !$0 { creation = nil } })
     }
 
     /// The chosen section's templates. Picking one for a program hides drafts, since they can't start one.
