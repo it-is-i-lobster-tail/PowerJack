@@ -98,8 +98,9 @@ struct TemplateForm: View {
     }
 }
 
-private struct TemplateFocusSelectionLink: View {
+struct TemplateFocusSelectionLink: View {
     let boxHeight: CGFloat
+    var detail: LocalizedStringKey = "Choose one to four muscles"
 
     @Binding var selectedMuscles: [Muscle]
 
@@ -116,7 +117,7 @@ private struct TemplateFocusSelectionLink: View {
                 FormFieldLabel(
                     systemImage: "target",
                     title: "Focus Muscles",
-                    detail: "Choose one to four muscles"
+                    detail: detail
                 )
 
                 VStack {

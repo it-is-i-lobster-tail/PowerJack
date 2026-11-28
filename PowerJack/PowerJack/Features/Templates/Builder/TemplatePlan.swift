@@ -35,7 +35,8 @@ extension TemplatePlan {
         let exercisesByID = Dictionary(exercises.map { (StrengthLifts.key(for: $0), $0) }, uniquingKeysWith: { first, _ in first })
         var draft = TemplateProgramDraft(templateType: request.type)
         draft.templateName = name
-        draft.templateMuscleFocus = request.focus
+        // A template needs focus muscles to start a program, so with none asked for it takes the ones it trains most.
+        draft.templateMuscleFocus = request.focus.isEmpty ? mostTrained(exercisesByID) : request.focus
         draft.workoutsPerWeek = days.count
 
         for (index, day) in days.enumerated() where draft.templateWorkoutDraftsValue.indices.contains(index) {
@@ -51,5 +52,15 @@ extension TemplatePlan {
             }
         }
         return draft
+    }
+
+    /// Up to four muscles with the most exercises leading them, ties in the usual muscle order.
+    private func mostTrained(_ exercisesByID: [String: Exercise]) -> [Muscle] {
+        var counts: [Muscle: Int] = [:]
+        for id in days.flatMap(\.exerciseIDs) {
+            if let muscle = exercisesByID[id]?.primaryMuscleFocus { counts[muscle, default: 0] += 1 }
+        }
+        let ranked = Muscle.allCases.filter { counts[$0] != nil }.sorted { counts[$0, default: 0] > counts[$1, default: 0] }
+        return Array(ranked.prefix(TemplateProgramDraft.maximumFocusMuscles))
     }
 }
