@@ -70,6 +70,23 @@ enum MovementCatalog {
         static let reverseWristCurl = Self(pattern: .wristExtension, actions: [.main("wrist.extension")])
         static let hipAbduction = Self(pattern: .hipAbduction, actions: [.main("hip.abduction")])
         static let dip = Self(pattern: .dip, actions: [.main("shoulder.flexion"), .main("elbow.extension")])
+        // Added with the belt squat, landmine and back extension lifts. Older versions never seeded
+        // these, so nothing stored has to stay as it was.
+        static let straightArmPulldown = Self(pattern: .verticalPull, actions: [.main("shoulder.extension")])
+        static let pullover = Self(pattern: .verticalPull, actions: [.main("shoulder.extension"), .assisting("shoulder.horizontalAdduction")])
+        static let frontRaise = Self(pattern: .lateralRaise, actions: [.main("shoulder.flexion")])
+        static let landminePress = Self(pattern: .overheadPress, actions: [
+            .main("shoulder.flexion"), .assisting("elbow.extension"), .assisting("scapula.upwardRotation"),
+        ])
+        static let pushPress = Self(pattern: .overheadPress, actions: overhead.actions + [.assisting("knee.extension"), .assisting("hip.extension")],
+                                    style: .explosive).braced
+        /// The belt holds the load at the hips, so the trunk carries none of it.
+        static let beltSquat = Self(pattern: .squat, actions: [.main("knee.extension"), .main("hip.extension")])
+        static let hipAdduction = Self(pattern: .hipAbduction, actions: [.main("hip.adduction")])
+        static let backExtension = Self(pattern: .hipHinge, actions: [.main("hip.extension"), .assisting("trunk.extension")])
+        static let gluteHamRaise = Self(pattern: .kneeFlexion, actions: [.main("knee.flexion"), .assisting("hip.extension")])
+        static let pallofPress = Self(pattern: .trunkRotation, actions: [.main("trunk.rotation", .resists)], role: .resists)
+        static let deadBug = Self(pattern: .resistExtension, actions: [.main("trunk.extension", .resists), .assisting("hip.flexion")], role: .resists)
     }
 
     private static let profiles = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.profile) })

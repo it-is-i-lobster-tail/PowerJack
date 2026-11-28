@@ -211,6 +211,35 @@ struct JointModelTests {
         "smith-machine-bulgarian-split-squat": "splitSquatLunge produces hip.extension knee.extension",
         "smith-machine-reverse-lunge": "splitSquatLunge produces hip.extension knee.extension",
         "smith-machine-calf-raise": "calfRaise produces ankle.plantarflexion",
+        "cable-reverse-fly": "reverseFly produces shoulder.horizontalAbduction",
+        "barbell-seal-row": "horizontalPull produces elbow.flexion scapula.retraction shoulder.extension",
+        "reverse-pec-deck": "reverseFly produces shoulder.horizontalAbduction",
+        "barbell-push-press": "overheadPress produces elbow.extension hip.extension knee.extension scapula.upwardRotation shoulder.abduction",
+        "back-extension": "hipHinge produces hip.extension trunk.extension",
+        "machine-preacher-curl": "elbowFlexion produces elbow.flexion",
+        "pike-push-up": "overheadPress produces elbow.extension scapula.upwardRotation shoulder.abduction",
+        "decline-sit-up": "trunkFlexion produces trunk.flexion",
+        "safety-squat-bar-squat": "squat produces hip.extension knee.extension",
+        "rack-pull": "hipHinge produces hip.extension knee.extension",
+        "dumbbell-spider-curl": "elbowFlexion produces elbow.flexion",
+        "landmine-row": "horizontalPull produces elbow.flexion scapula.retraction shoulder.extension",
+        "bench-dip": "dip produces elbow.extension shoulder.flexion",
+        "glute-ham-raise": "kneeFlexion produces hip.extension knee.flexion",
+        "dead-bug": "resistExtension resists trunk.extension",
+        "dumbbell-pullover": "verticalPull produces shoulder.extension shoulder.horizontalAdduction",
+        "pallof-press": "trunkRotation resists trunk.rotation",
+        "leg-press-calf-raise": "calfRaise produces ankle.plantarflexion",
+        "straight-arm-cable-pulldown": "verticalPull produces shoulder.extension",
+        "single-arm-cable-row": "horizontalPull produces elbow.flexion scapula.retraction shoulder.extension",
+        "landmine-press": "overheadPress produces elbow.extension scapula.upwardRotation shoulder.flexion",
+        "dumbbell-preacher-curl": "elbowFlexion produces elbow.flexion",
+        "barbell-reverse-lunge": "splitSquatLunge produces hip.extension knee.extension",
+        "dumbbell-front-raise": "lateralRaise produces shoulder.flexion",
+        "belt-squat": "squat produces hip.extension knee.extension",
+        "machine-hip-adduction": "hipAbduction produces hip.adduction",
+        "t-bar-row": "horizontalPull produces elbow.flexion scapula.retraction shoulder.extension",
+        "dumbbell-hip-thrust": "hipThrustBridge produces hip.extension",
+        "barbell-glute-bridge": "hipThrustBridge produces hip.extension",
     ]
 
     @Test("Stored joint actions and patterns stay as earlier versions seeded them")
@@ -262,7 +291,9 @@ struct JointModelTests {
     func jointWords() throws {
         let (container, exercises, index) = try seeded()
         defer { _ = container }
-        #expect(Set(ranked("rear delts", in: exercises, index).prefix(2)) == ["dumbbell-reverse-fly", "cable-face-pull"])
+        // Reverse flies lead: dumbbell, cable and the reverse pec deck all train only the rear delts.
+        #expect(Set(ranked("rear delts", in: exercises, index).prefix(2))
+            .isSubset(of: ["dumbbell-reverse-fly", "cable-reverse-fly", "reverse-pec-deck", "cable-face-pull"]))
         #expect(Set(ranked("side delts", in: exercises, index).prefix(2)) == ["dumbbell-lateral-raise", "cable-lateral-raise"])
         #expect(!ranked("front squat", in: exercises, index).contains("burpee"))
         #expect(!ranked("squats", in: exercises, index).contains("burpee"))

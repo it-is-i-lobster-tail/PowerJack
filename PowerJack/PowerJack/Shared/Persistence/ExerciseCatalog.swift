@@ -222,6 +222,45 @@ enum ExerciseCatalog {
         Entry("smith-machine-bulgarian-split-squat", "Smith Machine Bulgarian Split Squat", .machine, .quads, .high, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine"),
         Entry("smith-machine-reverse-lunge", "Smith Machine Reverse Lunge", .machine, .quads, .moderate, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine"),
         Entry("smith-machine-calf-raise", "Smith Machine Calf Raise", .machine, .calves, .low, .calf, equipmentName: "Smith Machine"),
+
+        // Back.
+        Entry("straight-arm-cable-pulldown", "Straight-Arm Cable Pulldown", .cable, .back, .low, .straightArmPulldown),
+        Entry("single-arm-cable-row", "Single-Arm Cable Row", .cable, .back, .moderate, .row, [.biceps, .forearms]),
+        Entry("t-bar-row", "T-Bar Row", .machine, .back, .moderate, .row.braced, [.biceps, .forearms, .abs], equipmentName: "Landmine"),
+        Entry("landmine-row", "Landmine Row", .machine, .back, .moderate, .row.braced, [.biceps, .forearms], equipmentName: "Landmine"),
+        Entry("barbell-seal-row", "Barbell Seal Row", .barbell, .back, .moderate, .row, [.biceps, .forearms]),
+        Entry("rack-pull", "Rack Pull", .barbell, .back, .high, .deadlift, [.glutes, .hamstrings, .forearms]),
+
+        // Chest and shoulders.
+        Entry("dumbbell-pullover", "Dumbbell Pullover", .dumbbell, .back, .low, .pullover, [.chest, .triceps]),
+        Entry("reverse-pec-deck", "Reverse Pec Deck", .machine, .shoulders, .low, .reverseFly, [.back], equipmentName: "Pec Deck"),
+        Entry("cable-reverse-fly", "Cable Reverse Fly", .cable, .shoulders, .low, .reverseFly, [.back]),
+        Entry("dumbbell-front-raise", "Dumbbell Front Raise", .dumbbell, .shoulders, .low, .frontRaise),
+        Entry("landmine-press", "Landmine Press", .machine, .shoulders, .moderate, .landminePress, [.chest, .triceps], equipmentName: "Landmine"),
+        Entry("barbell-push-press", "Barbell Push Press", .barbell, .shoulders, .moderate, .pushPress, [.triceps, .quads, .abs]),
+        Entry("pike-push-up", "Pike Push Up", .bodyweight, .shoulders, .moderate, .overhead, [.triceps]),
+
+        // Arms.
+        Entry("dumbbell-preacher-curl", "Dumbbell Preacher Curl", .dumbbell, .biceps, .low, .curl, [.forearms]),
+        Entry("dumbbell-spider-curl", "Dumbbell Spider Curl", .dumbbell, .biceps, .low, .curl, [.forearms]),
+        Entry("machine-preacher-curl", "Machine Preacher Curl", .machine, .biceps, .low, .curl, [.forearms]),
+        Entry("bench-dip", "Bench Dip", .loadableBodyweight, .triceps, .moderate, .dip, [.chest, .shoulders]),
+
+        // Legs and glutes.
+        Entry("belt-squat", "Belt Squat", .machine, .quads, .high, .beltSquat, [.glutes, .hamstrings], equipmentName: "Belt Squat"),
+        Entry("safety-squat-bar-squat", "Safety Squat Bar Squat", .barbell, .quads, .high, .squat, [.glutes, .abs], equipmentName: "Safety Squat Bar"),
+        Entry("machine-hip-adduction", "Machine Hip Adduction", .machine, .quads, .low, .hipAdduction, equipmentName: "Hip Adduction"),
+        Entry("back-extension", "Back Extension", .loadableBodyweight, .glutes, .low, .backExtension, [.hamstrings, .back], equipmentName: "Back Extension"),
+        Entry("glute-ham-raise", "Glute Ham Raise", .loadableBodyweight, .hamstrings, .moderate, .gluteHamRaise, [.glutes], equipmentName: "GHD"),
+        Entry("dumbbell-hip-thrust", "Dumbbell Hip Thrust", .dumbbell, .glutes, .moderate, .bridge.braced, [.hamstrings, .abs]),
+        Entry("barbell-glute-bridge", "Barbell Glute Bridge", .barbell, .glutes, .moderate, .bridge.braced, [.hamstrings, .abs]),
+        Entry("barbell-reverse-lunge", "Barbell Reverse Lunge", .barbell, .quads, .high, .lunge, [.glutes, .hamstrings]),
+        Entry("leg-press-calf-raise", "Leg Press Calf Raise", .legPress, .calves, .low, .calf),
+
+        // Core.
+        Entry("pallof-press", "Pallof Press", .cable, .obliques, .low, .pallofPress, [.abs]),
+        Entry("dead-bug", "Dead Bug", .bodyweight, .abs, .low, .deadBug, [.obliques]),
+        Entry("decline-sit-up", "Decline Sit-Up", .loadableBodyweight, .abs, .low, .crunch, [.obliques]),
     ]
 
     /// Named equipment uses its base type for loading and its existing label for storage and sync.

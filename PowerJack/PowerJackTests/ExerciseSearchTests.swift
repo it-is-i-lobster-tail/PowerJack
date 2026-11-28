@@ -45,12 +45,12 @@ struct ExerciseSearchTests {
         func shown(_ query: String) -> [String] { ranked(query, in: index, all) }
 
         let squats = entries { $0.profile.family == .squat || $0.profile.family == .splitSquatLunge }
-        #expect(squats.count == 17)
+        #expect(squats.count == 20)
         #expect(Set(shown("squats")).isSuperset(of: squats))
 
         let primary = entries { $0.primaryMuscle == .hamstrings }
         let hamstrings = entries { $0.primaryMuscle == .hamstrings || $0.secondaryMuscles.contains(.hamstrings) }
-        #expect(hamstrings.count == 30)
+        #expect(hamstrings.count == 37)
         let hamstring = shown("hamstring")
         #expect(Set(hamstring).isSuperset(of: hamstrings))
         #expect(Set(hamstring.prefix(primary.count)) == primary)
@@ -133,7 +133,8 @@ struct ExerciseSearchTests {
         let triceps = ranked("triceps", in: index, all)
         let direct = entries { $0.primaryMuscle == .triceps }
         #expect(Set(triceps.prefix(direct.count)) == direct)
-        #expect(ranked("landmine", in: index, all).first == "Landmine twist")
+        // The built-in landmine lifts share the word, so the custom lift sits among them.
+        #expect(ranked("landmine", in: index, all).prefix(4).contains("Landmine twist"))
     }
 
     @Test("Natural-language region searches select the right muscles for built-in and custom lifts")
@@ -158,7 +159,8 @@ struct ExerciseSearchTests {
         #expect(primaries(Array(ranked("core training", in: index, all).prefix(5))).allSatisfy { [.abs, .obliques].contains($0) })
         #expect(primaries(Array(ranked("arm day", in: index, all).prefix(5))).allSatisfy { [.biceps, .triceps].contains($0) })
         #expect(ranked("peanut butter", in: index, all).isEmpty)
-        #expect(ranked("leg press", in: index, all) == ["leg-press"])
+        // Leg Press Calf Raise holds both words, after the leg press itself.
+        #expect(ranked("leg press", in: index, all) == ["leg-press", "leg-press-calf-raise"])
         #expect(Set(ranked("leg curls", in: index, all)) == ["seated-leg-curl", "lying-leg-curl", "sliding-leg-curl", "nordic-hamstring-curl"])
         // Equipment ranks first but no longer hides the rest.
         let presses = ranked("dumbbell bench press", in: index, all)

@@ -104,6 +104,7 @@ nonisolated struct ExerciseQuery: Hashable, Sendable {
         (["rdl"], ["romanian", "deadlift"]), (["rdls"], ["romanian", "deadlift"]),
         (["sldl"], ["stiff", "leg", "deadlift"]), (["ohp"], ["overhead", "press"]), (["military"], ["overhead"]),
         (["skullcrusher"], ["skull", "crusher"]), (["skullcrushers"], ["skull", "crusher"]), (["chins"], ["chin", "up"]),
+        (["ssb"], ["safety", "squat", "bar"]), (["tbar"], ["t", "bar"]), (["ghr"], ["glute", "ham", "raise"]),
     ]
 
     private static let fillerWords: Set<String> = [

@@ -102,7 +102,8 @@ struct SameNameExerciseTests {
         let machine = try #require(ExerciseCatalog.equipmentOptionsByType.first { $0.base == .machine })
         #expect(machine.options.first?.name == nil)
         let names = Set(machine.options.compactMap(\.name))
-        #expect(names.isSuperset(of: ["Smith Machine", "Hack Squat", "Leg Extension", "Seated Leg Curl", "Lying Leg Curl", "Pec Deck"]))
+        #expect(names.isSuperset(of: ["Smith Machine", "Hack Squat", "Leg Extension", "Seated Leg Curl", "Lying Leg Curl", "Pec Deck",
+                                      "Belt Squat", "Landmine", "Hip Adduction"]))
         #expect(ExerciseCatalog.equipmentOptionsByType.map(\.base) == Equipment.allCases)
         #expect(ExerciseCatalog.equipmentOptionsByType.flatMap(\.options).count == ExerciseCatalog.equipmentOptions.count)
     }
@@ -203,6 +204,36 @@ struct SameNameExerciseTests {
         let results = ExercisePickerResults(exercises: exercises, index: index, query: "smith bench", muscles: [], mode: .add)
         #expect(results.matches.first?.catalogID == "smith-machine-bench-press")
         #expect(Set(results.matches.prefix(4).compactMap(\.catalogID)).isSuperset(of: ["smith-machine-bench-press", "smith-machine-incline-bench-press"]))
+    }
+
+    @Test("An own T-Bar Row from before it was built in becomes the built-in on the landmine")
+    func newTBarRowAbsorbsOwnCopy() throws {
+        let context = memoryContext()
+        let defaults = try freshDefaults()
+        defaults.set(2, forKey: ExerciseCatalog.sameNameRevisionKey)
+        let mine = own("t-bar row", in: context)
+        let sets = try logSets(2, of: mine, in: context)
+
+        #expect(try ExerciseCatalog.adoptSameNameCopies(in: context, defaults: defaults) == ["T-Bar Row"])
+        try ExerciseCatalog.seed(in: context)
+
+        #expect(try catalog("t-bar-row", in: context).count == 1)
+        #expect(mine.catalogID == "t-bar-row" && mine.customEquipmentName == "Landmine" && mine.equipment == .machine)
+        #expect(sets.allSatisfy { $0.workoutExerciseValue?.exercise === mine && $0.status == .complete })
+    }
+
+    @Test("Lifter shorthand finds the new lifts", arguments: [
+        ("t bar row", "t-bar-row"), ("tbar row", "t-bar-row"), ("landmine press", "landmine-press"),
+        ("ssb squat", "safety-squat-bar-squat"), ("belt squat", "belt-squat"), ("ghr", "glute-ham-raise"),
+        ("pallof", "pallof-press"), ("seal row", "barbell-seal-row"),
+    ])
+    func newLiftSearch(query: String, id: String) throws {
+        let context = memoryContext()
+        try ExerciseCatalog.seed(in: context)
+        let exercises = try context.fetch(FetchDescriptor<Exercise>())
+        let index = ExerciseSearch.Index(exercises.map(ExerciseSearch.Document.init))
+        let results = ExercisePickerResults(exercises: exercises, index: index, query: query, muscles: [], mode: .add)
+        #expect(results.matches.first?.catalogID == id, "\(query): \(results.matches.prefix(3).map(\.exerciseName))")
     }
 
     @Test("A built-in the lifter renamed keeps their own lift under its old name apart")

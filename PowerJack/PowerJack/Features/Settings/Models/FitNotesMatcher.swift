@@ -94,11 +94,18 @@ enum FitNotesMatcher {
         }
     }
 
-    /// The exercise with exactly this name, or the lift an audited alias names.
+    /// The exercise with exactly this name (plurals and shorthand read as the search reads them),
+    /// or the lift an audited alias names.
     static func direct(_ name: String, among exercises: [Exercise]) -> Exercise? {
         let key = ExerciseCatalog.matchingName(name)
         let exact = exercises.filter { ExerciseCatalog.matchingName($0.exerciseName) == key }
         if exact.count == 1 { return exact.first }
+        // The same words read the search's way, so "Sit Ups" is Sit-Up and not Decline Sit-Up.
+        if exact.isEmpty {
+            let words = ExerciseQuery.words(name)
+            let same = exercises.filter { ExerciseQuery.words($0.exerciseName) == words }
+            if same.count == 1 { return same.first }
+        }
         guard let id = aliases[key] else { return nil }
         return exercises.first { $0.catalogID == id }
     }
