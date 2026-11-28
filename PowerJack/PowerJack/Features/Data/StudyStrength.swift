@@ -15,7 +15,7 @@ extension StudyHistory {
             }
             let grouped = Dictionary(grouping: legs, by: \.key)
             let series = grouped.values.sorted { ($0.first?.name ?? "") < ($1.first?.name ?? "") }.map {
-                StudySeries(name: $0[0].name, points: estimatePoints($0))
+                StudySeries(name: $0[0].name, points: estimatePoints($0), exerciseKey: $0[0].key)
             }
             let rows = legs.compactMap { s -> [String]? in
                 guard let best = s.best,

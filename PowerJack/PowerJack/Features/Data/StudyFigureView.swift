@@ -7,6 +7,7 @@ struct StudyFigureView: View {
     let compact: Bool
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.graphFavorites) private var graphFavorites
     private func ink(_ index: Int) -> Color { WorkoutChartPalette.color(at: index, scheme: scheme) }
 
     @ViewBuilder var body: some View {
@@ -68,7 +69,7 @@ struct StudyFigureView: View {
         case .liftPanels(let series):
             VStack(alignment: .leading, spacing: compact ? 3 : 18) {
                 ForEach(Array(series.prefix(compact ? 3 : series.count).enumerated()), id: \.offset) { index, trace in
-                    if !compact { Text("\(trace.name) · \(study.yLabel)").font(.headline) }
+                    if !compact { panelTitle(trace, onlyGraph: series.count == 1) }
                     Chart(Array(trace.points.enumerated()), id: \.offset) { _, point in
                         let date = Date(timeIntervalSince1970: point.x)
                         if trace.style == .bars {
@@ -148,6 +149,23 @@ struct StudyFigureView: View {
             } else {
                 ContentUnavailableView(
                     "No matching history", systemImage: "chart.xyaxis.line", description: Text(study.emptyReason))
+            }
+        }
+    }
+}
+
+extension StudyFigureView {
+    /// One lift's title. On a page of several graphs, the trailing side can star just this one.
+    private func panelTitle(_ trace: StudySeries, onlyGraph: Bool) -> some View {
+        let title = "\(trace.name) · \(study.yLabel)"
+        return HStack {
+            Text(title).font(.headline)
+            Spacer(minLength: 8)
+            if !onlyGraph, let graphFavorites, let key = trace.exerciseKey {
+                GraphFavoriteButton(title: title, isFavorite: graphFavorites.starred.contains(key)) {
+                    graphFavorites.toggle(key, title)
+                }
+                .accessibilityIdentifier("data.graph.favorite.\(key)")
             }
         }
     }

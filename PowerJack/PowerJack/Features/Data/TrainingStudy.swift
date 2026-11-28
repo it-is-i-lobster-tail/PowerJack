@@ -66,6 +66,8 @@ struct StudySeries: Equatable {
     let name: String
     let points: [StudyPoint]
     var style: Style = .line
+    /// The one lift this series shows, when it is a lift's own graph.
+    var exerciseKey: String?
 }
 
 struct StudyBar: Equatable {

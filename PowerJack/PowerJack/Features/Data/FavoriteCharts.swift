@@ -45,6 +45,20 @@ struct FavoriteCharts {
         return try updated.encoded()
     }
 
+    /// The lifts among `keys` whose own graph of this chart is a favorite.
+    func starredGraphs(_ study: TrainingStudy, options: StudyOptions, keys: [String]) -> Set<String> {
+        Set(keys.filter { favorite(study, options: options.narrowed(to: $0)) != nil })
+    }
+
+    /// Each favorite as a gallery tile, opened with its own saved choices.
+    func cards(result: (TrainingStudy, StudyOptions) -> StudyResult) -> [GalleryCard] {
+        charts.map { favorite in
+            GalleryCard(id: GalleryCardID(study: favorite.study, exerciseKeys: favorite.options.exerciseKeys,
+                                          favorite: favorite.id),
+                        options: favorite.options, result: result(favorite.study, favorite.options))
+        }
+    }
+
     func removing(_ id: UUID) throws -> Data {
         var updated = self
         updated.charts.removeAll { $0.id == id }
@@ -58,3 +72,17 @@ struct FavoriteCharts {
 }
 
 extension TrainingStudy: Codable {}
+
+extension StudyOptions {
+    /// The same dates, view and numbers, showing only this lift: one graph of a page that shows several.
+    func narrowed(to exerciseKey: String) -> StudyOptions {
+        var options = self
+        options.exerciseKeys = [exerciseKey]
+        options.muscles = []
+        options.secondExercise = nil
+        // A search phrase no longer describes a single lift.
+        options.searchFocus = nil
+        options.showsFullSearchTitle = nil
+        return options
+    }
+}

@@ -59,10 +59,7 @@ private struct StudyGallery: View {
     @State private var showsAllCharts = false
 
     private var favorites: [GalleryCard] {
-        FavoriteCharts(data: storedFavorites).charts.map { favorite in
-            GalleryCard(id: GalleryCardID(study: favorite.study, exerciseKeys: favorite.options.exerciseKeys, favorite: favorite.id),
-                        options: favorite.options, result: cache.result(for: favorite.study, options: favorite.options, in: history))
-        }
+        FavoriteCharts(data: storedFavorites).cards { cache.result(for: $0, options: $1, in: history) }
     }
 
     var body: some View {
@@ -162,10 +159,16 @@ private struct StudyGallery: View {
                     let source = searchEdits[id] == nil ? card.result : history.result(for: id.study, options: options)
                     let study = source.presented(as: options.presentation, transpose: options.transpose)
                     let keepsEdits = searching || id.favorite != nil
+                    let saved = FavoriteCharts(data: storedFavorites)
                     StudyDetail(study: study, source: source, history: history, options: options,
                                 saveSearchView: searching && study.question == nil ? { save(options, for: id.study) } : nil,
-                                isFavorite: FavoriteCharts(data: storedFavorites).favorite(id.study, options: options) != nil,
-                                toggleFavorite: { toggleFavorite(id.study, options: options, name: study.displayTitle) }) { updated in
+                                isFavorite: saved.favorite(id.study, options: options) != nil,
+                                toggleFavorite: { toggleFavorite(id.study, options: options, name: study.displayTitle) },
+                                graphFavorites: GraphFavorites(
+                                    starred: saved.starredGraphs(id.study, options: options, keys: study.graphKeys),
+                                    toggle: { key, title in
+                                        toggleFavorite(id.study, options: options.narrowed(to: key), name: title)
+                                    })) { updated in
                         if keepsEdits { searchEdits[id] = updated } else { save(updated, for: id.study) }
                     }
                     .navigationTransition(.zoom(sourceID: id, in: zoom))
@@ -405,6 +408,7 @@ private struct StudyDetail: View {
     let saveSearchView: (() -> Void)?
     let isFavorite: Bool
     let toggleFavorite: () -> Void
+    let graphFavorites: GraphFavorites
     let apply: (StudyOptions) -> Void
     @State private var customizing = false
     @State private var fullscreen = false
@@ -518,7 +522,7 @@ private struct StudyDetail: View {
     }
 
     @ViewBuilder private var chart: some View {
-        let view = StudyFigureView(study: study, compact: false)
+        let view = StudyFigureView(study: study, compact: false).environment(\.graphFavorites, graphFavorites)
         switch study.figure {
         case .traces(let series, _):
             view.frame(height: 290)
