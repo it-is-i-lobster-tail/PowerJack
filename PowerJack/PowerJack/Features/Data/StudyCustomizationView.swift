@@ -202,26 +202,34 @@ private struct StudyChoiceList: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let (shown, correction) = SpellingCorrection.results(
+            for: search, vocabulary: { choices.map(\.name) }, isEmpty: \.isEmpty
+        ) { text in choices.filter { text.isEmpty || $0.name.localizedCaseInsensitiveContains(text) } }
         List {
-            row("Default · \(fallback)", selected: keys.isEmpty) {
-                keys = []
-                if !multiple { dismiss() }
-            }
-            ForEach(choices.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { item in
-                row(item.name, selected: keys.contains(item.key)) {
-                    if !multiple {
-                        keys = [item.key]
-                        dismiss()
-                    } else if keys.contains(item.key) {
-                        keys.removeAll { $0 == item.key }
-                    } else {
-                        keys.append(item.key)
+            Section {
+                row("Default · \(fallback)", selected: keys.isEmpty) {
+                    keys = []
+                    if !multiple { dismiss() }
+                }
+                ForEach(shown) { item in
+                    row(item.name, selected: keys.contains(item.key)) {
+                        if !multiple {
+                            keys = [item.key]
+                            dismiss()
+                        } else if keys.contains(item.key) {
+                            keys.removeAll { $0 == item.key }
+                        } else {
+                            keys.append(item.key)
+                        }
                     }
                 }
+            } header: {
+                if let correction { SpellingCorrectionNote(correction: correction) }
             }
         }
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "Find \(title.lowercased())")
+        .searchAutocorrects()
     }
 
     private func row(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -241,8 +249,10 @@ struct StudyPeriodPicker: View {
     let calendar: Calendar
     let today: Date
     let earliest: Date
-    private enum Kind: String, CaseIterable {
+    enum Kind: String, CaseIterable {
         case original = "Chart default"
+        case fourWeeks = "Last 4 weeks"
+        case threeMonths = "Last 3 months"
         case all = "All history"
         case year = "Year"
         case month = "Month"
@@ -268,7 +278,16 @@ struct StudyPeriodPicker: View {
         case .day: .day
         case .month: .month
         case .range: .range
+        case .recent(.fourWeeks): .fourWeeks
+        case .recent(.threeMonths): .threeMonths
         }
+    }
+
+    /// The choices the menu shows. A span of days comes from search, such as "since September",
+    /// so it is offered only while one is set.
+    static func choices(current period: StudyPeriod) -> [Kind] {
+        let isRange = if case .range = period { true } else { false }
+        return Kind.allCases.filter { $0 != .range || isRange }
     }
     var body: some View {
         Picker(
@@ -279,6 +298,8 @@ struct StudyPeriodPicker: View {
                     switch newKind {
                     case .original: period = .original
                     case .all: period = .all
+                    case .fourWeeks: period = .recent(.fourWeeks)
+                    case .threeMonths: period = .recent(.threeMonths)
                     case .year: period = .year(year)
                     case .day: period = .day(year: year, month: month, day: 1)
                     case .month: period = .month(year: year, month: month)
@@ -288,8 +309,7 @@ struct StudyPeriodPicker: View {
                     }
                 })
         ) {
-            // A span of days comes from search, such as "last 3 months", so it is offered only while one is set.
-            ForEach(Kind.allCases.filter { $0 != .range || kind == .range }, id: \.self) { Text($0 == .original ? defaultLabel : $0.rawValue).tag($0) }
+            ForEach(Self.choices(current: period), id: \.self) { Text($0 == .original ? defaultLabel : $0.rawValue).tag($0) }
         }
         .accessibilityIdentifier("data.control.period")
         if case let .day(year, month, day) = period {

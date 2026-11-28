@@ -8,11 +8,14 @@ enum StudyPeriod: Hashable, Codable {
     case day(year: Int, month: Int, day: Int)
     /// Any span of days, as search reads "last 3 months" or "since September". `end` is excluded.
     case range(start: Date, end: Date)
+    /// A span that ends today and moves with it, such as the last 4 weeks.
+    case recent(StudyRecentSpan)
 
     var usesDailyBuckets: Bool {
         switch self {
         case .month, .day: true
         case let .range(start, end): end.timeIntervalSince(start) <= 62 * 24 * 60 * 60
+        case .recent(let span): span == .fourWeeks
         default: false
         }
     }
@@ -29,7 +32,34 @@ enum StudyPeriod: Hashable, Codable {
                 ?? String(year)
         case let .range(start, end):
             (start..<max(start, end.addingTimeInterval(-1))).formatted(.interval.month(.abbreviated).day().year())
+        case .recent(let span): span.label
         }
+    }
+}
+
+/// Spans that always end today. Saved as their name, so they keep meaning "recent" on later days.
+enum StudyRecentSpan: String, Codable, CaseIterable {
+    case fourWeeks, threeMonths
+
+    var label: String {
+        switch self {
+        case .fourWeeks: "Last 4 weeks"
+        case .threeMonths: "Last 3 months"
+        }
+    }
+
+    /// Whole days through the end of today: 28 days, or from the day after the same date three months ago.
+    func interval(today: Date, calendar: Calendar) -> DateInterval {
+        let start = calendar.startOfDay(for: today)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        let first: Date
+        switch self {
+        case .fourWeeks: first = calendar.date(byAdding: .day, value: -27, to: start) ?? start
+        case .threeMonths:
+            let back = calendar.date(byAdding: .month, value: -3, to: start) ?? start
+            first = calendar.date(byAdding: .day, value: 1, to: back) ?? back
+        }
+        return DateInterval(start: first, end: end)
     }
 }
 
@@ -87,6 +117,26 @@ struct StudyOptions: Equatable, Codable {
     }
 }
 
+extension StudyOptions {
+    /// Points the chart at `newKey` wherever it showed one of `oldKeys`, such as after a merge.
+    mutating func replaceExercise(_ oldKeys: [String], with newKey: String) {
+        exerciseKeys = exerciseKeys.map { oldKeys.contains($0) ? newKey : $0 }.uniqued()
+        if let secondExercise, oldKeys.contains(secondExercise) { self.secondExercise = newKey }
+    }
+
+    /// Saved chart views and starred charts that showed a merged exercise show its target.
+    static func replaceExercise(_ oldKeys: [String], with newKey: String, in defaults: UserDefaults) {
+        if let data = defaults.data(forKey: SavedStudyViews.storageKey),
+           let updated = try? SavedStudyViews(data: data).replacingExercise(oldKeys, with: newKey) {
+            defaults.set(updated, forKey: SavedStudyViews.storageKey)
+        }
+        if let data = defaults.data(forKey: FavoriteCharts.storageKey),
+           let updated = try? FavoriteCharts(data: data).replacingExercise(oldKeys, with: newKey) {
+            defaults.set(updated, forKey: FavoriteCharts.storageKey)
+        }
+    }
+}
+
 /// Keep each chart's last applied controls under its stable study ID. An unreadable entry only affects its own card.
 struct SavedStudyViews {
     static let storageKey = "data.chartOptions.v1"
@@ -102,6 +152,22 @@ struct SavedStudyViews {
             let options = try? JSONDecoder().decode(StudyOptions.self, from: data)
         else { return StudyOptions() }
         return options
+    }
+
+    /// Nil when no saved view showed one of `oldKeys`.
+    func replacingExercise(_ oldKeys: [String], with newKey: String) throws -> Data? {
+        var data: Data?
+        var views = self
+        for id in TrainingStudy.allCases where entries[String(id.rawValue)] != nil {
+            var options = views[id]
+            let before = options
+            options.replaceExercise(oldKeys, with: newKey)
+            guard options != before else { continue }
+            let saved = try views.saving(options, for: id)
+            views = SavedStudyViews(data: saved)
+            data = saved
+        }
+        return data
     }
 
     func saving(_ options: StudyOptions, for id: TrainingStudy) throws -> Data {

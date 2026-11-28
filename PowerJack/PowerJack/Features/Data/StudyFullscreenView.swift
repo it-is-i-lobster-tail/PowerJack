@@ -30,11 +30,13 @@ struct StudyFullscreenView: View {
         switch study.figure {
         case .table(let table):
             ScrollView { StudyTableView(table: table) }
-        case .matrix, .attempts:
+        case .matrix:
+            ScrollView { view }
+        case .attempts:
             ScrollView([.horizontal, .vertical]) { view }
         case .bars(let bars) where study.horizontalCategories:
             ScrollView {
-                view.frame(height: StudyCategoryPlot.height(categories: Set(bars.map(\.label)).count))
+                view.frame(height: StudyCategoryPlot.height(labels: bars.map(\.label)))
             }
         case .comparison(let points, _):
             GeometryReader { geometry in

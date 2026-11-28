@@ -30,6 +30,8 @@ private struct StudyGallery: View {
     @State private var appliedQuery = ""
     @State private var plan: ChartSearchPlan?
     @State private var results = ChartSearchResults()
+    /// The spelling fix the results are for, when the search as typed found nothing.
+    @State private var correction: String?
     @State private var cache = ChartResultCache()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
@@ -120,9 +122,9 @@ private struct StudyGallery: View {
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Lift, muscle, date, or chart")
+            .searchAutocorrects()
             .searchFocused($searchFocused)
             .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
             .onSubmit(of: .search) { run(query) }
             .onChange(of: searchFocused) { _, focused in
                 if focused {
@@ -142,9 +144,14 @@ private struct StudyGallery: View {
             }
             .onDisappear { record() }
             .onChange(of: searchInput, initial: true) {
-                results = ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan,
-                                              history: history, saved: SavedStudyViews(data: storedOptions),
-                                              cache: cache)
+                let saved = SavedStudyViews(data: storedOptions)
+                (results, correction) = SpellingCorrection.results(
+                    for: appliedQuery, vocabulary: { Array(Set(history.sessions.map(\.name))) },
+                    isEmpty: { $0.isEmpty && $0.suggestion == nil }
+                ) { text in
+                    ChartSearch.results(for: ChartQuery(text, history: history), plan: plan,
+                                        history: history, saved: saved, cache: cache)
+                }
             }
             .task {
                 // Load the embedding model off the main thread, so the first search doesn't wait for it.
@@ -230,6 +237,9 @@ private struct StudyGallery: View {
 
     /// What the search read, why nothing matched, and what to try instead.
     @ViewBuilder private var reading: some View {
+        if let correction {
+            SpellingCorrectionNote(correction: correction)
+        }
         if !results.scope.isEmpty {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
@@ -415,6 +425,8 @@ private struct StudyDetail: View {
     @State private var editingReps = false
     @State private var editingDates = false
     @Environment(\.colorScheme) private var scheme
+    /// Charts grow with the reader's text size so axis labels never crowd.
+    @ScaledMetric(relativeTo: .caption) private var chartHeight: CGFloat = 290
 
     var body: some View {
         ScrollView {
@@ -536,11 +548,22 @@ private struct StudyDetail: View {
         }
         switch study.figure {
         case .traces(let series, _):
-            view.frame(height: 290)
+            view.frame(height: chartHeight)
             legend(series.map(\.name))
         case .bars(let bars):
-            view.frame(height: study.horizontalCategories
-                       ? StudyCategoryPlot.height(categories: Set(bars.map(\.label)).count) : 270)
+            if study.horizontalCategories {
+                // Every row keeps its height. Past twelve the chart scrolls inside the card.
+                let rows = bars.map(\.label).studyUnique
+                let row = StudyCategoryPlot.rowHeight(labels: rows)
+                if rows.count > StudyCategoryPlot.visibleRows {
+                    ScrollView { view.frame(height: StudyCategoryPlot.height(labels: rows)) }
+                        .frame(height: CGFloat(StudyCategoryPlot.visibleRows) * row + 44)
+                } else {
+                    view.frame(height: StudyCategoryPlot.height(labels: rows))
+                }
+            } else {
+                view.frame(height: chartHeight - 20)
+            }
             let labels = bars.reduce(into: [String]()) {
                 if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }
             }
@@ -549,7 +572,7 @@ private struct StudyDetail: View {
             view.frame(height: max(160, CGFloat(Set(points.map(\.category)).count) * 54))
             legend(points.map(\.series).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } })
         case .matrix:
-            ScrollView(.horizontal) { view }
+            view
         case .liftPanels, .attempts, .table, nil: view
         }
     }

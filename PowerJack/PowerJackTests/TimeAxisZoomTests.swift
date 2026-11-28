@@ -85,43 +85,45 @@ struct TimeAxisZoomTests {
         #expect(window.time(at: 2) == start + 90 * Self.day)
     }
 
-    @Test("Axis labels stay at four or fewer, inside the plot, and switch from months to days when zoomed")
+    @Test("Axis labels stay at six or fewer, inside the plot, and switch from months to days when zoomed")
     func axisLabels() {
         let whole = TimeAxisWindow(times: times)
-        let months = whole.axis(calendar: calendar)
-        #expect(months.step == .months(1))
-        #expect((1...4).contains(months.ticks.count))
-        #expect(months.ticks.map { whole.label($0, step: months.step, calendar: calendar) } == ["Dec", "2026", "Feb"])
+        let months = whole.ticks(calendar: calendar)
+        #expect(months.map(\.label) == ["Dec", "Jan", "Feb"])
+        // The year shows under the first tick and where it changes.
+        #expect(months.map(\.year) == ["2025", "2026", nil])
 
         let fortnight = TimeAxisWindow(times: times, fraction: 0...(14.0 / 120))
-        let days = fortnight.axis(calendar: calendar)
-        guard case .days = days.step else { Issue.record("Expected a day step, got \(days.step)"); return }
-        #expect((1...4).contains(days.ticks.count))
-        #expect(days.ticks.allSatisfy { fortnight.visible.contains($0) })
-        #expect(fortnight.label(days.ticks[0], step: days.step, calendar: calendar).hasPrefix("Nov "))
+        let days = fortnight.ticks(calendar: calendar)
+        #expect((1...4).contains(days.count))
+        #expect(days.allSatisfy { fortnight.visible.contains($0.date.timeIntervalSince1970) })
+        #expect(days[0].label.hasPrefix("Nov "))
 
         for share in stride(from: 0.06, through: 1, by: 0.07) {
             for lower in stride(from: 0, through: 1 - share, by: 0.13) {
                 let window = TimeAxisWindow(times: times, fraction: lower...(lower + share))
-                let axis = window.axis(calendar: calendar)
+                let ticks = window.ticks(calendar: calendar).map(\.date.timeIntervalSince1970)
                 let length = window.visible.upperBound - window.visible.lowerBound
-                #expect(axis.ticks.count <= 4)
-                #expect(axis.ticks.allSatisfy {
-                    $0 >= window.visible.lowerBound + length * TimeAxisWindow.leadingMargin - 1
-                        && $0 <= window.visible.upperBound - length * TimeAxisWindow.trailingMargin + 1
+                #expect(ticks.count <= 6)
+                #expect(ticks.allSatisfy {
+                    $0 >= window.visible.lowerBound + length * 0.02 - 1 && $0 <= window.visible.upperBound - length * 0.14 + 1
                 })
             }
         }
+    }
+
+    @Test("A chosen range sets the axis rather than the data")
+    func chosenDomain() {
+        let year = (start - 10 * Self.day)...(start + 200 * Self.day)
+        let window = TimeAxisWindow(times: times, domain: year)
+        #expect(window.full == year)
     }
 
     @Test("Day ticks stay on the same dates while panning")
     func stableTicks() {
         let a = TimeAxisWindow(times: times, fraction: 0.2...0.3)
         let b = TimeAxisWindow(times: times, fraction: 0.21...0.31)
-        let first = a.axis(calendar: calendar)
-        let second = b.axis(calendar: calendar)
-        #expect(first.step == second.step)
-        let shared = Set(first.ticks).intersection(second.ticks)
+        let shared = Set(a.ticks(calendar: calendar).map(\.date)).intersection(b.ticks(calendar: calendar).map(\.date))
         #expect(!shared.isEmpty)
     }
 }

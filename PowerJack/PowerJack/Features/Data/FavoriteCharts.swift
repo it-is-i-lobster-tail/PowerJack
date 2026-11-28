@@ -65,6 +65,18 @@ struct FavoriteCharts {
         return try updated.encoded()
     }
 
+    /// Nil when no favorite showed one of `oldKeys`.
+    func replacingExercise(_ oldKeys: [String], with newKey: String) throws -> Data? {
+        var updated = self
+        for index in updated.charts.indices {
+            var options = updated.charts[index].options
+            options.replaceExercise(oldKeys, with: newKey)
+            let chart = updated.charts[index]
+            updated.charts[index] = FavoriteChart(id: chart.id, study: chart.study, name: chart.name, options: options)
+        }
+        return updated.charts == charts ? nil : try updated.encoded()
+    }
+
     private func encoded() throws -> Data {
         let charts = try charts.map { try JSONSerialization.jsonObject(with: JSONEncoder().encode($0)) }
         return try JSONSerialization.data(withJSONObject: ["version": Self.version, "charts": charts])

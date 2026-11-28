@@ -37,8 +37,12 @@ struct ExerciseSelectionView: View {
         let typed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         // Typing on drops the reading, so the fast results return.
         let filters = readText == typed ? reading : nil
-        let results = ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
-                                            query: searchText, filters: filters, muscles: muscles, mode: mode)
+        let (results, correction) = SpellingCorrection.results(
+            for: searchText, vocabulary: { exercises.map(\.exerciseName) }, isEmpty: \.isEmpty
+        ) { text in
+            ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
+                                  query: text, filters: filters, muscles: muscles, mode: mode)
+        }
         NavigationStack {
             List {
                 if let filters {
@@ -57,9 +61,11 @@ struct ExerciseSelectionView: View {
                 }
                 Section {
                     ForEach(results.matches) { exercise in row(exercise) }
-                    if !typed.isEmpty && !mode.isSubstitution {
+                    if !typed.isEmpty && !mode.picksExisting {
                         Button("Add \u{201C}\(typed)\u{201D}", systemImage: "plus") { isCreating = true }
                     }
+                } header: {
+                    if let correction { SpellingCorrectionNote(correction: correction) }
                 }
                 if !results.others.isEmpty {
                     Section("All Exercises") {
@@ -80,6 +86,7 @@ struct ExerciseSelectionView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercises")
+            .searchAutocorrects()
             .searchPresentationToolbarBehavior(.avoidHidingContent)
             .onSubmit(of: .search) {
                 guard results.isThin else { return }
@@ -96,7 +103,7 @@ struct ExerciseSelectionView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if mode.isSubstitution {
+                    if mode.picksExisting {
                         Button("Cancel", action: dismiss.callAsFunction)
                     } else {
                         Button("Close", systemImage: "arrow.left", action: dismiss.callAsFunction)
@@ -108,7 +115,7 @@ struct ExerciseSelectionView: View {
                     }
                     .accessibilityValue(muscles.isEmpty ? "All muscles" : "\(muscles.count) selected")
                 }
-                if !mode.isSubstitution {
+                if !mode.picksExisting {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add", systemImage: "plus") { isCreating = true }
                     }
@@ -132,7 +139,7 @@ struct ExerciseSelectionView: View {
         }
         .background { ExerciseSearchIndexLoader(index: $index, familiarity: $familiarity) }
         .scrollEdgeEffectStyle(.soft, for: .all)
-        .traceScreen(mode.isSubstitution ? "Substitute Picker" : "Exercise Picker")
+        .traceScreen(traceName)
     }
 
     @ViewBuilder
@@ -142,12 +149,23 @@ struct ExerciseSelectionView: View {
                 selectOrEdit(exercise)
             }
             .buttonStyle(.plain)
+        } else if mode.picksExisting {
+            ExerciseSelectionRow(exercise: exercise) { selectOrEdit(exercise) }
+                .buttonStyle(.plain)
         } else {
             ExerciseSelectionRow(exercise: exercise) { selectOrEdit(exercise) }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button("Edit", systemImage: "pencil") { edit(exercise) }
                         .tint(.blue)
                 }
+        }
+    }
+
+    private var traceName: String {
+        switch mode {
+        case .substitute: "Substitute Picker"
+        case .merge: "Merge Picker"
+        case .add, .change: "Exercise Picker"
         }
     }
 
