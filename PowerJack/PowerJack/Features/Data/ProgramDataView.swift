@@ -30,6 +30,8 @@ private struct StudyGallery: View {
     @State private var appliedQuery = ""
     @State private var plan: ChartSearchPlan?
     @State private var results = ChartSearchResults()
+    /// The spelling fix the results are for, when the search as typed found nothing.
+    @State private var correction: String?
     @State private var cache = ChartResultCache()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
@@ -123,9 +125,9 @@ private struct StudyGallery: View {
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Lift, muscle, date, or chart")
+            .searchAutocorrects()
             .searchFocused($searchFocused)
             .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
             .onSubmit(of: .search) { run(query) }
             .onChange(of: searchFocused) { _, focused in
                 if focused {
@@ -145,9 +147,14 @@ private struct StudyGallery: View {
             }
             .onDisappear { record() }
             .onChange(of: searchInput, initial: true) {
-                results = ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan,
-                                              history: history, saved: SavedStudyViews(data: storedOptions),
-                                              cache: cache)
+                let saved = SavedStudyViews(data: storedOptions)
+                (results, correction) = SpellingCorrection.results(
+                    for: appliedQuery, vocabulary: { Array(Set(history.sessions.map(\.name))) },
+                    isEmpty: { $0.isEmpty && $0.suggestion == nil }
+                ) { text in
+                    ChartSearch.results(for: ChartQuery(text, history: history), plan: plan,
+                                        history: history, saved: saved, cache: cache)
+                }
             }
             .task {
                 // Load the embedding model off the main thread, so the first search doesn't wait for it.
@@ -227,6 +234,9 @@ private struct StudyGallery: View {
 
     /// What the search read, why nothing matched, and what to try instead.
     @ViewBuilder private var reading: some View {
+        if let correction {
+            SpellingCorrectionNote(correction: correction)
+        }
         if !results.scope.isEmpty {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {

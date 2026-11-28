@@ -259,8 +259,8 @@ struct MovesLikeList: View {
 
     private var isFull: Bool { picks.count >= MovesLike.maxPicks }
 
-    private var shown: [ExerciseCatalog.Entry] {
-        let query = ExerciseQuery(searchText)
+    private func entries(for text: String) -> [ExerciseCatalog.Entry] {
+        let query = ExerciseQuery(text)
         guard !query.isEmpty else {
             return ExerciseCatalog.entries.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         }
@@ -268,6 +268,9 @@ struct MovesLikeList: View {
     }
 
     var body: some View {
+        let (shown, correction) = SpellingCorrection.results(
+            for: searchText, vocabulary: { ExerciseCatalog.entries.map(\.name) }, isEmpty: \.isEmpty, search: entries(for:)
+        )
         List {
             if searchText.isEmpty && !picks.isEmpty {
                 Section {
@@ -303,7 +306,9 @@ struct MovesLikeList: View {
                     .disabled(isFull && !isPicked)
                 }
             } header: {
-                if searchText.isEmpty && picks.isEmpty {
+                if let correction {
+                    SpellingCorrectionNote(correction: correction)
+                } else if searchText.isEmpty && picks.isEmpty {
                     Text("Pick up to \(MovesLike.maxPicks), closest first")
                 }
             }
@@ -320,6 +325,7 @@ struct MovesLikeList: View {
         .navigationTitle("Moves Like")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search built-in exercises")
+        .searchAutocorrects()
         .scrollEdgeEffectStyle(.soft, for: .all)
     }
 
