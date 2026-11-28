@@ -5,7 +5,6 @@ struct ExerciseHistoryChart: View {
     let unit: WeightUnit
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedSession: ProgramExerciseHistory.Session?
     @State private var metric: SetComparisonChart.Metric? = .reps
 
     var body: some View {
@@ -33,9 +32,6 @@ struct ExerciseHistoryChart: View {
             .scrollTargetBehavior(.paging)
             .defaultScrollAnchor(metric == .weight ? .trailing : .leading, for: .initialOffset)
             .scrollPosition(id: $metric, anchor: .center)
-        } details: { _ in
-            ExerciseWorkoutTable(sessions: exercise.sessions[...], exercise: exercise,
-                                 unit: unit, selected: $selectedSession)
         }
     }
 
