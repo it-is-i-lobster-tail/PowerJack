@@ -705,11 +705,13 @@ extension WorkoutExercise {
         }
     }
     /// Points a row at the surviving copy of a duplicated catalog exercise. Logged sets are kept.
+    /// A substitute that is now the planned exercise itself is no substitute any more.
     func replaceDuplicateExercise(with survivor: Exercise) {
         exerciseValue = survivor
+        if substituteValue === survivor { substituteValue = nil }
     }
     func replaceDuplicateSubstitute(with survivor: Exercise) {
-        substituteValue = survivor
+        substituteValue = exerciseValue === survivor ? nil : survivor
     }
     /// Copies a weight entered on `workoutSet` down the later sets of the same type that still hold
     /// `previousWeight`, what `workoutSet` held before: empty sets, or ones it carried to as the weight was typed.

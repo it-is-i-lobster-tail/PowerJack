@@ -111,7 +111,6 @@ enum ExerciseRemoval {
         try saveAsOne(in: context) {
             // Saved history names exercises by key, so an own target needs its sync ID first.
             target.assignSyncID()
-            let newKey = target.syncKey ?? target.exerciseName
 
             for row in source.templateExercisesValue ?? [] {
                 row.exercise = target
@@ -123,28 +122,7 @@ enum ExerciseRemoval {
                 row.mergeSubstitute(into: target)
             }
 
-            for set in try importedSets(of: oldKeys, in: context) {
-                set.exerciseKey = newKey
-                set.exerciseName = target.exerciseName
-                set.muscle = target.primaryMuscleFocus.rawValue
-            }
-            let saved = SavedExercise(target, key: newKey)
-            for slot in try context.fetch(FetchDescriptor<HistoryExercise>(predicate: #Predicate { oldKeys.contains($0.exerciseKeyValue) })) {
-                slot.exerciseKeyValue = saved.key
-                slot.exerciseNameValue = saved.name
-                slot.exerciseSourceValue = saved.source
-                slot.equipmentValue = saved.equipment
-                slot.primaryMuscleValue = saved.primaryMuscle
-            }
-            for record in try context.fetch(FetchDescriptor<HistoryRecord>(predicate: #Predicate { oldKeys.contains($0.exerciseKeyValue) })) {
-                record.exerciseKeyValue = saved.key
-                record.exerciseNameValue = saved.name
-                record.exerciseSourceValue = saved.source
-                record.equipmentValue = saved.equipment
-                record.primaryMuscleValue = saved.primaryMuscle
-            }
-
-            try moveStrengthRecord(from: source, to: target, in: context)
+            try moveHistory(from: oldKeys, strengthKey: StrengthLifts.key(for: source), to: target, in: context)
             context.delete(source)
         }
 
@@ -155,6 +133,33 @@ enum ExerciseRemoval {
     }
 
     // MARK: Helpers
+
+    /// Points imports, saved history and the lift record that named an exercise by `oldKeys` (and
+    /// `strengthKey`) at `target`. Doesn't save. Charts follow with `StudyOptions.replaceExercise` once saved.
+    static func moveHistory(from oldKeys: [String], strengthKey: String, to target: Exercise, in context: ModelContext) throws {
+        let newKey = target.syncKey ?? target.exerciseName
+        for set in try importedSets(of: oldKeys, in: context) {
+            set.exerciseKey = newKey
+            set.exerciseName = target.exerciseName
+            set.muscle = target.primaryMuscleFocus.rawValue
+        }
+        let saved = SavedExercise(target, key: newKey)
+        for slot in try context.fetch(FetchDescriptor<HistoryExercise>(predicate: #Predicate { oldKeys.contains($0.exerciseKeyValue) })) {
+            slot.exerciseKeyValue = saved.key
+            slot.exerciseNameValue = saved.name
+            slot.exerciseSourceValue = saved.source
+            slot.equipmentValue = saved.equipment
+            slot.primaryMuscleValue = saved.primaryMuscle
+        }
+        for record in try context.fetch(FetchDescriptor<HistoryRecord>(predicate: #Predicate { oldKeys.contains($0.exerciseKeyValue) })) {
+            record.exerciseKeyValue = saved.key
+            record.exerciseNameValue = saved.name
+            record.exerciseSourceValue = saved.source
+            record.equipmentValue = saved.equipment
+            record.primaryMuscleValue = saved.primaryMuscle
+        }
+        try moveStrengthRecord(from: strengthKey, to: target, in: context)
+    }
 
     /// The keys saved history and imports name an exercise by: its sync key, or its name for rows
     /// saved before it had one.
@@ -168,11 +173,10 @@ enum ExerciseRemoval {
 
     /// The target keeps its own lift record. One that never had one takes the source's, so a
     /// strength program doesn't start it over. Lift records are only ever added, so a new log holds it.
-    private static func moveStrengthRecord(from source: Exercise, to target: Exercise, in context: ModelContext) throws {
+    private static func moveStrengthRecord(from sourceKey: String, to target: Exercise, in context: ModelContext) throws {
         guard var state = try StrengthLog.latest(in: context)?.state else { return }
-        let sourceKey = StrengthLifts.key(for: source)
-        guard let record = state.lifts.removeValue(forKey: sourceKey) else { return }
         let targetKey = StrengthLifts.key(for: target)
+        guard sourceKey != targetKey, let record = state.lifts.removeValue(forKey: sourceKey) else { return }
         if state.lifts[targetKey] == nil { state.lifts[targetKey] = record }
         context.insert(StrengthLog(date: .now, state: state))
         try StrengthLog.rotate(in: context)

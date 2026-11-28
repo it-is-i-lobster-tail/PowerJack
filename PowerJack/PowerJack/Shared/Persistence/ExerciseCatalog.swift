@@ -225,6 +225,12 @@ enum ExerciseCatalog {
         return Set(bases + named).sorted { $0.displayName < $1.displayName }
     }()
 
+    /// Built-in equipment by type, in the type's order: the plain type first, then its named equipment.
+    static let equipmentOptionsByType: [(base: Equipment, options: [EquipmentOption])] = Equipment.allCases.map { base in
+        let options = equipmentOptions.filter { $0.base == base }
+        return (base, options.filter { $0.name == nil } + options.filter { $0.name != nil })
+    }
+
     /// The lifter's own exercises that a built-in one now replaces, by catalog ID, as `matchingName` reads their names.
     static let replacedOwnNames: [String: Set<String>] = [
         "weighted-pull-up": ["weightedpullup", "weightedpullups", "weightpullup", "weightpullups"],
@@ -294,7 +300,7 @@ enum ExerciseCatalog {
         let catalogExercises = try context.fetch(FetchDescriptor<Exercise>()).filter { $0.catalogID != nil }
 
         for copies in Dictionary(grouping: catalogExercises, by: \.catalogID).values where copies.count > 1 {
-            let oldestFirst = copies.sorted { $0.createdAtValue < $1.createdAtValue }
+            let oldestFirst = copies.sorted(by: survivesBefore)
             let survivor = oldestFirst[0]
             for duplicate in oldestFirst.dropFirst() {
                 survivor.takeOverRows(of: duplicate)
@@ -303,8 +309,48 @@ enum ExerciseCatalog {
             TraceLog.record(.data, "Catalog dedupe: kept the oldest \(survivor.catalogID ?? "?"), deleted \(oldestFirst.count - 1) copies")
             changed = true
         }
+        // Only the iPhone fills names, so an older iPhone's snapshot never fights a newer watch over them.
+        if SyncDevice.current == SyncDevice.iPhone {
+            changed = try fillEquipmentNames(in: context) || changed
+        }
         return changed
     }
+
+    /// The copy every device keeps: the oldest. Rows saved before `createdAtValue` existed all read as
+    /// the oldest, so ties go to the row seeded as built-in (no sync ID), then the lowest sync ID.
+    /// Every field read here syncs, so every device keeps the same row.
+    static func survivesBefore(_ a: Exercise, _ b: Exercise) -> Bool {
+        if a.createdAtValue != b.createdAtValue { return a.createdAtValue < b.createdAtValue }
+        switch (a.syncIDValue, b.syncIDValue) {
+        case (nil, nil): return false
+        case (nil, _): return true
+        case (_, nil): return false
+        case let (a?, b?): return a.uuidString < b.uuidString
+        }
+    }
+
+    /// Gives built-in rows seeded before their equipment had a name that name, such as "Smith Machine".
+    /// Display only. A row whose equipment type the lifter changed keeps what it shows.
+    /// - Returns: Whether anything changed. The caller saves.
+    @MainActor
+    static func fillEquipmentNames(in context: ModelContext) throws -> Bool {
+        let rows = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.catalogID != nil && $0.customEquipmentName == nil }))
+        var changed = false
+        for exercise in rows where !exercise.userCreated {
+            guard let entry = exercise.catalogID.flatMap({ entriesByID[$0] }),
+                  let name = entry.equipmentName,
+                  exercise.equipment == entry.equipment
+            else { continue }
+            exercise.customEquipmentName = name
+            changed = true
+        }
+        return changed
+    }
+
+    static let entriesByID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+    /// Built-in entries by `matchingName`, so an own "smith machine squat" finds Smith Machine Squat.
+    static let entriesByMatchingName = Dictionary(entries.map { (matchingName($0.name), $0) }, uniquingKeysWith: { first, _ in first })
 
     /// Turns the lifter's own exercise named like a newer built-in one (see `replacedOwnNames`) into that
     /// built-in exercise, in place, so every template, program and logged set that used it stays with it.

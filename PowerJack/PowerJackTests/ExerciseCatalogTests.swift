@@ -32,7 +32,16 @@ struct ExerciseCatalogTests {
         let named = ExerciseCatalog.equipmentOptions.filter { $0.name != nil }
         #expect(named == [
             .init(base: .bodyweight, name: "Ab Wheel"),
+            .init(base: .machine, name: "Calf Raise"),
             .init(base: .barbell, name: "EZ Bar"),
+            .init(base: .machine, name: "Hack Squat"),
+            .init(base: .machine, name: "Hip Abduction"),
+            .init(base: .machine, name: "Leg Extension"),
+            .init(base: .machine, name: "Lying Leg Curl"),
+            .init(base: .machine, name: "Pec Deck"),
+            .init(base: .machine, name: "Seated Calf"),
+            .init(base: .machine, name: "Seated Leg Curl"),
+            .init(base: .machine, name: "Smith Machine"),
             .init(base: .barbell, name: "Trap Bar"),
         ])
     }

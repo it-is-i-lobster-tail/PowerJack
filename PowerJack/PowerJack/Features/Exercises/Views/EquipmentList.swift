@@ -25,9 +25,11 @@ struct EquipmentList: View {
                     }
                 }
             }
-            Section("Built-in equipment") {
-                ForEach(ExerciseCatalog.equipmentOptions, id: \.self) { option in
-                    row(option.displayName, base: option.base, customName: option.name)
+            ForEach(ExerciseCatalog.equipmentOptionsByType, id: \.base) { group in
+                Section(group.base.displayName) {
+                    ForEach(group.options, id: \.self) { option in
+                        row(option.displayName, base: option.base, customName: option.name)
+                    }
                 }
             }
         }
