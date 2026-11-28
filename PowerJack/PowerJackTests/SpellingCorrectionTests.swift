@@ -71,7 +71,7 @@ struct SpellingCorrectionTests {
         func fields(in view: UIView) -> [UITextField] {
             ((view as? UITextField).map { [$0] } ?? []) + view.subviews.flatMap(fields)
         }
-        let field = try #require(fields(in: screen.window).first { $0.placeholder == "Search charts" })
+        let field = try #require(fields(in: screen.window).first { $0.placeholder == "Lift, muscle, date, or chart" })
         #expect(field.autocorrectionType != .no)
         #expect(field.spellCheckingType != .no)
     }

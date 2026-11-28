@@ -5,6 +5,8 @@ struct GalleryCardID: Hashable {
     let exerciseKeys: [String]
     /// A direct answer can use the same chart as a ranked card below it.
     var isAnswer = false
+    /// A starred chart opens with its own saved choices.
+    var favorite: UUID?
 }
 
 /// One tile in the gallery: a chart, configured for the search, with its computed result.
@@ -32,7 +34,7 @@ extension ChartQuery {
     func options(for study: TrainingStudy, saved: StudyOptions, history: StudyHistory) -> [StudyOptions] {
         var options = saved
         options.showsFullSearchTitle = true
-        if let period { options.period = period }
+        if let period { options.period = study == .repChanges ? comparedPeriod(in: history.calendar) ?? period : period }
         let supported = study.parameters.map(\.0)
         for (key, value) in parameters {
             let target: StudyParameter =
@@ -53,13 +55,14 @@ extension ChartQuery {
                                                    muscles: muscles, exercises: [])
             return [options]
         }
-        // A muscle search on a one-lift chart uses that muscle's most-logged lift.
-        let keys = lifts.isEmpty ? Array(mostLoggedLift(for: muscles, in: history).prefix(1)) : exerciseKeys
-        let eligible = keys.filter { key in
+        func canShow(_ key: String) -> Bool {
             guard let session = history.sessions.first(where: { $0.key == key }) else { return true }
             if study == .pushups { return session.repsOnly }
             return study.needsExternalLoad ? session.loaded : true
         }
+        // A muscle search on a one-lift chart uses that muscle's most-logged lift.
+        let keys = lifts.isEmpty ? Array(mostLoggedLift(for: muscles, in: history).prefix(1)) : exerciseKeys
+        let eligible = keys.filter(canShow)
         // Muscle credits come from the log, which can't say which exercise earned them.
         guard !eligible.isEmpty, study != .legWork else { return [] }
 
@@ -80,11 +83,23 @@ extension ChartQuery {
             options.searchFocus = StudySearchFocus(name: name, muscles: options.muscles, exercises: eligible)
             return [options]
         }
-        return eligible.prefix(3).map { key in
+        // One card for each lift named, on its most trained lift: "squat" is one card, "bench and squat" two.
+        let named = lifts.isEmpty ? Array(eligible.prefix(1)) : lifts.compactMap { $0.exerciseKeys.first(where: canShow) }.uniqued()
+        return named.map { key in
             var variant = options
             variant.exerciseKeys = [key]
             return variant
         }
+    }
+
+    /// Two periods that follow each other, as in "October vs November", compare on the rep-change
+    /// chart, which sets the later one against the equally long time before it.
+    private func comparedPeriod(in calendar: Calendar) -> StudyPeriod? {
+        guard periods.count == 2,
+              let first = periods[0].interval(in: calendar), let second = periods[1].interval(in: calendar) else { return nil }
+        if first.end == second.start { return periods[1] }
+        if second.end == first.start { return periods[0] }
+        return nil
     }
 
     private func mostLoggedLift(for muscles: [Muscle], in history: StudyHistory) -> [String] {

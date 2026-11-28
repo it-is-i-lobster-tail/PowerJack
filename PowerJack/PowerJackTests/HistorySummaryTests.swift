@@ -46,7 +46,7 @@ struct HistorySummaryTests {
         #expect(kept.archived == full.archived, sourceLocation: sourceLocation)
         #expect(kept.imported == full.imported, sourceLocation: sourceLocation)
         #expect(kept.logs == full.logs, sourceLocation: sourceLocation)
-        #expect(kept.movesLike == full.movesLike, sourceLocation: sourceLocation)
+        #expect(kept.ownLifts == full.ownLifts, sourceLocation: sourceLocation)
         #expect(kept.familiarity == full.familiarity, sourceLocation: sourceLocation)
 
         let today = ChartSearchFixture.today

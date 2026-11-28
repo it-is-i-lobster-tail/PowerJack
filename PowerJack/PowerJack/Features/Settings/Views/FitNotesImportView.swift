@@ -23,7 +23,7 @@ struct FitNotesImportView: View {
     @State private var message: String?
     @State private var error: String?
     @State private var reviewID = UUID()
-    @State private var onlyUnmatched = false
+    @State private var onlyUnmatched = true
     @State private var prepared = 0
     @State private var imported: Set<String> = []
     @State private var remembered: [String: Exercise] = [:]
@@ -155,16 +155,23 @@ struct FitNotesImportView: View {
         let skip = skipped[name]
         let options = target == nil && skip == nil ? choices(name) : []
         let matchColor: Color = colorScheme == .dark ? .green : Color(red: 0.08, green: 0.43, blue: 0.18)
-        let status = confirmed != nil ? "PowerJack · Confirmed"
-            : skip == nil && target != nil ? "PowerJack · Suggested"
-            : options.count > 1 ? "PowerJack · \(options.count) choices" : "PowerJack"
+        let status = Self.status(confirmed: confirmed != nil, skipped: skip != nil, suggested: target != nil,
+                                 choiceCount: options.count)
         let shown = skip?.label ?? target?.exerciseName ?? options.first?.exerciseName ?? "No clear match"
         return HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("FitNotes CSV").font(.caption).foregroundStyle(.secondary)
                 Text(name).font(.headline)
                 Text(status).font(.caption).foregroundStyle(.secondary)
-                Text(shown).foregroundStyle(skip == nil && target != nil ? matchColor : Color.secondary)
+                if let skip {
+                    Label {
+                        Text(skip.label).foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "forward.fill").imageScale(.small).foregroundStyle(.orange)
+                    }
+                } else {
+                    Text(shown).foregroundStyle(target != nil ? matchColor : Color.secondary)
+                }
             }
             .accessibilityHidden(true)
             .padding(.horizontal, 16)
@@ -172,15 +179,19 @@ struct FitNotesImportView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .allowsHitTesting(false)
             if confirmed != nil {
-                Button("Unconfirm") { unconfirm(name) }
+                Button("Edit") { unconfirm(name) }
                     .buttonStyle(.bordered)
                     .padding(.trailing, 12)
-            } else if skip == nil, let target {
+            } else if skip != nil {
+                Button("Include") { toggleSkip(name) }
+                    .buttonStyle(.bordered)
+                    .padding(.trailing, 12)
+            } else if let target {
                 Button("Confirm") { matches[name] = target }
                     .buttonStyle(.bordered)
                     .tint(matchColor)
                     .padding(.trailing, 12)
-            } else if skip == nil {
+            } else {
                 Button("Select") { selection = name }
                     .buttonStyle(.bordered)
                     .tint(.blue)
@@ -192,11 +203,21 @@ struct FitNotesImportView: View {
                 Color.clear.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("FitNotes CSV: \(name). PowerJack: \(shown)")
+            .accessibilityLabel("FitNotes CSV: \(name). PowerJack: \(skip?.spokenLabel ?? shown)")
             .accessibilityHint("Opens exercise details")
         }
+        // Keep the separator under the text even when a skip icon leads the last line.
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 16 }
         .listRowInsets(EdgeInsets())
         .accessibilityElement(children: .contain)
+    }
+
+    /// The small status line under a row's FitNotes name.
+    static func status(confirmed: Bool, skipped: Bool, suggested: Bool, choiceCount: Int) -> String {
+        if confirmed { return "PowerJack · Confirmed" }
+        if skipped { return "PowerJack · Skipped" }
+        if suggested { return "PowerJack · Suggested" }
+        return choiceCount > 1 ? "PowerJack · \(choiceCount) choices" : "PowerJack"
     }
 
     private func unconfirm(_ name: String) {
@@ -231,7 +252,7 @@ struct FitNotesImportView: View {
             matches = [:]
             prepared = 0
             skipped = [:]
-            onlyUnmatched = false
+            onlyUnmatched = true
             suggestions = [:]
             ranked = [:]
             imported = Set(history.map(\.sourceKey))
