@@ -29,7 +29,7 @@ struct HistorySummaryTests {
 
     /// Lets the save notifications arrive and the burst settle.
     private func settle() async {
-        try? await Task.sleep(for: HistoryChanges.settle * 3)
+        await HistoryChangesWait.counted()
     }
 
     private func expectMatchesFullBuild(_ summary: HistorySummary, in context: ModelContext,
