@@ -55,6 +55,9 @@ final class Exercise {
     var fromSnapshotValue: Bool = false
     // True for `.loadableBodyweight`. See `exerciseEquipment`.
     private var addsToBodyweightValue: Bool = false
+    // When the lifter archived their own exercise: search and pickers hide it, its history stays.
+    // Nil for every row saved before this field existed, so old stores load as not archived.
+    var archivedAtValue: Date? = nil
 
     static let defaultMinReps = 5
     // No exercise can set a minimum rep target below this.
@@ -106,6 +109,8 @@ extension Exercise {
         }
     }
     var userCreated: Bool { userCreatedValue }
+    /// Hidden from search and pickers. Charts, history and exports still show what it logged.
+    var isArchived: Bool { archivedAtValue != nil }
     // Rep Range
     var minReps: Int {
         get { minRepsValue }
