@@ -5,18 +5,29 @@ enum ExercisePickerMode {
     case add
     case change(Exercise?)
     case substitute(WorkoutExercise)
+    /// Picks the exercise an own exercise's history moves into.
+    case merge(Exercise)
 
     var source: Exercise? {
         switch self {
         case .add: nil
         case .change(let exercise): exercise
         case .substitute(let row): row.exercise
+        case .merge(let exercise): exercise
         }
     }
 
     var isSubstitution: Bool {
         if case .substitute = self { return true }
         return false
+    }
+
+    /// Only picks from what's there: no adding or editing exercises on the way.
+    var picksExisting: Bool {
+        switch self {
+        case .substitute, .merge: true
+        case .add, .change: false
+        }
     }
 
     /// A substitute is usually needed because the equipment is taken, so other equipment ranks first.
@@ -40,8 +51,9 @@ struct ExercisePickerResults {
     init(exercises: [Exercise], index: ExerciseSearch.Index?, familiarity: ExerciseFamiliarity = .none,
          query: String, filters: ExerciseFilters? = nil, muscles: Set<Muscle>, mode: ExercisePickerMode) {
         let source = mode.source
+        // Archived exercises keep their history but are never offered again.
         let eligible = exercises.filter { exercise in
-            exercise !== source && (muscles.isEmpty || muscles.contains(exercise.primaryMuscleFocus)
+            exercise !== source && !exercise.isArchived && (muscles.isEmpty || muscles.contains(exercise.primaryMuscleFocus)
                 || !muscles.isDisjoint(with: exercise.secondaryMuscles))
         }
         // The muscle filter lists lifts that work a chosen muscle most before those that assist.

@@ -61,7 +61,7 @@ struct ExerciseSelectionView: View {
                 }
                 Section {
                     ForEach(results.matches) { exercise in row(exercise) }
-                    if !typed.isEmpty && !mode.isSubstitution {
+                    if !typed.isEmpty && !mode.picksExisting {
                         Button("Add \u{201C}\(typed)\u{201D}", systemImage: "plus") { isCreating = true }
                     }
                 } header: {
@@ -103,7 +103,7 @@ struct ExerciseSelectionView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if mode.isSubstitution {
+                    if mode.picksExisting {
                         Button("Cancel", action: dismiss.callAsFunction)
                     } else {
                         Button("Close", systemImage: "arrow.left", action: dismiss.callAsFunction)
@@ -115,7 +115,7 @@ struct ExerciseSelectionView: View {
                     }
                     .accessibilityValue(muscles.isEmpty ? "All muscles" : "\(muscles.count) selected")
                 }
-                if !mode.isSubstitution {
+                if !mode.picksExisting {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add", systemImage: "plus") { isCreating = true }
                     }
@@ -139,7 +139,7 @@ struct ExerciseSelectionView: View {
         }
         .background { ExerciseSearchIndexLoader(index: $index, familiarity: $familiarity) }
         .scrollEdgeEffectStyle(.soft, for: .all)
-        .traceScreen(mode.isSubstitution ? "Substitute Picker" : "Exercise Picker")
+        .traceScreen(traceName)
     }
 
     @ViewBuilder
@@ -149,12 +149,23 @@ struct ExerciseSelectionView: View {
                 selectOrEdit(exercise)
             }
             .buttonStyle(.plain)
+        } else if mode.picksExisting {
+            ExerciseSelectionRow(exercise: exercise) { selectOrEdit(exercise) }
+                .buttonStyle(.plain)
         } else {
             ExerciseSelectionRow(exercise: exercise) { selectOrEdit(exercise) }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button("Edit", systemImage: "pencil") { edit(exercise) }
                         .tint(.blue)
                 }
+        }
+    }
+
+    private var traceName: String {
+        switch mode {
+        case .substitute: "Substitute Picker"
+        case .merge: "Merge Picker"
+        case .add, .change: "Exercise Picker"
         }
     }
 

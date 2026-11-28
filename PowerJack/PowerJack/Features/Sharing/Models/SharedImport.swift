@@ -84,6 +84,8 @@ struct SharedImport: Identifiable {
             var resolved: [Int: Exercise] = [:]
             for item in items {
                 if let existing = item.existing, item.isSame || item.choice == .useMine {
+                    // Bringing in a lift the lifter archived means they want it back.
+                    existing.archivedAtValue = nil
                     resolved[item.id] = existing
                     continue
                 }
