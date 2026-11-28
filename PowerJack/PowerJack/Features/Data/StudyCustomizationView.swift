@@ -247,6 +247,7 @@ struct StudyPeriodPicker: View {
         case year = "Year"
         case month = "Month"
         case day = "Day"
+        case range = "Dates"
     }
     private var year: Int {
         switch period {
@@ -266,6 +267,7 @@ struct StudyPeriodPicker: View {
         case .year: .year
         case .day: .day
         case .month: .month
+        case .range: .range
         }
     }
     var body: some View {
@@ -280,10 +282,14 @@ struct StudyPeriodPicker: View {
                     case .year: period = .year(year)
                     case .day: period = .day(year: year, month: month, day: 1)
                     case .month: period = .month(year: year, month: month)
+                    case .range:
+                        let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: today)) ?? today
+                        period = .range(start: calendar.date(byAdding: .month, value: -1, to: end) ?? end, end: end)
                     }
                 })
         ) {
-            ForEach(Kind.allCases, id: \.self) { Text($0 == .original ? defaultLabel : $0.rawValue).tag($0) }
+            // A span of days comes from search, such as "last 3 months", so it is offered only while one is set.
+            ForEach(Kind.allCases.filter { $0 != .range || kind == .range }, id: \.self) { Text($0 == .original ? defaultLabel : $0.rawValue).tag($0) }
         }
         .accessibilityIdentifier("data.control.period")
         if case let .day(year, month, day) = period {
@@ -294,6 +300,16 @@ struct StudyPeriodPicker: View {
                 if let year = parts.year, let month = parts.month, let day = parts.day {
                     period = .day(year: year, month: month, day: day)
                 }
+            }), displayedComponents: .date)
+        }
+        if case let .range(start, end) = period {
+            let last = calendar.date(byAdding: .day, value: -1, to: end) ?? start
+            DatePicker("From", selection: Binding(get: { start }, set: { date in
+                period = .range(start: calendar.startOfDay(for: min(date, last)), end: end)
+            }), displayedComponents: .date)
+            DatePicker("Through", selection: Binding(get: { last }, set: { date in
+                let day = calendar.startOfDay(for: max(date, start))
+                period = .range(start: start, end: calendar.date(byAdding: .day, value: 1, to: day) ?? day)
             }), displayedComponents: .date)
         }
         if kind == .year || kind == .month {

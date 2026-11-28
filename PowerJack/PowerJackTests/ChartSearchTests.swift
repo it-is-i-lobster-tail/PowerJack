@@ -78,10 +78,11 @@ struct ChartSearchTests {
         #expect(!search("How is my bench doing?", plan: plan).cards.contains { $0.id.study == .legWork })
     }
 
-    @Test("The model can name a number for a question, never for a filter")
+    @Test("The model can choose what to count when a question asks for a number, never for a filter")
     func planTotal() throws {
         let plan = ChartSearchPlan(charts: [], total: .workingSets)
-        let answer = try #require(search("What did my squat look like in October?", plan: plan).answer)
+        #expect(search("What did my squat look like in October?", plan: plan).answer == nil, "no number was asked for")
+        let answer = try #require(search("How many squats did I do in October?", plan: plan).answer)
         guard case .table(let table) = answer.result.figure else {
             Issue.record("Expected a single value")
             return

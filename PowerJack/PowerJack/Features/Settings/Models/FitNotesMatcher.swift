@@ -15,6 +15,17 @@ nonisolated enum ImportSkipReason: String, CaseIterable, Sendable {
         case .chosen: "Skip"
         }
     }
+
+    /// What VoiceOver reads for a skipped row.
+    var spokenLabel: String {
+        switch self {
+        case .cardio: "Skipped, cardio"
+        case .timed: "Skipped, timed with no reps"
+        case .stretchOrPT: "Skipped, stretch or PT"
+        case .alreadyImported: "Skipped, already imported"
+        case .chosen: "Skipped by you"
+        }
+    }
 }
 
 /// The one starting suggestion an import row opens with.
