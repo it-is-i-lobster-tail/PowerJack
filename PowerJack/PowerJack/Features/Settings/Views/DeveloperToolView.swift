@@ -2,7 +2,8 @@
 //  DeveloperToolView.swift
 //  PowerJack
 //
-//  Turns the trace on and off, and lists, opens, deletes and shares its files (see `TraceLog`).
+//  Sends the next workout's reminder on demand, and turns the trace on and off, and lists, opens,
+//  deletes and shares its files (see `TraceLog`).
 //
 
 import CoreTransferable
@@ -18,6 +19,8 @@ struct DeveloperToolView: View {
     @State private var files: [TraceLog.File] = []
     @State private var isConfirmingOn = false
     @State private var isConfirmingOff = false
+    @State private var isSendingReminder = false
+    @State private var reminderProblem: String?
 
     init(traceLog: TraceLog = .shared) {
         self.traceLog = traceLog
@@ -37,8 +40,11 @@ struct DeveloperToolView: View {
                 Text("Unlock additional settings and menu options for development work and testing.")
             }
 
-            traceSections
-                .disabled(!developerToolsEnabled)
+            Group {
+                reminderSection
+                traceSections
+            }
+            .disabled(!developerToolsEnabled)
         }
         .navigationTitle("Developer Tools")
         .navigationBarTitleDisplayMode(.inline)
@@ -55,6 +61,46 @@ struct DeveloperToolView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Every trace file on this iPhone will be deleted.")
+        }
+        .alert("Reminder Not Sent", isPresented: isShowingReminderProblem) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(reminderProblem ?? "")
+        }
+    }
+
+    private var reminderSection: some View {
+        Section {
+            Button(action: sendReminder) {
+                HStack {
+                    Text("Send Workout Reminder Now")
+                    Spacer()
+                    if isSendingReminder {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isSendingReminder)
+        } footer: {
+            Text("Sends the reminder for your next workout in a moment, written the way the scheduled one would be.")
+        }
+    }
+
+    private var isShowingReminderProblem: Binding<Bool> {
+        Binding(get: { reminderProblem != nil }, set: { if !$0 { reminderProblem = nil } })
+    }
+
+    private func sendReminder() {
+        isSendingReminder = true
+        Task {
+            let result = await WorkoutReminders.shared.sendNow()
+            isSendingReminder = false
+            switch result {
+            case .sent: break
+            case .noWorkout: reminderProblem = "Start a program with a planned workout first."
+            case .notAllowed: reminderProblem = "Allow notifications for PowerJack in Settings."
+            case .failed: reminderProblem = "Something went wrong. Try again."
+            }
         }
     }
 

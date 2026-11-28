@@ -47,21 +47,7 @@ struct FitNotesImportView: View {
                     Text("Choose an export from Files to import historical sets. Confirm each exercise before saving.")
                 }
                 if !history.isEmpty {
-                    NavigationLink("Imported sets (\(history.count))") {
-                        List(history) { set in
-                            VStack(alignment: .leading) {
-                                Text(set.exerciseName)
-                                Text([set.trainingDay, set.muscle.capitalized,
-                                      set.reps.map { "\($0) reps" },
-                                      set.weightTenthsPounds.map { "\(WeightUnit.current.format(tenthsPounds: $0)) \(WeightUnit.current.symbol)" },
-                                      set.durationSeconds.map { "\($0)s" },
-                                      set.distance.map { "\($0.formatted()) \(set.distanceUnit)" }]
-                                    .compactMap { $0 }.joined(separator: " · "))
-                                    .font(.caption).foregroundStyle(.secondary)
-                                if !set.comment.isEmpty { Text(set.comment).font(.footnote) }
-                            }
-                        }.navigationTitle("Imported sets")
-                    }
+                    NavigationLink("Imported sets (\(history.count))") { ImportedDataView() }
                 }
             } else {
                 Section {

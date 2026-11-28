@@ -36,6 +36,11 @@ struct TemplateProgramDetailView: View {
             draft: $draft.onSet(save)
         )
         .saveErrorAlert($saveErrorMessage)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                SharedFileLink(file: SharedFile(template: templateProgram))
+            }
+        }
     }
 
     /// Unfinished changes save too; the template stays a draft until it's complete.

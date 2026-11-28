@@ -1,8 +1,11 @@
 name: Unit tests
 
 # Pull requests run against GitHub's synthetic merge ref.
+# Release pull requests into staging or prod wait while they're drafts, so each merge to
+# main doesn't restart them. Marking one "Ready for review" runs them.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   workflow_dispatch:
@@ -19,6 +22,7 @@ env:
 jobs:
   test:
     name: Unit tests
+    if: ${{ !(github.event.pull_request.draft && contains(fromJSON('["staging", "prod"]'), github.base_ref)) }}
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:

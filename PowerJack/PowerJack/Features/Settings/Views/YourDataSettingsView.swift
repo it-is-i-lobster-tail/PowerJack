@@ -2,7 +2,7 @@
 //  YourDataSettingsView.swift
 //  PowerJack
 //
-//  Where your training is kept: iCloud Backup, and exporting your history.
+//  Where your training is kept: iCloud Backup, exporting your history, imported sets, and the Data tab's local cache.
 //
 
 import SwiftData
@@ -20,6 +20,7 @@ struct YourDataSettingsView: View {
     @State private var exportedHistory: URL?
     @State private var isSharingHistory = false
     @State private var showsExportError = false
+    @State private var clearedCache = false
 
     var body: some View {
         content.traceScreen("Your Data")
@@ -57,6 +58,31 @@ struct YourDataSettingsView: View {
                     )
                 }
                 .foregroundStyle(.primary)
+
+                NavigationLink {
+                    ImportedDataView()
+                } label: {
+                    SettingsRowLabel(
+                        systemImage: "square.and.arrow.down",
+                        title: "View Imported Data",
+                        detail: "Sets you've brought in from another app. Search them, or delete the ones you don't want."
+                    )
+                }
+            }
+
+            // Only the Data tab's prebuilt charts: the next open builds them again from the workouts.
+            Section {
+                Button(action: clearLocalCache) {
+                    SettingsRowLabel(
+                        systemImage: "arrow.clockwise",
+                        title: "Clear Local Cache",
+                        detail: clearedCache
+                            ? "Cleared. Data builds its charts again the next time you open it."
+                            : "Data keeps its charts on this iPhone so they open fast. Your workouts aren't touched."
+                    )
+                }
+                .foregroundStyle(.primary)
+                .disabled(clearedCache)
             }
         }
         .navigationTitle("Your Data")
@@ -128,6 +154,12 @@ struct YourDataSettingsView: View {
         } catch {
             showsExportError = true
         }
+    }
+
+    private func clearLocalCache() {
+        HistorySummary.shared.clear()
+        TraceLog.record(.data, "Cleared the local history cache")
+        clearedCache = true
     }
 
     // The copy only lives as long as the share sheet, so the history isn't left lying around.

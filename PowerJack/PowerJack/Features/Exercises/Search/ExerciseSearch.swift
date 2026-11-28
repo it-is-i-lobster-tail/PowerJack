@@ -10,7 +10,7 @@ import SwiftData
 /// - History: how much the lifter trains it (`ExerciseFamiliarity`).
 nonisolated enum ExerciseSearch {
     /// A value snapshot taken on the store's actor. Indexing never retains SwiftData objects.
-    struct Document: Hashable, Sendable {
+    struct Document: Hashable, Codable, Sendable {
         let key: String
         /// The Data tab adds the names a lift was logged under.
         var names: [String]
