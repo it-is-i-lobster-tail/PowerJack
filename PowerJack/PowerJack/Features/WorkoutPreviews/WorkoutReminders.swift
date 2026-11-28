@@ -64,7 +64,8 @@ final class WorkoutReminders {
             Task {
                 await requestAuthorization()
                 do {
-                    let fixture = try WorkoutReminderDemo(now: .now, calendar: .current, context: store.container.mainContext)
+                    guard let context = store.container?.mainContext else { return }
+                    let fixture = try WorkoutReminderDemo(now: .now, calendar: .current, context: context)
                     defaults.set(fixture.eveningMinute, forKey: AppSettings.Key.workoutReminderEveningMinute)
                     demo = fixture
                 } catch {
@@ -157,12 +158,11 @@ final class WorkoutReminders {
 
         guard defaults.bool(forKey: AppSettings.Key.workoutReminders),
               [.authorized, .provisional, .ephemeral].contains(authorization),
-              let store, !store.isReplacingContainer else {
+              let store, !store.isReplacingContainer, let context = store.container?.mainContext else {
             cancel()
             return
         }
 
-        let context = store.container.mainContext
         do {
             let programs = try context.fetch(FetchDescriptor<Program>())
             guard let id = programs.active?.nextWorkout?.syncID, !sentIDs.contains(id.uuidString) else {
@@ -304,9 +304,8 @@ final class WorkoutReminders {
         await requestAuthorization()
         let authorization = await center.notificationSettings().authorizationStatus
         guard [.authorized, .provisional, .ephemeral].contains(authorization) else { return .notAllowed }
-        guard let store else { return .noWorkout }
+        guard let context = store?.container?.mainContext else { return .noWorkout }
 
-        let context = store.container.mainContext
         let now = Date.now
         let calendar = Calendar.current
         do {

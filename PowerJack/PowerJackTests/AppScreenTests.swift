@@ -55,10 +55,10 @@ struct AppScreenTests {
         #expect(await screen.goBack())
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
-        let containerBefore = ObjectIdentifier(store.container)
+        let containerBefore = ObjectIdentifier(store.container!)
         await screen.tap(backup)
         #expect(store.syncsWithICloud)
-        #expect(ObjectIdentifier(store.container) != containerBefore)
+        #expect(ObjectIdentifier(store.container!) != containerBefore)
 
         #expect(await screen.goBack())
         await screen.selectTab("Programs", settleFor: .milliseconds(800))
@@ -97,7 +97,7 @@ struct AppScreenTests {
 
         // Launch reopens the active program's page, whose Start Workout button reads its workout.
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let exercise = Exercise(exerciseName: "Bench", exerciseEquipment: .barbell, primaryMuscleFocus: .chest)
         context.insert(exercise)
         let template = TemplateProgram(templateName: "Switch Test", workoutsPerWeek: 1, templateMuscleFocus: [.chest])
@@ -116,11 +116,11 @@ struct AppScreenTests {
         #expect(await screen.selectTab("Settings", settleFor: .milliseconds(800)), "\(screen.labels)")
         #expect(await screen.tap("Your Data", settleFor: .milliseconds(600)), "\(screen.labels)")
         let backup = try #require(screen.label(startingWith: "iCloud Backup"), "\(screen.labels)")
-        let containerBefore = ObjectIdentifier(store.container)
+        let containerBefore = ObjectIdentifier(store.container!)
         await screen.tap(backup, settleFor: .milliseconds(800))
         #expect(store.syncsWithICloud)
         #expect(!store.isReplacingContainer)
-        #expect(ObjectIdentifier(store.container) != containerBefore)
+        #expect(ObjectIdentifier(store.container!) != containerBefore)
 
         // The new in-memory store is empty, so the screens rebuilt from it show no program.
         #expect(await screen.goBack())

@@ -208,7 +208,7 @@ struct WorkoutPreviewTests {
     func achievementMatrix(type: TemplateType, starter: Bool) throws {
         for kind in WorkoutAchievement.Kind.allCases {
             let store = PowerJackStore(inMemory: true)
-            let context = store.container.mainContext
+            let context = store.container!.mainContext
             let now = Date.now
             let program = try WorkoutReminderDemo.seed(kind, type: type, starter: starter, context: context, now: now)
             let planned = try #require(program.nextWorkout)
@@ -241,7 +241,7 @@ struct WorkoutPreviewTests {
     @Test("Bodyweight rep records compare the same exercise across programs, ignoring unlogged or mismatched history")
     func bodyweightRepOpportunity() throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let lift = Exercise(exerciseName: "Ring Push Up", exerciseEquipment: .bodyweight, primaryMuscleFocus: .chest)
         lift.assignSyncID()
         let template = TemplateProgram(templateName: "Rings", workoutsPerWeek: 1, templateMuscleFocus: [.chest], templateType: .hypertrophy)
@@ -295,10 +295,10 @@ struct WorkoutPreviewTests {
         let store = PowerJackStore(inMemory: true)
         let now = Date()
         let p = try WorkoutReminderDemo.seed(.returnToBest, type: .hypertrophy, starter: false,
-                                             context: store.container.mainContext, now: now)
+                                             context: store.container!.mainContext, now: now)
         let w = try #require(p.nextWorkout)
         let preview = WorkoutPreview(program: p, workout: w)
-        let source = try WorkoutPreviewHistory(programs: [p], in: store.container.mainContext, now: now)
+        let source = try WorkoutPreviewHistory(programs: [p], in: store.container!.mainContext, now: now)
         let best = try #require(source.sessions.first?.logged.first)
         let lower = try #require(source.sessions.last?.logged.first)
         func dated(_ row: HistoryRow, daysAgo: Int) throws -> HistoryRow {
@@ -325,10 +325,10 @@ struct WorkoutPreviewTests {
         let store = PowerJackStore(inMemory: true)
         let now = Date()
         let p = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false,
-                                             context: store.container.mainContext, now: now)
+                                             context: store.container!.mainContext, now: now)
         let w = try #require(p.nextWorkout)
         let preview = WorkoutPreview(program: p, workout: w)
-        let source = try WorkoutPreviewHistory(programs: [p], in: store.container.mainContext, now: now)
+        let source = try WorkoutPreviewHistory(programs: [p], in: store.container!.mainContext, now: now)
         var skipped = try #require(source.sessions.last?.rows.first)
         skipped.setNumber = 3
         skipped.setStatus = Status.skipped.rawValue.capitalized
@@ -343,7 +343,7 @@ struct WorkoutPreviewTests {
     func simultaneousAttendance() throws {
         for skipFirst in [false, true] {
             let store = PowerJackStore(inMemory: true)
-            let context = store.container.mainContext
+            let context = store.container!.mainContext
             let lift = Exercise(exerciseName: "Calf Raise", exerciseEquipment: .machine, primaryMuscleFocus: .calves)
             let template = TemplateProgram(templateName: "Calf block", workoutsPerWeek: 1, templateMuscleFocus: [.calves], templateType: .hypertrophy)
             template.addTemplateWorkout().addTemplateExercise(exercise: lift)
@@ -384,10 +384,10 @@ struct WorkoutPreviewTests {
         let store = PowerJackStore(inMemory: true)
         let now = Date()
         let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false,
-                                                    context: store.container.mainContext, now: now)
+                                                    context: store.container!.mainContext, now: now)
         let workout = try #require(program.nextWorkout)
         let preview = WorkoutPreview(program: program, workout: workout)
-        let history = try WorkoutPreviewHistory(programs: [program], in: store.container.mainContext, now: now)
+        let history = try WorkoutPreviewHistory(programs: [program], in: store.container!.mainContext, now: now)
         let award = try #require(WorkoutAchievement.selected(preview: preview, program: program, workout: workout,
                                                               history: history, at: now))
         let facts = WorkoutReminderCopy.Facts(preview: preview, program: program, workout: workout,

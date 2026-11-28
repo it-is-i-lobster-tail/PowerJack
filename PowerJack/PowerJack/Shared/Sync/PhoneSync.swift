@@ -38,15 +38,15 @@ final class PhoneSync {
         scheduleSend()
     }
 
-    /// Nil while iCloud Backup switches stores, when no model may be read.
+    /// Nil while iCloud Backup switches stores, when no model may be read, or while the store won't open.
     private var context: ModelContext? {
         guard let store, !store.isReplacingContainer else { return nil }
-        return store.container.mainContext
+        return store.container?.mainContext
     }
 
     private func receive(changes data: Data) -> Data? {
         guard let context else {
-            TraceLog.record(.watch, "Dropped the watch's changes while iCloud Backup switches stores")
+            TraceLog.record(.watch, "Dropped the watch's changes while the store is switching or not open")
             return nil
         }
         do {

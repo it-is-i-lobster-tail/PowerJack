@@ -12,7 +12,7 @@ struct ChartSearchSampleHistoryTests {
     /// Built once: seeding a year of workouts takes a moment.
     static let history: StudyHistory = {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let now = ChartSearchFixture.today
         try! SimulatorTrainingHistory.populate(in: context, now: now)
         return StudyHistory(programs: try! context.fetch(FetchDescriptor<Program>()),

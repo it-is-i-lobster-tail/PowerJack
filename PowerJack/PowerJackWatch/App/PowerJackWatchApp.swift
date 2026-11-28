@@ -33,18 +33,22 @@ struct PowerJackWatchApp: App {
                     Color.black
                         .ignoresSafeArea()
                         .onAppear { store.replaceContainer() }
-                } else {
+                } else if let container = store.container {
                     WatchRootView()
-                        .id(ObjectIdentifier(store.container))
+                        .id(ObjectIdentifier(container))
+                        .modelContainer(container)
+                } else {
+                    WatchStoreUnavailableView()
                 }
             }
             // The iPhone's accent: system blue.
             .tint(.blue)
             .environment(store)
             .environment(sync)
-            .modelContainer(store.container)
         }
         .onChange(of: scenePhase, initial: true) {
+            // A store that didn't open, say before the first unlock, gets another go.
+            if scenePhase == .active { store.retryOpening() }
             // Opening the app catches up with the iPhone: what's pending goes, its program comes back.
             if scenePhase == .active { sync.push() }
             // The iPhone's trace export includes the watch's, as of when it last left the screen.
