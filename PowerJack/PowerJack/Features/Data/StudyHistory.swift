@@ -162,7 +162,7 @@ struct StudyHistory {
             let represented = Set(sessions.filter { keys.contains($0.key) }.compactMap(\.primary))
             history.exerciseMuscles = Muscle.allCases.filter(represented.contains)
         }
-        history.selectedRange = options.period.interval(in: calendar)
+        history.selectedRange = options.period.interval(in: calendar, today: today)
         return history
     }
 
@@ -178,7 +178,7 @@ struct StudyHistory {
         case .year(let year): return String(year)
         case .day: return selectedRange?.start.formatted(.dateTime.month(.wide).day().year()) ?? ""
         case .month: return selectedRange?.start.formatted(.dateTime.month(.wide).year()) ?? ""
-        case .range: return options.period.label
+        case .range, .recent: return options.period.label
         }
     }
     func parameter(_ key: StudyParameter, _ fallback: Int) -> Int {

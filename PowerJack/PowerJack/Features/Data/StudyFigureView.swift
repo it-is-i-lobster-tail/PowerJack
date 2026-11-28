@@ -708,92 +708,123 @@ struct StudyMatrix: View {
     @Environment(\.colorScheme) private var scheme
     let study: StudyResult
     @State private var selection: String?
+    @State private var headerHeight: CGFloat = 0
     let columns: [String]
     let rows: [String]
     let values: [[Double?]]
     let compact: Bool
 
+    private static let rowHeight: CGFloat = 44
+    private static let labelWidth: CGFloat = 116
+
     var body: some View {
-        let maximum = max(1, values.flatMap { $0 }.compactMap { $0 }.max() ?? 1)
-        let shown = compact ? min(6, rows.count) : rows.count
-        VStack(alignment: .leading, spacing: compact ? 0 : 8) {
-            if !compact {
+        if compact {
+            Grid(horizontalSpacing: 2, verticalSpacing: 2) {
+                ForEach(0..<min(6, rows.count), id: \.self) { r in
+                    GridRow { ForEach(columns.indices, id: \.self) { c in cell(r, c) } }
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(selection ?? "Select a cell for its labels and value.")
                     .font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 300, alignment: .leading)
-            }
-            Grid(horizontalSpacing: compact ? 2 : 3, verticalSpacing: compact ? 2 : 4) {
-                if !compact {
-                    GridRow {
-                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                        ForEach(columns.indices, id: \.self) { i in
-                            Text(columns[i]).font(.caption2).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true).frame(width: columnWidth(i))
+                // Row names stay put while the cells scroll, and the grid opens on the first column with data.
+                HStack(alignment: .top, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Color.clear.frame(height: headerHeight)
+                        ForEach(rows.indices, id: \.self) { r in
+                            Text(rows[r]).font(.caption.weight(.medium)).lineLimit(2)
+                                .frame(width: Self.labelWidth, height: Self.rowHeight, alignment: .leading)
                         }
                     }
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal) { grid }
+                            .scrollIndicators(.hidden)
+                            .onAppear { scrollToData(proxy) }
+                            .onChange(of: study) { scrollToData(proxy) }
+                    }
                 }
-                ForEach(0..<shown, id: \.self) { r in
-                    GridRow {
-                        if !compact {
-                            Text(rows[r]).font(.caption.weight(.medium)).fixedSize(
-                                horizontal: false, vertical: true
-                            )
-                            .frame(width: 116, alignment: .leading)
-                        }
-                        ForEach(columns.indices, id: \.self) { c in
-                            let value = values[r][c]
-                            let cell = RoundedRectangle(cornerRadius: compact ? 2 : 4)
-                                .fill(
-                                    value.map {
-                                        WorkoutChartPalette.color(at: 0, scheme: scheme).opacity(
-                                            0.12 + 0.8 * $0 / maximum)
-                                    } ?? Color.secondary.opacity(0.1)
-                                )
-                                .frame(minWidth: compact ? 2 : 32, minHeight: compact ? 5 : 32)
+            }
+            .onChange(of: study) { selection = nil }
+        }
+    }
+
+    private var grid: some View {
+        Grid(horizontalSpacing: 3, verticalSpacing: 4) {
+            GridRow {
+                ForEach(columns.indices, id: \.self) { i in
+                    Text(columns[i]).font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true).frame(width: Self.width(for: columns[i]))
+                        .id(i)
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+            ForEach(rows.indices, id: \.self) { r in
+                GridRow {
+                    ForEach(columns.indices, id: \.self) { c in
+                        let value = values[r][c]
+                        let units = study.id == .legWork ? "credited sets" : "working sets"
+                        let amount = value.map { "\($0.studyNumber) \(units)" } ?? "No log"
+                        let label = "\(study.yLabel) \(rows[r]) · \(study.xLabel) \(columns[c]) · \(amount)"
+                        Button {
+                            selection = label
+                        } label: {
+                            cell(r, c).frame(width: Self.width(for: columns[c]), height: Self.rowHeight)
                                 .overlay {
-                                    if !compact {
-                                        Text(value?.studyNumber ?? "–").font(.caption.monospacedDigit())
-                                            .foregroundStyle(
-                                                (value ?? 0) / maximum > 0.60
-                                                    ? (scheme == .dark ? Color.black : .white) : .primary)
+                                    if selection == label {
+                                        RoundedRectangle(cornerRadius: 4).strokeBorder(.primary, lineWidth: 2)
                                     }
                                 }
-                            if compact {
-                                cell
-                            } else {
-                                let units = study.id == .legWork ? "credited sets" : "working sets"
-                                let amount = value.map { "\($0.studyNumber) \(units)" } ?? "No log"
-                                let label = "\(study.yLabel) \(rows[r]) · \(study.xLabel) \(columns[c]) · \(amount)"
-                                Button {
-                                    selection = label
-                                } label: {
-                                    cell.frame(width: columnWidth(c), height: 44)
-                                        .overlay {
-                                            if selection == label {
-                                                RoundedRectangle(cornerRadius: 4).strokeBorder(.primary, lineWidth: 2)
-                                            }
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(label)
-                                .accessibilityAddTraits(selection == label ? .isSelected : [])
-                            }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(label)
+                        .accessibilityAddTraits(selection == label ? .isSelected : [])
                     }
                 }
             }
         }
-        .onChange(of: study) { selection = nil }
     }
-    private func columnWidth(_ i: Int) -> CGFloat {
-        Self.width(for: columns[i])
+
+    private var maximum: Double { max(1, values.flatMap { $0 }.compactMap { $0 }.max() ?? 1) }
+
+    private func cell(_ r: Int, _ c: Int) -> some View {
+        let value = values[r][c]
+        let strength = value.map { Self.opacity($0 / maximum, dark: scheme == .dark) }
+        return RoundedRectangle(cornerRadius: compact ? 2 : 4)
+            .fill(strength.map { WorkoutChartPalette.color(at: 0, scheme: scheme).opacity($0) } ?? Color.secondary.opacity(0.1))
+            .frame(minWidth: compact ? 2 : 32, minHeight: compact ? 5 : 32)
+            .overlay {
+                if !compact {
+                    // Text stays at full contrast: dark on light cells, the page's own color on faint ones.
+                    Text(value?.studyNumber ?? "–").font(.caption.monospacedDigit())
+                        .foregroundStyle((strength ?? 0) > 0.6 ? (scheme == .dark ? Color.black : .white) : .primary)
+                }
+            }
+    }
+
+    /// How strongly a cell is filled for its share of the largest value. Dark mode starts higher so
+    /// small values still read as filled against a black page.
+    static func opacity(_ share: Double, dark: Bool) -> Double {
+        let floor = dark ? 0.25 : 0.12
+        return floor + (0.92 - floor) * min(1, max(0, share))
+    }
+
+    /// The first column with any logged value, so a year that starts empty opens where the log begins.
+    static func firstDataColumn(_ values: [[Double?]]) -> Int? {
+        let count = values.first?.count ?? 0
+        return (0..<count).first { c in values.contains { $0[c] != nil } }
+    }
+
+    private func scrollToData(_ proxy: ScrollViewProxy) {
+        guard let first = Self.firstDataColumn(values), first > 0 else { return }
+        proxy.scrollTo(first, anchor: .leading)
     }
 
     static func width(for column: String) -> CGFloat {
         min(128, max(44, CGFloat(column.count) * 7 + 8))
     }
-
 }
 
 struct StudyTableView: View {

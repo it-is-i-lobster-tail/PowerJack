@@ -140,7 +140,8 @@ extension StudyAxisPlan {
     static func tickUnit(for range: DateInterval) -> Calendar.Component {
         let days = range.duration / 86_400
         if days < 21 { return .day }
-        if days < 92 { return .weekOfYear }
+        // Three months, even with 31-day months, still reads in weeks.
+        if days < 100 { return .weekOfYear }
         if days < 730 { return .month }
         return .year
     }
@@ -162,11 +163,13 @@ extension StudyAxisPlan {
         let inner = DateInterval(
             start: range.start.addingTimeInterval(range.duration * 0.02),
             end: range.end.addingTimeInterval(-range.duration * 0.14))
+        // Short week labels fit closer together, so three months can step every second week.
+        let limit = unit == .weekOfYear ? max(maximumCount, 6) : maximumCount
         var dates: [Date] = []
         for multiple in multiples {
             dates = tickDates(unit, every: multiple, in: range, origin: origin ?? range.start, calendar: calendar)
                 .filter { $0 >= inner.start && $0 <= inner.end }
-            if dates.count <= maximumCount { break }
+            if dates.count <= limit { break }
         }
         if dates.isEmpty {
             // A short range such as one day still names its date.
