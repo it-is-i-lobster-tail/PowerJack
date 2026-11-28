@@ -13,7 +13,7 @@ import SwiftUI
 struct ProgramNew: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ProgramsRouter.self) private var router
-    @Query private var programs: [Program]
+    @Query(filter: Program.ownRows) private var programs: [Program]
 
     private let boxHeight: CGFloat = 55
     private let programLengths = Array(stride(from: 2, through: 12, by: 2))

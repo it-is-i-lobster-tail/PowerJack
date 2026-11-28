@@ -54,7 +54,7 @@ private struct PowerJackScreens: View {
     @Binding var selection: MainBrowserOption
     @Binding var settingsPath: NavigationPath
 
-    @Query private var programs: [Program]
+    @Query(filter: Program.ownRows) private var programs: [Program]
 
     private var activeProgram: Program? { programs.active }
 

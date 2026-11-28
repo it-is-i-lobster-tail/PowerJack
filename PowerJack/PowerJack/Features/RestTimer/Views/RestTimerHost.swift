@@ -29,7 +29,7 @@ extension View {
 
 private struct RestTimerHost: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var programs: [Program]
+    @Query(filter: Program.ownRows) private var programs: [Program]
 
     @AppStorage(AppSettings.Key.inAppRestTimer)
     private var showsInAppTimer = AppSettings.Default.inAppRestTimer

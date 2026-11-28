@@ -117,12 +117,17 @@ final class DeviceLink: NSObject {
         }
     }
 
+    private static let snapshotFilePrefix = "program-"
+    private static let snapshotFileSuffix = ".snapshot"
+
     private func sendFile(_ snapshot: Data?) {
         guard let snapshot else { return }
-        let url = URL.temporaryDirectory.appending(path: "program-\(UUID().uuidString).snapshot")
+        // Only the newest program matters: earlier transfers stop, and their files go with them.
+        for transfer in WCSession.default.outstandingFileTransfers { transfer.cancel() }
+        FileManager.default.removeTemporaryFiles(prefix: Self.snapshotFilePrefix, suffix: Self.snapshotFileSuffix)
+        let url = URL.temporaryDirectory.appending(path: "\(Self.snapshotFilePrefix)\(UUID().uuidString)\(Self.snapshotFileSuffix)")
         do {
             try snapshot.write(to: url)
-            for transfer in WCSession.default.outstandingFileTransfers { transfer.cancel() }
             WCSession.default.transferFile(url, metadata: nil)
         } catch {
             Logger.sync.error("Could not send the program to the watch: \(error.localizedDescription)")

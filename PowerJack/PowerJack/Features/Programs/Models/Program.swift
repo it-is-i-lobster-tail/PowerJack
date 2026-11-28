@@ -275,8 +275,7 @@ extension Program {
             Logger.program.warning("Cannot restore this Workout.")
             return
         }
-        if let endedAt = workout.endedAt, !workout.loggedSetsByMuscle.isEmpty,
-           let log = WorkoutLog.written(near: endedAt, in: modelContext) {
+        if !workout.loggedSetsByMuscle.isEmpty, let log = WorkoutLog.written(by: workout, in: modelContext) {
             modelContext?.delete(log)
         }
         workout.unskipAndCascade()
@@ -458,6 +457,10 @@ extension Program {
     var endedAt: Date? {
         allWorkouts.flatMap { [$0.endedAt, $0.lastLoggedAt] }.compactMap { $0 }.max()
     }
+
+    /// The iPhone's own programs, without the watch's copies that iCloud can bring before the tidy-up
+    /// folds them (see `SyncTidyUp`). For the iPhone's lists only: the watch shows its copies.
+    static let ownRows = #Predicate<Program> { !$0.fromSnapshotValue }
 
     static func fromSnapshot(in context: ModelContext) throws -> [Program] {
         try context.fetch(FetchDescriptor<Program>(predicate: #Predicate { $0.fromSnapshotValue }))

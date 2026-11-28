@@ -10,7 +10,7 @@ import SwiftUI
 import TipKit
 
 struct ProgramListView: View {
-    @Query private var programs: [Program]
+    @Query(filter: Program.ownRows) private var programs: [Program]
     @Environment(ProgramsRouter.self) private var router
     @Environment(\.modelContext) private var modelContext
     @State private var programPendingDelete: Program?
