@@ -8,7 +8,7 @@ struct ExerciseCatalogTests {
     @Test("Catalog entries have unique stable IDs and valid exercise fields")
     func catalogValidity() {
         let entries = ExerciseCatalog.entries
-        #expect(entries.count == 81)
+        #expect(entries.count == 114)
         #expect(Set(entries.map(\.id)).count == entries.count)
         let ids = Set(entries.map(\.id))
         for id in ["dumbbell-goblet-squat", "sliding-leg-curl", "smith-machine-squat", "smith-machine-hip-thrust", "cable-hip-abduction",
@@ -27,6 +27,16 @@ struct ExerciseCatalogTests {
         }
     }
 
+    @Test("The equipment picker offers each specialty item once with its loading type")
+    func namedEquipmentOptions() {
+        let named = ExerciseCatalog.equipmentOptions.filter { $0.name != nil }
+        #expect(named == [
+            .init(base: .bodyweight, name: "Ab Wheel"),
+            .init(base: .barbell, name: "EZ Bar"),
+            .init(base: .barbell, name: "Trap Bar"),
+        ])
+    }
+
     @Test("Catalog keeps High fatigue for big lower-body lifts")
     func catalogFatigueLevels() {
         let fatigueByID = Dictionary(uniqueKeysWithValues: ExerciseCatalog.entries.map { ($0.id, $0.fatigueLevel) })
@@ -35,6 +45,7 @@ struct ExerciseCatalogTests {
             "barbell-back-squat", "barbell-front-squat", "smith-machine-squat", "hack-squat",
             "leg-press", "trap-bar-deadlift", "barbell-deadlift", "barbell-romanian-deadlift",
             "dumbbell-bulgarian-split-squat", "dumbbell-walking-lunge", "barbell-hip-thrust", "smith-machine-hip-thrust",
+            "sumo-deadlift", "barbell-box-squat",
         ])
         #expect(fatigueByID["barbell-bench-press"] == .moderate)
         #expect(fatigueByID["barbell-overhead-press"] == .moderate)
@@ -46,7 +57,7 @@ struct ExerciseCatalogTests {
         #expect(fatigueByID["cable-hip-abduction"] == .low)
 
         let counts = Dictionary(grouping: ExerciseCatalog.entries, by: \.fatigueLevel).mapValues(\.count)
-        #expect(counts == [.high: 12, .moderate: 30, .low: 39])
+        #expect(counts == [.high: 14, .moderate: 42, .low: 58])
     }
 
     @Test("Seeding saves the complete catalog and is idempotent")
