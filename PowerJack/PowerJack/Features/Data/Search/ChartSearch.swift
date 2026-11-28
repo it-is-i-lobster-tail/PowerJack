@@ -1,12 +1,66 @@
 import Foundation
 
-/// What the gallery shows for a search: an optional direct answer, then the charts that answer it best.
+/// What the gallery shows for a search: what the search read, an optional direct answer, then the
+/// charts that answer it best, those with data first.
 struct ChartSearchResults {
     var answer: GalleryCard?
     var cards: [GalleryCard] = []
     var note: String?
+    var scope: [ScopeChip] = []
+    /// Another search to try when no chart has data.
+    var suggestion: ChartQuery.Suggestion?
 
     var isEmpty: Bool { answer == nil && cards.isEmpty }
+}
+
+/// One thing a search read, such as a lift, a muscle group, a period or a weight. Each offers the
+/// searches without it, and a lift also the searches for the other lifts its words could mean.
+struct ScopeChip: Identifiable, Equatable {
+    struct Choice: Equatable, Hashable {
+        let name: String
+        let text: String
+    }
+
+    let label: String
+    let isLift: Bool
+    var alternatives: [Choice] = []
+    let removed: String
+    var id: String { label }
+}
+
+extension ChartQuery {
+    func scopeChips(unit: WeightUnit) -> [ScopeChip] {
+        func capitalized(_ name: String) -> String { name.prefix(1).uppercased() + name.dropFirst() }
+        var chips = lifts.map { lift in
+            ScopeChip(label: capitalized(lift.name), isLift: true,
+                      alternatives: lift.alternatives.filter { $0 != lift.name }.map {
+                          .init(name: $0, text: text(replacing: lift.positions, with: $0))
+                      },
+                      removed: text(replacing: lift.positions, with: nil))
+        }
+        chips += muscleGroups.map { ScopeChip(label: capitalized($0.name), isLift: false, removed: text(replacing: $0.positions, with: nil)) }
+        chips += zip(periods, periodPositions).map { period, positions in
+            ScopeChip(label: period.label, isLift: false, removed: text(replacing: positions, with: nil))
+        }
+        var seen: [[Int]] = []
+        for parameter in [StudyParameter.load, .sets, .reps, .sessions, .weeks, .minutes, .comparisonDays] {
+            guard let value = parameters[parameter], let positions = parameterPositions[parameter],
+                  !seen.contains(positions) else { continue }
+            seen.append(positions)
+            let label: String
+            switch parameter {
+            case .load: label = "\(unit.format(tenthsPounds: value)) \(unit.symbol)"
+            case .sets: label = parameters[.reps].map { "\(value)×\($0)" } ?? "\(value) sets"
+            case .reps: label = "\(value) reps"
+            case .sessions: label = "\(value) workouts"
+            case .weeks: label = "\(value) weeks"
+            case .minutes: label = "\(value) min"
+            default: label = "\(value) days"
+            }
+            chips.append(ScopeChip(label: label, isLift: false, removed: text(replacing: positions, with: nil)))
+        }
+        return chips
+    }
 }
 
 /// Combines local search with the language model's reading of a question.
@@ -35,15 +89,20 @@ enum ChartSearch {
         // "Did I sleep enough?" has no chart. "Did sleep help my bench?" still shows the bench's charts.
         let unrecorded = UnrecordedMeasure.reason(for: query) != nil
         if unrecorded && !query.hasScope {
-            return ChartSearchResults(answer: answer, note: note)
+            return ChartSearchResults(answer: answer, note: note, scope: query.scopeChips(unit: history.unit))
         }
         // Each chart configured for the search's scope. A chart that can't show the scope has none.
         let configurations = Dictionary(uniqueKeysWithValues: TrainingStudy.allCases.map { study in
             (study, query.options(for: study, saved: saved[study], history: history))
         })
         func rank(_ intent: String) -> [TrainingStudy] {
-            // A search made only of scope, such as "arms October", narrows every chart.
-            index.relevant(for: intent) { configurations[$0]?.isEmpty == false } ?? TrainingStudy.allCases
+            // A search made only of scope, such as "arms October", narrows every chart. A single day
+            // with nothing else to rank by, as in "what did I do yesterday", leads with its workout log.
+            guard let relevant = index.relevant(for: intent, where: { configurations[$0]?.isEmpty == false }) else {
+                guard case .day = query.period else { return TrainingStudy.allCases }
+                return ([.sessionLedger] + TrainingStudy.allCases).uniqued()
+            }
+            return relevant
         }
         var ranked = unrecorded ? TrainingStudy.allCases : rank(query.intent)
         // Search runs while typing, so a last word that matches nothing may be unfinished: "how lo", "bench prog".
@@ -52,7 +111,9 @@ enum ChartSearch {
             let rest = query.intent.dropLast(last.count).trimmingCharacters(in: .whitespaces)
             if !rest.isEmpty || query.hasScope || last.count < 4 { ranked = rank(rest) }
         }
-        let studies = ((plan?.studies ?? []) + ranked).uniqued()
+        // "squat vs deadlift" asks how two lifts relate.
+        let compared: [TrainingStudy] = query.comparesLifts ? [.relationship] : []
+        let studies = (compared + (plan?.studies ?? []) + ranked).uniqued()
         let cards = studies.flatMap { study in
             (configurations[study] ?? []).map { options in
                 GalleryCard(id: GalleryCardID(study: study, exerciseKeys: options.exerciseKeys), options: options,
@@ -60,10 +121,10 @@ enum ChartSearch {
             }
         }
         // Charts with matching history come first, in ranked order.
+        let filled = cards.filter { $0.result.figure != nil }
         return ChartSearchResults(
-            answer: answer,
-            cards: cards.filter { $0.result.figure != nil } + cards.filter { $0.result.figure == nil },
-            note: note)
+            answer: answer, cards: filled + cards.filter { $0.result.figure == nil }, note: note,
+            scope: query.scopeChips(unit: history.unit), suggestion: filled.isEmpty ? query.suggestion : nil)
     }
 
     /// Short filters answer instantly. Questions are worth a model request.
@@ -75,7 +136,9 @@ enum ChartSearch {
         let result: StudyResult
         if let unrecorded = ChartAnswer.unrecorded(query) {
             result = unrecorded
-        } else if let metric = AnswerMetric(asking: query) ?? (query.isQuestion ? plan?.total : nil) {
+        } else if AnswerMetric.isAsked(by: query),
+                  // The model may choose what to count only when the words ask for a number without naming it.
+                  let metric = AnswerMetric.named(by: query) ?? plan?.total ?? AnswerMetric(asking: query) {
             result = ChartAnswer.result(metric, for: query, history: history)
         } else {
             return nil
@@ -91,8 +154,9 @@ enum ChartSearch {
         if history.sessions.isEmpty && history.workouts.isEmpty {
             return "Your workout log has no workouts yet."
         }
-        guard !query.unloggedLifts.isEmpty else { return nil }
-        return "No logged sets for \(query.unloggedLifts.formatted(.list(type: .and)))."
+        let unlogged = query.unloggedLifts.isEmpty ? [] : ["No logged sets for \(query.unloggedLifts.formatted(.list(type: .and)))."]
+        let notes = unlogged + query.notes
+        return notes.isEmpty ? nil : notes.joined(separator: " ")
     }
 }
 

@@ -49,7 +49,8 @@ struct HistoryParts: Codable {
     var imported: [StudySession] = []
     var importedFamiliar: [Familiar] = []
     var logs: [Log] = []
-    var movesLike: [String: String] = [:]
+    /// Each own lift as search reads it, by sync key, so editing its Advanced Data updates search.
+    var ownLifts: [String: ExerciseSearch.Document] = [:]
     /// The calendar and time zone the imported days were dated in.
     var calendar = ""
 
@@ -231,9 +232,9 @@ extension HistoryParts {
     /// Imported sets and the lifts' own-exercise links, which read the exercise list.
     mutating func setImported(_ imported: [ImportedSet], exercises: [Exercise], calendar: Calendar) {
         self.calendar = Self.calendarStamp(calendar)
-        movesLike = Dictionary(exercises.compactMap { exercise in
-            guard let key = exercise.syncKey, let built = MovesLike.key(of: exercise) else { return nil }
-            return (key, built)
+        ownLifts = Dictionary(exercises.compactMap { exercise in
+            guard exercise.catalogID == nil, let key = exercise.syncKey else { return nil }
+            return (key, ExerciseSearch.Document(exercise))
         }, uniquingKeysWith: { first, _ in first })
         self.imported = Self.sessions(from: imported, exercises: exercises, calendar: calendar)
         importedFamiliar = Dictionary(grouping: imported, by: \.trainingDay).compactMap { day, rows in
@@ -273,7 +274,8 @@ extension HistoryParts {
                     name: exercise?.exerciseName ?? first.exerciseName,
                     primary: exercise?.primaryMuscleFocus ?? Muscle(rawValue: first.muscle),
                     assisting: exercise?.secondaryMuscles, loaded: loaded, repsOnly: exercise?.repsOnly ?? !loaded,
-                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) })
+                    sets: rows.map { StudySet(reps: $0.reps, load: $0.weightTenthsPounds, status: .complete) },
+                    importedNames: rows.map(\.sourceExercise).filter { !$0.isEmpty }.uniqued())
             }
         }
     }

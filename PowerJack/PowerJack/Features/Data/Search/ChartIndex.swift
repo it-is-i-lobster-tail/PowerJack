@@ -12,7 +12,7 @@ struct ChartIndex {
     /// Words that describe a measure, so search never reads them as part of a lift name.
     static let vocabulary: Set<String> = Set(TrainingStudy.allCases.flatMap { study in
         study.searchPhrases.flatMap(terms)
-    })
+    }).union(synonyms.keys)
 
     private let encoder: ExerciseTextEncoder?
     private let vectors: [TrainingStudy: [[Float]]]
@@ -72,7 +72,11 @@ struct ChartIndex {
 
     private static func terms(_ text: String) -> [String] {
         SearchWords.tokens(text).map(SearchWords.singular).filter { !SearchWords.stopWords.contains($0) }
+            .map { synonyms[$0] ?? $0 }
     }
+
+    /// Words lifters use for the same measure count as one word.
+    private static let synonyms = ["pb": "pr", "record": "pr", "best": "pr", "1rm": "e1rm", "orm": "e1rm"]
 }
 
 extension TrainingStudy {
@@ -159,7 +163,7 @@ extension TrainingStudy {
             ["Why did my volume load change?", "total weight lifted", "tonnage", "weight times reps per workout"]
         case .sessionLedger:
             ["What exactly did I do in my workout?", "workout log details", "show the sets from a workout",
-             "workout history"]
+             "workout history", "what did I do in my last workout", "my last workout"]
         }
     }
 }

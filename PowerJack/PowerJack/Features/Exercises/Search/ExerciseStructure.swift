@@ -2,7 +2,7 @@ import Foundation
 
 /// What a lift does at the joints, and the muscles that follow from it. Change and Substitute
 /// rank neighbours by it, and a query's joint words, such as "rear delts", compare against it.
-nonisolated struct ExerciseStructure: Hashable, Sendable {
+nonisolated struct ExerciseStructure: Hashable, Codable, Sendable {
     /// The joint movement each action works, weighted 1 for a main action and 0.5 for an assisting
     /// one. A held action works the opposite movement without moving: bracing against trunk
     /// extension is trunk flexion work for the abs.
