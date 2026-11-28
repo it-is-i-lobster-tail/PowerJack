@@ -25,6 +25,15 @@ Then one run of `InstalledUpgradeTests` checks every upgraded store with the sam
 
 Versions are split over four runners. PRs into main run it only when they change the upgrade tests.
 
+### Snapshots
+
+Steps 1 and 2 give the same result every time for a version, so each version does them once. Right after training, its whole data container (store, settings and files, as the old version left them) is saved as a snapshot in the Actions cache, named by `snapshot-name.sh`: the commit plus a hash of `UpgradeFixtureWriter.swift` and that version's patch. A later check installs the new version, puts the snapshot's container in place before its first launch, which is the data an App Store update keeps, and goes on from step 3. A version without a snapshot gets the full steps 1 to 4 and leaves a snapshot behind.
+
+- Every day at 08:00 UTC a run on main makes snapshots for new versions only.
+- On Sundays that run builds every version again from scratch, upgrades the real installed app from each one, and replaces the snapshots. It's the full check of the snapshots.
+- Run the workflow by hand with mode `fresh` to do the same now, or `snapshots` to fill in missing ones.
+- Changing `UpgradeFixtureWriter.swift` or a patch renames the snapshots it affects, so they're built again.
+
 A release PR into staging waits while it's a draft, so merges to main don't keep restarting it. Mark it **Ready for review** when you want to release: that runs every upgrade, and any later push to the PR runs them again. The Unit tests check waits the same way.
 
 `UpgradeFixtureWriter.swift` has to compile against every version back to 1.0, so it only uses APIs that 1.0 already had.
