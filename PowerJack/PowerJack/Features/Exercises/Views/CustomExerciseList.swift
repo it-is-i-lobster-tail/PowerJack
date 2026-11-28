@@ -20,7 +20,8 @@ enum CustomExerciseOrigin: String, CaseIterable, Identifiable {
     static func shown(_ exercises: [Exercise], origin: CustomExerciseOrigin, importedKeys: Set<String>, query: String,
                       index: ExerciseSearch.Index?, familiarity: ExerciseFamiliarity = .none) -> [Exercise] {
         let own = exercises.filter { exercise in
-            guard exercise.userCreated else { return false }
+            // Archived ones have their own list under My Gym.
+            guard exercise.userCreated, !exercise.isArchived else { return false }
             switch origin {
             case .all: return true
             case .imported: return isImported(exercise, importedKeys: importedKeys)

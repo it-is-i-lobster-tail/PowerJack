@@ -117,6 +117,26 @@ struct StudyOptions: Equatable, Codable {
     }
 }
 
+extension StudyOptions {
+    /// Points the chart at `newKey` wherever it showed one of `oldKeys`, such as after a merge.
+    mutating func replaceExercise(_ oldKeys: [String], with newKey: String) {
+        exerciseKeys = exerciseKeys.map { oldKeys.contains($0) ? newKey : $0 }.uniqued()
+        if let secondExercise, oldKeys.contains(secondExercise) { self.secondExercise = newKey }
+    }
+
+    /// Saved chart views and starred charts that showed a merged exercise show its target.
+    static func replaceExercise(_ oldKeys: [String], with newKey: String, in defaults: UserDefaults) {
+        if let data = defaults.data(forKey: SavedStudyViews.storageKey),
+           let updated = try? SavedStudyViews(data: data).replacingExercise(oldKeys, with: newKey) {
+            defaults.set(updated, forKey: SavedStudyViews.storageKey)
+        }
+        if let data = defaults.data(forKey: FavoriteCharts.storageKey),
+           let updated = try? FavoriteCharts(data: data).replacingExercise(oldKeys, with: newKey) {
+            defaults.set(updated, forKey: FavoriteCharts.storageKey)
+        }
+    }
+}
+
 /// Keep each chart's last applied controls under its stable study ID. An unreadable entry only affects its own card.
 struct SavedStudyViews {
     static let storageKey = "data.chartOptions.v1"
@@ -132,6 +152,22 @@ struct SavedStudyViews {
             let options = try? JSONDecoder().decode(StudyOptions.self, from: data)
         else { return StudyOptions() }
         return options
+    }
+
+    /// Nil when no saved view showed one of `oldKeys`.
+    func replacingExercise(_ oldKeys: [String], with newKey: String) throws -> Data? {
+        var data: Data?
+        var views = self
+        for id in TrainingStudy.allCases where entries[String(id.rawValue)] != nil {
+            var options = views[id]
+            let before = options
+            options.replaceExercise(oldKeys, with: newKey)
+            guard options != before else { continue }
+            let saved = try views.saving(options, for: id)
+            views = SavedStudyViews(data: saved)
+            data = saved
+        }
+        return data
     }
 
     func saving(_ options: StudyOptions, for id: TrainingStudy) throws -> Data {

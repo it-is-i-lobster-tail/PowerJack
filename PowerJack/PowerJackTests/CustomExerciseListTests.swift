@@ -63,6 +63,13 @@ struct CustomExerciseListTests {
         #expect(shown(.madeHere, "pec squeeze") == ["Friday Pec Squeeze"])
     }
 
+    @Test func archivedExercisesStayInTheirOwnList() {
+        madeHere.archivedAtValue = .now
+        #expect(shown(.all) == ["Hammer Strength Row"])
+        #expect(shown(.madeHere).isEmpty)
+        #expect(shown(.all, "pec squeeze").isEmpty)
+    }
+
     @Test func searchesBeforeTheIndexIsReadyShowNothingYet() {
         let early = CustomExerciseOrigin.shown(exercises, origin: .all, importedKeys: importedKeys,
                                                query: "row", index: nil)

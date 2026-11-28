@@ -3,14 +3,17 @@
 //  PowerJack
 //
 //  What your gym's weights look like: the unit they're in and the equipment you have,
-//  plus the exercises you added.
+//  plus your own exercises and the ones you archived.
 //
 
+import SwiftData
 import SwiftUI
 
 struct MyGymSettingsView: View {
     @AppStorage(AppSettings.Key.weightUnit)
     private var weightUnit = WeightUnit.deviceDefault
+    @Query(filter: #Predicate<Exercise> { $0.archivedAtValue != nil })
+    private var archivedExercises: [Exercise]
 
     var body: some View {
         content.traceScreen("My Gym")
@@ -49,6 +52,16 @@ struct MyGymSettingsView: View {
                 } label: {
                     SettingsRowLabel(systemImage: "figure.strengthtraining.traditional", title: "My Custom Exercises",
                                      detail: "See and edit the exercises you added or imported.")
+                }
+
+                // Only once something is archived, so it's there to find when needed.
+                if !archivedExercises.isEmpty {
+                    NavigationLink {
+                        ArchivedExerciseList()
+                    } label: {
+                        SettingsRowLabel(systemImage: "archivebox", title: "Archived Exercises",
+                                         detail: "Hidden from search. Their history stays.")
+                    }
                 }
             }
         }
