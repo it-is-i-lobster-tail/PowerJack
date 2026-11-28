@@ -209,7 +209,7 @@ extension FAQ {
             Entry(
                 question: "What can I change in Settings?",
                 answer: [
-                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and Load Steps. Appearance picks light or dark. Your Data has iCloud Backup and exporting your history.",
+                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and Load Steps. Appearance picks light or dark. Your Data has iCloud Backup, exporting your history and importing it from FitNotes.",
                     "Load Steps sets the smallest weight jump for each kind of equipment. Strength programs round your weights to it, so set it to match the plates and dumbbells you have.",
                 ]
             ),

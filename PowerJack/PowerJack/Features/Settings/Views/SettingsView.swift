@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     private enum Page: Hashable {
-        case personalization, myGym, appearance, importData, yourData, faq, legal, developerTool
+        case personalization, myGym, appearance, yourData, faq, legal, developerTool
     }
 
     var body: some View {
@@ -17,10 +17,6 @@ struct SettingsView: View {
             Section {
                 NavigationLink(value: Page.appearance) {
                     SettingsGroupLabel(title: "Appearance", systemImage: "circle.lefthalf.filled")
-                }
-
-                NavigationLink(value: Page.importData) {
-                    SettingsGroupLabel(title: "Import", systemImage: "square.and.arrow.down")
                 }
 
                 NavigationLink(value: Page.myGym) {
@@ -59,11 +55,6 @@ struct SettingsView: View {
             case .personalization: PersonalizationSettingsView()
             case .myGym: MyGymSettingsView()
             case .appearance: AppearanceSettingsView()
-            case .importData:
-                List {
-                    NavigationLink("FitNotes CSV Import") { FitNotesImportView() }
-                }
-                .navigationTitle("Import")
             case .yourData: YourDataSettingsView()
             case .faq: FAQView()
             case .legal: LegalSettingsView()
