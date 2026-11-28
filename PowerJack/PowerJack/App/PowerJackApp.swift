@@ -69,6 +69,7 @@ struct PowerJackApp: App {
 /// The app's screens on the store's current container, which changes with iCloud Backup.
 struct PowerJackAppContent: View {
     @Environment(PowerJackStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage(AppSettings.Key.appearance)
     private var appearance = AppSettings.Default.appearance
@@ -80,5 +81,11 @@ struct PowerJackAppContent: View {
             // Content fades softly under the bars instead of stopping at a hard line.
             // Sheets don't inherit this, so each one with a navigation bar sets it too.
             .scrollEdgeEffectStyle(.soft, for: .all)
+            .overlay(alignment: .top) { UnsavedChangesBanner() }
+            .onChange(of: scenePhase) { _, phase in
+                // Typed values wait for autosave, and iOS can end a backgrounded app before it runs.
+                guard phase != .active, !store.isReplacingContainer, store.container.mainContext.hasChanges else { return }
+                store.container.mainContext.saveTraced("leaving the screen")
+            }
     }
 }

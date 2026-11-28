@@ -22,6 +22,7 @@ final class WatchStore {
     /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
     /// because reading a model after its container closes crashes the app.
     private(set) var isReplacingContainer = false
+    @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
 
     private static var runsInPreviews: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -80,18 +81,30 @@ final class WatchStore {
     }
 
     /// iCloud can bring the iPhone's own copy of rows the watch already copied from it directly,
-    /// so tidy up each time iCloud changes the store (see `SyncTidyUp`).
+    /// so tidy up after iCloud changes the store (see `SyncTidyUp`).
     private func tidyUpAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                guard let self, !isReplacingContainer else { continue }
-                let context = container.mainContext
-                do {
-                    if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
-                    try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone, trigger: "iCloud import", scope: .recent)
-                } catch {
-                    Logger.sync.error("Could not tidy up after an iCloud import: \(error.localizedDescription)")
-                }
+                self?.scheduleTidyUp()
+            }
+        }
+    }
+
+    /// At most one tidy-up this often: an iCloud import can bring many changes a second.
+    private func scheduleTidyUp() {
+        guard scheduledTidyUp == nil else { return }
+        scheduledTidyUp = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard let self else { return }
+            scheduledTidyUp = nil
+            // The store being replaced can't be read; the new one tidies up after its next import.
+            guard !isReplacingContainer else { return }
+            let context = container.mainContext
+            do {
+                if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
+                try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone, trigger: "iCloud import", scope: .recent)
+            } catch {
+                Logger.sync.error("Could not tidy up after an iCloud import: \(error.localizedDescription)")
             }
         }
     }

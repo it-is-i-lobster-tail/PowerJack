@@ -10,20 +10,45 @@ import Foundation
 import OSLog
 
 enum RestLiveActivityController {
-    /// Starts, updates, or ends the Live Activity so it shows `state`.
-    /// iOS only lets an app start one while it is in the foreground.
+    private struct Request {
+        let state: WorkoutActivityState?
+        let workoutTitle: String?
+        let isEnabled: Bool
+    }
+
+    /// The newest request still waiting. A newer one replaces it, since only the latest state matters.
+    private static var pending: Request?
+    /// Applies the pending requests one at a time, so two syncs never start or end activities at once.
+    private static var worker: Task<Void, Never>?
+
+    /// Starts, updates, or ends the Live Activity so it shows `state`, once any sync already
+    /// underway finishes. iOS only lets an app start one while it is in the foreground.
     static func sync(state: WorkoutActivityState?, workoutTitle: String?, isEnabled: Bool) async {
         // Previews render seed data and should never start a real activity.
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
 
+        pending = Request(state: state, workoutTitle: workoutTitle, isEnabled: isEnabled)
+        if worker == nil {
+            worker = Task {
+                while let request = pending {
+                    pending = nil
+                    await apply(request)
+                }
+                worker = nil
+            }
+        }
+        await worker?.value
+    }
+
+    private static func apply(_ request: Request) async {
         let running = Activity<RestActivityAttributes>.activities.filter {
             $0.activityState == .active || $0.activityState == .stale
         }
 
-        guard isEnabled,
+        guard request.isEnabled,
               ActivityAuthorizationInfo().areActivitiesEnabled,
-              let state,
-              let workoutTitle
+              let state = request.state,
+              let workoutTitle = request.workoutTitle
         else {
             if !running.isEmpty { TraceLog.record(.timer, "Live Activity ended (\(running.count))") }
             await end(running)

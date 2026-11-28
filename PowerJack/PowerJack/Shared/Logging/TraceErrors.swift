@@ -46,14 +46,15 @@ extension TraceLog {
 }
 
 extension ModelContext {
-    /// Saves, and records a failure in the log and on the trace instead of dropping it. `reason`
-    /// says what was saved, e.g. "set logged".
+    /// Saves, and records a failure in the log, on the trace and in `SaveHealth` instead of dropping it.
+    /// `reason` says what was saved, e.g. "set logged".
     func saveTraced(_ reason: String) {
         do {
             try save()
         } catch {
             Logger.persistence.error("Could not save (\(reason, privacy: .public)): \(error.localizedDescription)")
             TraceLog.record(.data, "Save failed (\(reason)): \(TraceLog.describe(error))")
+            SaveHealth.shared.recordFailure(in: self)
         }
     }
 }
