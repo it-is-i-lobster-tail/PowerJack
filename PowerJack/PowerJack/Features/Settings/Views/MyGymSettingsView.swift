@@ -2,14 +2,18 @@
 //  MyGymSettingsView.swift
 //  PowerJack
 //
-//  What your gym's weights look like: the unit they're in and the smallest jumps you can make.
+//  What your gym's weights look like: the unit they're in and the smallest jumps you can make,
+//  plus the exercises you archived.
 //
 
+import SwiftData
 import SwiftUI
 
 struct MyGymSettingsView: View {
     @AppStorage(AppSettings.Key.weightUnit)
     private var weightUnit = WeightUnit.deviceDefault
+    @Query(filter: #Predicate<Exercise> { $0.archivedAtValue != nil })
+    private var archivedExercises: [Exercise]
 
     var body: some View {
         content.traceScreen("My Gym")
@@ -51,6 +55,16 @@ struct MyGymSettingsView: View {
                         title: "Load Steps",
                         detail: "The smallest weight jump for each kind of equipment in Strength programs."
                     )
+                }
+
+                // Only once something is archived, so it's there to find when needed.
+                if !archivedExercises.isEmpty {
+                    NavigationLink {
+                        ArchivedExerciseList()
+                    } label: {
+                        SettingsRowLabel(systemImage: "archivebox", title: "Archived Exercises",
+                                         detail: "Hidden from search. Their history stays.")
+                    }
                 }
             }
         }

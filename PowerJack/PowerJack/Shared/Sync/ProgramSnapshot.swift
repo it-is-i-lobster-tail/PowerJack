@@ -83,6 +83,8 @@ extension ProgramSnapshot {
             }
         }
 
+        try removeUnusedOwnCopies(in: context)
+
         if let strengthLog, try (StrengthLog.latest(in: context)?.date ?? .distantPast) < strengthLog.date {
             context.insert(StrengthLog(snapshot: strengthLog))
             do {
@@ -125,6 +127,20 @@ extension ProgramSnapshot {
         }
         if !received.isEmpty { try MovementCatalog.reconcile(received, in: context) }
         return byKey
+    }
+
+    /// The watch's copy of the lifter's own exercise goes once nothing on the watch uses it and the
+    /// iPhone stopped sending it, such as after the iPhone merged or deleted it. Otherwise iCloud
+    /// would bring it back to the iPhone. A copy has no history of its own, so nothing is lost.
+    private func removeUnusedOwnCopies(in context: ModelContext) throws {
+        let sent = Set(exercises.map(\.key))
+        let copies = try context.fetch(FetchDescriptor<Exercise>(predicate: #Predicate { $0.fromSnapshotValue && $0.catalogID == nil }))
+        for copy in copies where !(copy.syncKey.map(sent.contains) ?? false)
+            && (copy.templateExercisesValue ?? []).isEmpty
+            && (copy.workoutExercisesValue ?? []).isEmpty
+            && (copy.substitutedWorkoutExercisesValue ?? []).isEmpty {
+            context.delete(copy)
+        }
     }
 
     private func applyWeeks(_ states: [WeekState], to program: Program, exercises: [String: Exercise], in context: ModelContext) {
