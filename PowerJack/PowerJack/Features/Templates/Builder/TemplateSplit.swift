@@ -19,17 +19,21 @@ enum TemplateSplit {
         }
     }
 
+    private static let row = Slot(muscle: .back, patterns: [.horizontalPull, .verticalPull])
+
     enum Day: Sendable {
         case fullBody, upper, lower, push, pull, legs
+
+        private var row: Slot { TemplateSplit.row }
 
         var slots: [Slot] {
             switch self {
             case .fullBody:
-                [.init(muscle: .quads), .init(muscle: .chest), .init(muscle: .back), .init(muscle: .hamstrings),
-                 .init(muscle: .shoulders), .init(muscle: .glutes), .init(muscle: .back), .init(muscle: .triceps),
+                [.init(muscle: .quads), .init(muscle: .chest), row, .init(muscle: .hamstrings),
+                 .init(muscle: .shoulders), .init(muscle: .glutes), row, .init(muscle: .triceps),
                  .init(muscle: .biceps), .init(muscle: .calves), .init(muscle: .abs)]
             case .upper:
-                [.init(muscle: .chest), .init(muscle: .back), .init(muscle: .shoulders), .init(muscle: .back),
+                [.init(muscle: .chest), row, .init(muscle: .shoulders), row,
                  .init(muscle: .chest), .init(muscle: .triceps), .init(muscle: .biceps), .init(muscle: .shoulders)]
             case .lower:
                 [.init(muscle: .quads), .init(muscle: .hamstrings), .init(muscle: .glutes), .init(muscle: .quads),
@@ -38,7 +42,7 @@ enum TemplateSplit {
                 [.init(muscle: .chest), .init(muscle: .shoulders), .init(muscle: .chest), .init(muscle: .triceps),
                  .init(muscle: .shoulders), .init(muscle: .triceps), .init(muscle: .abs)]
             case .pull:
-                [.init(muscle: .back), .init(muscle: .back), .init(muscle: .shoulders, patterns: [.reverseFly, .facePull]),
+                [row, row, .init(muscle: .shoulders, patterns: [.reverseFly, .facePull]),
                  .init(muscle: .biceps), .init(muscle: .back), .init(muscle: .biceps), .init(muscle: .forearms)]
             case .legs:
                 [.init(muscle: .quads), .init(muscle: .hamstrings), .init(muscle: .glutes), .init(muscle: .quads),

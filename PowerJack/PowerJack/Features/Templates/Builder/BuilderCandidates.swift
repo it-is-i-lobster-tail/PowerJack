@@ -14,8 +14,10 @@ struct BuilderCandidates: Sendable {
     /// Best fit first.
     let ranked: [BuilderExercise]
     let byID: [String: BuilderExercise]
+    /// Muscles some candidate trains as its main one.
+    let primaries: Set<Muscle>
 
-    init(_ exercises: [BuilderExercise], for request: TemplateRequest) {
+    init(_ exercises: [BuilderExercise], for request: TemplateRequest, perMuscle: Int = Self.perMuscle) {
         var seen = Set<String>()
         let usable = exercises.filter { request.allows($0) && seen.insert($0.id).inserted }
         // Ties keep the order they came in, so the result never changes from run to run.
@@ -24,12 +26,14 @@ struct BuilderCandidates: Sendable {
             let secondScore = Self.score(second.element, for: request)
             return firstScore != secondScore ? firstScore > secondScore : first.offset < second.offset
         }
+        let limit = perMuscle
         var perMuscle: [Muscle: Int] = [:]
         ranked = sorted.map(\.element).filter { exercise in
             perMuscle[exercise.primary, default: 0] += 1
-            return perMuscle[exercise.primary, default: 0] <= Self.perMuscle
+            return perMuscle[exercise.primary, default: 0] <= limit
         }
         byID = Dictionary(uniqueKeysWithValues: ranked.map { ($0.id, $0) })
+        primaries = Set(ranked.map(\.primary))
     }
 
     func contains(_ id: String) -> Bool { byID[id] != nil }

@@ -32,6 +32,8 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
     let isCompound: Bool
     /// Loaded and multi-joint, so a Strength program can make it a priority lift (`StrengthLifts.isCompound`).
     let isStrengthMainLift: Bool
+    /// Squat, hinge, push or pull, as the PowerJack engine reads it. Nil for single-joint work.
+    let liftPattern: PowerJackPattern?
     /// The pattern it can be the PowerJack main lift of (`PowerJackExercise.isMainLiftEligible`).
     let powerJackMainPattern: PowerJackPattern?
 
@@ -72,6 +74,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
         )
         self.isCompound = traits.1 || secondaries.count >= 2
         self.isStrengthMainLift = equipment != .bodyweight && equipment != .loadableBodyweight && secondaries.count >= 2
+        self.liftPattern = traits.0
         self.powerJackMainPattern = powerJack.isMainLiftEligible ? traits.0 : nil
     }
 
@@ -104,7 +107,7 @@ struct BuilderExercise: Identifiable, Hashable, Sendable {
     }
 
     /// The built-in exercises as they are seeded.
-    static let catalog = ExerciseCatalog.entries.map(BuilderExercise.init)
+    static let catalog = ExerciseCatalog.entries.map { BuilderExercise($0) }
 }
 
 extension BuilderExercise {
@@ -123,10 +126,5 @@ extension BuilderExercise {
         case nil: primary == .chest ? .push : primary == .back ? .pull : nil
         default: nil
         }
-    }
-
-    /// How much one exercise trains `muscle`: 1 for its main muscle, half for each secondary.
-    func exposure(of muscle: Muscle) -> Double {
-        primary == muscle ? 1 : secondaries.contains(muscle) ? 0.5 : 0
     }
 }
