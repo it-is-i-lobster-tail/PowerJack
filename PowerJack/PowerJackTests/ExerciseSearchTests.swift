@@ -45,12 +45,12 @@ struct ExerciseSearchTests {
         func shown(_ query: String) -> [String] { ranked(query, in: index, all) }
 
         let squats = entries { $0.profile.family == .squat || $0.profile.family == .splitSquatLunge }
-        #expect(squats.count == 11)
+        #expect(squats.count == 13)
         #expect(Set(shown("squats")).isSuperset(of: squats))
 
         let primary = entries { $0.primaryMuscle == .hamstrings }
         let hamstrings = entries { $0.primaryMuscle == .hamstrings || $0.secondaryMuscles.contains(.hamstrings) }
-        #expect(hamstrings.count == 21)
+        #expect(hamstrings.count == 26)
         let hamstring = shown("hamstring")
         #expect(Set(hamstring).isSuperset(of: hamstrings))
         #expect(Set(hamstring.prefix(primary.count)) == primary)
@@ -62,7 +62,8 @@ struct ExerciseSearchTests {
         #expect(Set(shown("db press").prefix(dumbbellPresses.count)) == dumbbellPresses)
         #expect(shown("pullups").first == "pull-up")
         #expect(shown("barbell shrug").contains("dumbbell-shrug"))
-        #expect(shown("hex bar").first == "trap-bar-deadlift")
+        #expect(Set(shown("hex bar").prefix(2)) == ["trap-bar-deadlift", "trap-bar-shrug"])
+        #expect(shown("hex bar shrug").first == "trap-bar-shrug")
         #expect(shown("knee extension").prefix(3).contains("leg-extension"))
         #expect(shown("peanut butter").isEmpty)
     }
@@ -101,11 +102,16 @@ struct ExerciseSearchTests {
         bench.exerciseName = "Competition Lift"
         let index = index(all)
         let presses = entries { $0.profile.pattern == .horizontalPress }
-        for query in ["bench press", "BENCH pr", "benchpress"] {
+        for query in ["bench press", "benchpress"] {
             let result = ranked(query, in: index, all)
             #expect(Set(result) == presses, "\(query)")
             #expect(try #require(result.firstIndex(of: "barbell-bench-press")) < #require(result.firstIndex(of: "push-up")))
         }
+        // A half-typed word still finds every bench variant, and nothing but presses.
+        let partial = ranked("BENCH pr", in: index, all)
+        #expect(entries { $0.name.contains("Bench Press") }.isSubset(of: Set(partial)))
+        #expect(Set(partial).isSubset(of: presses))
+        #expect(try #require(partial.firstIndex(of: "barbell-bench-press")) < #require(partial.firstIndex(of: "push-up")))
         #expect(ranked("  ", in: index, all).isEmpty)
         #expect(ranked("no such movement", in: index, all).isEmpty)
     }
@@ -150,10 +156,10 @@ struct ExerciseSearchTests {
         #expect(primaries(Array(ranked("arm day", in: index, all).prefix(5))).allSatisfy { [.biceps, .triceps].contains($0) })
         #expect(ranked("peanut butter", in: index, all).isEmpty)
         #expect(ranked("leg press", in: index, all) == ["leg-press"])
-        #expect(Set(ranked("leg curls", in: index, all)) == ["seated-leg-curl", "lying-leg-curl", "sliding-leg-curl"])
+        #expect(Set(ranked("leg curls", in: index, all)) == ["seated-leg-curl", "lying-leg-curl", "sliding-leg-curl", "nordic-hamstring-curl"])
         // Equipment ranks first but no longer hides the rest.
         let presses = ranked("dumbbell bench press", in: index, all)
-        let dumbbellBench = entries { $0.equipment == .dumbbell && $0.profile.pattern == .horizontalPress }
+        let dumbbellBench = entries { $0.equipment == .dumbbell && $0.name.contains("Bench Press") }
         #expect(Set(presses.prefix(dumbbellBench.count)) == dumbbellBench)
         #expect(presses.contains("barbell-bench-press"))
         let dumbbellLegs = ranked("dumbbell leg exercises", in: index, all)

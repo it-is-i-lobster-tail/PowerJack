@@ -77,7 +77,7 @@ struct FitNotesMatchingTests {
         let expected: [String: Set<String>] = [
             "Romanian Deadlift": ["barbell-romanian-deadlift", "dumbbell-romanian-deadlift"],
             "Walking Lunges": ["dumbbell-walking-lunge"],
-            "Chest Flys": ["cable-chest-fly"],
+            "Chest Flys": ["cable-chest-fly", "pec-deck", "dumbbell-fly", "incline-dumbbell-fly"],
             "Hanging Knee Raise (Sides Too)": ["hanging-knee-raise"],
             "Dumbbell Squat": ["dumbbell-goblet-squat", "goblet-squat"],
         ]

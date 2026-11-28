@@ -34,7 +34,7 @@ struct StudyFullscreenTests {
         #expect(screen.contains("For set 1, you logged 8 reps on Nov 4 and 10 reps on Nov 18."))
     }
 
-    @Test("A full-screen table can pan to every row and column and still zoom")
+    @Test("A full-screen table shows only the table, scrolling to every row and column")
     func tableViewport() async throws {
         let table = StudyTable(
             columns: (1...8).map { "Column \($0)" },
@@ -43,35 +43,28 @@ struct StudyFullscreenTests {
         let screen = try await HostedView(StudyFullscreenView(study: result, title: "Rep records"))
         defer { screen.close() }
 
-        let canvas = try #require(
-            screen.horizontalScrollViews.first { $0.accessibilityIdentifier == "data.fullscreen.canvas" })
-        #expect(canvas.contentSize.width >= StudyTableView.contentWidth(columns: table.columns.count))
-        #expect(canvas.contentSize.height > canvas.bounds.height)
-        #expect(canvas.pinchGestureRecognizer?.isEnabled == true)
-        #expect(canvas.panGestureRecognizer.isEnabled)
-        let initialViewport = canvas.bounds.height
-        let footer = try #require(screen.frame(of: "How to Read"))
+        #expect(screen.contains("Rep records"))
+        #expect(screen.contains("Share chart"))
+        #expect(screen.contains("Close"))
+        #expect(!screen.contains("How to Read"))
+        let wide = try #require(screen.horizontalScrollViews.first)
+        #expect(wide.contentSize.width >= StudyTableView.contentWidth(columns: table.columns.count) - 1)
+        #expect(wide.pinchGestureRecognizer == nil || wide.maximumZoomScale <= wide.minimumZoomScale)
         await screen.scrollToBottom()
-        #expect(screen.frame(of: "How to Read")?.minY == footer.minY)
-        let question = "What’s the most you’ve lifted for exactly this many reps?"
-        #expect(!screen.contains(question))
-        try #require(await screen.tap("How to Read"))
-        #expect(await screen.waitUntil { canvas.bounds.height < initialViewport - 20 })
-        #expect(screen.contains(question))
-        try #require(await screen.tap("How to Read"))
-        #expect(await screen.waitUntil { abs(canvas.bounds.height - initialViewport) < 2 })
-        #expect(!screen.contains(question))
-        let original = canvas.contentSize
-        canvas.setZoomScale(2, animated: false)
-        await screen.settle()
-        #expect(canvas.contentSize.width >= original.width * 2 - 1)
-        #expect(canvas.contentSize.height >= original.height * 2 - 1)
-        let corner = CGPoint(
-            x: canvas.contentSize.width - canvas.bounds.width,
-            y: canvas.contentSize.height - canvas.bounds.height)
-        canvas.setContentOffset(corner, animated: false)
-        await screen.settle()
-        #expect(abs(canvas.contentOffset.x - corner.x) < 1)
-        #expect(abs(canvas.contentOffset.y - corner.y) < 1)
+        #expect(screen.contains("44, 1"))
+    }
+
+    @Test("A full-screen lift panel shows that one lift with its tap readout and no guide")
+    func singlePanel() async throws {
+        let day = 86_400.0
+        let squat = StudySeries(name: "Front Squat", points: (0..<20).map { .init(1_750_000_000 + Double($0) * 7 * day, 100 + Double($0)) })
+        var panel = StudyResult(id: .legMax, scope: "Legs", figure: .liftPanels([squat]), xLabel: "Date", yLabel: "Estimated max")
+        panel.summary = "Summary text"
+        let screen = try await HostedView(StudyFullscreenView(study: panel, title: "Front Squat · Estimated max"))
+        defer { screen.close() }
+        #expect(screen.contains("Front Squat · Estimated max"))
+        #expect(screen.contains("Selected workout"))
+        #expect(!screen.contains("How to Read"))
+        #expect(!screen.contains("Summary text"))
     }
 }

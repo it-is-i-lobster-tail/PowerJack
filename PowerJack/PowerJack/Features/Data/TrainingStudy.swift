@@ -64,7 +64,7 @@ struct StudyPoint: Equatable {
 struct StudySeries: Equatable {
     enum Style { case line, step, dots, fit, bars }
     let name: String
-    let points: [StudyPoint]
+    var points: [StudyPoint]
     var style: Style = .line
 }
 
@@ -116,6 +116,10 @@ struct StudyResult: Identifiable, Equatable {
     var title: StudyTitle?
     var presentation: StudyPresentation = .original
     var horizontalCategories = false
+    /// The chosen dates trimmed to the history. Date axes span exactly this. Nil uses the data's own span.
+    var xRange: DateInterval?
+    /// Set when the categories are calendar buckets, so they plot on a date axis rather than as names.
+    var timeline: StudyTimeline?
 
     var displayTitle: String { title?.full ?? id.caption }
     var galleryCaption: String { title?.caption ?? id.genericName }

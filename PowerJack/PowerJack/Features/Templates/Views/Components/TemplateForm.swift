@@ -77,15 +77,9 @@ struct TemplateForm: View {
                 draft: $draft
             )
             
-            HStack {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(.blue)
-                Text(draft.isDraft
-                     ? "Saves as a draft until every field and workout is filled in."
-                     : "You can edit these details at any time.")
-                    .font(.caption)
-                Spacer()
-            }
+            FormInfoNote(draft.isDraft
+                         ? "Saves as a draft until every field and workout is filled in."
+                         : "You can edit these details at any time.")
             
         } footer: {
             EmptyView()
