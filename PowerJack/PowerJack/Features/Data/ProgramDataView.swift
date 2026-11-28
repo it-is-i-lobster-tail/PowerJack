@@ -411,6 +411,8 @@ private struct StudyDetail: View {
     @State private var editingReps = false
     @State private var editingDates = false
     @Environment(\.colorScheme) private var scheme
+    /// Charts grow with the reader's text size so axis labels never crowd.
+    @ScaledMetric(relativeTo: .caption) private var chartHeight: CGFloat = 290
 
     var body: some View {
         ScrollView {
@@ -527,7 +529,7 @@ private struct StudyDetail: View {
         }
         switch study.figure {
         case .traces(let series, _):
-            view.frame(height: 290)
+            view.frame(height: chartHeight)
             legend(series.map(\.name))
         case .bars(let bars):
             if study.horizontalCategories {
@@ -541,7 +543,7 @@ private struct StudyDetail: View {
                     view.frame(height: StudyCategoryPlot.height(labels: rows))
                 }
             } else {
-                view.frame(height: 270)
+                view.frame(height: chartHeight - 20)
             }
             let labels = bars.reduce(into: [String]()) {
                 if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }

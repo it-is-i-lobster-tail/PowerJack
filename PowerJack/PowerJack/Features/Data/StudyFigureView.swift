@@ -12,6 +12,7 @@ struct StudyFigureView: View {
     var expandPanel: ((StudyResult, String) -> Void)?
 
     @Environment(\.colorScheme) private var scheme
+    @ScaledMetric(relativeTo: .caption) private var panelHeight: CGFloat = 145
     private func ink(_ index: Int) -> Color { WorkoutChartPalette.color(at: index, scheme: scheme) }
 
     @ViewBuilder var body: some View {
@@ -60,7 +61,7 @@ struct StudyFigureView: View {
                         }
                     }
                     .modifier(StudyValueAxis(compact: compact, values: values))
-                    .frame(height: compact || fillsScreen ? nil : 145)
+                    .frame(height: compact || fillsScreen ? nil : panelHeight)
                     .frame(maxHeight: fillsScreen ? .infinity : nil)
                     .modifier(StudyXAxis(series: [trace], study: study, compact: compact, dates: true))
                     if compact { Divider() }
@@ -476,7 +477,7 @@ struct StudyCategoryPlot: View {
         let metrics = StudyCategoryPlot.metrics(typeSize)
         let labels = StudyAxisPlan.categoryLabels(
             categories.map(categoryCaption), slot: max(1, width - 44) / CGFloat(max(1, categories.count)),
-            metrics: metrics, maximumHeight: 110)
+            metrics: metrics, maximumHeight: max(110, metrics.lineHeight * 7))
         let slot = max(1, width - 44) / CGFloat(max(1, categories.count))
         let plot = Chart(Array(bars.enumerated()), id: \.offset) { _, bar in
             mark(x: .value(study.xLabel, bar.label), y: .value(study.yLabel, bar.value), group: bar.group)
