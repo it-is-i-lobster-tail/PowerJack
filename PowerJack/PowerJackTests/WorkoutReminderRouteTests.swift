@@ -27,7 +27,7 @@ struct WorkoutReminderRouteTests {
 
     @Test func sendNowUsesTheScheduledReminderContentUnderItsOwnIdentifier() throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let now = Date.now
         let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false, context: context, now: now)
         let workout = try #require(program.nextWorkout)
@@ -57,7 +57,7 @@ struct WorkoutReminderRouteTests {
 
     @Test func pausedWorkoutGetsAReminderForTheSetsLeft() throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let now = Date.now
         let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false, context: context, now: now)
         let workout = try #require(program.nextWorkout)
@@ -87,7 +87,7 @@ struct WorkoutReminderRouteTests {
 
     @Test func pausedWorkoutWithNoSetsLeftGetsNoReminder() throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let now = Date.now
         let program = try WorkoutReminderDemo.seed(.extraSet, type: .hypertrophy, starter: false, context: context, now: now)
         let workout = try #require(program.nextWorkout)
@@ -108,7 +108,7 @@ struct WorkoutReminderRouteTests {
 
     @Test func noReminderWithoutAnActiveProgram() throws {
         let store = PowerJackStore(inMemory: true)
-        let history = try WorkoutPreviewHistory(programs: [], in: store.container.mainContext, now: .now)
+        let history = try WorkoutPreviewHistory(programs: [], in: store.container!.mainContext, now: .now)
         let timing = WorkoutReminderTiming.Prediction(workout: .now, send: .now, nightBefore: false)
         #expect(try WorkoutReminders.makeReminder(programs: [], history: history, timing: timing, calendar: .current) == nil)
     }

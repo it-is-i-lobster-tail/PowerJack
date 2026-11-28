@@ -13,7 +13,10 @@ extension CompleteSetIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         // The app's own context, so open screens see the set complete right away.
-        let context = PowerJackApp.modelContainer.mainContext
+        guard let context = PowerJackApp.modelContainer?.mainContext else {
+            TraceLog.record(.timer, "Live Activity check ignored: the store isn't open")
+            return .result()
+        }
         let program = try context.fetch(FetchDescriptor<Program>()).active
         let workout = program?.nextWorkout
         let completed = workout?.completeCurrentSet(exerciseOrder: exerciseOrder, setOrder: setOrder, workoutID: workoutID) == true

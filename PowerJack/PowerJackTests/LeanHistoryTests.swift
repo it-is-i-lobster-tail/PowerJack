@@ -15,7 +15,7 @@ import Testing
 @MainActor
 struct LeanHistoryTests {
     private let store = PowerJackStore(inMemory: true)
-    private var context: ModelContext { store.container.mainContext }
+    private var context: ModelContext { store.container!.mainContext }
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
     @Test("A year of history reads the same from the lean rows as from the old ones: export and Data tab")

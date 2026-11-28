@@ -16,7 +16,7 @@ struct SyncPacingTests {
     @Test("A burst of changes tidies up once, after a moment, not on every change")
     func tidyUpRunsOncePerBurst() async throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let entry = try #require(ExerciseCatalog.entries.first)
         // Another device's seeded copy of a built-in exercise, newer so the dedupe removes it.
         let copy = entry.makeExercise()

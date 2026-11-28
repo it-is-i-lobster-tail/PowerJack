@@ -17,7 +17,8 @@ import SwiftData
 @Observable
 final class WatchStore {
     /// Replaced when iCloud Backup is switched on the iPhone, so views must rebuild from it.
-    private(set) var container: ModelContainer
+    /// Nil while the store won't open, until `retryOpening()` opens it.
+    private(set) var container: ModelContainer?
     private(set) var syncsWithICloud: Bool
     /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
     /// because reading a model after its container closes crashes the app.
@@ -41,7 +42,7 @@ final class WatchStore {
         #endif
         let syncs = !Self.runsInPreviews && Self.iCloudBackupSetting
         syncsWithICloud = syncs
-        container = Self.makeContainer(syncsWithICloud: syncs)
+        container = Self.openContainer(syncsWithICloud: syncs)
         followICloudBackupSetting()
         tidyUpAfterImports()
         PowerJackSchema.logCloudKitErrors()
@@ -61,22 +62,34 @@ final class WatchStore {
     /// from the current container. The new container reads the same data, so it's saved first.
     private func switchContainer() {
         do {
-            try container.mainContext.save()
+            try container?.mainContext.save()
         } catch {
             Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
         }
         // A save still scheduled on the old container would run after it closes.
-        container.mainContext.autosaveEnabled = false
+        container?.mainContext.autosaveEnabled = false
         syncsWithICloud = Self.iCloudBackupSetting
         isReplacingContainer = true
     }
 
     /// Opens the container for the current iCloud Backup setting, after a switch.
+    /// If it won't open, the current container stays, and the next settings change tries again.
     func replaceContainer() {
         guard isReplacingContainer else { return }
-        container = Self.makeContainer(syncsWithICloud: syncsWithICloud)
-        isReplacingContainer = false
+        defer { isReplacingContainer = false }
+        guard let replacement = Self.openContainer(syncsWithICloud: syncsWithICloud) else {
+            syncsWithICloud.toggle()
+            container?.mainContext.autosaveEnabled = true
+            return
+        }
+        container = replacement
         Logger.sync.info("iCloud Backup turned \(self.syncsWithICloud ? "on" : "off") from iPhone")
+    }
+
+    /// Opens the store if it didn't open at launch. Its file is never deleted, moved or reset.
+    func retryOpening() {
+        guard container == nil, !isReplacingContainer else { return }
+        container = Self.openContainer(syncsWithICloud: syncsWithICloud)
     }
 
     /// iCloud can bring the iPhone's own copy of rows the watch already copied from it directly,
@@ -84,8 +97,7 @@ final class WatchStore {
     private func tidyUpAfterImports() {
         Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
-                guard let self, !isReplacingContainer else { continue }
-                let context = container.mainContext
+                guard let self, !isReplacingContainer, let context = container?.mainContext else { continue }
                 do {
                     if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
                     try SyncTidyUp.run(in: context, running: WatchReplica().runningOnIPhone, trigger: "iCloud import", scope: .recent)
@@ -97,20 +109,23 @@ final class WatchStore {
     }
 
     /// The catalog isn't seeded here: everything the watch shows comes from the iPhone.
-    private static func makeContainer(syncsWithICloud: Bool) -> ModelContainer {
+    /// Nil when the store won't open, which `PowerJackSchema.makeModelContainer` traces.
+    private static func openContainer(syncsWithICloud: Bool) -> ModelContainer? {
+        let container: ModelContainer
         do {
-            let container = try PowerJackSchema.makeModelContainer(inMemory: runsInPreviews, syncsWithICloud: syncsWithICloud)
-            let context = container.mainContext
-            do {
-                if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
-            } catch {
-                context.rollback()
-                Logger.sync.error("Could not upgrade exercise metadata: \(error.localizedDescription)")
-            }
-            if !runsInPreviews { DeviceSchemaMark.updateAtLaunch(in: context) }
-            return container
+            container = try PowerJackSchema.makeModelContainer(inMemory: runsInPreviews, syncsWithICloud: syncsWithICloud)
         } catch {
-            fatalError("Could not create PowerJack's model container: \(error)")
+            Logger.sync.error("Could not open the watch's store: \(error.localizedDescription)")
+            return nil
         }
+        let context = container.mainContext
+        do {
+            if try ExerciseCatalog.removeDuplicates(in: context) { try context.save() }
+        } catch {
+            context.rollback()
+            Logger.sync.error("Could not upgrade exercise metadata: \(error.localizedDescription)")
+        }
+        if !runsInPreviews { DeviceSchemaMark.updateAtLaunch(in: context) }
+        return container
     }
 }

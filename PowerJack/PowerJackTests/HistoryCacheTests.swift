@@ -10,7 +10,7 @@ import Testing
 struct HistoryCacheTests {
     private func sampleStore() throws -> PowerJackStore {
         let store = PowerJackStore(inMemory: true)
-        try SimulatorTrainingHistory.populate(in: store.container.mainContext, now: ChartSearchFixture.today)
+        try SimulatorTrainingHistory.populate(in: store.container!.mainContext, now: ChartSearchFixture.today)
         return store
     }
 
@@ -33,7 +33,7 @@ struct HistoryCacheTests {
     @Test("History fetched from the store draws every chart as the queried history did")
     func storeHistoryMatches() throws {
         let store = try sampleStore()
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let today = ChartSearchFixture.today
         _ = importedRow("2025-06-02", in: context)
         try context.save()
@@ -58,7 +58,7 @@ struct HistoryCacheTests {
     func dataHistoryRebuildsAfterSave() async throws {
         let changes = HistoryChanges.shared
         let store = try sampleStore()
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         try context.save()
         // Lets the store's own seeding saves be counted; this save may change nothing to wait for.
         try? await Task.sleep(for: HistoryChanges.settle * 3)
@@ -84,7 +84,7 @@ struct HistoryCacheTests {
     @Test("The search journal's own saves don't count as training changes")
     func journalSavesAreIgnored() throws {
         let store = PowerJackStore(inMemory: true)
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         let row = importedRow("2025-06-02", in: context)
         try context.save()
         let journal = GallerySearchJournal(inMemory: true)
@@ -102,16 +102,16 @@ struct HistoryCacheTests {
     func otherStoresAreIgnored() throws {
         let changes = HistoryChanges.shared
         let store = PowerJackStore(inMemory: true)
-        _ = StudyHistory.current(in: store.container.mainContext, unit: .pounds)
+        _ = StudyHistory.current(in: store.container!.mainContext, unit: .pounds)
         let tips = URL(filePath: NSTemporaryDirectory()).appending(path: "tips.sqlite")
         #expect(!changes.counts(tips))
-        #expect(changes.counts(try #require(store.container.configurations.first?.url)))
+        #expect(changes.counts(try #require(store.container!.configurations.first?.url)))
     }
 
     @Test("Picker familiarity matches the workouts and imports it was built from")
     func familiarityFromStore() async throws {
         let store = try sampleStore()
-        let context = store.container.mainContext
+        let context = store.container!.mainContext
         _ = importedRow("2026-11-24", in: context)
         try context.save()
         let expected = ExerciseFamiliarity.from(workouts: try context.fetch(FetchDescriptor<Workout>()),

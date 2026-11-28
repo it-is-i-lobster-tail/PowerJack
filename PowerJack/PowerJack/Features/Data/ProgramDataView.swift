@@ -603,12 +603,13 @@ private struct StudyDetail: View {
 #if DEBUG && targetEnvironment(simulator)
 #Preview("Data Gallery · Sample Training History") {
     let store = PowerJackStore(inMemory: true)
-    let seeded = Result { try SimulatorTrainingHistory.populate(in: store.container.mainContext) }
+    let container = store.container!
+    let seeded = Result { try SimulatorTrainingHistory.populate(in: container.mainContext) }
 
     switch seeded {
     case .success:
         ProgramDataView()
-            .modelContainer(store.container)
+            .modelContainer(container)
     case .failure(let error):
         ContentUnavailableView {
             Label("Sample history unavailable", systemImage: "exclamationmark.triangle")

@@ -25,7 +25,8 @@ struct PowerJackApp: App {
         #endif
         return PowerJackStore(inMemory: runsInMemory)
     }()
-    static var modelContainer: ModelContainer { store.container }
+    /// Nil while the store won't open.
+    static var modelContainer: ModelContainer? { store.container }
 
     @UIApplicationDelegateAdaptor(PowerJackAppDelegate.self) private var appDelegate
 
@@ -74,11 +75,17 @@ struct PowerJackAppContent: View {
     private var appearance = AppSettings.Default.appearance
 
     var body: some View {
-        PowerJackRootView()
-            .modelContainer(store.container)
-            .windowAppearance(appearance)
-            // Content fades softly under the bars instead of stopping at a hard line.
-            // Sheets don't inherit this, so each one with a navigation bar sets it too.
-            .scrollEdgeEffectStyle(.soft, for: .all)
+        Group {
+            if let container = store.container {
+                PowerJackRootView()
+                    .modelContainer(container)
+            } else {
+                StoreUnavailableView()
+            }
+        }
+        .windowAppearance(appearance)
+        // Content fades softly under the bars instead of stopping at a hard line.
+        // Sheets don't inherit this, so each one with a navigation bar sets it too.
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 }

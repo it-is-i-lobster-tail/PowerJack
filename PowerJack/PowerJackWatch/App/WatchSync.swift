@@ -30,8 +30,8 @@ final class WatchSync {
         DeviceLink.shared.onConnected = { [weak self] in self?.push() }
         WorkoutMirroring.shared.onData = { [weak self] in self?.receive(snapshot: $0) }
         WorkoutMirroring.shared.workoutIsPaused = { [weak self] in
-            guard let self, !self.store.isReplacingContainer else { return false }
-            return (try? self.currentWorkout(in: self.store.container.mainContext))?.isPaused == true
+            guard let self, !self.store.isReplacingContainer, let context = self.store.container?.mainContext else { return false }
+            return (try? self.currentWorkout(in: context))?.isPaused == true
         }
         DeviceLink.shared.start()
     }
@@ -59,11 +59,10 @@ final class WatchSync {
 
     private func receive(snapshot data: Data) {
         // No model may be read while iCloud Backup switches stores. The iPhone sends it again.
-        guard !store.isReplacingContainer else { return }
+        guard !store.isReplacingContainer, let context = store.container?.mainContext else { return }
         do {
             let snapshot = try SyncPayload.decode(ProgramSnapshot.self, from: data)
             defer { heardFromIPhone = replica.heardFromIPhone }
-            let context = store.container.mainContext
             let previous = try currentWorkout(in: context)
             let wasTraining = previous?.status == .active
             let wasPaused = previous?.isPaused == true
@@ -104,7 +103,7 @@ final class WatchSync {
     private func saveAndPush() {
         guard !store.isReplacingContainer else { return }
         do {
-            try store.container.mainContext.save()
+            try store.container?.mainContext.save()
         } catch {
             Logger.sync.error("Could not save the watch's change: \(error.localizedDescription)")
         }

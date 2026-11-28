@@ -23,7 +23,7 @@ struct TrainingStudyTests {
         @Test("The sample history supplies all 32 charts through real model rows")
         func populatedGallery() throws {
             let store = PowerJackStore(inMemory: true)
-            let context = store.container.mainContext
+            let context = store.container!.mainContext
             let date = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 24)))
             try SimulatorTrainingHistory.populate(in: context, now: date)
             let programs = try context.fetch(FetchDescriptor<Program>())

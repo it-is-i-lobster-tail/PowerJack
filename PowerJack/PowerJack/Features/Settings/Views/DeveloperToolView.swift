@@ -197,7 +197,8 @@ private struct TraceFileRow: View {
 }
 
 /// Every trace file in one zip, made only when it's shared.
-private nonisolated struct TraceArchive: Transferable {
+/// Every trace file in one zip, made when it's shared.
+nonisolated struct TraceArchive: Transferable {
     let traceLog: TraceLog
 
     static var transferRepresentation: some TransferRepresentation {

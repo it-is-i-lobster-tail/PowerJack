@@ -167,7 +167,7 @@ struct MoreScreenTests {
         let saved = defaults.object(forKey: AppSettings.Key.restLiveActivity)
         defaults.set(false, forKey: AppSettings.Key.restLiveActivity)
         // The intent runs against the app's own store.
-        let context = PowerJackApp.modelContainer.mainContext
+        let context = PowerJackApp.modelContainer!.mainContext
         let exercise = Exercise(exerciseName: "Intent Push Up", exerciseEquipment: .bodyweight, primaryMuscleFocus: .chest)
         context.insert(exercise)
         let template = TemplateProgram(templateName: "Intent", workoutsPerWeek: 1, templateMuscleFocus: [.chest])

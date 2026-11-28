@@ -11,12 +11,16 @@ import Foundation
 import Observation
 import OSLog
 import SwiftData
+import UIKit
 
 @MainActor
 @Observable
 final class PowerJackStore {
     /// Replaced when iCloud Backup is switched, so views must rebuild from it.
-    private(set) var container: ModelContainer
+    /// Nil while the store won't open: see `openError`.
+    private(set) var container: ModelContainer?
+    /// Why the store didn't open, until `retryOpening()` opens it.
+    private(set) var openError: (any Error)?
     private(set) var syncsWithICloud: Bool
     /// True between an iCloud Backup switch and `replaceContainer()`. The screens come down first,
     /// because reading a model after its container closes crashes the app.
@@ -24,6 +28,8 @@ final class PowerJackStore {
 
     let allowsExternalSync: Bool
     private let inMemory: Bool
+    /// Opens the store for an in-memory flag and the iCloud Backup setting. Tests pass one that fails.
+    @ObservationIgnored private let opener: (_ inMemory: Bool, _ syncsWithICloud: Bool) throws -> ModelContainer
     @ObservationIgnored private var scheduledTidyUp: Task<Void, Never>?
     /// What the scheduled tidy-up follows, for the trace.
     @ObservationIgnored private var tidyUpTriggers: Set<String> = []
@@ -33,8 +39,12 @@ final class PowerJackStore {
     // The zone SwiftData's CloudKit mirroring writes every record to.
     private static let cloudKitZone = CKRecordZone.ID(zoneName: "com.apple.coredata.cloudkit.zone")
 
-    init(inMemory: Bool = false) {
+    init(
+        inMemory: Bool = false,
+        opener: @escaping (_ inMemory: Bool, _ syncsWithICloud: Bool) throws -> ModelContainer = PowerJackStore.openContainer
+    ) {
         self.inMemory = inMemory
+        self.opener = opener
         allowsExternalSync = true
         let savedSetting = UserDefaults.standard.object(forKey: AppSettings.Key.iCloudBackup) as? Bool
         let syncs = !inMemory && (savedSetting ?? AppSettings.Default.iCloudBackup)
@@ -44,7 +54,8 @@ final class PowerJackStore {
         }
         #endif
         syncsWithICloud = syncs
-        container = Self.makeContainer(inMemory: inMemory, syncsWithICloud: syncs)
+        retryOpening()
+        if container == nil { retryWhenPossible() }
         mergeDuplicatesAfterImports()
         PowerJackSchema.logCloudKitErrors()
     }
@@ -53,11 +64,44 @@ final class PowerJackStore {
     /// A separate, local-only simulator database. Its workouts stay off iCloud and paired watches.
     init(simulatorTrainingContainer: ModelContainer) {
         self.container = simulatorTrainingContainer
+        opener = { _, _ in simulatorTrainingContainer }
         inMemory = false
         syncsWithICloud = false
         allowsExternalSync = false
     }
     #endif
+
+    /// Opens the store if it isn't open yet. A store that won't open is never deleted, moved or reset:
+    /// it stays as it is until it opens, after the first unlock or once storage is freed.
+    func retryOpening() {
+        guard container == nil, !isReplacingContainer else { return }
+        do {
+            container = try opener(inMemory, syncsWithICloud)
+            if openError != nil { TraceLog.record(.data, "Store opened on a retry") }
+            openError = nil
+        } catch {
+            // `PowerJackSchema.makeModelContainer` has already traced it.
+            Logger.persistence.error("Could not open PowerJack's store: \(error.localizedDescription)")
+            openError = error
+        }
+    }
+
+    /// The store's file stays locked until the first unlock after a restart, and a full disk can stop a
+    /// migration, so a store that didn't open is tried again when the phone unlocks or PowerJack returns.
+    private func retryWhenPossible() {
+        for name in [UIApplication.protectedDataDidBecomeAvailableNotification, UIApplication.willEnterForegroundNotification] {
+            Task { [weak self] in
+                for await _ in NotificationCenter.default.notifications(named: name) {
+                    self?.retryOpening()
+                }
+            }
+        }
+    }
+
+    /// What went wrong, for Share Diagnostics when tracing is off: kind and codes only, never names.
+    var openFailureSummary: String? {
+        openError.map { "PowerJack \(TraceLog.appVersion) couldn't open its store: \(TraceLog.describe($0))" }
+    }
 
     func turnOnICloudBackup() {
         guard allowsExternalSync else { return }
@@ -118,9 +162,9 @@ final class PowerJackStore {
         guard isReplacingContainer else { return }
         defer { isReplacingContainer = false }
         do {
-            let replacement = try Self.openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
+            let replacement = try opener(inMemory, syncsWithICloud)
             // A save still scheduled on the old container would run after it closes.
-            container.mainContext.autosaveEnabled = false
+            container?.mainContext.autosaveEnabled = false
             container = replacement
             TraceLog.record(.iCloud, "iCloud Backup: store opened after the switch (iCloud \(syncsWithICloud ? "on" : "off"))")
         } catch {
@@ -134,7 +178,7 @@ final class PowerJackStore {
     /// The new container reads the same data, so anything not yet saved would be lost.
     private func saveBeforeSwitching() {
         do {
-            try container.mainContext.save()
+            try container?.mainContext.save()
         } catch {
             Logger.sync.error("Could not save before switching iCloud Backup: \(error.localizedDescription)")
             TraceLog.record(.iCloud, "iCloud Backup: save before the switch failed (\(TraceLog.describe(error)))")
@@ -172,6 +216,7 @@ final class PowerJackStore {
 
     /// See `SyncTidyUp`.
     func tidyUpAfterSync(trigger: String) {
+        guard let container else { return }
         do {
             try SyncTidyUp.run(in: container.mainContext, trigger: trigger, scope: .recent)
         } catch {
@@ -180,7 +225,7 @@ final class PowerJackStore {
     }
 
     private func mergeCatalogDuplicates() {
-        let context = container.mainContext
+        guard let context = container?.mainContext else { return }
         do {
             let mergedExercises = try ExerciseCatalog.removeDuplicates(in: context)
             let mergedTemplates = try TemplateCatalog.removeDuplicates(in: context)
@@ -226,16 +271,7 @@ final class PowerJackStore {
         }
     }
 
-    /// PowerJack can't run without its store, so only a store that won't open stops the app.
-    private static func makeContainer(inMemory: Bool, syncsWithICloud: Bool) -> ModelContainer {
-        do {
-            return try openContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
-        } catch {
-            fatalError("Could not create PowerJack's model container: \(error)")
-        }
-    }
-
-    private static func openContainer(inMemory: Bool, syncsWithICloud: Bool) throws -> ModelContainer {
+    static func openContainer(inMemory: Bool, syncsWithICloud: Bool) throws -> ModelContainer {
         let container = try PowerJackSchema.makeModelContainer(inMemory: inMemory, syncsWithICloud: syncsWithICloud)
         seedCatalogs(in: container.mainContext)
         if !inMemory { fillOwnExerciseMovements(in: container.mainContext) }
