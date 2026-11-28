@@ -101,11 +101,14 @@ private struct VolumeTrendChart: View {
         .onChange(of: searchMuscles) { searchHighlights = nil }
     }
 
-    private func trendContent(height: CGFloat) -> some View {
+    /// A nil height is full screen: the graph fills the space and keeps its muscle key, without the caption.
+    private func trendContent(height: CGFloat?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Secondary muscles count as half a set")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if height != nil {
+                Text("Secondary muscles count as half a set")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Chart {
                 ForEach(muscles.filter { !visibleHighlights.contains($0) } + muscles.filter { visibleHighlights.contains($0) }) { muscle in
                     let name = muscle.rawValue.capitalized
@@ -137,8 +140,8 @@ private struct VolumeTrendChart: View {
             .padding(.leading, 26)
             .padding(.horizontal, 16)
             .padding(.bottom, 18)
-            .zoomableExpandedPlot()
             .frame(height: height)
+            .frame(maxHeight: height == nil ? .infinity : nil)
 
             LazyVGrid(columns: legendColumns, spacing: 6) {
                 ForEach(muscles) { muscle in
