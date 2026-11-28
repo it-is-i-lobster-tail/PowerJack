@@ -39,6 +39,14 @@ struct ExerciseDetailView: View {
             onSubmit: save
         )
         .saveErrorAlert($saveErrorMessage)
+        .toolbar {
+            // Every PowerJack has the built-ins, so only the lifter's own are worth sending.
+            if exercise.userCreated {
+                ToolbarItem(placement: .topBarTrailing) {
+                    SharedFileLink(file: SharedFile(exercise: exercise))
+                }
+            }
+        }
     }
 
     private func save() {

@@ -2,7 +2,7 @@
 //  YourDataSettingsView.swift
 //  PowerJack
 //
-//  Where your training is kept: iCloud Backup, exporting your history, and the Data tab's local cache.
+//  Where your training is kept: iCloud Backup, exporting your history, imported sets, and the Data tab's local cache.
 //
 
 import SwiftData
@@ -58,6 +58,16 @@ struct YourDataSettingsView: View {
                     )
                 }
                 .foregroundStyle(.primary)
+
+                NavigationLink {
+                    ImportedDataView()
+                } label: {
+                    SettingsRowLabel(
+                        systemImage: "square.and.arrow.down",
+                        title: "View Imported Data",
+                        detail: "Sets you've brought in from another app. Search them, or delete the ones you don't want."
+                    )
+                }
             }
 
             // Only the Data tab's prebuilt charts: the next open builds them again from the workouts.
