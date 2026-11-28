@@ -9,15 +9,10 @@ struct ExerciseSearchIndexLoader: View {
     @Binding var index: ExerciseSearch.Index?
     @Binding var familiarity: ExerciseFamiliarity
 
-    private static let familiarityCache = HistoryCache<ExerciseFamiliarity>()
-
     var body: some View {
         let documents = exercises.map(ExerciseSearch.Document.init)
-        // Walking every workout is slow with years of history, so it runs once per saved change.
-        let familiar = Self.familiarityCache.value(in: context) {
-            ExerciseFamiliarity.from(workouts: (try? context.fetch(FetchDescriptor<Workout>())) ?? [],
-                                     imported: (try? context.fetch(FetchDescriptor<ImportedSet>())) ?? [])
-        }
+        // Kept with the Data tab's history: a saved change only rebuilds the workouts it touched.
+        let familiar = HistorySummary.shared.familiarity(in: context)
         Color.clear
             .task(id: documents) {
                 let build = Task.detached(priority: .userInitiated) { ExerciseSearch.Index(documents) }

@@ -116,11 +116,6 @@ struct HistoryCacheTests {
         let expected = ExerciseFamiliarity.from(workouts: try context.fetch(FetchDescriptor<Workout>()),
                                                 imported: try context.fetch(FetchDescriptor<ImportedSet>()))
         #expect(expected.score(StudyHistory.squat) > 0)
-        let cache = HistoryCache<ExerciseFamiliarity>()
-        var builds = 0
-        let first = cache.value(in: context) { builds += 1; return expected }
-        let again = cache.value(in: context) { builds += 1; return .none }
-        #expect(first == expected && again == expected)
-        #expect(builds == 1)
+        #expect(HistorySummary.shared.familiarity(in: context) == expected)
     }
 }
