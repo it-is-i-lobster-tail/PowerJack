@@ -199,6 +199,18 @@ struct JointModelTests {
         "reverse-crunch": "trunkFlexion produces trunk.flexion",
         "machine-ab-crunch": "trunkFlexion produces trunk.flexion",
         "lying-leg-raise": "hipFlexion produces hip.flexion",
+        "smith-machine-bench-press": "horizontalPress produces elbow.extension shoulder.horizontalAdduction",
+        "smith-machine-incline-bench-press": "horizontalPress produces elbow.extension shoulder.horizontalAdduction",
+        "smith-machine-close-grip-bench-press": "horizontalPress produces elbow.extension shoulder.horizontalAdduction",
+        "smith-machine-shoulder-press": "overheadPress produces elbow.extension scapula.upwardRotation shoulder.abduction",
+        "smith-machine-row": "horizontalPull produces elbow.flexion scapula.retraction shoulder.extension",
+        "smith-machine-shrug": "scapularElevation produces scapula.elevation",
+        "smith-machine-romanian-deadlift": "hipHinge produces hip.extension",
+        "smith-machine-front-squat": "squat produces hip.extension knee.extension",
+        "smith-machine-split-squat": "splitSquatLunge produces hip.extension knee.extension",
+        "smith-machine-bulgarian-split-squat": "splitSquatLunge produces hip.extension knee.extension",
+        "smith-machine-reverse-lunge": "splitSquatLunge produces hip.extension knee.extension",
+        "smith-machine-calf-raise": "calfRaise produces ankle.plantarflexion",
     ]
 
     @Test("Stored joint actions and patterns stay as earlier versions seeded them")

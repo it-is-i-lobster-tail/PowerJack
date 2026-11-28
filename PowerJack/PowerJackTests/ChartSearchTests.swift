@@ -113,7 +113,8 @@ struct ChartSearchTests {
     @Test("A lift with no logged sets says so instead of showing another lift")
     func unloggedLift() {
         let results = search("front squat progress")
-        #expect(results.note == "No logged sets for Barbell Front Squat.")
+        // Barbell and Smith front squats both fit, so the note uses the words.
+        #expect(results.note == "No logged sets for Front Squat.")
         #expect(results.cards.allSatisfy { $0.result.figure == nil })
     }
 

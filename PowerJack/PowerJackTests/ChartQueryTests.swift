@@ -87,7 +87,8 @@ struct ChartQueryTests {
     @Test("A catalog lift with no logged sets is named, and stays in scope with nothing logged")
     func unloggedLift() {
         let front = query("front squat progress")
-        #expect(front.unloggedLifts == ["Barbell Front Squat"])
+        // Barbell and Smith front squats both fit, so the words name them.
+        #expect(front.unloggedLifts == ["Front Squat"])
         #expect(front.exerciseKeys.isEmpty)
         #expect(front.hasScope)
     }

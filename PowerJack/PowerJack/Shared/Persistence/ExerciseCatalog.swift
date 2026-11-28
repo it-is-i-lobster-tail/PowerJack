@@ -208,6 +208,20 @@ enum ExerciseCatalog {
         Entry("reverse-crunch", "Reverse Crunch", .bodyweight, .abs, .low, .crunch),
         Entry("machine-ab-crunch", "Machine Ab Crunch", .machine, .abs, .low, .crunch),
         Entry("lying-leg-raise", "Lying Leg Raise", .bodyweight, .abs, .low, .legRaise),
+
+        // Smith machine.
+        Entry("smith-machine-bench-press", "Smith Machine Bench Press", .machine, .chest, .moderate, .bench, [.triceps, .shoulders], equipmentName: "Smith Machine"),
+        Entry("smith-machine-incline-bench-press", "Smith Machine Incline Bench Press", .machine, .chest, .moderate, .bench, [.triceps, .shoulders], equipmentName: "Smith Machine"),
+        Entry("smith-machine-close-grip-bench-press", "Smith Machine Close Grip Bench Press", .machine, .triceps, .moderate, .closeGripBench, [.chest, .shoulders], equipmentName: "Smith Machine"),
+        Entry("smith-machine-shoulder-press", "Smith Machine Shoulder Press", .machine, .shoulders, .moderate, .overhead, [.triceps], equipmentName: "Smith Machine"),
+        Entry("smith-machine-row", "Smith Machine Row", .machine, .back, .moderate, .row.braced, [.biceps, .forearms], equipmentName: "Smith Machine"),
+        Entry("smith-machine-shrug", "Smith Machine Shrug", .machine, .back, .low, .shrug, [.forearms], equipmentName: "Smith Machine"),
+        Entry("smith-machine-romanian-deadlift", "Smith Machine Romanian Deadlift", .machine, .hamstrings, .high, .hinge, [.glutes, .back], equipmentName: "Smith Machine"),
+        Entry("smith-machine-front-squat", "Smith Machine Front Squat", .machine, .quads, .high, .squat, [.glutes, .abs], equipmentName: "Smith Machine"),
+        Entry("smith-machine-split-squat", "Smith Machine Split Squat", .machine, .quads, .moderate, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine"),
+        Entry("smith-machine-bulgarian-split-squat", "Smith Machine Bulgarian Split Squat", .machine, .quads, .high, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine"),
+        Entry("smith-machine-reverse-lunge", "Smith Machine Reverse Lunge", .machine, .quads, .moderate, .lunge, [.glutes, .hamstrings], equipmentName: "Smith Machine"),
+        Entry("smith-machine-calf-raise", "Smith Machine Calf Raise", .machine, .calves, .low, .calf, equipmentName: "Smith Machine"),
     ]
 
     /// Named equipment uses its base type for loading and its existing label for storage and sync.
