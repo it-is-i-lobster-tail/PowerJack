@@ -12,6 +12,7 @@ struct StudyFigureView: View {
     var expandPanel: ((StudyResult, String) -> Void)?
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.graphFavorites) private var graphFavorites
     @ScaledMetric(relativeTo: .caption) private var panelHeight: CGFloat = 145
     private func ink(_ index: Int) -> Color { WorkoutChartPalette.color(at: index, scheme: scheme) }
 
@@ -33,20 +34,7 @@ struct StudyFigureView: View {
             VStack(alignment: .leading, spacing: compact ? 3 : 18) {
                 ForEach(Array(all.prefix(compact ? 3 : all.count).enumerated()), id: \.offset) { index, whole in
                     let trace = whole.inside(study.dateDomain(for: all))
-                    if !compact && !fillsScreen {
-                        let title = "\(trace.name) · \(study.yLabel)"
-                        HStack {
-                            Text(title).font(.headline)
-                            Spacer()
-                            if let expandPanel {
-                                ExpandChartButton(title: title) {
-                                    var panel = study
-                                    panel.figure = .liftPanels([whole])
-                                    expandPanel(panel, title)
-                                }
-                            }
-                        }
-                    }
+                    if !compact && !fillsScreen { panelTitle(trace, whole: whole, onlyGraph: all.count == 1) }
                     let values = study.valueAxis(trace.points.map(\.y), bars: trace.style == .bars)
                     Chart(Array(trace.points.enumerated()), id: \.offset) { _, point in
                         let date = Date(timeIntervalSince1970: point.x)
@@ -198,6 +186,27 @@ struct StudyFigureView: View {
                                 dash: trace.style == .fit ? [5, 4] : [])
                         )
                         .foregroundStyle(ink(i))
+                }
+            }
+        }
+    }
+}
+
+extension StudyFigureView {
+    /// One lift's title, its star on a page of several graphs, and its expand control.
+    private func panelTitle(_ trace: StudySeries, whole: StudySeries, onlyGraph: Bool) -> some View {
+        let title = "\(trace.name) · \(study.yLabel)"
+        return HStack(spacing: 0) {
+            Text(title).font(.headline)
+            Spacer(minLength: 8)
+            if !onlyGraph, let graphFavorites, let key = trace.exerciseKey {
+                GraphFavoriteButton(title: title, key: key, favorites: graphFavorites)
+            }
+            if let expandPanel {
+                ExpandChartButton(title: title) {
+                    var panel = study
+                    panel.figure = .liftPanels([whole])
+                    expandPanel(panel, title)
                 }
             }
         }

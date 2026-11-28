@@ -5,12 +5,18 @@ import SwiftUI
 struct StudyFullscreenView: View {
     let study: StudyResult
     let title: String
+    /// Set when this lift came from a page of several graphs, so it can be starred on its own.
+    var graphFavorites: GraphFavorites?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        ExpandedChartPresentation(title: title, close: { dismiss() }, accessory: { EmptyView() }) {
+        ExpandedChartPresentation(title: title, close: { dismiss() }, accessory: {
+            if let graphFavorites, let key = study.graphKeys.first {
+                GraphFavoriteButton(title: title, key: key, favorites: graphFavorites)
+            }
+        }) {
             VStack(alignment: .leading, spacing: 10) {
                 figure.modifier(ExportableChart())
                 if study.legendLabels.count > 1 { legend }
