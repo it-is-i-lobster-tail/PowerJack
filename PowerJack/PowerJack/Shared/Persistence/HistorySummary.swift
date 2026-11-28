@@ -146,7 +146,8 @@ final class HistorySummary {
     }
 
     private static func latestToken(in context: ModelContext) -> DefaultHistoryToken? {
-        var last = HistoryDescriptor<DefaultHistoryTransaction>(sortBy: [SortDescriptor(\.id, order: .reverse)])
+        // Sorted by token: Release builds refuse `\.id` as an unsupported key path.
+        var last = HistoryDescriptor<DefaultHistoryTransaction>(sortBy: [SortDescriptor(\.token, order: .reverse)])
         last.fetchLimit = 1
         return (try? context.fetchHistory(last))?.first?.token
     }
