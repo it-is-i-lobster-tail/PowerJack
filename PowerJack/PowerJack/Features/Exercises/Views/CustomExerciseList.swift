@@ -68,6 +68,7 @@ struct CustomExerciseList: View {
                     note: origin == .all && CustomExerciseOrigin.isImported(exercise, importedKeys: importedKeys)
                         ? "Imported" : nil
                 ) { editing = exercise }
+                .buttonStyle(.plain)
             }
         }
         .overlay { emptyState(isEmpty: shown.isEmpty) }
@@ -81,7 +82,8 @@ struct CustomExerciseList: View {
                 .padding(.bottom, LayoutMetrics.compactSpacing)
             }
         }
-        .searchable(text: $search, prompt: "Search exercises")
+        // Always shown: the filter bar below would otherwise tuck the search field away.
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search exercises")
         .searchPresentationToolbarBehavior(.avoidHidingContent)
         .navigationTitle("My Custom Exercises")
         .navigationBarTitleDisplayMode(.inline)
