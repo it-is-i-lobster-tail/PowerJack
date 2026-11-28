@@ -3,37 +3,44 @@ import SwiftUI
 
 struct EquipmentList: View {
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \CustomEquipment.name) private var custom: [CustomEquipment]
+    @Query(sort: \CustomEquipment.name) private var allCustom: [CustomEquipment]
+    var title = "Equipment"
+    /// Custom equipment to leave out, by name, like the equipment being replaced.
+    var excluding: String? = nil
+    /// Picks equipment instead of opening it. Without it, rows open their details.
     var onSelect: ((Equipment, String?) -> Void)? = nil
 
     @State private var creating = false
     @State private var created: CustomEquipment?
+    @State private var deleting: CustomEquipment?
 
-    private var customOptions: [CustomEquipment] {
-        custom.filter { item in
-            !ExerciseCatalog.equipmentOptions.contains(.init(base: item.base, name: item.name))
+    /// Own equipment, minus any that matches a built-in option.
+    private var custom: [CustomEquipment] {
+        allCustom.filter { item in
+            item.name != excluding
+                && !ExerciseCatalog.equipmentOptions.contains(.init(base: item.base, name: item.name))
         }
     }
 
     var body: some View {
         List {
             Button("Create equipment", systemImage: "plus") { creating = true }
-            if !customOptions.isEmpty {
+            if !custom.isEmpty {
                 Section("Your equipment") {
-                    ForEach(customOptions) { item in
-                        row(item.name, base: item.base, customName: item.name)
+                    ForEach(custom) { item in
+                        customRow(item)
                     }
                 }
             }
             ForEach(ExerciseCatalog.equipmentOptionsByType, id: \.base) { group in
                 Section(group.base.displayName) {
                     ForEach(group.options, id: \.self) { option in
-                        row(option.displayName, base: option.base, customName: option.name)
+                        builtInRow(option)
                     }
                 }
             }
         }
-        .navigationTitle("Equipment")
+        .navigationTitle(title)
         .sheet(isPresented: $creating, onDismiss: {
             if let created {
                 self.created = nil
@@ -42,14 +49,32 @@ struct EquipmentList: View {
         }) {
             NewEquipmentView { created = $0 }
         }
+        .equipmentDeletion($deleting)
     }
 
     @ViewBuilder
-    private func row(_ title: String, base: Equipment, customName: String?) -> some View {
+    private func customRow(_ item: CustomEquipment) -> some View {
         if onSelect != nil {
-            Button(title) { select(base, name: customName) }
+            Button(item.name) { select(item.base, name: item.name) }
         } else {
-            Text(title)
+            NavigationLink(item.name) { EquipmentDetail(custom: item) }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    // No destructive role: it removes the row before the user confirms.
+                    Button("Delete", systemImage: "trash") { deleting = item }
+                        .tint(.red)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func builtInRow(_ option: ExerciseCatalog.EquipmentOption) -> some View {
+        if onSelect != nil {
+            Button(option.displayName) { select(option.base, name: option.name) }
+        } else if option.base.hasLoadStep {
+            NavigationLink(option.displayName) { EquipmentDetail(base: option.base, name: option.name) }
+        } else {
+            // Bodyweight types have nothing to set.
+            Text(option.displayName)
         }
     }
 

@@ -36,12 +36,16 @@ nonisolated enum ExerciseSearch {
             let stored = CustomJointActions.read(exercise) ?? (exercise.jointActions ?? []).compactMap { action in
                 action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
             }
-            actions = stored.map { $0.role.rawValue + " " + $0.movement }.sorted()
+            actions = stored.map { $0.role.rawValue + " " + $0.movement }.uniqued().sorted()
             // Built-in lifts read the catalog, which knows each action's weight, and so do own
-            // lifts that copied a built-in's movement ("Moves like").
-            if let profile = entry?.profile ?? MovesLike.entry(MovesLike.key(of: exercise))?.profile {
+            // lifts that copied built-ins' movement ("Moves like"), led by the first pick.
+            let movesLike = entry == nil ? MovesLike.keys(of: exercise) : []
+            if let profile = entry?.profile {
                 pattern = profile.family?.rawValue
                 structure = ExerciseStructure(actions: profile.actions, pattern: pattern)
+            } else if let first = MovesLike.entry(movesLike.first)?.profile {
+                pattern = first.family?.rawValue
+                structure = ExerciseStructure(actions: MovesLike.actions(of: movesLike), pattern: pattern)
             } else {
                 pattern = exercise.movementPattern?.rawValue
                 structure = stored.isEmpty

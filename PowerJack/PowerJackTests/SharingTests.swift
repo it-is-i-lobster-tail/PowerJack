@@ -35,7 +35,7 @@ struct SharingTests {
     private func sharedTemplate() throws -> (TemplateProgram, Exercise, Exercise) {
         let row = try builtIn("barbell-row", in: sender)
         let fly = try own("Low Cable Fly", in: sender)
-        MovesLike.copy("catalog:barbell-row", to: fly, in: sender)
+        MovesLike.copy(["catalog:barbell-row"], to: fly, in: sender)
         let template = TemplateProgram(templateName: "Push Pull", workoutsPerWeek: 2,
                                        templateMuscleFocus: [.chest, .back], templateType: .strength)
         sender.insert(template)
@@ -91,7 +91,7 @@ struct SharingTests {
         #expect(fly.secondaryMuscles == [.shoulders])
         #expect(fly.repRange == 8...12)
         #expect(fly.syncIDValue != nil && fly.syncIDValue != senderFly.syncIDValue)
-        #expect(MovesLike.key(of: fly) == "catalog:barbell-row")
+        #expect(MovesLike.keys(of: fly) == ["catalog:barbell-row"])
         #expect(!(fly.jointActions ?? []).isEmpty)
     }
 
