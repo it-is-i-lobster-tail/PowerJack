@@ -54,8 +54,13 @@ nonisolated struct SharedExercise: Codable, Equatable, Sendable {
     var maxReps: Int
     var fatigueLevel: String
     var customRestTime: Int?
-    /// The built-in this one moves like, as a `MovesLike` key.
+    /// The first built-in this one moves like, as a `MovesLike` key, for versions that knew one.
     var movesLike: String?
+    /// Every built-in it moves like, in order. Nil in files from versions that knew one.
+    var movesLikeAll: [String]?
+
+    /// The picks, read from either field.
+    var movesLikeKeys: [String] { movesLikeAll ?? movesLike.map { [$0] } ?? [] }
 }
 
 enum SharedFileError: LocalizedError, Equatable {
@@ -145,7 +150,9 @@ extension SharedExercise {
         maxReps = exercise.maxReps
         fatigueLevel = exercise.fatigueLevel.rawValue
         customRestTime = exercise.customRestTime
-        movesLike = exercise.catalogID == nil ? MovesLike.key(of: exercise) : nil
+        let keys = exercise.catalogID == nil ? MovesLike.keys(of: exercise) : []
+        movesLike = keys.first
+        movesLikeAll = keys.count > 1 ? keys : nil
     }
 }
 

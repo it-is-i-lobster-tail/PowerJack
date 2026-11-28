@@ -14,6 +14,9 @@ enum ExerciseCatalog {
         let secondaryMuscles: [Muscle]
         /// The level earlier versions seeded, when it has since changed.
         let previousFatigueLevel: FatigueLevel?
+        /// Up to three other built-ins, by catalog ID, this one moves like, closest first.
+        /// Empty until the catalog fills them in.
+        let movesLike: [String]
 
         init(
             _ id: String,
@@ -24,7 +27,8 @@ enum ExerciseCatalog {
             _ profile: MovementCatalog.Profile,
             _ secondaryMuscles: [Muscle] = [],
             equipmentName: String? = nil,
-            was previousFatigueLevel: FatigueLevel? = nil
+            was previousFatigueLevel: FatigueLevel? = nil,
+            movesLike: [String] = []
         ) {
             self.profile = profile
             self.id = id
@@ -35,6 +39,7 @@ enum ExerciseCatalog {
             self.fatigueLevel = fatigueLevel
             self.secondaryMuscles = secondaryMuscles
             self.previousFatigueLevel = previousFatigueLevel
+            self.movesLike = movesLike
         }
 
         var minReps: Int { Exercise.defaultMinReps }
