@@ -300,15 +300,18 @@ private struct FitNotesChoice: View {
     @State private var creating = false
 
     /// Every exercise when nothing is typed, else the shared search's ranked list.
-    private var listed: [Exercise] {
-        guard !search.isEmpty, let index else { return exercises }
+    private func ranked(for text: String) -> [Exercise] {
+        guard !text.isEmpty, let index else { return exercises }
         let byKey = Dictionary(exercises.map { ($0.searchKey, $0) }, uniquingKeysWith: { first, _ in first })
         let muscle = FitNotesMatcher.primaryMuscle(for: name, category: category)
-        return index.rank(ExerciseQuery(search), context: .importing(category: muscle), familiarity: familiarity)
+        return index.rank(ExerciseQuery(text), context: .importing(category: muscle), familiarity: familiarity)
             .compactMap { byKey[$0.key] }
     }
 
     var body: some View {
+        let (listed, correction) = SpellingCorrection.results(
+            for: search, vocabulary: { exercises.map(\.exerciseName) }, isEmpty: \.isEmpty, search: ranked(for:)
+        )
         List {
             Section {
                 LabeledContent("FitNotes CSV", value: name)
@@ -327,8 +330,14 @@ private struct FitNotesChoice: View {
                     ForEach(choices) { exercise in option(exercise) }
                 }
             }
-            Section(search.isEmpty ? "All exercises" : "Results") {
+            Section {
                 ForEach(listed) { exercise in option(exercise) }
+            } header: {
+                if let correction {
+                    SpellingCorrectionNote(correction: correction)
+                } else {
+                    Text(search.isEmpty ? "All exercises" : "Results")
+                }
             }
         }
         .navigationTitle(name)
@@ -343,6 +352,7 @@ private struct FitNotesChoice: View {
             }
         }
         .searchable(text: $search)
+        .searchAutocorrects()
         .sheet(isPresented: $creating) {
             NavigationStack {
                 ExerciseNewView(name: name, primaryMuscle: FitNotesMatcher.primaryMuscle(for: name, category: category)) { exercise in
