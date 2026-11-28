@@ -27,12 +27,12 @@ struct ExerciseDraft {
     var customRestTime: Int?
     // Built-in exercises keep their name, equipment and muscles. Only rep range, fatigue and rest change.
     private(set) var isBuiltIn = false
-    /// The built-in lift (its sync key) whose pattern, style and joint actions this one copies.
-    /// Proposed from the name until the lifter picks one, or None.
-    private(set) var movesLike: String?
+    /// The built-in lifts (their sync keys), up to three, whose joint actions this one copies,
+    /// the first also its pattern and style. Proposed from the name until the lifter picks, or None.
+    private(set) var movesLike: [String] = []
     private(set) var isMovesLikeChosen = false
     /// What the exercise had when the form opened, so saving rewrites its movement only if it changed.
-    private var savedMovesLike: String?
+    private var savedMovesLike: [String] = []
     /// Secondary muscles filled in from `movesLike`. Once the lifter changes them, they stay.
     private var suggestedSecondary: [Muscle] = []
     /// Joint actions the lifter set in Advanced Data, replacing the `movesLike` lift's. Nil follows `movesLike`.
@@ -63,17 +63,17 @@ struct ExerciseDraft {
         fatigueLevel = exercise.fatigueLevel
         customRestTime = exercise.customRestTime
         isBuiltIn = !exercise.userCreated
-        movesLike = MovesLike.key(of: exercise)
+        movesLike = MovesLike.keys(of: exercise)
         savedMovesLike = movesLike
         customActions = isBuiltIn ? nil : CustomJointActions.read(exercise) ?? Self.storedActions(of: exercise, movesLike: movesLike)
         savedCustomActions = customActions
-        isMovesLikeChosen = movesLike != nil || customActions != nil
+        isMovesLikeChosen = !movesLike.isEmpty || customActions != nil
         builtInActions = ExerciseCatalog.entries.first { $0.id == exercise.catalogID }?.profile.actions ?? []
     }
 
     /// Rows an own exercise carries that match no built-in, read at full weight as search reads them.
-    private static func storedActions(of exercise: Exercise, movesLike: String?) -> [JointAction]? {
-        guard movesLike == nil else { return nil }
+    private static func storedActions(of exercise: Exercise, movesLike: [String]) -> [JointAction]? {
+        guard movesLike.isEmpty else { return nil }
         let actions = (exercise.jointActions ?? []).compactMap { action in
             action.movement.map { JointAction(movement: $0.key, weight: 1, role: action.role) }
         }
@@ -81,9 +81,9 @@ struct ExerciseDraft {
     }
 
     /// What the lift does at each joint: the catalog's for a built-in, else the lifter's own,
-    /// else the `movesLike` lift's.
+    /// else the `movesLike` lifts' together.
     var jointActions: [JointAction] {
-        isBuiltIn ? builtInActions : customActions ?? structure?.actions ?? []
+        isBuiltIn ? builtInActions : customActions ?? MovesLike.actions(of: movesLike)
     }
 
     /// Sets how an own lift uses one worked joint movement, or clears it for nil. The lift then
@@ -94,33 +94,35 @@ struct ExerciseDraft {
         customActions = JointInvolvement.setting(movement, to: involvement, in: jointActions)
     }
 
-    /// The pattern, style and joint actions saving copies.
-    var structure: MovementCatalog.Profile? { MovesLike.entry(movesLike)?.profile }
-
-    /// "Custom" once the lifter set joint actions by hand.
-    var movesLikeName: String? { customActions != nil ? "Custom" : MovesLike.entry(movesLike)?.name }
+    /// The picks' names, such as "Lateral Raise, Cable Y Raise", or "Custom" once the lifter set
+    /// joint actions by hand. Nil with no pick.
+    var movesLikeName: String? {
+        if customActions != nil { return "Custom" }
+        let names = movesLike.compactMap { MovesLike.entry($0)?.name }
+        return names.isEmpty ? nil : names.joined(separator: ", ")
+    }
 
     /// Whether the form should still propose a lift from the name.
     var wantsMovesLikeProposal: Bool { !isBuiltIn && !isMovesLikeChosen }
 
     /// A proposal from the name. Ignored once the lifter has chosen.
-    mutating func propose(movesLike key: String?) {
+    mutating func propose(movesLike keys: [String]) {
         guard wantsMovesLikeProposal else { return }
-        movesLike = key
+        movesLike = Array(keys.uniqued().prefix(MovesLike.maxPicks))
         suggestSecondaryMuscles()
     }
 
-    /// The lifter's own pick, or nil for None, which keeps the muscles as they are.
-    mutating func choose(movesLike key: String?) {
+    /// The lifter's own picks, up to three, or none for None, which keeps the muscles as they are.
+    mutating func choose(movesLike keys: [String]) {
         guard !isBuiltIn else { return }
         isMovesLikeChosen = true
-        movesLike = key
-        // Picking a lift, or None, replaces any joint actions set by hand.
+        movesLike = Array(keys.uniqued().prefix(MovesLike.maxPicks))
+        // Picking lifts, or None, replaces any joint actions set by hand.
         customActions = nil
-        if key != nil { suggestSecondaryMuscles() }
+        if !movesLike.isEmpty { suggestSecondaryMuscles() }
     }
 
-    /// Fills secondary muscles from `movesLike` while the lifter hasn't picked their own.
+    /// Fills secondary muscles from every `movesLike` pick while the lifter hasn't picked their own.
     /// The primary muscle is never set for them.
     private mutating func suggestSecondaryMuscles() {
         guard secondaryMuscles.isEmpty || secondaryMuscles == suggestedSecondary else { return }

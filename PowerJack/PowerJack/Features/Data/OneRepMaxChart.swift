@@ -65,42 +65,54 @@ struct OneRepMaxChart: View {
         self.last = last
     }
 
+    /// Pinching zooms the time axis. Inline and full screen share the visible stretch.
+    @State private var zoom: ClosedRange<Double>?
+
     var body: some View {
         FullScreenTrendChart(title: exercise.name, inlineHeight: 150) { height in
             VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Personal best · estimated") {
-                    Text(personalBest.map(weight) ?? "—")
-                        .font(.title3.bold().monospacedDigit())
-                        .foregroundStyle(Color.accentColor)
-                }
-                .font(.subheadline)
-                Text("Estimated one-rep max over time (\(unit.symbol))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 8) {
-                    trend(points, first: first, last: last)
-                    HStack {
-                        Text(first.date, format: .dateTime.month(.abbreviated).day().year())
-                        if first.date != last.date {
-                            Spacer()
-                            Text(last.date, format: .dateTime.month(.abbreviated).day().year())
-                        }
+                if let height {
+                    LabeledContent("Personal best · estimated") {
+                        Text(personalBest.map(weight) ?? "—")
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundStyle(Color.accentColor)
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 42)
+                    .font(.subheadline)
+                    Text("Estimated one-rep max over time (\(unit.symbol))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    plot.frame(height: height + 22)
+                } else {
+                    plot.frame(maxHeight: .infinity)
                 }
-                .zoomableExpandedPlot()
-                .frame(height: height + 22)
             }
         }
     }
 
-    private func trend(_ points: [Point], first: Point, last: Point) -> some View {
+    private var times: [Double] { points.map(\.date.timeIntervalSince1970) }
+
+    private var plot: some View {
+        let window = TimeAxisWindow(times: times, fraction: zoom)
+        let start = window.isZoomed ? Date(timeIntervalSince1970: window.visible.lowerBound) : first.date
+        let end = window.isZoomed ? Date(timeIntervalSince1970: window.visible.upperBound) : last.date
+        return VStack(alignment: .leading, spacing: 8) {
+            trend(points)
+            HStack {
+                Text(start, format: .dateTime.month(.abbreviated).day().year())
+                if start != end {
+                    Spacer()
+                    Text(end, format: .dateTime.month(.abbreviated).day().year())
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 42)
+        }
+    }
+
+    private func trend(_ points: [Point]) -> some View {
         let values = points.map { unit.value(fromTenthsPounds: $0.estimate.tenthsPounds) }
         let scale = ComparisonAxisScale(values: values, wholeNumbers: false)
-        let start = first.date == last.date ? first.date.addingTimeInterval(-43_200) : first.date
-        let end = first.date == last.date ? last.date.addingTimeInterval(43_200) : last.date
         return Chart(points) { point in
             let load = unit.value(fromTenthsPounds: point.estimate.tenthsPounds)
             LineMark(x: .value("Date", point.date), y: .value("Estimated max", load))
@@ -109,10 +121,9 @@ struct OneRepMaxChart: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityValue(weight(point.estimate))
         }
-        .chartXScale(domain: start...end, range: .plotDimension(startPadding: 6, endPadding: 6))
         .chartYScale(domain: scale.lowerBound...scale.upperBound)
-        .chartXAxis(.hidden)
         .chartYAxis(.hidden)
+        .modifier(TimeAxisZoom(times: times, showsAxis: false, padding: 6, fraction: $zoom))
         .chartBackground { proxy in
             GeometryReader { geometry in
                 if let anchor = proxy.plotFrame {

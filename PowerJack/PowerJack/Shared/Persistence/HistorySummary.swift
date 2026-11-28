@@ -14,7 +14,7 @@ final class HistorySummary {
     static let shared = HistorySummary()
 
     /// Bump when the pieces or what they read change, so files from older versions are rebuilt.
-    static let fileVersion = 1
+    static let fileVersion = 2
 
     /// Where the file lives: on this device only, never in iCloud or a backup.
     static var directory: URL { URL.cachesDirectory.appending(path: "HistorySummary", directoryHint: .isDirectory) }

@@ -37,8 +37,12 @@ struct ExerciseSelectionView: View {
         let typed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         // Typing on drops the reading, so the fast results return.
         let filters = readText == typed ? reading : nil
-        let results = ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
-                                            query: searchText, filters: filters, muscles: muscles, mode: mode)
+        let (results, correction) = SpellingCorrection.results(
+            for: searchText, vocabulary: { exercises.map(\.exerciseName) }, isEmpty: \.isEmpty
+        ) { text in
+            ExercisePickerResults(exercises: exercises, index: index, familiarity: familiarity,
+                                  query: text, filters: filters, muscles: muscles, mode: mode)
+        }
         NavigationStack {
             List {
                 if let filters {
@@ -60,6 +64,8 @@ struct ExerciseSelectionView: View {
                     if !typed.isEmpty && !mode.isSubstitution {
                         Button("Add \u{201C}\(typed)\u{201D}", systemImage: "plus") { isCreating = true }
                     }
+                } header: {
+                    if let correction { SpellingCorrectionNote(correction: correction) }
                 }
                 if !results.others.isEmpty {
                     Section("All Exercises") {
@@ -80,6 +86,7 @@ struct ExerciseSelectionView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search exercises")
+            .searchAutocorrects()
             .searchPresentationToolbarBehavior(.avoidHidingContent)
             .onSubmit(of: .search) {
                 guard results.isThin else { return }

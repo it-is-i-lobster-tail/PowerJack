@@ -6,10 +6,16 @@ enum StudyPeriod: Hashable, Codable {
     case month(year: Int, month: Int)
 
     case day(year: Int, month: Int, day: Int)
+    /// Any span of days, as search reads "last 3 months" or "since September". `end` is excluded.
+    case range(start: Date, end: Date)
+    /// A span that ends today and moves with it, such as the last 4 weeks.
+    case recent(StudyRecentSpan)
 
     var usesDailyBuckets: Bool {
         switch self {
         case .month, .day: true
+        case let .range(start, end): end.timeIntervalSince(start) <= 62 * 24 * 60 * 60
+        case .recent(let span): span == .fourWeeks
         default: false
         }
     }
@@ -24,7 +30,36 @@ enum StudyPeriod: Hashable, Codable {
         case .month(let year, let month):
             Calendar.current.date(from: DateComponents(year: year, month: month))?.formatted(.dateTime.month(.wide).year())
                 ?? String(year)
+        case let .range(start, end):
+            (start..<max(start, end.addingTimeInterval(-1))).formatted(.interval.month(.abbreviated).day().year())
+        case .recent(let span): span.label
         }
+    }
+}
+
+/// Spans that always end today. Saved as their name, so they keep meaning "recent" on later days.
+enum StudyRecentSpan: String, Codable, CaseIterable {
+    case fourWeeks, threeMonths
+
+    var label: String {
+        switch self {
+        case .fourWeeks: "Last 4 weeks"
+        case .threeMonths: "Last 3 months"
+        }
+    }
+
+    /// Whole days through the end of today: 28 days, or from the day after the same date three months ago.
+    func interval(today: Date, calendar: Calendar) -> DateInterval {
+        let start = calendar.startOfDay(for: today)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        let first: Date
+        switch self {
+        case .fourWeeks: first = calendar.date(byAdding: .day, value: -27, to: start) ?? start
+        case .threeMonths:
+            let back = calendar.date(byAdding: .month, value: -3, to: start) ?? start
+            first = calendar.date(byAdding: .day, value: 1, to: back) ?? back
+        }
+        return DateInterval(start: first, end: end)
     }
 }
 

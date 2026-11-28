@@ -251,12 +251,13 @@ final class WorkoutReminders {
         let content: UNMutableNotificationContent
     }
 
+    /// A paused workout gets one too, previewing the sets still left. One under way and not paused gets none.
     static func makeReminder(
         programs: [Program], history: WorkoutPreviewHistory,
         timing: WorkoutReminderTiming.Prediction, calendar: Calendar
     ) throws -> Reminder? {
         guard let program = programs.active,
-              let workout = program.nextWorkout, workout.status == .planned,
+              let workout = program.nextWorkout, workout.status == .planned || workout.isPaused,
               let id = workout.syncID else { return nil }
         let preview = WorkoutPreview(program: program, workout: workout)
         guard !preview.lifts.isEmpty else { return nil }

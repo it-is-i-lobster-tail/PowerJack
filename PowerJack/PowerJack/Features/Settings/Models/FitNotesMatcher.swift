@@ -15,6 +15,17 @@ nonisolated enum ImportSkipReason: String, CaseIterable, Sendable {
         case .chosen: "Skip"
         }
     }
+
+    /// What VoiceOver reads for a skipped row.
+    var spokenLabel: String {
+        switch self {
+        case .cardio: "Skipped, cardio"
+        case .timed: "Skipped, timed with no reps"
+        case .stretchOrPT: "Skipped, stretch or PT"
+        case .alreadyImported: "Skipped, already imported"
+        case .chosen: "Skipped by you"
+        }
+    }
 }
 
 /// The one starting suggestion an import row opens with.
@@ -46,6 +57,7 @@ enum FitNotesMatcher {
         "two hand kettlebell swing": "kettlebell-swing",
         "2 handed kettlebell swing": "kettlebell-swing",
         "preacher bench ez bar curl": "ez-bar-preacher-curl",
+        "nordic curls": "nordic-hamstring-curl",
         "good morning": "barbell-good-morning",
         "backward lunge": "reverse-lunge",
         "backward lunges": "reverse-lunge",

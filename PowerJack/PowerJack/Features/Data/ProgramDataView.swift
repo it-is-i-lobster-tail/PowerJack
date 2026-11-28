@@ -19,12 +19,19 @@ struct ProgramDataView: View {
 private struct StudyGallery: View {
     let history: StudyHistory
     @AppStorage(SavedStudyViews.storageKey) private var storedOptions = Data()
+    @AppStorage(FavoriteCharts.storageKey) private var storedFavorites = Data()
 
     private let journal = GallerySearchJournal.shared
     private let model = ChartSearchModel.shared
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
+    @State private var recent: [String] = []
+    @State private var lastRecorded = ""
     @State private var appliedQuery = ""
     @State private var plan: ChartSearchPlan?
     @State private var results = ChartSearchResults()
+    /// The spelling fix the results are for, when the search as typed found nothing.
+    @State private var correction: String?
     @State private var cache = ChartResultCache()
     @State private var path: [GalleryCardID] = []
     @State private var searchEdits: [GalleryCardID: StudyOptions] = [:]
@@ -49,47 +56,105 @@ private struct StudyGallery: View {
         SearchInput(text: appliedQuery, plan: plan, saved: storedOptions, revision: history.revision)
     }
 
+    /// A search shows its best charts first. The rest wait behind a row.
+    private static let shownCharts = 6
+    @State private var showsAllCharts = false
+
+    private var favorites: [GalleryCard] {
+        FavoriteCharts(data: storedFavorites).charts.map { favorite in
+            GalleryCard(id: GalleryCardID(study: favorite.study, exerciseKeys: favorite.options.exerciseKeys, favorite: favorite.id),
+                        options: favorite.options, result: cache.result(for: favorite.study, options: favorite.options, in: history))
+        }
+    }
+
     var body: some View {
         let searching = !appliedQuery.isEmpty
+        let starting = query.isEmpty && searchFocused
+        let favorites = searching ? [] : favorites
+        let filled = results.cards.filter { $0.result.figure != nil }
+        let empty = searching ? results.cards.filter { $0.result.figure == nil } : []
+        let shown = searching && !showsAllCharts ? Array(filled.prefix(Self.shownCharts)) : searching ? filled : results.cards
         return NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let note = results.note, searching, !results.isEmpty {
-                        Label(note, systemImage: "info.circle")
+                    if starting {
+                        DataSearchStart(recent: recent, ideas: SearchIdeas.make(from: history), run: run) {
+                            journal.clearRecent()
+                            recent = []
+                            lastRecorded = ""
+                        }
+                    } else {
+                        if searching { reading }
+                        if !favorites.isEmpty {
+                            Text("Favorites").font(.title3.bold())
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                                ForEach(favorites) { tile($0, expanded: false) }
+                            }
+                            Text("All charts").font(.title3.bold()).padding(.top, 8)
+                        }
+                        if let answer = results.answer {
+                            tile(answer, expanded: true)
+                        }
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                            ForEach(shown) { tile($0, expanded: false) }
+                        }
+                        if shown.count < filled.count {
+                            Button("All \(filled.count) charts for \(scopeName)") { showsAllCharts = true }
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .accessibilityIdentifier("data.search.all")
+                        }
+                        if !empty.isEmpty {
+                            DisclosureGroup("\(empty.count) \(empty.count == 1 ? "chart has" : "charts have") no data for this search") {
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                                    ForEach(empty) { tile($0, expanded: false) }
+                                }
+                                .padding(.top, 12)
+                            }
                             .font(.subheadline).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("data.search.note")
-                    }
-                    if let answer = results.answer {
-                        tile(answer, expanded: true)
-                    }
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
-                        ForEach(results.cards) { tile($0, expanded: false) }
+                            .accessibilityIdentifier("data.search.empty")
+                        }
                     }
                 }
                 .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
             .overlay {
-                if !searching || !results.isEmpty {
-                    EmptyView()
-                } else if let note = results.note {
-                    ContentUnavailableView("No matching history", systemImage: "chart.xyaxis.line", description: Text(note))
-                } else {
+                if !starting, searching, results.isEmpty, results.note == nil, results.suggestion == nil, results.scope.isEmpty {
                     ContentUnavailableView.search(text: appliedQuery)
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                GallerySearchField(journal: journal, onFocus: model.prewarm) { text in
-                    guard text != appliedQuery else { return }
-                    searchEdits.removeAll()
-                    plan = nil
-                    appliedQuery = text
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Lift, muscle, date, or chart")
+            .searchAutocorrects()
+            .searchFocused($searchFocused)
+            .textInputAutocapitalization(.never)
+            .onSubmit(of: .search) { run(query) }
+            .onChange(of: searchFocused) { _, focused in
+                if focused {
+                    recent = journal.suggestions(for: "", limit: 5)
+                    model.prewarm()
+                } else {
+                    record()
                 }
             }
+            .task(id: query) {
+                // Search once typing pauses, not on every keystroke. Record a search the lifter stayed on,
+                // since a live search can be read without pressing Search.
+                guard (try? await Task.sleep(for: .milliseconds(250))) != nil else { return }
+                apply(query)
+                guard searchFocused, (try? await Task.sleep(for: .milliseconds(1250))) != nil else { return }
+                record()
+            }
+            .onDisappear { record() }
             .onChange(of: searchInput, initial: true) {
-                results = ChartSearch.results(for: ChartQuery(appliedQuery, history: history), plan: plan,
-                                              history: history, saved: SavedStudyViews(data: storedOptions),
-                                              cache: cache)
+                let saved = SavedStudyViews(data: storedOptions)
+                (results, correction) = SpellingCorrection.results(
+                    for: appliedQuery, vocabulary: { Array(Set(history.sessions.map(\.name))) },
+                    isEmpty: { $0.isEmpty && $0.suggestion == nil }
+                ) { text in
+                    ChartSearch.results(for: ChartQuery(text, history: history), plan: plan,
+                                        history: history, saved: saved, cache: cache)
+                }
             }
             .task {
                 // Load the embedding model off the main thread, so the first search doesn't wait for it.
@@ -99,17 +164,51 @@ private struct StudyGallery: View {
             .task(id: appliedQuery) { await askModel(appliedQuery) }
             .navigationTitle("Data")
             .navigationDestination(for: GalleryCardID.self) { id in
-                if let card = ([results.answer].compactMap { $0 } + results.cards).first(where: { $0.id == id }) {
+                if let card = ([results.answer].compactMap { $0 } + favorites + results.cards).first(where: { $0.id == id }) {
                     let options = searchEdits[id] ?? card.options
                     let source = searchEdits[id] == nil ? card.result : history.result(for: id.study, options: options)
                     let study = source.presented(as: options.presentation, transpose: options.transpose)
+                    let keepsEdits = searching || id.favorite != nil
                     StudyDetail(study: study, source: source, history: history, options: options,
-                                saveSearchView: searching && study.question == nil ? { save(options, for: id.study) } : nil) { updated in
-                        if searching { searchEdits[id] = updated } else { save(updated, for: id.study) }
+                                saveSearchView: searching && study.question == nil ? { save(options, for: id.study) } : nil,
+                                isFavorite: FavoriteCharts(data: storedFavorites).favorite(id.study, options: options) != nil,
+                                toggleFavorite: { toggleFavorite(id.study, options: options, name: study.displayTitle) }) { updated in
+                        if keepsEdits { searchEdits[id] = updated } else { save(updated, for: id.study) }
                     }
                     .navigationTransition(.zoom(sourceID: id, in: zoom))
                 }
             }
+        }
+    }
+
+    /// Shows the charts for the text once typing pauses.
+    private func apply(_ text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text != appliedQuery else { return }
+        searchEdits.removeAll()
+        plan = nil
+        showsAllCharts = false
+        appliedQuery = text
+    }
+
+    /// Runs a search chosen from a row, a chip or "Did you mean", and keeps it in the recent searches.
+    private func run(_ text: String) {
+        query = text
+        apply(text)
+        record()
+        searchFocused = false
+    }
+
+    private func record() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text != lastRecorded else { return }
+        journal.record(text)
+        lastRecorded = text
+    }
+
+    private func toggleFavorite(_ study: TrainingStudy, options: StudyOptions, name: String) {
+        if let data = try? FavoriteCharts(data: storedFavorites).toggling(study, options: options, name: name) {
+            storedFavorites = data
         }
     }
 
@@ -127,6 +226,58 @@ private struct StudyGallery: View {
         // Don't reorder charts under someone who has opened or edited one.
         guard !Task.isCancelled, path.isEmpty, searchEdits.isEmpty else { return }
         plan = resolved
+    }
+
+    private var scopeName: String {
+        results.scope.isEmpty ? "this search" : results.scope.map(\.label).joined(separator: " · ")
+    }
+
+    /// What the search read, why nothing matched, and what to try instead.
+    @ViewBuilder private var reading: some View {
+        if let correction {
+            SpellingCorrectionNote(correction: correction)
+        }
+        if !results.scope.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(results.scope) { chip in
+                        Menu {
+                            ForEach(chip.alternatives, id: \.self) { choice in
+                                Button(choice.name) { run(choice.text) }
+                            }
+                            if !chip.alternatives.isEmpty { Divider() }
+                            Button("Remove", systemImage: "xmark", role: .destructive) { run(chip.removed) }
+                        } label: {
+                            Text(chip.label).font(.subheadline).lineLimit(1)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityLabel("Search reads \(chip.label)")
+                        .accessibilityHint(chip.isLift ? "Choose another lift or remove it from the search." : "Remove it from the search.")
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("data.search.scope")
+        }
+        if let note = results.note {
+            Label(note, systemImage: "info.circle")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("data.search.note")
+        }
+        if let suggestion = results.suggestion {
+            Button { run(suggestion.text) } label: {
+                Label("Did you mean \(suggestion.name)?", systemImage: "arrow.up.left")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+            .accessibilityHint("Searches for \(suggestion.text).")
+            .accessibilityIdentifier("data.search.suggestion")
+        }
     }
 
     private func tile(_ card: GalleryCard, expanded: Bool) -> some View {
@@ -158,108 +309,66 @@ private struct StudyGallery: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let favorite = card.id.favorite {
+                Button("Remove from Favorites", systemImage: "star.slash", role: .destructive) {
+                    if let data = try? FavoriteCharts(data: storedFavorites).removing(favorite) { storedFavorites = data }
+                }
+            }
+        }
         .accessibilityLabel(study.galleryAccessibilityLabel + (expanded ? ". " + study.summary : ""))
         .accessibilityHint(study.figure == nil ? "No matching history. Opens chart details." : "Opens full-size chart.")
-        .accessibilityIdentifier(expanded ? "data.answer" : "data.study.\(study.id.rawValue)")
+        .accessibilityIdentifier(card.id.favorite != nil ? "data.favorite.\(study.id.rawValue)"
+                                 : expanded ? "data.answer" : "data.study.\(study.id.rawValue)")
     }
 }
 
-struct GallerySearchField: View {
-    let journal: GallerySearchJournal
-    var onFocus: () -> Void = {}
-    let update: (String) -> Void
-    @State private var query = ""
-    @State private var suggestions: [String] = []
-    @State private var pending = false
-    @State private var recordedInFocus = false
-    @FocusState private var typing: Bool
-
-    private func edit(_ value: String) {
-        query = value
-        pending = true
-        recordedInFocus = false
-        suggestions = journal.suggestions(for: value)
-    }
-
-    private func apply() {
-        update(query.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private func record() {
-        guard pending else { return }
-        journal.record(query)
-        recordedInFocus = true
-        pending = false
-    }
-
-    private func submit(_ value: String) {
-        if value != query { edit(value) }
-        apply()
-        if !recordedInFocus { pending = true }
-        record()
-        typing = false
-    }
+/// What an empty search offers: the lifter's recent searches and a few to try.
+struct DataSearchStart: View {
+    let recent: [String]
+    let ideas: [String]
+    let run: (String) -> Void
+    let clear: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if (typing || query.isEmpty), !suggestions.isEmpty {
-                Text(query.isEmpty ? "Recent searches" : "Matching searches")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                ForEach(suggestions, id: \.self) { phrase in
-                    Button { submit(phrase) } label: {
-                        Label(phrase, systemImage: query.isEmpty ? "clock" : "arrow.up.left")
-                            .font(.subheadline).lineLimit(1)
-                            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                            .contentShape(.rect)
+        VStack(alignment: .leading, spacing: 24) {
+            if !recent.isEmpty {
+                section("Recent searches", rows: recent, icon: "clock.arrow.circlepath") {
+                    Button("Clear", action: clear).font(.subheadline)
+                }
+            }
+            section("Try a search", rows: ideas, icon: "magnifyingglass") { EmptyView() }
+        }
+    }
+
+    private func section(_ title: String, rows: [String], icon: String,
+                         @ViewBuilder trailing: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                trailing()
+            }
+            .padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, text in
+                    if index > 0 { Divider().padding(.leading, 48) }
+                    Button { run(text) } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: icon).foregroundStyle(.secondary).frame(width: 20)
+                            Text(text).foregroundStyle(.tint).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 48)
+                        .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Fills the search field and shows its charts.")
+                    .accessibilityHint("Searches for it.")
                 }
             }
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search charts", text: Binding(get: { query }, set: edit))
-                    .focused($typing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .onSubmit { submit(query) }
-                    .accessibilityIdentifier("data.search")
-                if !query.isEmpty {
-                    Button("Clear search", systemImage: "xmark.circle.fill") {
-                        record()
-                        edit("")
-                        apply()
-                    }
-                    .labelStyle(.iconOnly).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
-            .background(.regularMaterial, in: Capsule())
+            .powerJackGlassCard()
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .background(.bar)
-        .onAppear { suggestions = journal.suggestions(for: query) }
-        .onChange(of: typing) { _, focused in
-            if focused {
-                recordedInFocus = false
-                suggestions = journal.suggestions(for: query)
-                onFocus()
-            } else { record() }
-        }
-        .task(id: query) {
-            // Search once typing pauses, not on every keystroke. Record a search the user stayed on,
-            // since a live search can be read without pressing Return.
-            do {
-                try await Task.sleep(for: .milliseconds(250))
-                apply()
-                guard typing, pending, !query.isEmpty else { return }
-                try await Task.sleep(for: .milliseconds(1250))
-                record()
-            } catch { }
-        }
-        .onDisappear { record() }
     }
 }
 
@@ -304,37 +413,42 @@ private struct StudyDetail: View {
     let history: StudyHistory
     let options: StudyOptions
     let saveSearchView: (() -> Void)?
+    let isFavorite: Bool
+    let toggleFavorite: () -> Void
     let apply: (StudyOptions) -> Void
     @State private var customizing = false
-    @State private var fullscreen = false
+    @State private var expanded: ExpandedGraph?
     @State private var editingReps = false
     @State private var editingDates = false
     @Environment(\.colorScheme) private var scheme
+    /// Charts grow with the reader's text size so axis labels never crowd.
+    @ScaledMetric(relativeTo: .caption) private var chartHeight: CGFloat = 290
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(study.displayTitle).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
-                    Text(study.scope).font(.subheadline).foregroundStyle(.secondary)
-                    if !study.summary.isEmpty { Text(study.summary).font(.body) }
-                    if study.question == nil { quickControls }
-                    if study.question == nil || study.figure != nil { chart }
-                    if let data = underlyingValues {
-                        DisclosureGroup("Values (\(data.rows.count))") {
-                            StudyTableView(table: data).padding(.top, 8)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(study.displayTitle).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
+                Text(study.scope).font(.subheadline).foregroundStyle(.secondary)
+                if !study.summary.isEmpty { Text(study.summary).font(.body) }
+                if study.question == nil { quickControls }
+                if study.question == nil || study.figure != nil { chart }
+                if let data = underlyingValues {
+                    DisclosureGroup("Values (\(data.rows.count))") {
+                        StudyTableView(table: data).padding(.top, 8)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
+                StudyReadingGuide(study: study)
             }
-            StudyReadingGuide(study: study)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
         }
         .navigationTitle("Chart").navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                       systemImage: isFavorite ? "star.fill" : "star", action: toggleFavorite)
+                    .accessibilityIdentifier("data.detail.favorite")
                 if let saveSearchView {
                     Menu {
                         Button("Save as default chart view", action: saveSearchView)
@@ -343,15 +457,12 @@ private struct StudyDetail: View {
                 if study.question == nil {
                     Button("Customize chart", systemImage: "slider.horizontal.3") { customizing = true }
                 }
-                if study.figure != nil {
-                    Button("Full screen", systemImage: "arrow.up.left.and.arrow.down.right") { fullscreen = true }
-                }
             }
         }
         .sheet(isPresented: $customizing) {
             StudyCustomizationView(id: study.id, history: history, apply: apply, draft: options)
         }
-        .fullScreenCover(isPresented: $fullscreen) { StudyFullscreenView(study: study, title: study.displayTitle) }
+        .fullScreenCover(item: $expanded) { graph in StudyFullscreenView(study: graph.study, title: graph.title) }
         .accessibilityIdentifier("data.detail.\(study.id.rawValue)")
     }
 
@@ -414,13 +525,36 @@ private struct StudyDetail: View {
     }
 
     @ViewBuilder private var chart: some View {
-        let view = StudyFigureView(study: study, compact: false)
+        let view = StudyFigureView(study: study, compact: false) { panel, title in
+            expanded = ExpandedGraph(study: panel, title: title)
+        }
+        if hasSingleFigure {
+            HStack {
+                Spacer()
+                ExpandChartButton(title: study.displayTitle) {
+                    expanded = ExpandedGraph(study: study, title: study.displayTitle)
+                }
+            }
+            .padding(.bottom, -18)
+        }
         switch study.figure {
         case .traces(let series, _):
-            view.frame(height: 290)
+            view.frame(height: chartHeight)
             legend(series.map(\.name))
         case .bars(let bars):
-            view.frame(height: 270)
+            if study.horizontalCategories {
+                // Every row keeps its height. Past twelve the chart scrolls inside the card.
+                let rows = bars.map(\.label).studyUnique
+                let row = StudyCategoryPlot.rowHeight(labels: rows)
+                if rows.count > StudyCategoryPlot.visibleRows {
+                    ScrollView { view.frame(height: StudyCategoryPlot.height(labels: rows)) }
+                        .frame(height: CGFloat(StudyCategoryPlot.visibleRows) * row + 44)
+                } else {
+                    view.frame(height: StudyCategoryPlot.height(labels: rows))
+                }
+            } else {
+                view.frame(height: chartHeight - 20)
+            }
             let labels = bars.reduce(into: [String]()) {
                 if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }
             }
@@ -429,7 +563,7 @@ private struct StudyDetail: View {
             view.frame(height: max(160, CGFloat(Set(points.map(\.category)).count) * 54))
             legend(points.map(\.series).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } })
         case .matrix:
-            ScrollView(.horizontal) { view }
+            view
         case .liftPanels, .attempts, .table, nil: view
         }
     }
@@ -442,6 +576,21 @@ private struct StudyDetail: View {
                     Text(label).font(.caption)
                 }
             }
+        }
+    }
+
+    /// Each graph opens on its own: one lift panel, or the study's single figure.
+    private struct ExpandedGraph: Identifiable {
+        let study: StudyResult
+        let title: String
+        var id: String { title }
+    }
+
+    /// Lift panels carry an expand control per lift. Every other figure has one for the whole graph.
+    private var hasSingleFigure: Bool {
+        switch study.figure {
+        case .liftPanels, nil: false
+        default: true
         }
     }
 

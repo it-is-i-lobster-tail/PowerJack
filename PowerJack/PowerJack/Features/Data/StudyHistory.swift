@@ -31,6 +31,8 @@ struct StudySession: Codable, Equatable {
     var targetRIR: Int?
     var sets: [StudySet]
     var warmups: [StudySet] = []
+    /// Names the lift was logged under in another app, such as FitNotes' "Hex Bar Dead Lift".
+    var importedNames: [String] = []
 
     var done: [StudySet] { sets.filter { $0.status == .complete } }
     var opening: StudySet? { sets.first.flatMap { $0.status == .complete ? $0 : nil } }
@@ -67,8 +69,9 @@ struct StudyHistory {
     let firstDate: Date
     /// Changes whenever the logged sets, the day or the weight unit change, so a search can reuse its results.
     let revision: Int
-    /// The built-in lift (its sync key) each own lift moves like, by the own lift's sync key. See `MovesLike`.
-    let movesLike: [String: String]
+    /// Each own lift as search reads it, by sync key: the joint actions set in Advanced Data or
+    /// copied from the lift it moves like, its equipment and its muscles.
+    let ownLifts: [String: ExerciseSearch.Document]
     let calendar: Calendar
     let unit: WeightUnit
     static let legs: [Muscle] = [.quads, .glutes, .hamstrings, .calves]
@@ -91,7 +94,7 @@ struct StudyHistory {
         self.unit = unit
         self.today = today
         self.calendar = calendar
-        movesLike = parts.movesLike
+        ownLifts = parts.ownLifts
         var sessions: [StudySession] = []
         var workouts: [String: StudyWorkout] = [:]
         for part in parts.workouts.values {
@@ -159,7 +162,7 @@ struct StudyHistory {
             let represented = Set(sessions.filter { keys.contains($0.key) }.compactMap(\.primary))
             history.exerciseMuscles = Muscle.allCases.filter(represented.contains)
         }
-        history.selectedRange = options.period.interval(in: calendar)
+        history.selectedRange = options.period.interval(in: calendar, today: today)
         return history
     }
 
@@ -175,6 +178,7 @@ struct StudyHistory {
         case .year(let year): return String(year)
         case .day: return selectedRange?.start.formatted(.dateTime.month(.wide).day().year()) ?? ""
         case .month: return selectedRange?.start.formatted(.dateTime.month(.wide).year()) ?? ""
+        case .range, .recent: return options.period.label
         }
     }
     func parameter(_ key: StudyParameter, _ fallback: Int) -> Int {
@@ -219,12 +223,32 @@ struct StudyHistory {
     func days(_ start: Date, _ end: Date) -> Int {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
     }
-    var recentWeeks: [Date] {
-        let last = week(asOf)
-        let count = parameter(.weeks, 6)
-        let start = originalPeriod ? offset(last, days: -(count - 1) * 7) : week(selectedRange?.start ?? firstDate)
-        guard start <= last else { return [] }
-        return (0...max(0, days(start, last) / 7)).map { offset(start, days: $0 * 7) }
+    /// The selected dates trimmed to the logged history, so an axis never runs past today or before the first log.
+    /// Nil for a chart's own default dates.
+    var chartRange: DateInterval? {
+        guard let selectedRange else {
+            if case .all = options.period { return DateInterval(start: calendar.startOfDay(for: firstDate), end: endOfToday) }
+            return nil
+        }
+        let start = max(selectedRange.start, calendar.startOfDay(for: firstDate))
+        let end = min(selectedRange.end, endOfToday)
+        return start < end ? DateInterval(start: start, end: end) : selectedRange
+    }
+    var endOfToday: Date { offset(calendar.startOfDay(for: today), days: 1) }
+
+    /// Weeks for the weekly charts: the last few by default, otherwise the chosen range cut into
+    /// calendar weeks, or months and quarters over long spans.
+    func weeklyTimeline(series: Int = 1) -> StudyTimeline {
+        let end = offset(calendar.startOfDay(for: asOf), days: 1)
+        let range: DateInterval
+        if originalPeriod || chartRange == nil {
+            let first = offset(week(asOf), days: -(parameter(.weeks, 6) - 1) * 7)
+            range = DateInterval(start: first, end: end)
+        } else {
+            range = chartRange!
+        }
+        let unit = originalPeriod ? .weekOfYear : StudyTimeline.unit(forWeekly: range, series: series)
+        return StudyTimeline(range: range, unit: unit, calendar: calendar)
     }
     var yearStart: Date {
         selectedRange?.start

@@ -197,7 +197,7 @@ extension FAQ {
                 question: "What does the Data tab show?",
                 answer: [
                     "Hypertrophy shows your average weekly working sets by muscle. Pick Current Program, 30 days, or 90 days.",
-                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a chart to expand it, pinch to zoom, or drag sideways to move along its axis.",
+                    "Scroll to Target vs Actual to compare planned reps and weight with the sets you logged. Exercises are listed by name for the selected range. Tap a graph’s expand button to see it on its own. Pinch a graph to zoom in on fewer days, and drag sideways to move along time.",
                 ]
             ),
             Entry(
@@ -209,8 +209,8 @@ extension FAQ {
             Entry(
                 question: "What can I change in Settings?",
                 answer: [
-                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and Load Steps. Appearance picks light or dark. Your Data has iCloud Backup, exporting your history and importing it from FitNotes.",
-                    "Load Steps sets the smallest weight jump for each kind of equipment. Strength programs round your weights to it, so set it to match the plates and dumbbells you have.",
+                    "Personalization has the rest timer, how long you rest and hints. My Gym has lb or kg and your equipment. Appearance picks light or dark. Your Data has iCloud Backup, exporting your history and importing it from FitNotes.",
+                    "Tap equipment in My Gym > Equipment to set its load step, the smallest weight jump it can make. Strength programs round your weights to it, so set it to match the plates and dumbbells you have.",
                 ]
             ),
         ]),
@@ -269,7 +269,7 @@ extension FAQ {
                     "Heavier through each block. Your main lifts, up to four, like the squat, bench press, deadlift and the first big lift of each day, start with one heavy top set, then lighter back-off sets.",
                     .figure(.strength),
                     "The top set builds from triples to a heavy single close to your max. After a lighter week, the next block starts again from triples, a little heavier.",
-                    "Weights round to your Load Steps in Settings > My Gym. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
+                    "Weights round to each equipment's load step in Settings > My Gym > Equipment. Close variants of your main lifts, like a front squat, keep their reps and move their weight. Your other exercises add reps first, then weight, like in Hypertrophy programs.",
                     "If one lift keeps feeling harder than planned, it gets a short lighter week of its own. If a lift stalls for a couple of months, PowerJack changes things up to get it moving again.",
                 ]
             ),
