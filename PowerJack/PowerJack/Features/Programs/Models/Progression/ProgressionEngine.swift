@@ -37,6 +37,8 @@ struct ProgressionExerciseInfo: Equatable {
     var repsOnly: Bool
     /// Weighted pull-ups and dips: 0 is bodyweight, so a set at 0 can add load.
     var addsToBodyweight: Bool = false
+    /// The loads the equipment allows. `nil` adds exactly 5 lb.
+    var loadGrid: LoadGrid?
 }
 
 struct ProgressionInput {
@@ -221,8 +223,8 @@ private extension ProgressionEngine {
             : carried
     }
 
-    /// Weight keeps the reps in range: 5 lb more at the same reps once any set is near the top of the range or
-    /// every set is past its middle. Otherwise a rep on every set. From 200 lb a rep is the bigger step, so the
+    /// Weight keeps the reps in range: the next load at least 5 lb heavier once any set is near the top of the range
+    /// or every set is past its middle. Otherwise a rep on every set. From 200 lb a rep is the bigger step, so the
     /// weight waits for every set to pass the middle, and until then only the set with the fewest reps adds one.
     static func weightOrRepStep(_ sets: [CompletedSet], exercise: ProgressionExerciseInfo, cap: Int) -> Prescription {
         let canLoad = sets.allSatisfy { set in
@@ -234,10 +236,8 @@ private extension ProgressionEngine {
         let loadReadyReps = Int((loadReadyRepFraction * Double(exercise.maxReps)).rounded(.up))
         let nearTop = sets.contains { $0.reps >= loadReadyReps }
 
-        if canLoad, pastMiddle || (!heavy && nearTop) {
-            return Prescription(gate: .load, checkInSourcePain: nil, sets: sets.map {
-                SetPrescription(plannedReps: min($0.reps, cap), plannedWeightTenthsPounds: ($0.weight ?? 0) + loadIncrementTenthsPounds)
-            })
+        if canLoad, pastMiddle || (!heavy && nearTop), let loaded = loadStep(sets, exercise: exercise, cap: cap) {
+            return Prescription(gate: .load, checkInSourcePain: nil, sets: loaded)
         }
         let fewest = sets.indices.min { sets[$0].reps < sets[$1].reps }
         return Prescription(gate: .reps, checkInSourcePain: nil, sets: sets.indices.map { index in
@@ -247,6 +247,48 @@ private extension ProgressionEngine {
                 plannedWeightTenthsPounds: sets[index].weight
             )
         })
+    }
+
+    /// Every set at the next load on the grid that's at least 5 lb heavier, or `nil` when reps should rise first.
+    /// A small jump keeps the reps. A jump of more than `StrengthRules.maxStepShare` plans the reps that match
+    /// the set's estimated max at the new load. When those fall under the range, the jump waits for every set to
+    /// reach the top of the range, then plans the bottom of the range. The heaviest load can only add reps.
+    static func loadStep(_ sets: [CompletedSet], exercise: ProgressionExerciseInfo, cap: Int) -> [SetPrescription]? {
+        guard let grid = exercise.loadGrid else {
+            return sets.map {
+                SetPrescription(plannedReps: min($0.reps, cap), plannedWeightTenthsPounds: ($0.weight ?? 0) + loadIncrementTenthsPounds)
+            }
+        }
+        let atTop = sets.allSatisfy { $0.reps >= cap }
+        var planned: [SetPrescription] = []
+        for set in sets {
+            let weight = set.weight ?? 0
+            let current = WeightUnit.kilograms(fromTenthsPounds: weight)
+            let target = WeightUnit.kilograms(fromTenthsPounds: weight + loadIncrementTenthsPounds)
+            guard let next = grid.up(target - LoadGrid.storedTolerance),
+                  next > current + LoadGrid.storedTolerance
+            else { return nil }
+            var reps = min(set.reps, cap)
+            if weight > 0, next > current * (1 + StrengthRules.maxStepShare) + LoadGrid.storedTolerance {
+                let matched = matchedReps(set.reps, from: current, to: next)
+                if matched >= exercise.minReps {
+                    reps = min(matched, cap)
+                } else if atTop {
+                    reps = exercise.minReps
+                } else {
+                    return nil
+                }
+            }
+            planned.append(SetPrescription(plannedReps: reps, plannedWeightTenthsPounds: WeightUnit.tenthsPounds(fromKilograms: next)))
+        }
+        return planned
+    }
+
+    /// The most reps at `newLoad` that the estimated max from `reps` at `load` allows, rounded down. 0 when none.
+    static func matchedReps(_ reps: Int, from load: Double, to newLoad: Double) -> Int {
+        let curve = StrengthCurve.main
+        let estimate = load / curve.share(repsToFailure: reps)
+        return (1...15).last { estimate * curve.share(repsToFailure: $0) >= newLoad - LoadGrid.storedTolerance } ?? 0
     }
 
     /// Bodyweight has no weight to add, so every set adds half the reps left, and a half rep waits for the next.

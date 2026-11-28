@@ -158,7 +158,8 @@ enum ProgressionPlanner {
             primaryMuscle: exercise.primaryMuscleFocus,
             secondaryMuscles: exercise.secondaryMuscles,
             repsOnly: exercise.repsOnly,
-            addsToBodyweight: exercise.addsToBodyweight
+            addsToBodyweight: exercise.addsToBodyweight,
+            loadGrid: LoadGrid(equipment: exercise.equipment)
         )
     }
 

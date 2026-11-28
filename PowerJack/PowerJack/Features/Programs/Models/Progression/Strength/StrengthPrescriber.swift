@@ -215,7 +215,7 @@ enum StrengthPrescriber {
     ) -> StrengthSlotPlan {
         let intended = intended.map { min($0, LoadGrid.capKilograms) }
         let top = intended.flatMap { slot.grid?.nearest($0) }
-        let back = top.map { slot.grid?.nearest($0 * scheme.backShare) ?? $0 * scheme.backShare }
+        let back = top.map { slot.grid?.share($0 * scheme.backShare) ?? $0 * scheme.backShare }
         var rules = rules
         // No spotter check is built yet: near-max squats and benches carry a reminder instead (5.2).
         if slot.needsSpotter, scheme.reps + rir <= StrengthRules.spotterRepsToFailure { rules.append("5.2") }
@@ -277,7 +277,7 @@ enum StrengthPrescriber {
             rir: max(source.rir + StrengthRules.deloadRIRAdd, StrengthRules.deloadRIRMin),
             sets: sets,
             intended: intended,
-            load: intended.flatMap { grid?.nearest($0) },
+            load: intended.flatMap { grid?.share($0) },
             rules: ["10.6"]
         )
         plan.repOffset = source.repOffset
@@ -471,7 +471,7 @@ enum StrengthPrescriber {
 
         // 4.5: until 3 rated sessions back the estimate, a rise is at most one step.
         if !confident, intended > base {
-            intended = min(intended, base + grid.stepKilograms)
+            intended = min(intended, base + grid.stepKilograms(above: base))
             rules.append("4.5")
         }
         // 7.6: never above e1RM × pct(R + I − 1).
@@ -534,7 +534,10 @@ enum StrengthPrescriber {
         if delta >= 0 {
             let up = grid.moved(load, bySteps: 1)
             let fitUp = fit(up)
-            if fitUp >= reps {
+            if up <= load + LoadGrid.storedTolerance {
+                // The heaviest owned weight: only reps can rise.
+                offset = min(offset + 1, StrengthRules.repOffsetMax)
+            } else if fitUp >= reps {
                 newLoad = up
                 offset = 0
             } else if offset < StrengthRules.repOffsetMax {
@@ -612,7 +615,7 @@ enum StrengthPrescriber {
             sets = sets.prefix(kept).map { set in
                 StrengthPlannedSet(
                     reps: set.reps,
-                    loadKg: set.loadKg.map { slot.grid?.nearest($0 * StrengthRules.deloadLoadFactor) ?? $0 }
+                    loadKg: set.loadKg.map { slot.grid?.share($0 * StrengthRules.deloadLoadFactor) ?? $0 }
                 )
             }
             return StrengthSlotPlan(kind: .deload, reps: sets.first?.reps ?? slot.repRange.lowerBound, rir: 2, sets: sets, rules: ["10.6"])
@@ -676,7 +679,7 @@ enum StrengthPrescriber {
             if share > StrengthRules.heavyWarmupGate, let e1rm = record.e1rmKg, load < StrengthRules.heavyWarmupGate * e1rm {
                 continue
             }
-            let warmup = grid.nearest(load * share)
+            let warmup = grid.share(load * share)
             // Warm-ups at the bar, or that round to the same load, merge into one set.
             guard warmup < load - LoadGrid.storedTolerance, warmup != warmups.last?.loadKg else { continue }
             warmups.append(StrengthPlannedSet(reps: reps, loadKg: warmup))

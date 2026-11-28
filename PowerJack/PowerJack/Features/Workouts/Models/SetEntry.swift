@@ -17,6 +17,8 @@ struct SetEntry: Equatable {
     let weightStep: Double
     /// Loadable bodyweight, where a weight of 0 is bodyweight alone and can be logged.
     let addsToBodyweight: Bool
+    /// The weights the lifter owns, in `unit`, lightest first. Each click of the Digital Crown is the next one.
+    let ownedWeights: [Double]?
 
     /// An entered value takes precedence over the prescription for this set.
     init(for workoutSet: WorkoutSet, unit: WeightUnit = .current) {
@@ -25,23 +27,58 @@ struct SetEntry: Equatable {
         self.unit = unit
         self.weightStep = StrengthLoadSteps.step(for: equipment, in: unit) ?? 1
         self.addsToBodyweight = equipment == .loadableBodyweight
+        self.ownedWeights = OwnedLoads.active(for: equipment, in: unit)
 
         weight = workoutSet.upcomingWeightTenthsPounds.map { unit.value(fromTenthsPounds: $0) }
         reps = workoutSet.upcomingReps
     }
 
     /// The weight counted in load steps, so each click of the Digital Crown is one step, whatever its size.
+    /// With owned weights, step n is the nth lightest one, and a weight typed between two sits between their steps.
     var weightSteps: Double {
-        get { weight.map { $0 / weightStep } ?? (addsToBodyweight ? -1 : 0) }
+        get {
+            guard let weight else { return addsToBodyweight ? -1 : 0 }
+            guard let ownedWeights else { return weight / weightStep }
+            return Self.position(of: weight, in: ownedWeights)
+        }
         set {
-            let steps = newValue.rounded()
-            if steps > 0 || (addsToBodyweight && steps == 0) { weight = steps * weightStep }
+            var steps = newValue.rounded()
+            // From a weight typed between two owned ones, the first click goes to the neighbour on that side.
+            if let ownedWeights, let weight, weight > 0 {
+                let current = Self.position(of: weight, in: ownedWeights)
+                if current != current.rounded() {
+                    let clicks = (newValue - current).rounded()
+                    steps = newValue > current
+                        ? current.rounded(.up) + max(clicks - 1, 0)
+                        : current.rounded(.down) + min(clicks + 1, 0)
+                }
+            }
+            guard steps > 0 else {
+                if addsToBodyweight && steps == 0 { weight = 0 }
+                return
+            }
+            if let ownedWeights {
+                weight = ownedWeights[min(Int(steps), ownedWeights.count) - 1]
+            } else {
+                weight = steps * weightStep
+            }
         }
     }
 
     /// The heaviest weight a set can log, in load steps.
     var maxWeightSteps: Double {
-        (unit.maxEntry / weightStep).rounded(.down)
+        if let ownedWeights { return Double(ownedWeights.count) }
+        return (unit.maxEntry / weightStep).rounded(.down)
+    }
+
+    /// Where `weight` sits among `weights`: 1 for the lightest, 1.5 halfway to the next, and so on.
+    private static func position(of weight: Double, in weights: [Double]) -> Double {
+        guard weight > 0, let first = weights.first, let last = weights.last else { return 0 }
+        if weight <= first { return weight / first }
+        if weight >= last { return Double(weights.count) }
+        let upper = weights.firstIndex { $0 >= weight } ?? weights.count - 1
+        let lower = weights[upper - 1]
+        return Double(upper) + (weight - lower) / (weights[upper] - lower)
     }
 
     /// `nil` until a weight is dialed in, so an empty weight is never logged. Loadable bodyweight logs 0 as bodyweight.

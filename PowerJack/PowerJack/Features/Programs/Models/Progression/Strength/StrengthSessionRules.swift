@@ -57,17 +57,17 @@ enum StrengthSessionRules {
         if plan.topSets > 0 {
             // The top set takes the cut and the back-offs follow it, one fewer.
             let share = plan.backShare
-            let top = intended.map(grid.nearest)
+            let top = intended.map(grid.share)
             let backs = plan.sets.dropFirst(plan.topSets)
             plan.sets = StrengthSlotPlan.topAndBack(
                 reps: plan.reps,
                 loadKg: top,
                 backSets: max(StrengthRules.minBackSets, backs.count - 1),
                 backReps: backs.first?.reps ?? plan.reps,
-                backLoadKg: top.map { grid.nearest($0 * share) }
+                backLoadKg: top.map { grid.share($0 * share) }
             )
         } else {
-            plan.sets = StrengthSlotPlan.uniform(plan.sets.count - 1, reps: plan.reps, loadKg: intended.map(grid.nearest))
+            plan.sets = StrengthSlotPlan.uniform(plan.sets.count - 1, reps: plan.reps, loadKg: intended.map(grid.share))
         }
         // A near-max top set keeps its spotter reminder (5.2).
         plan.rules = ["12.1", "12.2"] + plan.rules.filter { $0 == "5.2" }
@@ -78,7 +78,7 @@ enum StrengthSessionRules {
     static func loadAfterMiss(setLoadKg: Double, missingReps: Int, plannedKg: Double, grid: LoadGrid) -> Double {
         let cut = setLoadKg * (1 - StrengthRules.missDrop * Double(missingReps))
         let floor = plannedKg * (1 - 0.10)
-        let load = grid.nearest(max(cut, floor))
+        let load = grid.share(max(cut, floor))
         return load < setLoadKg - LoadGrid.storedTolerance ? load : grid.moved(setLoadKg, bySteps: -1)
     }
 
@@ -89,6 +89,6 @@ enum StrengthSessionRules {
         let change = gap > 0
             ? StrengthRules.backEasyStep * Double(min(gap, StrengthRules.backEasyMaxReps))
             : -StrengthRules.backHardStep * Double(min(-gap, StrengthRules.backHardMaxReps))
-        return grid.nearest(topKg * share * (1 + change))
+        return grid.share(topKg * share * (1 + change))
     }
 }
