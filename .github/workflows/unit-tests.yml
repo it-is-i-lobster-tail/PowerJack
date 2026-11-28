@@ -51,6 +51,9 @@ jobs:
 
           udid=$(xcrun simctl create "CI $SIMULATOR" "$SIMULATOR" "$runtime")
           second=$(xcrun simctl create "CI $SIMULATOR 2" "$SIMULATOR" "$runtime")
+          # First boots take minutes, so they start now and finish while the tests build.
+          xcrun simctl boot "$udid"
+          xcrun simctl boot "$second"
           echo "Created $SIMULATOR on $runtime ($udid, $second)"
           echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
           echo "SECOND_SIMULATOR_UDID=$second" >> "$GITHUB_ENV"
@@ -79,6 +82,8 @@ jobs:
             skip+=(-skip-testing:"PowerJackTests/$suite")
           done
           xctestrun=$(ls DerivedData/Build/Products/*.xctestrun | head -1)
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b > /dev/null
+          xcrun simctl bootstatus "$SECOND_SIMULATOR_UDID" -b > /dev/null
           mkdir -p TestResults
 
           run_half() { # <name> <simulator> <test filters...>
