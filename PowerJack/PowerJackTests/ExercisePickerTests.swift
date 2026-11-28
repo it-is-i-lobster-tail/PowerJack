@@ -56,6 +56,23 @@ struct ExercisePickerTests {
         #expect(barbell.matches.contains { $0.catalogID == "dumbbell-bench-press" })
     }
 
+    /// Changing one of the newer built-ins offers its own family first.
+    @Test(arguments: [
+        ("sumo-deadlift", "barbell-deadlift"),
+        ("pendlay-row", "barbell-row"),
+        ("barbell-shrug", "dumbbell-shrug"),
+        ("pec-deck", "cable-chest-fly"),
+        ("nordic-hamstring-curl", "sliding-leg-curl"),
+        ("incline-push-up", "push-up"),
+        ("neutral-grip-lat-pulldown", "lat-pulldown"),
+        ("ez-bar-skull-crusher", "barbell-skull-crusher"),
+    ])
+    func newerLiftsFindTheirFamily(id: String, sibling: String) throws {
+        let lift = try #require(exercises.first { $0.catalogID == id })
+        let top = results("", .change(lift)).matches.prefix(3).compactMap(\.catalogID)
+        #expect(top.contains(sibling), "\(id) → \(top)")
+    }
+
     @Test func addSearchAndMuscleFilters() {
         let all = results("")
         #expect(all.others.isEmpty)

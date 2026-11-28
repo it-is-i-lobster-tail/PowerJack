@@ -195,7 +195,7 @@ enum ExerciseCatalog {
         Entry("barbell-reverse-wrist-curl", "Barbell Reverse Wrist Curl", .barbell, .forearms, .low, .reverseWristCurl),
 
         // Legs and glutes.
-        Entry("sumo-deadlift", "Sumo Deadlift", .barbell, .quads, .high, .trapBarDeadlift, [.glutes, .hamstrings, .back, .forearms]),
+        Entry("sumo-deadlift", "Sumo Deadlift", .barbell, .glutes, .high, .sumoDeadlift, [.quads, .hamstrings, .back, .forearms]),
         Entry("barbell-box-squat", "Barbell Box Squat", .barbell, .quads, .high, .squat, [.glutes, .abs]),
         Entry("dumbbell-step-up", "Dumbbell Step Up", .dumbbell, .quads, .moderate, .lunge, [.glutes, .hamstrings]),
         Entry("kettlebell-deadlift", "Kettlebell Deadlift", .kettlebell, .glutes, .moderate, .hinge, [.hamstrings, .back, .forearms]),

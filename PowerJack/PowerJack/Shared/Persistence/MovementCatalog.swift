@@ -83,6 +83,8 @@ enum MovementCatalog {
         static let invertedRow = row.braced.adding(.assisting("hip.flexion", .resists))
         static let deadlift = Self(pattern: .hipHinge, actions: [.main("hip.extension"), .assisting("knee.extension"), .main("trunk.flexion", .resists)])
         static let trapBarDeadlift = Self(pattern: .hipHinge, actions: [.main("knee.extension"), .main("hip.extension"), .assisting("trunk.flexion", .resists)])
+        /// A deadlift from a wide stance with the knees pushed out: the inner thighs help the hips stand up.
+        static let sumoDeadlift = deadlift.adding(.assisting("hip.adduction"))
         static let overhead = Self(pattern: .overheadPress, actions: [
             .main("shoulder.abduction"), .assisting("elbow.extension"), .assisting("scapula.upwardRotation"),
         ])
