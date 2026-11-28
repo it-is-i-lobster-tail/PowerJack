@@ -97,7 +97,7 @@ struct DeveloperToolView: View {
             isSendingReminder = false
             switch result {
             case .sent: break
-            case .noWorkout: reminderProblem = "Start a program with a planned workout first."
+            case .noWorkout: reminderProblem = "Needs a planned or paused workout with sets left."
             case .notAllowed: reminderProblem = "Allow notifications for PowerJack in Settings."
             case .failed: reminderProblem = "Something went wrong. Try again."
             }

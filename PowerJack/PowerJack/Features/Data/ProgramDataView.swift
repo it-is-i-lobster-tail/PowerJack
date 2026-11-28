@@ -407,30 +407,28 @@ private struct StudyDetail: View {
     let toggleFavorite: () -> Void
     let apply: (StudyOptions) -> Void
     @State private var customizing = false
-    @State private var fullscreen = false
+    @State private var expanded: ExpandedGraph?
     @State private var editingReps = false
     @State private var editingDates = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(study.displayTitle).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
-                    Text(study.scope).font(.subheadline).foregroundStyle(.secondary)
-                    if !study.summary.isEmpty { Text(study.summary).font(.body) }
-                    if study.question == nil { quickControls }
-                    if study.question == nil || study.figure != nil { chart }
-                    if let data = underlyingValues {
-                        DisclosureGroup("Values (\(data.rows.count))") {
-                            StudyTableView(table: data).padding(.top, 8)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(study.displayTitle).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
+                Text(study.scope).font(.subheadline).foregroundStyle(.secondary)
+                if !study.summary.isEmpty { Text(study.summary).font(.body) }
+                if study.question == nil { quickControls }
+                if study.question == nil || study.figure != nil { chart }
+                if let data = underlyingValues {
+                    DisclosureGroup("Values (\(data.rows.count))") {
+                        StudyTableView(table: data).padding(.top, 8)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
+                StudyReadingGuide(study: study)
             }
-            StudyReadingGuide(study: study)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
         }
         .navigationTitle("Chart").navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
@@ -447,15 +445,12 @@ private struct StudyDetail: View {
                 if study.question == nil {
                     Button("Customize chart", systemImage: "slider.horizontal.3") { customizing = true }
                 }
-                if study.figure != nil {
-                    Button("Full screen", systemImage: "arrow.up.left.and.arrow.down.right") { fullscreen = true }
-                }
             }
         }
         .sheet(isPresented: $customizing) {
             StudyCustomizationView(id: study.id, history: history, apply: apply, draft: options)
         }
-        .fullScreenCover(isPresented: $fullscreen) { StudyFullscreenView(study: study, title: study.displayTitle) }
+        .fullScreenCover(item: $expanded) { graph in StudyFullscreenView(study: graph.study, title: graph.title) }
         .accessibilityIdentifier("data.detail.\(study.id.rawValue)")
     }
 
@@ -518,13 +513,25 @@ private struct StudyDetail: View {
     }
 
     @ViewBuilder private var chart: some View {
-        let view = StudyFigureView(study: study, compact: false)
+        let view = StudyFigureView(study: study, compact: false) { panel, title in
+            expanded = ExpandedGraph(study: panel, title: title)
+        }
+        if hasSingleFigure {
+            HStack {
+                Spacer()
+                ExpandChartButton(title: study.displayTitle) {
+                    expanded = ExpandedGraph(study: study, title: study.displayTitle)
+                }
+            }
+            .padding(.bottom, -18)
+        }
         switch study.figure {
         case .traces(let series, _):
             view.frame(height: 290)
             legend(series.map(\.name))
         case .bars(let bars):
-            view.frame(height: 270)
+            view.frame(height: study.horizontalCategories
+                       ? StudyCategoryPlot.height(categories: Set(bars.map(\.label)).count) : 270)
             let labels = bars.reduce(into: [String]()) {
                 if !$1.group.isEmpty && !$0.contains($1.group) { $0.append($1.group) }
             }
@@ -546,6 +553,21 @@ private struct StudyDetail: View {
                     Text(label).font(.caption)
                 }
             }
+        }
+    }
+
+    /// Each graph opens on its own: one lift panel, or the study's single figure.
+    private struct ExpandedGraph: Identifiable {
+        let study: StudyResult
+        let title: String
+        var id: String { title }
+    }
+
+    /// Lift panels carry an expand control per lift. Every other figure has one for the whole graph.
+    private var hasSingleFigure: Bool {
+        switch study.figure {
+        case .liftPanels, nil: false
+        default: true
         }
     }
 
