@@ -563,7 +563,7 @@ private struct StudyDetail: View {
             view.frame(height: max(160, CGFloat(Set(points.map(\.category)).count) * 54))
             legend(points.map(\.series).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } })
         case .matrix:
-            ScrollView(.horizontal) { view }
+            view
         case .liftPanels, .attempts, .table, nil: view
         }
     }
