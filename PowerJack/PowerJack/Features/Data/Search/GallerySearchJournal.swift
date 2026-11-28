@@ -68,15 +68,25 @@ final class GallerySearchJournal {
         save()
     }
 
-    /// Up to three recent searches containing the input, newest first.
-    func suggestions(for input: String) -> [String] {
+    /// Recent searches containing the input, newest first.
+    func suggestions(for input: String, limit: Int = 3) -> [String] {
         let key = Self.key(for: input)
         let predicate: Predicate<GallerySearchPhrase> = key.isEmpty
             ? #Predicate { $0.lastUsed != nil }
             : #Predicate { $0.lastUsed != nil && $0.key.contains(key) }
         var query = FetchDescriptor(predicate: predicate, sortBy: [SortDescriptor(\.lastUsed, order: .reverse), SortDescriptor(\.key)])
-        query.fetchLimit = 3
+        query.fetchLimit = limit
         return (try? context?.fetch(query).map(\.text)) ?? []
+    }
+
+    /// Forgets every recent search. Saved model plans stay, since they hold no search history of their own.
+    func clearRecent() {
+        guard let context else { return }
+        for visit in (try? context.fetch(FetchDescriptor<GallerySearchVisit>())) ?? [] { context.delete(visit) }
+        for phrase in (try? context.fetch(FetchDescriptor<GallerySearchPhrase>())) ?? [] {
+            if phrase.planData == nil { context.delete(phrase) } else { phrase.lastUsed = nil }
+        }
+        save()
     }
 
     /// A saved plan that is still fresh.
