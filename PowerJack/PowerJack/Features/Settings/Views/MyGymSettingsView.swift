@@ -3,7 +3,7 @@
 //  PowerJack
 //
 //  What your gym's weights look like: the unit they're in and the equipment you have,
-//  plus the exercises you archived.
+//  plus your own exercises and the ones you archived.
 //
 
 import SwiftData
@@ -45,6 +45,13 @@ struct MyGymSettingsView: View {
                 } label: {
                     SettingsRowLabel(systemImage: "dumbbell", title: "Equipment",
                                      detail: "Add equipment and set its load steps.")
+                }
+
+                NavigationLink {
+                    CustomExerciseList()
+                } label: {
+                    SettingsRowLabel(systemImage: "figure.strengthtraining.traditional", title: "My Custom Exercises",
+                                     detail: "See and edit the exercises you added or imported.")
                 }
 
                 // Only once something is archived, so it's there to find when needed.

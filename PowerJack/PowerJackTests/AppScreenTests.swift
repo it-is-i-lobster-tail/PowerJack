@@ -144,10 +144,13 @@ struct AppScreenTests {
             ("My Gym", "Weight Unit"),
             ("Appearance", "Dark"),
             ("Your Data", "iCloud Backup"),
+            ("Your Data", "Import from FitNotes"),
             ("FAQ", "What is PowerJack?"),
             ("Legal", "Privacy Policy"),
             ("Developer Tools", "Trace Logging"),
         ]
+        // Importing lives in Your Data now, not in a group of its own.
+        #expect(!screen.contains("Import"), "\(screen.labels)")
         for (_, setting) in groups {
             #expect(screen.label(startingWith: setting) == nil, "\(setting) is loose on the top page: \(screen.labels)")
         }

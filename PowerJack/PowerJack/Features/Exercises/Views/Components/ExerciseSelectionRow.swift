@@ -10,6 +10,8 @@ import SwiftUI
 struct ExerciseSelectionRow: View {
     let exercise: Exercise
     var isSelected = false
+    /// A short tag after the muscle, such as "Imported".
+    var note: String? = nil
     let onSelect: () -> Void
 
     var body: some View {
@@ -28,6 +30,14 @@ struct ExerciseSelectionRow: View {
                         Text(exercise.primaryMuscleFocus.rawValue.localizedCapitalized)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let note {
+                            Text("|")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

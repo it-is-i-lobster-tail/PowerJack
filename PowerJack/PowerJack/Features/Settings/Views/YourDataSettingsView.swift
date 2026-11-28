@@ -2,7 +2,7 @@
 //  YourDataSettingsView.swift
 //  PowerJack
 //
-//  Where your training is kept: iCloud Backup, exporting your history, imported sets, and the Data tab's local cache.
+//  Where your training is kept: iCloud Backup, exporting and importing your history, and the Data tab's local cache.
 //
 
 import SwiftData
@@ -60,10 +60,20 @@ struct YourDataSettingsView: View {
                 .foregroundStyle(.primary)
 
                 NavigationLink {
-                    ImportedDataView()
+                    FitNotesImportView()
                 } label: {
                     SettingsRowLabel(
                         systemImage: "square.and.arrow.down",
+                        title: "Import from FitNotes",
+                        detail: "Bring in your past sets from a FitNotes spreadsheet file (CSV)."
+                    )
+                }
+
+                NavigationLink {
+                    ImportedDataView()
+                } label: {
+                    SettingsRowLabel(
+                        systemImage: "tray.full",
                         title: "View Imported Data",
                         detail: "Sets you've brought in from another app. Search them, or delete the ones you don't want."
                     )
