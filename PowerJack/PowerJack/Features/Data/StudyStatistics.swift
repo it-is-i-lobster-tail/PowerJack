@@ -124,11 +124,13 @@ extension StudyHistory {
                     "Each filled dot is an opening set that reached \(repsTarget) reps. Each ring is a logged attempt that fell short."
             )
         default:
-            let grouped = Dictionary(grouping: focusedLift(Self.squat), by: { week($0.date) })
-            guard !grouped.isEmpty else { return StudyResult(id: id, scope: "\(squatName) · estimate eligibility") }
+            let timeline = weeklyTimeline(series: 3)
+            let slots = focusedLift(Self.squat)
+            guard !slots.isEmpty else { return StudyResult(id: id, scope: "\(squatName) · estimate eligibility") }
+            let grouped = Dictionary(grouping: slots) { timeline.bucket(containing: $0.date)?.label }
             var marks: [StudyBar] = []
-            let rows = recentWeeks.map { date in
-                let workouts = Dictionary(grouping: grouped[date] ?? [], by: \.workout)
+            let rows = timeline.buckets.map { bucket in
+                let workouts = Dictionary(grouping: grouped[bucket.label] ?? [], by: \.workout)
                 var eligible = 0
                 var high = 0
                 for s in workouts.values {
@@ -138,7 +140,7 @@ extension StudyHistory {
                         high += 1
                     }
                 }
-                let label = scopeDate(date)
+                let label = bucket.label
                 marks += [
                     StudyBar(label: label, value: Double(eligible), group: "Eligible"),
                     StudyBar(label: label, value: Double(high), group: "High reps only"),
@@ -150,12 +152,13 @@ extension StudyHistory {
                 ]
             }
             var result = table(
-                id, "\(squatName) · \(weeksLabel)", ["Week", "Eligible", "High reps only", "Other / missing", "Sessions"],
+                id, "\(squatName) · \(weeksLabel)", [timeline.noun, "Eligible", "High reps only", "Other / missing", "Sessions"],
                 rows,
                 "An eligible set takes precedence. Zero sessions means no squat workout was logged that week.")
             result.alternateBars = marks
-            result.xLabel = "Week"
+            result.xLabel = timeline.noun
             result.yLabel = "Sessions"
+            result.timeline = timeline
             return result
         }
     }

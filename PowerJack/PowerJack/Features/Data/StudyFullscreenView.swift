@@ -28,7 +28,7 @@ struct StudyFullscreenView: View {
             ScrollView([.horizontal, .vertical]) { view }
         case .bars(let bars) where study.horizontalCategories:
             ScrollView {
-                view.frame(height: StudyCategoryPlot.height(categories: Set(bars.map(\.label)).count))
+                view.frame(height: StudyCategoryPlot.height(labels: bars.map(\.label)))
             }
         case .comparison(let points, _):
             GeometryReader { geometry in
