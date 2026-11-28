@@ -61,11 +61,13 @@ jobs:
       - name: Build for testing
         run: |
           set -o pipefail
+          # A generic destination, so the build never waits on the simulators while they boot.
           xcodebuild build-for-testing \
             -project PowerJack/PowerJack.xcodeproj \
             -scheme PowerJack \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
-            -derivedDataPath DerivedData
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath DerivedData \
+            ARCHS=arm64
 
       # Two simulators each run half of the tests, one test at a time. The long progression
       # simulations and the app screen tests go on the second one, everything else
