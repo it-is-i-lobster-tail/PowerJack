@@ -98,18 +98,26 @@ struct StudyFigureView: View {
                 }
             }
             .chartYAxis {
-                if !compact {
-                    // Every lift gets its own row and its name sits level with that row's dots.
-                    AxisMarks(position: .leading, values: categories) { tick in
-                        AxisGridLine()
-                        AxisValueLabel(collisionResolution: .disabled) {
-                            if let name = tick.as(String.self) {
-                                Text(name).multilineTextAlignment(.trailing).frame(maxWidth: 110, alignment: .trailing)
+                if !compact { AxisMarks(values: categories) { AxisGridLine() } }
+            }
+            .chartOverlay { proxy in
+                // Each lift's name sits level with the middle of its own row of dots.
+                GeometryReader { geometry in
+                    if !compact, let anchor = proxy.plotFrame {
+                        let frame = geometry[anchor]
+                        ForEach(categories, id: \.self) { name in
+                            if let y = proxy.position(forY: name) {
+                                Text(name).font(.caption).foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.trailing).lineLimit(2)
+                                    .frame(width: Self.rowNameWidth - 8, alignment: .trailing)
+                                    .position(x: frame.minX - Self.rowNameWidth / 2, y: frame.minY + y)
                             }
                         }
                     }
                 }
+                .allowsHitTesting(false)
             }
+            .padding(.leading, compact ? 0 : Self.rowNameWidth)
             .chartXAxisLabel(compact ? "" : study.xLabel)
         case .attempts(let counts):
             VStack(alignment: .leading, spacing: compact ? 5 : 16) {
@@ -149,6 +157,9 @@ struct StudyFigureView: View {
             }
         }
     }
+
+    /// Room for lift names beside rows of dots.
+    static let rowNameWidth: CGFloat = 112
 
     /// Date bars keep a visible width however many there are.
     static func barWidth(_ count: Int) -> CGFloat { max(2, min(14, 220 / CGFloat(max(1, count)))) }
@@ -392,7 +403,7 @@ struct StudyCategoryPlot: View {
 
     /// Stacked totals when bars stack, otherwise the values themselves.
     private var valueAxis: StudyAxisPlan.ValueAxis {
-        let stacks = study.presentation == .original && !study.horizontalCategories
+        let stacks = study.presentation == .original
         let values = stacks
             ? categories.map { label in bars.filter { $0.label == label }.reduce(0) { $0 + $1.value } }
             : bars.map(\.value)
