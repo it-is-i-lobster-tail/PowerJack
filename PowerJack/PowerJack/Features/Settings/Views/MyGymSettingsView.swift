@@ -2,7 +2,7 @@
 //  MyGymSettingsView.swift
 //  PowerJack
 //
-//  What your gym's weights look like: the unit they're in and the smallest jumps you can make.
+//  What your gym's weights look like: the unit they're in and the equipment you have.
 //
 
 import SwiftUI
@@ -40,17 +40,7 @@ struct MyGymSettingsView: View {
                     EquipmentList()
                 } label: {
                     SettingsRowLabel(systemImage: "dumbbell", title: "Equipment",
-                                     detail: "Add equipment for your exercises.")
-                }
-
-                NavigationLink {
-                    LoadStepsView()
-                } label: {
-                    SettingsRowLabel(
-                        systemImage: "plusminus",
-                        title: "Load Steps",
-                        detail: "The smallest weight jump for each kind of equipment in Strength programs."
-                    )
+                                     detail: "Add equipment and set its load steps.")
                 }
             }
         }
